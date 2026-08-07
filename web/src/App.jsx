@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Search, Plus, X, ArrowLeft, ArrowUpRight, Send, Timer, Eye, MessageSquare, Camera, Repeat2, Sparkles, Home, User, ArrowUp, Image, Flag, Loader2, Shield, Trash2 } from 'lucide-react';
-import { api, ApiError } from './api.js';
+import { api, ApiError, onUnauthorized } from './api.js';
 import { PAL, Orb, Skeleton, ErrorNote, Empty } from './ui.jsx';
 import { Seguranca, Moderacao, Legal } from './Seguranca.jsx';
 
@@ -100,7 +100,14 @@ function Entrada({ onIn }) {
   const [sent, setSent] = useState(false);
   const [needsCode, setNeedsCode] = useState(false);
   const [code, setCode] = useState('');
+  const [legalPage, setLegalPage] = useState(null);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+
+  // Ecrãs internos (não navegação real): sem isto, os links de termos e
+  // privacidade eram <a href> a saírem da SPA — sem router, a página
+  // recarregava do zero e apagava tudo o que a pessoa já tinha escrito no
+  // formulário de registo.
+  if (legalPage) return <Legal page={legalPage} onBack={() => setLegalPage(null)} />;
 
   const submit = async (e) => {
     e.preventDefault();
@@ -181,8 +188,10 @@ function Entrada({ onIn }) {
                   style={{ width: 20, height: 20, flexShrink: 0, marginTop: 1, accentColor: 'var(--coral)' }} required />
                 <span>
                   Tenho 16 anos ou mais e aceito os{' '}
-                  <a href="/termos" style={{ color: 'var(--cobalt)' }}>termos</a> e a{' '}
-                  <a href="/privacidade" style={{ color: 'var(--cobalt)' }}>política de privacidade</a>.
+                  <button type="button" onClick={() => setLegalPage('TERMOS')}
+                    style={{ background: 'none', border: 0, padding: 0, font: 'inherit', color: 'var(--cobalt)', cursor: 'pointer', textDecoration: 'underline' }}>termos</button> e a{' '}
+                  <button type="button" onClick={() => setLegalPage('PRIVACIDADE')}
+                    style={{ background: 'none', border: 0, padding: 0, font: 'inherit', color: 'var(--cobalt)', cursor: 'pointer', textDecoration: 'underline' }}>política de privacidade</button>.
                 </span>
               </label>
             )}
@@ -628,6 +637,28 @@ export default function App() {
   const fileInput = useRef(null);
   const ping = (t) => { setToast(t); setTimeout(() => setToast(''), 2600); };
 
+  const meRef = useRef(null);
+  useEffect(() => { meRef.current = me; }, [me]);
+
+  /**
+   * Sem isto, um 401 a meio da sessão (token expirado, password mudada
+   * noutro sítio, "fechar tudo em todo o lado") deixava a pessoa presa no
+   * ecrã em que estava, a ver cada ação falhar em silêncio sem perceber
+   * porquê. `meRef` (não `me` direto) porque isto regista-se uma vez só,
+   * no arranque — só o valor no momento do 401 interessa, e só importa
+   * mostrar o aviso a quem já tinha mesmo sessão (não ao pedido silencioso
+   * de arranque, antes de sequer entrar).
+   */
+  useEffect(() => {
+    onUnauthorized(() => {
+      if (meRef.current) {
+        setMe(null);
+        setTab('feed');
+        ping('A sessão expirou. Entra outra vez.');
+      }
+    });
+  }, []);
+
   /* arranque: se o cookie de sessão ainda for válido, retoma a sessão */
   useEffect(() => {
     (async () => {
@@ -723,17 +754,24 @@ export default function App() {
 
   useEffect(() => {
     if (!pick) return;
-    api.invites.today(pick).then(setInvite).catch(() => setInvite(null));
-    api.invites.proposals(pick).then(r => setPool(r.proposals)).catch(() => setPool([]));
+    // `current` evita que a resposta de uma comunidade que já deixou de
+    // estar selecionada (trocar de aba mais depressa do que a rede
+    // responde) sobreponha os dados da que está selecionada agora.
+    let current = true;
+    api.invites.today(pick).then(r => { if (current) setInvite(r); }).catch(() => { if (current) setInvite(null); });
+    api.invites.proposals(pick).then(r => { if (current) setPool(r.proposals); }).catch(() => { if (current) setPool([]); });
+    return () => { current = false; };
   }, [pick]);
 
   useEffect(() => { if (tab === 'dms') api.messages.threads().then(setThreads).catch(() => {}); }, [tab]);
   useEffect(() => { if (tab === 'me') api.users.blocked().then(setBlocked).catch(() => {}); }, [tab]);
   useEffect(() => {
     if (!thread) return;
-    api.messages.list(thread.id).then(setMsgs).catch(() => {});
-    const t = setInterval(() => api.messages.list(thread.id).then(setMsgs).catch(() => {}), 5000);
-    return () => clearInterval(t);
+    let current = true;
+    const load = () => api.messages.list(thread.id).then(r => { if (current) setMsgs(r); }).catch(() => {});
+    load();
+    const t = setInterval(load, 5000);
+    return () => { current = false; clearInterval(t); };
   }, [thread]);
   useEffect(() => { end.current?.scrollIntoView?.({ block: 'end' }); }, [msgs]);
 
@@ -781,7 +819,7 @@ export default function App() {
   const vote = async (p) => {
     setPool(list => list.map(x => x.id === p.id ? { ...x, voted: !x.voted, vote_count: x.vote_count + (x.voted ? -1 : 1) } : x));
     try { await api.invites.vote(p.id); }
-    catch (e) { ping(e.message); api.invites.proposals(pick).then(r => setPool(r.proposals)); }
+    catch (e) { ping(e.message); api.invites.proposals(pick).then(r => setPool(r.proposals)).catch(() => {}); }
   };
 
   const propose = async () => {

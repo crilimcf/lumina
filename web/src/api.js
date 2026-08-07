@@ -10,19 +10,29 @@
  * aberta.
  *
  * Pedidos que mudam estado levam também um valor CSRF num cabeçalho. Não
- * vive num cookie: a API e o frontend são domínios diferentes (Railway e
- * Vercel), e um cookie posto pela API nunca aparece em `document.cookie` do
- * lado do frontend — a política de origem do browser tapa-nos a nós tanto
- * como a um atacante. Em vez disso, o valor vem embutido (assinado) no
- * próprio token e é devolvido no corpo das respostas de login/registo/etc;
+ * vive num cookie legível: o valor vem embutido (assinado) no próprio
+ * token e é devolvido no corpo das respostas de login/registo/etc;
  * guardamo-lo aqui em memória (nunca em localStorage, para não abrir de
  * novo a porta que os cookies HttpOnly fecharam) e repetimo-lo no cabeçalho.
+ * (A API vive num domínio à parte — `/api/*` é reencaminhado pela Vercel —
+ * mas do ponto de vista do browser é tudo a mesma origem.)
  */
 
 const BASE = import.meta.env.VITE_API_URL || '/api';
 const SAFE_METHODS = new Set(['GET', 'HEAD']);
 
 let csrfToken = null;
+
+/**
+ * Quando um pedido autenticado leva 401 a meio da sessão (token expirado,
+ * password mudada noutro sítio, "fechar tudo em todo o lado"), alguém tem
+ * de tirar a pessoa do ecrã em que está — senão fica presa a ver erros
+ * silenciosos em cada ação, sem perceber que precisa de entrar outra vez.
+ * A App regista aqui o que fazer; sem handler registado, não faz nada
+ * (mantém o comportamento antigo até a App arrancar).
+ */
+let unauthorizedHandler = () => {};
+export const onUnauthorized = (fn) => { unauthorizedHandler = fn; };
 
 export class ApiError extends Error {
   constructor(status, message, code) {
@@ -46,6 +56,7 @@ async function call(path, { method = 'GET', body, auth = true } = {}) {
 
   if (res.status === 401 && auth) {
     const data = await res.json().catch(() => ({}));
+    unauthorizedHandler();
     throw new ApiError(401, data.error || 'A sessão expirou', data.code || 'unauthorized');
   }
 

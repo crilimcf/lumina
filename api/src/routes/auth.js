@@ -2,8 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { q } from '../db.js';
 import { env } from '../env.js';
-import crypto from 'node:crypto';
-import { signToken, h, bad, HttpError, auth, audit, setSessionCookie, clearSessionCookie, csrfOf } from '../middleware/auth.js';
+import { signToken, h, bad, HttpError, auth, audit, setSessionCookie, clearSessionCookie, csrfOf, recordSession } from '../middleware/auth.js';
 import { verifyTotp, hashCode } from '../lib/totp.js';
 
 export const authRoutes = Router();
@@ -48,12 +47,6 @@ const recordAttempt = (email, ip, success) =>
   q('INSERT INTO login_attempts (email, ip, success) VALUES ($1, $2, $3)',
     [email, ip, success]).catch(() => {});
 
-/** Guarda a impressao digital do token para a pessoa poder ver e fechar sessoes. */
-const recordSession = (userId, token, req) =>
-  q(`INSERT INTO sessions (user_id, token_hash, user_agent, ip)
-     VALUES ($1, $2, $3, $4) ON CONFLICT (token_hash) DO UPDATE SET last_seen = now()`,
-    [userId, crypto.createHash('sha256').update(token).digest('hex'),
-     String(req.headers['user-agent'] || '').slice(0, 200), req.ip]).catch(() => {});
 const TERMS_VERSION = '2026-08-01';
 
 /** Idade em anos completos. */
@@ -229,8 +222,12 @@ authRoutes.post('/change-password', auth, h(async (req, res) => {
      WHERE id = $1 RETURNING ${PUBLIC}`,
     [req.user.id, await bcrypt.hash(password, 12)]
   );
-  // Devolve um token novo para quem mudou nao ficar de fora.
+  // Devolve um token novo para quem mudou nao ficar de fora. Sem registar
+  // esta sessao, a lista em "Seguranca" ficava sem o dispositivo atual e
+  // continuava a mostrar os outros como ativos (ja tinham sido invalidados
+  // pela subida de session_version, so a tabela sessions nao sabia disso).
   const token = signToken(up[0]);
+  recordSession(up[0].id, token, req);
   setSessionCookie(res, token);
   res.json({ token, csrf: csrfOf(token), user: up[0] });
 }));

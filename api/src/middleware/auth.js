@@ -17,7 +17,16 @@ import { q } from '../db.js';
  */
 export const SESSION_COOKIE = '__Host-lumina-session';
 
-const cookieBase = { secure: true, sameSite: 'none', path: '/' };
+/**
+ * `SameSite=Lax`, não `None`: o frontend fala com a API através de um proxy
+ * da Vercel (`/api/*` reencaminhado para a Railway), por isso o browser vê
+ * tudo como a mesma origem. Cookies de terceiros com `SameSite=None`
+ * pareciam funcionar em testes automatizados (Chromium), mas o Safari
+ * (iOS e desktop) bloqueia-os a sério assim que a app é usada fora de um
+ * ambiente de teste — a sessão nunca chegava a ficar gravada. Lax resolve
+ * porque deixa de haver "terceiro": é tudo o mesmo site.
+ */
+const cookieBase = { secure: true, sameSite: 'lax', path: '/' };
 
 export function setSessionCookie(res, token) {
   res.cookie(SESSION_COOKIE, token, { ...cookieBase, httpOnly: true, maxAge: 30 * 24 * 3600_000 });
@@ -89,6 +98,20 @@ export function signToken(user) {
     { expiresIn: '30d' }
   );
 }
+
+/**
+ * Guarda a impressão digital do token para a pessoa poder ver e fechar
+ * sessões. Chamar isto sempre que um token novo é emitido (login, registo,
+ * troca de password, "fechar tudo em todo o lado") — esquecer numa dessas
+ * rotas deixa a lista de sessões (`GET /sessions`) desatualizada: mostra
+ * dispositivos já invalidados como ativos, ou não mostra o dispositivo
+ * atual de todo.
+ */
+export const recordSession = (userId, token, req) =>
+  q(`INSERT INTO sessions (user_id, token_hash, user_agent, ip)
+     VALUES ($1, $2, $3, $4) ON CONFLICT (token_hash) DO UPDATE SET last_seen = now()`,
+    [userId, crypto.createHash('sha256').update(token).digest('hex'),
+     String(req.headers['user-agent'] || '').slice(0, 200), req.ip]).catch(() => {});
 
 export async function auth(req, _res, next) {
   try {

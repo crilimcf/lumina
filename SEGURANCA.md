@@ -267,8 +267,9 @@ sobreposição nenhuma.
 
 Registado como risco em aberto desde a segunda ronda: uma falha de XSS dava
 acesso direto ao token de sessão. Migrado para cookie `__Host-lumina-session`
-(`HttpOnly`, `Secure`, `SameSite=None`) — o JavaScript da própria app já não
-lhe consegue tocar, muito menos um script injetado.
+(`HttpOnly`, `Secure`, inicialmente `SameSite=None` — corrigido para `Lax`
+na sexta ronda, ver abaixo) — o JavaScript da própria app já não lhe
+consegue tocar, muito menos um script injetado.
 
 Isto obriga a proteção CSRF: sem ela, o próprio cookie a ser enviado sozinho
 pelo browser abriria a porta a um pedido forjado por um site de terceiros.
@@ -328,6 +329,103 @@ formato a partir do URL público, o URL público a servir o conteúdo
 correto, um ficheiro forjado (extensão certa, conteúdo errado) a ser
 recusado, e o caso de uso real — publicar um Momento com foto e ele
 aparecer na listagem de quem partilha a comunidade.
+
+---
+
+## Sexta ronda · Sessão nunca gravada no Safari, e outros bugs reais em produção (2026-08-07)
+
+### Crítico · O cookie de sessão nunca ficava gravado no Safari/WebKit (iOS incluído)
+
+Reportado pelo utilizador: feed a mostrar "Sessão em falta", Convites a
+"cair a sessão", tudo depois de entrar normalmente. Reproduzido e
+confirmado com Playwright a sério em **WebKit** (motor do Safari, usado por
+todos os browsers em iOS) — nunca testado nesse motor até agora, só em
+Chromium. O resultado era claro: zero cookies visíveis ao browser logo a
+seguir ao registo, e todo o pedido autenticado a seguir devolvia 401.
+
+A causa: `SameSite=None` num cookie posto por uma API num domínio
+diferente do frontend (Railway vs Vercel) é tecnicamente aceite pela
+especificação, mas o Safari trata-o como rastreio entre sites e recusa-se
+a guardá-lo quando é posto por `fetch()`, mesmo assim. Funcionava em
+Chromium (usado em todos os testes automatizados anteriores) e falhava
+sempre em WebKit — nenhum teste anterior apanhava isto.
+
+Corrigido na raiz, não com mais uma exceção: a Vercel passa a reencaminhar
+`/api/*` para a API na Railway (`web/vercel.json`), por isso o browser já
+só fala com um único domínio — deixa de haver "terceiro" nenhum. O cookie
+passou de `SameSite=None` para `SameSite=Lax` (mais seguro, e deixa de
+precisar da exceção que o Safari recusava). Testado de fundo outra vez em
+WebKit: registo, reload, Convites, segundo reload — sessão sólida do
+princípio ao fim, sem um único 401 fora do pedido inicial (antes de haver
+sessão nenhuma). Também confirmado sem regressões em Chromium.
+
+Verificado ainda que o IP real de cada pessoa continua a chegar
+corretamente à API através deste novo salto (Vercel → Railway) — importante
+para o limite de pedidos por IP não passar a ser partilhado por toda a
+gente que passa pelo proxy.
+
+### Alto · Sessão presa sem aviso quando o token deixa de ser válido
+
+Um 401 a meio da sessão (token expirado ao fim de 30 dias, password mudada
+noutro sítio, "fechar tudo em todo o lado") deixava a pessoa presa no ecrã
+em que estava — cada ação seguinte falhava em silêncio com um aviso
+genérico, sem devolver ninguém ao ecrã de entrada. Corrigido com um
+mecanismo central (`api.js` → `onUnauthorized`, registado uma vez na
+`App`): qualquer 401 de uma rota autenticada limpa a sessão e mostra
+"A sessão expirou. Entra outra vez." — mas só quando havia mesmo sessão
+antes, para não disparar no pedido silencioso do arranque, antes de
+sequer entrar.
+
+### Alto · Ligações de termos/privacidade apagavam o formulário de registo
+
+`<a href="/termos">` dentro do formulário de registo: sem router nenhum na
+app, isto era uma navegação a sério, que recarregava a página do zero. A
+pessoa perdia tudo o que já tinha escrito (nome, utilizador, data de
+nascimento, email, password) só por querer ler o que estava a aceitar.
+Corrigido trocando por botões que mostram o mesmo ecrã `Legal` já usado
+noutros sítios da app, sem sair da sessão do formulário.
+
+### Médio · Lista de sessões desatualizada depois de mudar password ou "fechar tudo"
+
+`POST /auth/change-password` e `POST /sessions/revoke-all` emitem um token
+novo mas nunca o registavam na tabela `sessions` — a pessoa mudava a
+password e a página de segurança continuava a mostrar os dispositivos
+antigos como ativos (já tinham sido invalidados a sério, só a tabela não
+sabia) e não mostrava o dispositivo atual de todo. Corrigido chamando
+`recordSession` nas duas rotas.
+
+### Médio · Service worker com uma guarda "API é outra origem" que deixou de ser verdade
+
+`web/public/sw.js` decidia nunca guardar em cache pedidos para a API
+comparando a origem do pedido com a da app — proteção certa quando a API
+vivia mesmo noutro domínio. Depois do proxy da Vercel, `/api/*` passou a
+ser a mesma origem, e a guarda deixava de identificar estes pedidos. Não
+rebentava nada hoje (nenhum outro código do service worker respondia a
+pedidos GET fora de `/assets/`), mas ficava à espera do próximo código que
+tentasse cache genérico e passasse a guardar respostas autenticadas num
+dispositivo partilhado. Corrigido para verificar o caminho (`/api/`), não
+só a origem.
+
+### Menor · Promessa sem tratamento e corridas ao trocar rápido de comunidade/conversa
+
+Um voto falhado tentava recarregar as propostas sem apanhar uma segunda
+falha (podia rebentar sem ser apanhado). Trocar de comunidade ou de
+conversa mais depressa do que a rede respondia podia deixar o ecrã a
+mostrar dados da comunidade ou conversa errada, por a resposta mais lenta
+chegar depois da mais rápida. Corrigido com tratamento de erro em cada
+promessa e uma bandeira que ignora respostas que já não interessam.
+
+### Auditoria mais ampla, sem mais achados confirmados
+
+Pedida uma verificação a todo o projeto. Confirmado sem problemas: nenhuma
+referência esquecida ao antigo cookie CSRF ou ao token em `localStorage`;
+CSP consistente com todos os recursos externos que a app carrega a sério.
+Identificado (não corrigido nesta ronda, por ser funcionalidade em falta
+e não bug): não há forma de mudar foto de perfil, cor, nome, biografia ou
+password a partir da própria app depois do registo — o backend já suporta
+tudo isto (`PATCH /auth/me`, `POST /auth/change-password`), só não há
+nenhum ecrã ligado a essas rotas. Também não há pesquisa de pessoas nem
+forma de ver o perfil de outra pessoa, apesar de existir no backend.
 
 ---
 

@@ -460,6 +460,48 @@ app como alguém a usa.
 
 ---
 
+## Sétima ronda · A app rebentava ao abrir Convites sem comunidade, e teclado que fechava sozinho (2026-08-07)
+
+### Crítico · A app rebentava ao abrir "Convites" numa conta sem comunidade nenhuma
+
+`PAL[coms.findIndex(c => c.id === pick) % 5]` — sem nenhuma comunidade
+correspondente a `pick`, `findIndex` devolve `-1`; em JavaScript
+`-1 % 5` é `-1`, não `4` (o resto negativo mantém-se negativo, ao
+contrário de Python), e `PAL[-1]` é `undefined`. O acesso a `.chip` a
+seguir rebentava o render inteiro, apanhado pelo `ErrorBoundary` — exatamente
+o "a app vai abaixo, reinicia" reportado. Reproduzido de propósito com uma
+conta sem nenhuma comunidade e confirmado byte a byte com o erro exato
+(`Cannot read properties of undefined (reading 'chip')`). Corrigido com
+`Math.max(0, ...)` antes do resto.
+
+### Alto · O teclado fechava-se sozinho a meio de escrever um post
+
+`Composer`, `Nav` e `Toast` estavam definidos **dentro** do corpo de `App`,
+recriados a cada render — uma função redefinida a cada render é, aos olhos
+do React, um tipo de componente diferente do anterior. Cada tecla escrita
+no campo de texto do `Composer` muda o estado `body`, o que recria a
+própria função `Composer`, e o React desmonta e volta a montar o modal
+inteiro a cada tecla — tirando o foco do campo e fechando o teclado no
+telemóvel. Corrigido movendo os três para fora, como componentes de topo
+estáveis que recebem o que precisam por props. Testado escrevendo letra a
+letra com atraso entre cada uma (como um teclado real faria): o campo
+mantém o foco e o texto chega inteiro.
+
+### Pedidos de design
+
+Barra de navegação passou de barra a toda a largura para pílula flutuante
+(com margem, cantos arredondados, sombra). Texto "Ver o feed" no ecrã de
+abertura aumentado.
+
+### Verificado, não alterado
+
+O temporizador dos Momentos (avança automaticamente a cada 5 segundos,
+passa ao momento seguinte do mesmo amigo ou ao amigo seguinte no fim) já
+existia e está correto no código — confirmado por leitura cuidadosa, não
+foi preciso mudar nada.
+
+---
+
 ## O que continua por fazer
 
 ### No código

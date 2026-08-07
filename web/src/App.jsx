@@ -548,6 +548,9 @@ function MomentViewer({ group, onClose, onNext, onPrev, onView, onDelete, onRepl
 /** Folha para publicar um momento novo: foto opcional, cor sempre. */
 function MomentComposer({ onClose, onPublish, palette, setPalette, file, setFile, busy }) {
   const fileInput = useRef(null);
+  const preview = useMemo(() => file ? URL.createObjectURL(file) : null, [file]);
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
+
   return (
     <div onClick={() => !busy && onClose()} style={{ position: 'fixed', inset: 0, background: 'rgba(24,18,60,.36)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', zIndex: 60 }}>
       <div onClick={e => e.stopPropagation()} className="in" style={{ background: 'linear-gradient(180deg,#F3F1FC,#E9E7F8)', borderRadius: '30px 30px 0 0', width: '100%', maxWidth: 560, margin: '0 auto', padding: '22px 20px calc(26px + env(safe-area-inset-bottom))' }}>
@@ -559,12 +562,25 @@ function MomentComposer({ onClose, onPublish, palette, setPalette, file, setFile
           Fica visível 24 horas para quem partilha uma comunidade contigo. Não precisas de foto — só uma cor já chega.
         </p>
 
+        {preview && (
+          <div style={{ width: '100%', aspectRatio: '4/5', borderRadius: 20, overflow: 'hidden', marginBottom: 12, background: '#0B0A17' }}>
+            <img src={preview} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          </div>
+        )}
+
         <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
-          onChange={e => setFile(e.target.files?.[0] || null)} />
-        <button className="p" onClick={() => fileInput.current?.click()}
-          style={{ width: '100%', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-          <Image size={15} />{file ? file.name.slice(0, 28) : 'Escolher uma foto (opcional)'}
-        </button>
+          onChange={e => { setFile(e.target.files?.[0] || null); e.target.value = ''; }} />
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          <button className="p" onClick={() => fileInput.current?.click()}
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <Image size={15} />{file ? 'Trocar foto' : 'Escolher foto (opcional)'}
+          </button>
+          {file && (
+            <button className="p" style={{ color: 'var(--coral)' }} onClick={() => setFile(null)} aria-label="Remover foto">
+              <X size={15} />
+            </button>
+          )}
+        </div>
 
         {!file && (
           <div className="scene" style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
@@ -587,6 +603,92 @@ function MomentComposer({ onClose, onPublish, palette, setPalette, file, setFile
 
 /* ─────────────────────────────────────────── perfil */
 
+/**
+ * Recorte circular interativo: arrasta para posicionar, roda a barra para
+ * ampliar. Sem isto, a foto era só cortada ao centro por CSS — bom quando
+ * a cara está no meio, mau em qualquer outro caso, sem forma de corrigir.
+ */
+function PhotoCropper({ file, onConfirm, onCancel }) {
+  const FRAME = 260;
+  const OUTPUT = 480;
+  const [zoom, setZoom] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [natural, setNatural] = useState(null);
+  const imgUrl = useMemo(() => URL.createObjectURL(file), [file]);
+  const imgRef = useRef(null);
+  const dragRef = useRef(null);
+
+  useEffect(() => () => URL.revokeObjectURL(imgUrl), [imgUrl]);
+
+  const baseScale = natural ? Math.max(FRAME / natural.w, FRAME / natural.h) : 1;
+  const scale = baseScale * zoom;
+  const dispW = natural ? natural.w * scale : FRAME;
+  const dispH = natural ? natural.h * scale : FRAME;
+  const maxX = Math.max(0, (dispW - FRAME) / 2);
+  const maxY = Math.max(0, (dispH - FRAME) / 2);
+  const clamp = (v, m) => Math.min(m, Math.max(-m, v));
+
+  useEffect(() => {
+    setOffset(o => ({ x: clamp(o.x, maxX), y: clamp(o.y, maxY) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoom, natural]);
+
+  const onPointerDown = (e) => {
+    dragRef.current = { startX: e.clientX, startY: e.clientY, offX: offset.x, offY: offset.y };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onPointerMove = (e) => {
+    if (!dragRef.current) return;
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
+    setOffset({ x: clamp(dragRef.current.offX + dx, maxX), y: clamp(dragRef.current.offY + dy, maxY) });
+  };
+  const onPointerUp = () => { dragRef.current = null; };
+
+  const confirm = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = OUTPUT; canvas.height = OUTPUT;
+    const ctx = canvas.getContext('2d');
+    const sx = ((dispW - FRAME) / 2 - offset.x) / scale;
+    const sy = ((dispH - FRAME) / 2 - offset.y) / scale;
+    const sSize = FRAME / scale;
+    ctx.drawImage(imgRef.current, sx, sy, sSize, sSize, 0, 0, OUTPUT, OUTPUT);
+    canvas.toBlob((blob) => {
+      if (!blob) return onCancel();
+      onConfirm(new File([blob], 'avatar.png', { type: 'image/png' }));
+    }, 'image/png', 0.92);
+  };
+
+  return (
+    <div onClick={onCancel} style={{ position: 'fixed', inset: 0, background: 'rgba(10,8,26,.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 90, padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} className="card in" style={{ padding: 20, maxWidth: 340, width: '100%' }}>
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14, textAlign: 'center' }}>Ajusta a foto</div>
+        <div onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp}
+          style={{ width: FRAME, height: FRAME, borderRadius: '50%', overflow: 'hidden', margin: '0 auto 16px', position: 'relative', touchAction: 'none', cursor: 'grab', background: '#EEE' }}>
+          <img
+            ref={el => {
+              imgRef.current = el;
+              // Para uma imagem local (blob:), o load pode já ter acontecido
+              // antes de o React acabar de montar o elemento e ligar o
+              // onLoad — sem isto, o botão "Usar foto" ficava desativado
+              // para sempre, à espera de um evento que já tinha passado.
+              if (el?.complete && el.naturalWidth > 0) setNatural(n => n || { w: el.naturalWidth, h: el.naturalHeight });
+            }}
+            src={imgUrl} onLoad={e => setNatural({ w: e.target.naturalWidth, h: e.target.naturalHeight })} alt="" draggable={false}
+            style={{ position: 'absolute', left: '50%', top: '50%', width: dispW, height: dispH, maxWidth: 'none',
+              transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`, userSelect: 'none', pointerEvents: 'none' }} />
+        </div>
+        <input type="range" min="1" max="3" step="0.01" value={zoom} onChange={e => setZoom(Number(e.target.value))}
+          style={{ width: '100%', marginBottom: 18, accentColor: 'var(--cobalt)' }} />
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="p" style={{ flex: 1 }} onClick={onCancel}>Cancelar</button>
+          <button className="p p-brand" style={{ flex: 1 }} onClick={confirm} disabled={!natural}>Usar foto</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Editar nome, biografia, cor ou foto, e mudar a password — tudo o que faltava ligar ao backend. */
 function EditarPerfil({ me, onSave, onBack, ping }) {
   const [name, setName] = useState(me.name);
@@ -595,6 +697,7 @@ function EditarPerfil({ me, onSave, onBack, ping }) {
   const [avatarUrl, setAvatarUrl] = useState(me.avatar_url || '');
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
+  const [cropFile, setCropFile] = useState(null);
   const [busy, setBusy] = useState(false);
   const fileInput = useRef(null);
 
@@ -647,7 +750,7 @@ function EditarPerfil({ me, onSave, onBack, ping }) {
             <Orb p={palette} avatarUrl={shownAvatar} s={72} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
-                onChange={e => pickFile(e.target.files?.[0] || null)} />
+                onChange={e => { const f = e.target.files?.[0]; if (f) setCropFile(f); e.target.value = ''; }} />
               <button className="p p-sm" onClick={() => fileInput.current?.click()}>
                 <Camera size={13} style={{ verticalAlign: -2, marginRight: 6 }} />{shownAvatar ? 'Trocar foto' : 'Escolher foto'}
               </button>
@@ -690,6 +793,84 @@ function EditarPerfil({ me, onSave, onBack, ping }) {
           <button className="p" disabled={pwBusy} onClick={changePassword}>
             {pwBusy ? 'A mudar…' : 'Mudar password'}
           </button>
+        </div>
+      </div>
+
+      {cropFile && (
+        <PhotoCropper file={cropFile}
+          onCancel={() => setCropFile(null)}
+          onConfirm={(cropped) => { pickFile(cropped); setCropFile(null); }} />
+      )}
+    </div>
+  );
+}
+
+/** Pesquisar pessoas, ver quem já sigo, seguir ou deixar de seguir. */
+function Amigos({ onBack, ping }) {
+  const [q, setQ] = useState('');
+  const [following, setFollowing] = useState([]);
+  const [results, setResults] = useState(null);   // null = ainda sem pesquisa feita
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { api.users.following().then(setFollowing).catch(() => []).finally(() => setLoading(false)); }, []);
+
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 2) { setResults(null); return; }
+    let current = true;
+    const t = setTimeout(() => {
+      api.users.search(term).then(r => { if (current) setResults(r); }).catch(() => { if (current) setResults([]); });
+    }, 300);
+    return () => { current = false; clearTimeout(t); };
+  }, [q]);
+
+  const toggleFollow = async (person) => {
+    try {
+      if (person.following) { await api.users.unfollow(person.id); ping(`Deixaste de seguir ${person.name}`); }
+      else { await api.users.follow(person.id); ping(`Agora segues ${person.name}`); }
+      const flip = (list) => list.map(p => p.id === person.id ? { ...p, following: !p.following } : p);
+      setResults(r => r && flip(r));
+      setFollowing(f => person.following ? f.filter(p => p.id !== person.id) : f);
+      if (!person.following) setFollowing(f => [{ ...person, following: true }, ...f]);
+    } catch (e) { ping(e.message); }
+  };
+
+  const Row = ({ p }) => (
+    <div className="card in" style={{ padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
+      <Orb p={p.palette} avatarUrl={p.avatar_url} s={42} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-.02em' }}>{p.name}</div>
+        <div className="m" style={{ marginTop: 2 }}>@{p.handle} · {p.followers} seguidores</div>
+      </div>
+      <button className={p.following ? 'p p-sm' : 'p p-sm p-brand'} onClick={() => toggleFollow(p)}>
+        {p.following ? 'A seguir' : 'Seguir'}
+      </button>
+    </div>
+  );
+
+  const list = results ?? following;
+
+  return (
+    <div style={{ minHeight: '100dvh', paddingBottom: 40, background: 'linear-gradient(180deg,#EFEDFB,#DFDCF2)' }}>
+      <div style={{ maxWidth: 460, margin: '0 auto', padding: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+          <button className="p" onClick={onBack} aria-label="Voltar" style={{ padding: 10 }}><ArrowLeft size={16} /></button>
+          <h2 className="d" style={{ fontSize: 24, flex: 1 }}>Amigos</h2>
+        </div>
+
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Pesquisar por nome ou utilizador…"
+          style={{ marginBottom: 18 }} autoCapitalize="none" />
+
+        {results === null && (
+          <div className="m" style={{ marginBottom: 10 }}>{loading ? 'A carregar…' : `A seguir (${following.length})`}</div>
+        )}
+
+        {!loading && list.length === 0 && (
+          <Empty>{results === null ? 'Ainda não segues ninguém. Pesquisa por nome ou utilizador para encontrar amigos.' : 'Ninguém encontrado.'}</Empty>
+        )}
+
+        <div style={{ display: 'grid', gap: 10 }}>
+          {list.map(p => <Row key={p.id} p={p} />)}
         </div>
       </div>
     </div>
@@ -1087,6 +1268,7 @@ export default function App() {
   if (screen === 'moderacao') return <Moderacao communities={coms} onBack={() => setScreen(null)} ping={ping} />;
   if (screen === 'TERMOS' || screen === 'PRIVACIDADE') return <Legal page={screen} onBack={() => setScreen(null)} />;
   if (screen === 'editar-perfil') return <EditarPerfil me={me} onSave={setMe} onBack={() => setScreen(null)} ping={ping} />;
+  if (screen === 'amigos') return <Amigos onBack={() => setScreen(null)} ping={ping} />;
 
   /* conversa */
   if (tab === 'dms' && thread) {
@@ -1303,6 +1485,13 @@ export default function App() {
           </p>
         </div>
 
+        <button className="card" onClick={() => setScreen('amigos')}
+          style={{ width: '100%', border: 0, cursor: 'pointer', padding: 18, textAlign: 'left', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <User size={17} color="var(--grey)" />
+          <span style={{ flex: 1, fontSize: 15, fontWeight: 600 }}>Amigos</span>
+          <ArrowUpRight size={17} color="#ADA6CC" />
+        </button>
+
         <button className="card" onClick={() => setScreen('seguranca')}
           style={{ width: '100%', border: 0, cursor: 'pointer', padding: 18, textAlign: 'left', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
           <Shield size={17} color="var(--grey)" />
@@ -1356,7 +1545,7 @@ export default function App() {
       <header style={{ position: 'sticky', top: 0, zIndex: 40, background: 'rgba(239,237,251,.9)', backdropFilter: 'blur(14px)' }}>
         <div style={{ padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
           <h1 className="d" style={{ fontSize: 25, flex: 1 }}>Lumi<span className="it">na</span></h1>
-          <button className="p" onClick={loadFeed} aria-label="Atualizar feed" style={{ padding: 10 }}><Search size={16} /></button>
+          <button className="p" onClick={() => setScreen('amigos')} aria-label="Amigos" style={{ padding: 10 }}><Search size={16} /></button>
         </div>
       </header>
 

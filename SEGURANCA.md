@@ -502,6 +502,62 @@ foi preciso mudar nada.
 
 ---
 
+## Oitava ronda · Recorte de foto, amigos, e ícone novo (2026-08-07)
+
+### Recorte interativo da foto de perfil
+
+O corte automático por CSS (`object-fit: cover`) só fica bem quando a
+cara está mesmo ao centro da foto original — em qualquer outro caso corta
+mal, sem forma de corrigir. Construído um recorte circular a sério:
+arrastar para posicionar, barra para ampliar, tudo feito com matemática
+de posição/escala e `canvas.drawImage` para gerar o PNG final (sem
+bibliotecas). Usado na foto de perfil, onde o resultado é sempre um
+círculo — nos Momentos, que mostram a imagem inteira sem cortar
+(`object-fit: contain`, ecrã inteiro), um recorte quadrado não fazia
+sentido; ficou só a pré-visualização em falta.
+
+Um bug real apanhado a testar com uma imagem a sério (não com o meu
+ficheiro de teste, que por sua vez tinha dados PNG inválidos escritos à
+mão — a primeira suspeita de bug foi, ela própria, um falso alarme):
+o evento `onLoad` da imagem podia não disparar a tempo de o React o
+apanhar, deixando o botão de confirmar desativado para sempre. Corrigido
+com uma verificação no próprio `ref` do elemento (`img.complete` +
+`naturalWidth`), o contorno conhecido para esta condição de corrida.
+
+### Pré-visualização ao escolher foto para Momento
+
+Não havia nenhuma — só o nome do ficheiro em texto. Acrescentada uma
+pré-visualização real, no mesmo enquadramento (`contain`) em que o
+Momento vai aparecer depois de publicado, mais um botão para remover e
+escolher outra.
+
+### Ecrã de Amigos: pesquisar, ver quem sigo, seguir
+
+`api.users.search`, `.get`, `.follow`, `.unfollow` já existiam no
+backend e no cliente, sem nenhum ecrã ligado a eles. Novo ecrã "Amigos"
+(pesquisa por nome/utilizador, lista de quem já sigo por omissão, seguir
+e deixar de seguir em cada resultado), acessível pelo ícone que antes
+estava no cabeçalho do feed a fingir ser pesquisa (só atualizava o feed —
+corrigido para abrir isto a sério) e por um atalho novo no ecrã de
+Perfil. Rota nova no backend, `GET /users/me/following`, para a lista por
+omissão sem precisar de pesquisar primeiro.
+
+### Ícone da app redesenhado
+
+O anterior era uma bola azul com um ponto branco e vermelho — pouco
+distinto. Novo ícone gerado com a mesma técnica de sempre (buffer RGBA
+pixel a pixel, comprimido com zlib, PNG escrito à mão, sem
+dependências): quadrado arredondado com o gradiente real da marca
+(cobalto → coral, o mesmo dos halos usados no resto da app), um círculo
+de luz grande com brilho suave (o "amanhecer", ligação direta ao nome
+Lumina) e um segundo círculo sobreposto mais pequeno (duas pessoas, uma
+comunidade). Composição desenhada dentro da zona segura de 80% central,
+para não ser cortada pelo recorte automático dos ícones adaptáveis do
+Android ("maskable"). Script guardado em `web/scripts/gen-icons.mjs`,
+desta vez commitado — o anterior não tinha sobrevivido no repositório.
+
+---
+
 ## O que continua por fazer
 
 ### No código

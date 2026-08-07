@@ -154,6 +154,7 @@ export const api = {
     block: (id) => call(`/users/${id}/block`, { method: 'POST' }),
     unblock: (id) => call(`/users/${id}/block`, { method: 'DELETE' }),
     blocked: () => call('/users/me/blocked'),
+    following: () => call('/users/me/following'),
   },
   reports: {
     create: (b) => call('/reports', { method: 'POST', body: b }),

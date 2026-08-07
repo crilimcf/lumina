@@ -19,7 +19,8 @@ userRoutes.get('/search', auth, h(async (req, res) => {
   if (term.length < 2) return res.json([]);
   const { rows } = await q(
     `SELECT u.id, u.handle, u.name, u.bio, u.palette, u.avatar_url, u.stars,
-            (SELECT count(*) FROM follows WHERE following_id = u.id)::int AS followers
+            (SELECT count(*) FROM follows WHERE following_id = u.id)::int AS followers,
+            EXISTS (SELECT 1 FROM follows WHERE follower_id = $1 AND following_id = u.id) AS following
      FROM users u
      WHERE u.id <> $1 AND u.suspended_at IS NULL
        AND (u.handle ILIKE $2 OR u.name ILIKE $2 OR EXISTS (
@@ -89,6 +90,20 @@ userRoutes.delete('/:userId/block', auth, h(async (req, res) => {
   await q('DELETE FROM blocks WHERE blocker_id = $1 AND blocked_id = $2',
     [req.user.id, req.params.userId]);
   res.json({ blocked: false });
+}));
+
+/** Quem eu sigo — o ecrã de Amigos mostra isto por omissão, antes de pesquisar. */
+userRoutes.get('/me/following', auth, h(async (req, res) => {
+  const { rows } = await q(
+    `SELECT u.id, u.handle, u.name, u.bio, u.palette, u.avatar_url,
+            (SELECT count(*) FROM follows WHERE following_id = u.id)::int AS followers,
+            true AS following
+     FROM follows f JOIN users u ON u.id = f.following_id
+     WHERE f.follower_id = $1 AND u.suspended_at IS NULL
+     ORDER BY f.created_at DESC`,
+    [req.user.id]
+  );
+  res.json(rows);
 }));
 
 userRoutes.get('/me/blocked', auth, h(async (req, res) => {

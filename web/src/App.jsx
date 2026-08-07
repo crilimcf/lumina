@@ -112,7 +112,7 @@ function Entrada({ onIn }) {
         : await api.auth.register({ ...f, acceptTerms: terms });
       // Password certa mas a conta tem dois passos: pedimos o codigo.
       if (out.needsCode) { setNeedsCode(true); return; }
-      onIn(out.user);
+      onIn(out.user, mode === 'registo');
     } catch (e) { setErr(e); } finally { setBusy(false); }
   };
 
@@ -363,6 +363,60 @@ function Marco({ milestone, onContinue }) {
   );
 }
 
+const WELCOME_ITEMS = [
+  { icon: Sparkles, title: 'Um convite por dia', body: 'Cada dia há uma pergunta ou desafio para a tua comunidade. Quem está lá propõe ideias e vota — o convite do dia é sempre escolhido pela tua gente, nunca por um algoritmo.' },
+  { icon: Home, title: 'Comunidades pequenas', body: 'Junta-te ou cria uma comunidade fechada com amigos de verdade. O feed é só delas, por ordem cronológica — sem posts patrocinados, sem scroll infinito.' },
+  { icon: Camera, title: 'Momentos', body: 'Partilha uma foto ou só uma cor, visível 24 horas para quem partilha uma comunidade contigo. Depois desaparece — como um Story, mas sem ninguém de fora a ver.' },
+  { icon: Timer, title: 'Mensagens efémeras', body: 'Manda uma mensagem com temporizador ou para abrir só uma vez. Passado esse tempo, é apagada a sério do servidor — não só escondida no ecrã.' },
+];
+
+/**
+ * Ecrã de boas-vindas, mostrado uma única vez logo a seguir ao registo.
+ *
+ * Sem halos decorativos (`filter: blur()`) nem classes de animação de
+ * entrada: por ser o primeiro ecrã a montar mesmo depois de substituir o
+ * formulário de registo inteiro, essa combinação produzia uma camada
+ * composta mal posicionada em alguns motores de renderização — o layout
+ * real ficava correto (offsetLeft certo), mas o que era pintado no ecrã
+ * não (getBoundingClientRect errado). Confirmado por eliminação: o mesmo
+ * ecrã sem halos nem animações, alcançado pelo mesmo caminho, pinta
+ * corretamente. Um ecrã só de leitura, mostrado uma vez, não perde nada
+ * por aparecer já estável e sem decoração.
+ */
+function Welcome({ onContinue }) {
+  return (
+    <div style={{ minHeight: '100dvh', background: 'linear-gradient(180deg,#EFEDFB,#DFDCF2)' }}>
+      <div style={{ maxWidth: 460, margin: '0 auto', padding: '48px 22px calc(26px + env(safe-area-inset-bottom))' }}>
+        <div className="m" style={{ color: 'var(--coral)', marginBottom: 10 }}>Bem-vindo à Lumina</div>
+        <h1 className="d" style={{ fontSize: 'clamp(32px,9vw,44px)', lineHeight: 1.08, marginBottom: 14 }}>
+          Antes de começares, quatro coisas para saberes
+        </h1>
+        <p style={{ fontSize: 15, lineHeight: 1.5, color: 'var(--grey)', marginBottom: 30 }}>
+          A Lumina não tem anúncios nem algoritmo — só a tua gente, um convite por dia.
+        </p>
+
+        <div style={{ display: 'grid', gap: 16, marginBottom: 30 }}>
+          {WELCOME_ITEMS.map(({ icon: Icon, title, body }) => (
+            <div key={title} className="card" style={{ padding: 18, display: 'flex', gap: 14 }}>
+              <div style={{ width: 40, height: 40, flexShrink: 0, display: 'grid', placeItems: 'center' }}>
+                <Icon size={18} strokeWidth={2} />
+              </div>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{title}</div>
+                <p style={{ fontSize: 13.5, lineHeight: 1.45, color: 'var(--grey)' }}>{body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button className="p p-brand" style={{ width: '100%', padding: 15, fontSize: 15 }} onClick={onContinue}>
+          Entendido, vamos lá
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ─────────────────────────────────────────── momentos */
 
 /** O anel à volta do avatar: gradiente para quem tem algo por ver, cinza para quem já viste tudo. */
@@ -529,6 +583,7 @@ export default function App() {
   const [booting, setBooting] = useState(true);
   const [opening, setOpening] = useState(false);
   const [milestone, setMilestone] = useState(null);
+  const [showWelcome, setShowWelcome] = useState(false);
   const [tab, setTab] = useState('feed');
   const [toast, setToast] = useState('');
 
@@ -584,8 +639,9 @@ export default function App() {
     })();
   }, []);
 
-  async function afterLogin(user) {
+  async function afterLogin(user, isNewAccount = false) {
     setMe(user);
+    if (isNewAccount) setShowWelcome(true);
     const [c, d] = await Promise.all([
       api.communities.mine().catch(() => []),
       api.account.days().catch(() => ({ days: [] })),
@@ -784,6 +840,8 @@ export default function App() {
   );
 
   if (!me) return <Entrada onIn={afterLogin} />;
+
+  if (showWelcome) return <Welcome onContinue={() => setShowWelcome(false)} />;
 
   if (milestone) return <Marco milestone={milestone} onContinue={() => setMilestone(null)} />;
 

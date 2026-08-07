@@ -122,6 +122,14 @@ postRoutes.post('/:postId/repost', auth, h(async (req, res) => {
   );
   if (!orig[0]) throw notFound('Publicação não encontrada');
 
+  // Sem isto, republicar metia conteudo em nome de quem nao e membro da
+  // comunidade — a mesma regra que POST / ja aplica a publicar de raiz.
+  const { rows: mem } = await q(
+    'SELECT 1 FROM memberships WHERE community_id = $1 AND user_id = $2',
+    [orig[0].community_id, req.user.id]
+  );
+  if (!mem[0]) throw bad('Só membros desta comunidade republicam aqui', 'not_member');
+
   const del = await q(
     'DELETE FROM posts WHERE author_id = $1 AND repost_of = $2 RETURNING id',
     [req.user.id, req.params.postId]

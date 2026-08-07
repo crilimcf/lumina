@@ -87,6 +87,48 @@ export async function purgeMoments() {
 }
 
 /**
+ * RGPD artigo 17: executa os apagamentos de conta cujo prazo de
+ * arrependimento (30 dias) já passou.
+ *
+ * Sem isto correr nalgum lado, "a conta será apagada dentro de 30 dias" é uma
+ * promessa que a app faz e não cumpre — o pedido fica agendado para sempre.
+ */
+export async function runAccountDeletions() {
+  const { rows } = await q(
+    `SELECT user_id FROM deletion_requests
+     WHERE cancelled_at IS NULL AND execute_at < now()`
+  );
+  for (const r of rows) {
+    // ON DELETE CASCADE trata do resto: posts, mensagens, votos, tudo.
+    await q('DELETE FROM users WHERE id = $1', [r.user_id]);
+    console.log(`[rgpd] conta apagada: ${r.user_id}`);
+  }
+  return rows.length;
+}
+
+/** Tokens de recuperação de password expirados há mais de 7 dias. */
+export async function purgeExpiredTokens() {
+  const { rowCount } = await q(
+    `DELETE FROM password_resets WHERE expires_at < now() - interval '7 days'`
+  );
+  if (rowCount) console.log(`[tokens] ${rowCount} pedidos de recuperação expirados removidos`);
+  return rowCount;
+}
+
+/**
+ * Tentativas de entrada com mais de 90 dias.
+ * A política de privacidade promete este prazo; sem limpeza, a promessa não
+ * é cumprida e a tabela cresce para sempre.
+ */
+export async function purgeOldLoginAttempts() {
+  const { rowCount } = await q(
+    `DELETE FROM login_attempts WHERE created_at < now() - interval '90 days'`
+  );
+  if (rowCount) console.log(`[login] ${rowCount} tentativas antigas removidas`);
+  return rowCount;
+}
+
+/**
  * Agenda os trabalhos dentro do processo da API.
  *
  * So faz sentido se o servico estiver sempre acordado. Num plano que adormece
@@ -103,5 +145,9 @@ export function startJobs() {
   // De minuto a minuto: as efémeras têm de sair depressa.
   cron.schedule('* * * * *', () => purgeMessages().catch(console.error));
   cron.schedule('15 * * * *', () => purgeMoments().catch(console.error));
+  // Uma vez por dia: apagamentos de conta e limpeza de dados que passaram o prazo de retenção.
+  cron.schedule('10 3 * * *', () => runAccountDeletions().catch(console.error));
+  cron.schedule('20 3 * * *', () => purgeExpiredTokens().catch(console.error));
+  cron.schedule('30 3 * * *', () => purgeOldLoginAttempts().catch(console.error));
   console.log('[jobs] agendados');
 }

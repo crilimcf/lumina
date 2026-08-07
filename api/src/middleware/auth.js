@@ -29,8 +29,10 @@ export function signToken(user) {
 export async function auth(req, _res, next) {
   try {
     const header = req.headers.authorization || '';
-    // Fallback para descarregar ficheiros: um <a href> nao envia cabecalhos.
-    const token = header.startsWith('Bearer ') ? header.slice(7) : req.query.token;
+    // So o cabecalho. Um token na query string fica em logs de acesso,
+    // proxies e no Referer de qualquer link de saida — o download de dados
+    // usa fetch() com o cabecalho, por isso este fallback nunca e preciso.
+    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
     if (!token) throw new HttpError(401, 'Sessao em falta');
 
     let payload;

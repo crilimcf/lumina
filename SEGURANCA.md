@@ -113,6 +113,99 @@ apontar `mediaUrl` para qualquer coisa na internet.
 
 ---
 
+---
+
+## Terceira ronda · auditoria pós-deploy (2026-08-07)
+
+Feita depois de a app já estar em produção no Railway e na Vercel. Os achados
+anteriores continuavam válidos; estes eram novos.
+
+### Alto · RGPD · o apagamento de conta ao fim de 30 dias nunca corria
+
+`runDeletions` e `cleanTokens` só existiam em `scripts/cron.js`, pensado para
+correr como processo externo. Este deploy corre os trabalhos dentro do
+processo da API (`RUN_JOBS_IN_PROCESS` não está a `false`), e esse caminho só
+agendava `rotateInvites`, `purgeMessages` e `purgeMoments`. A promessa "a
+conta será apagada dentro de 30 dias" ficava só no texto — o pedido nunca era
+executado.
+
+Movido para `jobs/daily.js` como `runAccountDeletions`, `purgeExpiredTokens` e
+`purgeOldLoginAttempts`, agendados de madrugada. `scripts/cron.js` passou a
+importar as mesmas funções em vez de duplicar SQL.
+
+### Médio · RGPD · tentativas de login nunca eram apagadas
+
+A política de privacidade promete `[90]` dias de retenção para
+`login_attempts`; não havia limpeza nenhuma. Acrescentada a
+`purgeOldLoginAttempts`, junto dos outros trabalhos diários.
+
+### Médio · Republicar não verificava adesão à comunidade
+
+`POST /posts` exige ser membro; `POST /:postId/repost` não — dava para
+republicar conteúdo dentro de qualquer comunidade, mesmo sem pertencer a ela.
+Acrescentada a mesma verificação.
+
+### Médio · Token de sessão aceite por query string, sem ninguém usar
+
+O `auth` aceitava `?token=` como alternativa ao cabeçalho `Authorization`,
+para o download de dados via `<a href>`. O frontend já usa `fetch` com
+cabeçalho há uma ronda de correções — o fallback ficou por remover. Um token
+na query string fica em logs de acesso, em proxies e no `Referer` de qualquer
+link de saída; removido por já não ser preciso em lado nenhum.
+
+### Baixo · Diferença de tempo no login
+
+Quando o email não existia, `bcrypt.compare` nunca corria — só a consulta à
+base de dados. Como o bcrypt demora dezenas de milissegundos, a diferença de
+tempo entre "conta existe" e "conta não existe" dava para medir. Agora corre
+sempre, contra um hash fixo quando não há conta.
+
+### Baixo · Sem CSP no frontend
+
+A API tinha Helmet com CSP; o site na Vercel, onde o token vive em
+`localStorage` e uma falha de XSS importa a sério, não tinha nenhuma.
+Acrescentado `Content-Security-Policy`, `X-Frame-Options` e
+`Strict-Transport-Security` ao `vercel.json`.
+
+### PWA · manifest apontava para ícones inexistentes, sem service worker
+
+O `manifest.webmanifest` e as meta tags do iOS já lá estavam, mas
+`/icon-192.png` e `/icon-512.png` não existiam e não havia service worker —
+a app não passava a instalável nem funcionava offline. Gerados os ícones,
+criado `public/sw.js` (cache do essencial + `/assets/*`, nunca da API) e
+registado em `main.jsx`.
+
+### Alto · RGPD · base de dados alojada nos EUA, não na UE
+
+A `PRIVACIDADE.md` recomenda "escolher regiões europeias" para evitar a
+questão de transferências para fora do Espaço Económico Europeu — mas o
+Postgres na Railway ficou, por omissão, numa região dos EUA. Tentei mover o
+serviço para `eu-west` por comando (`railway service scale`); o resultado foi
+inesperado: a app ficou 503 durante a transição e a base voltou a assentar
+nos EUA na mesma — o volume de dados está fisicamente preso à região onde
+nasceu, e mudar a réplica não muda onde o volume vive.
+
+**Não tentei outra vez.** A base está vazia (0 utilizadores reais, nunca
+corri o seed em produção), por isso a forma segura de resolver é apagar este
+serviço Postgres e criar um novo já na região certa pelo painel da Railway —
+lá a região é uma escolha explícita no momento da criação, em vez de um
+comando às cegas sobre um recurso com estado. Fica por fazer porque mexer
+outra vez num Postgres com uma base viva não é coisa para tentativa e erro.
+
+### Por decisão, não corrigido nesta ronda
+
+- **Vulnerabilidades de dependências (`npm audit`).** `node-cron`/`uuid` e
+  `vite`/`esbuild` têm avisos moderados/altos, mas a correção automática exige
+  subir versão maior (`node-cron@4`, `vite@8`) sem garantia de compatibilidade
+  testada aqui. O vetor do `esbuild` só afeta o servidor de desenvolvimento,
+  não a build de produção servida pela Vercel. Vale a pena tratar num commit
+  à parte, com testes.
+- **Token em `localStorage`.** Continua o mesmo risco já registado na segunda
+  ronda — a CSP nova reduz a superfície de XSS que o exploraria, mas não a
+  fecha.
+
+---
+
 ## O que continua por fazer
 
 ### No código

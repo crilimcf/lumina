@@ -15,36 +15,17 @@
  *   node scripts/cron.js deletions  uma vez por dia
  *   node scripts/cron.js all        tudo de uma vez
  */
-import { pool, q } from '../src/db.js';
-import { rotateInvites, purgeMessages, purgeMoments } from '../src/jobs/daily.js';
-
-/** Executa os apagamentos de conta cujo prazo de arrependimento já passou. */
-async function runDeletions() {
-  const { rows } = await q(
-    `SELECT user_id FROM deletion_requests
-     WHERE cancelled_at IS NULL AND execute_at < now()`
-  );
-  for (const r of rows) {
-    // ON DELETE CASCADE trata do resto: posts, mensagens, votos, tudo.
-    await q('DELETE FROM users WHERE id = $1', [r.user_id]);
-    console.log(`[rgpd] conta apagada: ${r.user_id}`);
-  }
-  return rows.length;
-}
-
-/** Limpa tokens de recuperação já expirados. */
-async function cleanTokens() {
-  const { rowCount } = await q(
-    `DELETE FROM password_resets WHERE expires_at < now() - interval '7 days'`
-  );
-  return rowCount;
-}
+import { pool } from '../src/db.js';
+import {
+  rotateInvites, purgeMessages, purgeMoments,
+  runAccountDeletions, purgeExpiredTokens, purgeOldLoginAttempts,
+} from '../src/jobs/daily.js';
 
 const TASKS = {
   invites: rotateInvites,
   purge: async () => (await purgeMessages()) + (await purgeMoments()),
-  deletions: runDeletions,
-  tokens: cleanTokens,
+  deletions: runAccountDeletions,
+  tokens: async () => (await purgeExpiredTokens()) + (await purgeOldLoginAttempts()),
 };
 
 const args = process.argv.slice(2);

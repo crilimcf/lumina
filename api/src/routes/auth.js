@@ -11,6 +11,13 @@ export const authRoutes = Router();
 const PUBLIC = 'id, handle, name, bio, palette, stars, created_at, session_version';
 
 /**
+ * Hash fixo para comparar quando o email nao existe. Sem isto, o login so
+ * chama bcrypt quando ha conta — e bcrypt demora dezenas de milissegundos,
+ * o que da para distinguir "existe" de "nao existe" so pela demora da resposta.
+ */
+const DUMMY_HASH = bcrypt.hashSync('lumina-nao-existe-conta-nenhuma', 12);
+
+/**
  * Bloqueio progressivo por conta.
  *
  * O limite por janela de tempo nao chega: um atacante paciente passa por baixo
@@ -99,7 +106,10 @@ authRoutes.post('/login', h(async (req, res) => {
   );
   const user = rows[0];
   // Mesma resposta para email errado e password errada: nao revelamos quem tem conta.
-  const ok = user && await bcrypt.compare(password, user.password_hash);
+  // bcrypt.compare corre sempre, exista ou nao a conta, para a resposta nao
+  // demorar de forma diferente consoante o email exista.
+  const passwordMatches = await bcrypt.compare(password, user?.password_hash || DUMMY_HASH);
+  const ok = user && passwordMatches;
   if (!ok) {
     await recordAttempt(email, req.ip, false);
     throw new HttpError(401, 'Email ou password errados');

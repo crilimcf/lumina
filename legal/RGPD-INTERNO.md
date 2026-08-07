@@ -21,8 +21,8 @@ guardados e mostram-se à CNPD se ela pedir.
 | **Categorias de titulares** | Utilizadores registados, todos com 16+ anos |
 | **Categorias de dados** | Nome, nome de utilizador, email, password em hash, data de nascimento, data de aceitação dos termos |
 | **Fundamento** | Execução do contrato (art. 6.º/1/b); verificação de idade por obrigação legal (art. 6.º/1/c) |
-| **Destinatários** | `[alojamento]`, `[Resend]` |
-| **Transferências fora do EEE** | `[Nenhuma / indicar garantias]` |
+| **Destinatários** | Railway (alojamento), Resend (ainda não configurado) |
+| **Transferências fora do EEE** | Sim — Railway aloja atualmente nos EUA. Garantias por indicar; ver `SEGURANCA.md` |
 | **Prazo de conservação** | Enquanto durar a conta, mais 30 dias após pedido de apagamento |
 | **Medidas de segurança** | bcrypt fator 12, HTTPS, 2FA opcional, bloqueio progressivo |
 
@@ -33,7 +33,7 @@ guardados e mostram-se à CNPD se ela pedir.
 | **Finalidade** | Prestar o serviço: feed, comunidades, convites |
 | **Categorias de dados** | Texto, imagens, reações, comentários, votos, adesões, dias respondidos |
 | **Fundamento** | Execução do contrato |
-| **Destinatários** | `[alojamento]`, `[Cloudflare R2]` para imagens |
+| **Destinatários** | Railway (alojamento), Cloudflare R2 (imagens, ainda não configurado) |
 | **Prazo** | Enquanto durar a conta |
 | **Notas** | Imagens verificadas pela assinatura do ficheiro antes de serem publicáveis |
 

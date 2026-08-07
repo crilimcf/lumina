@@ -420,12 +420,43 @@ promessa e uma bandeira que ignora respostas que já não interessam.
 Pedida uma verificação a todo o projeto. Confirmado sem problemas: nenhuma
 referência esquecida ao antigo cookie CSRF ou ao token em `localStorage`;
 CSP consistente com todos os recursos externos que a app carrega a sério.
-Identificado (não corrigido nesta ronda, por ser funcionalidade em falta
-e não bug): não há forma de mudar foto de perfil, cor, nome, biografia ou
-password a partir da própria app depois do registo — o backend já suporta
-tudo isto (`PATCH /auth/me`, `POST /auth/change-password`), só não há
-nenhum ecrã ligado a essas rotas. Também não há pesquisa de pessoas nem
-forma de ver o perfil de outra pessoa, apesar de existir no backend.
+Identificado (não corrigido nesta ronda inicialmente, por ser
+funcionalidade em falta e não bug, depois pedido e implementado — ver
+abaixo): não havia forma de mudar foto de perfil, cor, nome, biografia ou
+password a partir da própria app depois do registo.
+
+### Foto de perfil, edição de nome/biografia/cor e mudança de password
+
+Implementado a pedido. `users.avatar_url` novo (migração `005_profile.sql`),
+opcional — sem foto, continua o Orb colorido de sempre; com foto, mostra-a
+em todo o sítio onde o autor aparece (feed, comentários, momentos,
+conversas). Upload validado da mesma forma que as imagens de posts: tem de
+ser tua e ter passado a verificação de assinatura do ficheiro, senão
+`PATCH /auth/me` recusa (`unconfirmed_upload`) — testado a rejeitar
+explicitamente um URL alheio.
+
+Ecrã novo "Editar perfil", ligado às rotas que já existiam no backend mas
+sem nada a chamá-las.
+
+Testado a fundo, com dois achados reais só visíveis com um browser a
+sério (não com os meus scripts de teste, que chamam a API diretamente e
+não estão sujeitos às proteções do próprio browser):
+
+- **O bucket R2 nunca teve CORS configurado.** Todos os testes anteriores
+  ao upload de imagens (posts, Momentos) passavam por `fetch()` num script
+  Node, que não aplica a política de origem do browser — nunca tinha sido
+  testado a sério a partir da app. O primeiro upload feito de um browser
+  real falhava sempre, silenciosamente do ponto de vista de quem usa a
+  app: "Access to fetch... blocked by CORS policy". Corrigido configurando
+  CORS no bucket (`PUT .../r2/buckets/lumina-media/cors`) a aceitar
+  `PUT`/`GET`/`HEAD` a partir do domínio da app.
+- **A CSP bloqueava a pré-visualização local da foto escolhida.**
+  `img-src` não incluía `blob:`, usado pela pré-visualização antes do
+  envio. Acrescentado.
+
+Ambos só apareceram no primeiro teste com upload de imagem feito de dentro
+de um browser real — reforça que testar por API não substitui testar a
+app como alguém a usa.
 
 ---
 

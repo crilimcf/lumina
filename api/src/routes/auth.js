@@ -7,7 +7,7 @@ import { verifyTotp, hashCode } from '../lib/totp.js';
 
 export const authRoutes = Router();
 
-const PUBLIC = 'id, handle, name, bio, palette, stars, created_at, session_version';
+const PUBLIC = 'id, handle, name, bio, palette, avatar_url, stars, created_at, session_version';
 
 /**
  * Hash fixo para comparar quando o email nao existe. Sem isto, o login so
@@ -178,7 +178,7 @@ authRoutes.get('/me', auth, h(async (req, res) => {
  * Sem isto, a pessoa nao consegue corrigir dados errados sobre si propria.
  */
 authRoutes.patch('/me', auth, h(async (req, res) => {
-  const { name, bio, palette, stars } = req.body;
+  const { name, bio, palette, stars, avatarUrl } = req.body;
   const sets = [];
   const vals = [req.user.id];
 
@@ -199,6 +199,20 @@ authRoutes.patch('/me', auth, h(async (req, res) => {
     if (!Array.isArray(stars) || stars.length > 8) throw bad('No maximo 8 estrelas');
     const clean = stars.map(s => String(s).trim().slice(0, 24)).filter(Boolean);
     sets.push(`stars = $${vals.push(clean)}`);
+  }
+  if (avatarUrl !== undefined) {
+    if (avatarUrl === null || avatarUrl === '') {
+      sets.push(`avatar_url = $${vals.push(null)}`);
+    } else {
+      // Tem de ser tua e ter passado a verificacao de assinatura — sem
+      // isto, bastava apontar avatarUrl para qualquer coisa na internet.
+      const { rows: up } = await q(
+        'SELECT 1 FROM uploads WHERE url = $1 AND owner_id = $2 AND confirmed_at IS NOT NULL',
+        [avatarUrl, req.user.id]
+      );
+      if (!up[0]) throw bad('Imagem nao verificada', 'unconfirmed_upload');
+      sets.push(`avatar_url = $${vals.push(avatarUrl)}`);
+    }
   }
   if (!sets.length) throw bad('Nada para alterar');
 

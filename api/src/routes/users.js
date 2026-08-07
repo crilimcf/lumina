@@ -18,7 +18,7 @@ userRoutes.get('/search', auth, h(async (req, res) => {
   const term = String(req.query.q || '').trim();
   if (term.length < 2) return res.json([]);
   const { rows } = await q(
-    `SELECT u.id, u.handle, u.name, u.bio, u.palette, u.stars,
+    `SELECT u.id, u.handle, u.name, u.bio, u.palette, u.avatar_url, u.stars,
             (SELECT count(*) FROM follows WHERE following_id = u.id)::int AS followers
      FROM users u
      WHERE u.id <> $1 AND u.suspended_at IS NULL
@@ -35,7 +35,7 @@ userRoutes.get('/search', auth, h(async (req, res) => {
 
 userRoutes.get('/:handle', auth, h(async (req, res) => {
   const { rows } = await q(
-    `SELECT u.id, u.handle, u.name, u.bio, u.palette, u.stars, u.created_at,
+    `SELECT u.id, u.handle, u.name, u.bio, u.palette, u.avatar_url, u.stars, u.created_at,
             (SELECT count(*) FROM follows WHERE following_id = u.id)::int AS followers,
             EXISTS (SELECT 1 FROM follows WHERE follower_id = $1 AND following_id = u.id) AS following,
             EXISTS (SELECT 1 FROM blocks WHERE blocker_id = $1 AND blocked_id = u.id) AS is_blocked

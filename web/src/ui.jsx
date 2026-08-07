@@ -8,8 +8,11 @@ export const PAL = [
   { o1: '#A8DDE9', o2: '#22A8C8', bg: 'linear-gradient(155deg,#D4F2F8,#6FD0E4 58%,#189FBF)', chip: '#D4F2F8' },
 ];
 
-export const Orb = ({ p = 0, s = 34, cls = '', st = {} }) => (
-  <div className={`orb ${cls}`} style={{ width: s, height: s, '--o1': PAL[p % 5].o1, '--o2': PAL[p % 5].o2, ...st }} />
+/** Com foto de perfil, mostra-a; sem foto, o gradiente de sempre pela cor escolhida. */
+export const Orb = ({ p = 0, s = 34, cls = '', st = {}, avatarUrl }) => (
+  avatarUrl
+    ? <img src={avatarUrl} alt="" className={cls} style={{ width: s, height: s, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, ...st }} />
+    : <div className={`orb ${cls}`} style={{ width: s, height: s, '--o1': PAL[p % 5].o1, '--o2': PAL[p % 5].o2, ...st }} />
 );
 
 export const Skeleton = ({ w = '100%', h = 14, r = 8, st = {} }) => (

@@ -50,7 +50,7 @@ momentRoutes.post('/', auth, h(async (req, res) => {
 momentRoutes.get('/', auth, h(async (req, res) => {
   const { rows } = await q(
     `SELECT m.id, m.media_url, m.palette, m.created_at, m.expires_at,
-            u.id AS author_id, u.handle, u.name, u.palette AS author_palette,
+            u.id AS author_id, u.handle, u.name, u.palette AS author_palette, u.avatar_url AS author_avatar_url,
             EXISTS (SELECT 1 FROM moment_views v WHERE v.moment_id = m.id AND v.user_id = $1) AS viewed
      FROM moments m JOIN users u ON u.id = m.author_id
      WHERE m.expires_at > now() AND ${VISIBLE_TO}
@@ -90,7 +90,7 @@ momentRoutes.get('/:momentId/viewers', auth, h(async (req, res) => {
   if (own[0].author_id !== req.user.id) throw forbidden('Só o autor vê quem viu');
 
   const { rows } = await q(
-    `SELECT u.id, u.handle, u.name, u.palette, v.seen_at
+    `SELECT u.id, u.handle, u.name, u.palette, u.avatar_url, v.seen_at
      FROM moment_views v JOIN users u ON u.id = v.user_id
      WHERE v.moment_id = $1 ORDER BY v.seen_at DESC`,
     [req.params.momentId]

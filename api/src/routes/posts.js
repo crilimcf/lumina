@@ -7,7 +7,7 @@ export const postRoutes = Router();
 const SELECT_POST = `
   SELECT p.id, p.body, p.media_url, p.palette, p.created_at, p.invite_id, p.repost_of,
          c.slug AS community_slug, c.name AS community_name,
-         u.id AS author_id, u.handle, u.name, u.palette AS author_palette,
+         u.id AS author_id, u.handle, u.name, u.palette AS author_palette, u.avatar_url AS author_avatar_url,
          (SELECT count(*) FROM reactions r WHERE r.post_id = p.id AND r.kind = 'like')::int AS likes,
          (SELECT count(*) FROM reactions r WHERE r.post_id = p.id AND r.kind = 'fire')::int AS fires,
          (SELECT count(*) FROM posts rp WHERE rp.repost_of = p.id)::int AS reposts,
@@ -146,7 +146,7 @@ postRoutes.post('/:postId/repost', auth, h(async (req, res) => {
 
 postRoutes.get('/:postId/comments', auth, requirePostMember, h(async (req, res) => {
   const { rows } = await q(
-    `SELECT cm.id, cm.body, cm.created_at, u.handle, u.name, u.palette
+    `SELECT cm.id, cm.body, cm.created_at, u.handle, u.name, u.palette, u.avatar_url
      FROM comments cm JOIN users u ON u.id = cm.author_id
      WHERE cm.post_id = $1 AND cm.hidden_at IS NULL ORDER BY cm.created_at LIMIT 200`,
     [req.params.postId]

@@ -429,11 +429,11 @@ function Welcome({ onContinue }) {
 /* ─────────────────────────────────────────── momentos */
 
 /** O anel à volta do avatar: gradiente para quem tem algo por ver, cinza para quem já viste tudo. */
-function MomentRing({ palette, allSeen, size = 52, children }) {
+function MomentRing({ palette, avatarUrl, allSeen, size = 52, children }) {
   return (
     <div style={{ padding: 3, borderRadius: '50%', background: allSeen ? '#D6D1EE' : 'linear-gradient(135deg,var(--coral),var(--cobalt))' }}>
       <div style={{ padding: 3, borderRadius: '50%', background: 'var(--paper)' }}>
-        {children || <Orb p={palette} s={size} />}
+        {children || <Orb p={palette} avatarUrl={avatarUrl} s={size} />}
       </div>
     </div>
   );
@@ -500,7 +500,7 @@ function MomentViewer({ group, onClose, onNext, onPrev, onView, onDelete, onRepl
         ))}
       </div>
       <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px' }}>
-        <Orb p={group.author.palette} s={30} />
+        <Orb p={group.author.palette} avatarUrl={group.author.avatarUrl} s={30} />
         <span style={{ color: '#fff', fontWeight: 600, fontSize: 14 }}>{isMine ? 'Tu' : group.author.name}</span>
         <span style={{ color: 'rgba(255,255,255,.6)', fontFamily: 'DM Mono, monospace', fontSize: 11 }}>
           {new Date(item.created_at).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
@@ -580,6 +580,117 @@ function MomentComposer({ onClose, onPublish, palette, setPalette, file, setFile
         <button className="p p-brand" onClick={onPublish} disabled={busy} style={{ width: '100%', padding: 15, fontSize: 15 }}>
           {busy ? 'A publicar…' : 'Publicar momento'}
         </button>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────── perfil */
+
+/** Editar nome, biografia, cor ou foto, e mudar a password — tudo o que faltava ligar ao backend. */
+function EditarPerfil({ me, onSave, onBack, ping }) {
+  const [name, setName] = useState(me.name);
+  const [bio, setBio] = useState(me.bio || '');
+  const [palette, setPalette] = useState(me.palette);
+  const [avatarUrl, setAvatarUrl] = useState(me.avatar_url || '');
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const fileInput = useRef(null);
+
+  const [current, setCurrent] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [pwBusy, setPwBusy] = useState(false);
+
+  const pickFile = (file) => {
+    setAvatarPreview(prev => { if (prev) URL.revokeObjectURL(prev); return file ? URL.createObjectURL(file) : null; });
+    setAvatarFile(file);
+  };
+
+  const save = async () => {
+    if (String(name).trim().length < 2) return ping('O nome precisa de pelo menos 2 letras');
+    setBusy(true);
+    try {
+      let nextAvatarUrl = avatarUrl;
+      if (avatarFile) nextAvatarUrl = await api.upload(avatarFile);
+      const user = await api.auth.update({ name: name.trim(), bio, palette, avatarUrl: nextAvatarUrl || null });
+      onSave(user);
+      ping('Perfil atualizado');
+      onBack();
+    } catch (e) { ping(e.message); }
+    finally { setBusy(false); }
+  };
+
+  const changePassword = async () => {
+    if (!current || !newPassword) return ping('Preenche as duas passwords');
+    setPwBusy(true);
+    try {
+      await api.auth.changePassword({ current, password: newPassword });
+      setCurrent(''); setNewPassword('');
+      ping('Password alterada');
+    } catch (e) { ping(e.message); }
+    finally { setPwBusy(false); }
+  };
+
+  const shownAvatar = avatarPreview || avatarUrl || null;
+
+  return (
+    <div style={{ minHeight: '100dvh', background: 'var(--paper)' }}>
+      <div style={{ maxWidth: 460, margin: '0 auto', padding: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 22 }}>
+          <button className="p" onClick={onBack} aria-label="Voltar" style={{ padding: 10 }}><ArrowLeft size={16} /></button>
+          <h2 className="d" style={{ fontSize: 24, flex: 1 }}>Editar perfil</h2>
+        </div>
+
+        <div className="card" style={{ padding: 18, marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 18 }}>
+            <Orb p={palette} avatarUrl={shownAvatar} s={72} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
+                onChange={e => pickFile(e.target.files?.[0] || null)} />
+              <button className="p p-sm" onClick={() => fileInput.current?.click()}>
+                <Camera size={13} style={{ verticalAlign: -2, marginRight: 6 }} />{shownAvatar ? 'Trocar foto' : 'Escolher foto'}
+              </button>
+              {shownAvatar && (
+                <button className="p p-sm" style={{ color: 'var(--coral)' }}
+                  onClick={() => { pickFile(null); setAvatarUrl(''); }}>Remover foto</button>
+              )}
+            </div>
+          </div>
+
+          {!shownAvatar && (
+            <div className="scene" style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
+              {PAL.map((t, i) => (
+                <button key={i} onClick={() => setPalette(i)} className="st"
+                  style={{ width: 44, height: 56, background: t.bg, border: 0, cursor: 'pointer', padding: 0, transform: palette === i ? 'translateY(-6px) scale(1.06)' : 'none' }}>
+                  <div className="gloss" />
+                </button>
+              ))}
+            </div>
+          )}
+
+          <label className="m" style={{ display: 'block', marginBottom: 6 }}>Nome</label>
+          <input value={name} onChange={e => setName(e.target.value)} style={{ marginBottom: 14 }} />
+          <label className="m" style={{ display: 'block', marginBottom: 6 }}>Biografia</label>
+          <textarea value={bio} onChange={e => setBio(e.target.value)} maxLength={300} rows={3}
+            style={{ width: '100%', resize: 'none', marginBottom: 4 }} />
+          <div className="m" style={{ textAlign: 'right', marginBottom: 14 }}>{bio.length}/300</div>
+
+          <button className="p p-brand" disabled={busy} style={{ width: '100%', padding: 14 }} onClick={save}>
+            {busy ? 'A guardar…' : 'Guardar alterações'}
+          </button>
+        </div>
+
+        <div className="card" style={{ padding: 18 }}>
+          <div className="m" style={{ marginBottom: 10 }}>Mudar password</div>
+          <input type="password" placeholder="Password atual" value={current} onChange={e => setCurrent(e.target.value)}
+            autoComplete="current-password" style={{ marginBottom: 10 }} />
+          <input type="password" placeholder="Password nova" value={newPassword} onChange={e => setNewPassword(e.target.value)}
+            autoComplete="new-password" minLength={8} style={{ marginBottom: 12 }} />
+          <button className="p" disabled={pwBusy} onClick={changePassword}>
+            {pwBusy ? 'A mudar…' : 'Mudar password'}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -694,7 +805,7 @@ export default function App() {
     const map = new Map();
     for (const m of moments) {
       if (!map.has(m.author_id)) {
-        map.set(m.author_id, { author: { id: m.author_id, handle: m.handle, name: m.name, palette: m.author_palette }, items: [] });
+        map.set(m.author_id, { author: { id: m.author_id, handle: m.handle, name: m.name, palette: m.author_palette, avatarUrl: m.author_avatar_url }, items: [] });
       }
       map.get(m.author_id).items.push(m);
     }
@@ -892,6 +1003,7 @@ export default function App() {
   if (screen === 'seguranca') return <Seguranca onBack={() => setScreen(null)} ping={ping} />;
   if (screen === 'moderacao') return <Moderacao communities={coms} onBack={() => setScreen(null)} ping={ping} />;
   if (screen === 'TERMOS' || screen === 'PRIVACIDADE') return <Legal page={screen} onBack={() => setScreen(null)} />;
+  if (screen === 'editar-perfil') return <EditarPerfil me={me} onSave={setMe} onBack={() => setScreen(null)} ping={ping} />;
 
   const Nav = () => (
     <div className="nav">
@@ -913,7 +1025,7 @@ export default function App() {
       <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', background: 'var(--paper)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 16 }}>
           <button className="p" onClick={() => setThread(null)} aria-label="Voltar às conversas" style={{ padding: 10 }}><ArrowLeft size={16} /></button>
-          <Orb p={thread.palette} s={36} />
+          <Orb p={thread.palette} avatarUrl={thread.avatar_url} s={36} />
           <div><div style={{ fontSize: 15, fontWeight: 600 }}>{thread.name}</div><div className="m">@{thread.handle}</div></div>
         </div>
         <div className="ns" style={{ flex: 1, overflowY: 'auto', padding: '4px 16px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -957,9 +1069,9 @@ export default function App() {
         {threads.length === 0 && <Empty>Ainda sem conversas.<br />Abre o perfil de alguém para falar.</Empty>}
         <div style={{ display: 'grid', gap: 11 }}>
           {threads.map((t, i) => (
-            <button key={t.id} onClick={() => setThread({ id: t.id, name: t.name, handle: t.handle, palette: t.palette })}
+            <button key={t.id} onClick={() => setThread({ id: t.id, name: t.name, handle: t.handle, palette: t.palette, avatar_url: t.avatar_url })}
               className="card in" style={{ border: 0, cursor: 'pointer', padding: 15, display: 'flex', gap: 13, alignItems: 'center', textAlign: 'left', animationDelay: `${i * 60}ms` }}>
-              <Orb p={t.palette} s={44} />
+              <Orb p={t.palette} avatarUrl={t.avatar_url} s={44} />
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ display: 'block', fontSize: 15, fontWeight: 600 }}>{t.name}</span>
                 <span style={{ display: 'block', fontSize: 14, color: 'var(--grey)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1076,7 +1188,10 @@ export default function App() {
   if (tab === 'me') return (
     <div style={{ minHeight: '100dvh', paddingBottom: 100, background: 'linear-gradient(180deg,#EFEDFB,#DFDCF2)' }}>
       <div style={{ maxWidth: 460, margin: '0 auto', padding: 20 }}>
-        <Orb p={me.palette} s={82} cls="float" />
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+          <Orb p={me.palette} avatarUrl={me.avatar_url} s={82} cls="float" />
+          <button className="p" onClick={() => setScreen('editar-perfil')} style={{ marginTop: 4 }}>Editar perfil</button>
+        </div>
         <h2 className="d" style={{ fontSize: 38, margin: '26px 0 8px' }}>{me.name}</h2>
         <div className="m">@{me.handle} · {me.followers || 0} seguidores</div>
         <p style={{ fontSize: 16, lineHeight: 1.45, color: 'var(--grey)', margin: '16px 0 22px' }}>{me.bio || 'Sem descrição.'}</p>
@@ -1232,7 +1347,7 @@ export default function App() {
           <button onClick={() => myMomentGroup ? setViewingAuthor(me.id) : setMomentComposer(true)}
             style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, background: 'none', border: 0, cursor: 'pointer', flexShrink: 0 }}>
             <div style={{ position: 'relative' }}>
-              <MomentRing palette={me.palette} allSeen size={52} />
+              <MomentRing palette={me.palette} avatarUrl={me.avatar_url} allSeen size={52} />
               {!myMomentGroup && (
                 <span style={{ position: 'absolute', bottom: -1, right: -1, width: 19, height: 19, borderRadius: 99, background: 'var(--cobalt)', color: '#fff', display: 'grid', placeItems: 'center', boxShadow: '0 0 0 2px var(--paper)' }}>
                   <Plus size={11} strokeWidth={3} />
@@ -1244,7 +1359,7 @@ export default function App() {
           {momentGroups.filter(g => g.author.id !== me.id).map(g => (
             <button key={g.author.id} onClick={() => setViewingAuthor(g.author.id)}
               style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, background: 'none', border: 0, cursor: 'pointer', flexShrink: 0, maxWidth: 60 }}>
-              <MomentRing palette={g.author.palette} allSeen={g.items.every(i => i.viewed)} size={52} />
+              <MomentRing palette={g.author.palette} avatarUrl={g.author.avatarUrl} allSeen={g.items.every(i => i.viewed)} size={52} />
               <span className="m" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 58 }}>{g.author.name.split(' ')[0]}</span>
             </button>
           ))}
@@ -1298,7 +1413,7 @@ export default function App() {
                   </div>
                 )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '13px 16px' }}>
-                  <Orb p={p.author_palette} s={38} />
+                  <Orb p={p.author_palette} avatarUrl={p.author_avatar_url} s={38} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-.02em' }}>{p.name}</div>
                     <div className="m" style={{ marginTop: 2 }}>
@@ -1370,7 +1485,7 @@ export default function App() {
                       <div style={{ display: 'grid', gap: 13, marginBottom: 15 }}>
                         {cs.map(c => (
                           <div key={c.id} style={{ display: 'flex', gap: 11 }}>
-                            <Orb p={c.palette} s={26} />
+                            <Orb p={c.palette} avatarUrl={c.avatar_url} s={26} />
                             <div><div style={{ fontSize: 13, fontWeight: 600 }}>{c.name}</div>
                               <div style={{ fontSize: 15, lineHeight: 1.4, marginTop: 2, color: '#332E4E' }}>{c.body}</div></div>
                           </div>

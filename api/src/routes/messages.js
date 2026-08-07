@@ -29,7 +29,7 @@ async function findOrCreateThread(userA, userB) {
 messageRoutes.get('/threads', auth, h(async (req, res) => {
   const { rows } = await q(
     `SELECT t.id,
-            u.id AS other_id, u.handle, u.name, u.palette,
+            u.id AS other_id, u.handle, u.name, u.palette, u.avatar_url,
             last.body, last.mode, last.kind, last.purged_at, last.created_at,
             (SELECT count(*) FROM messages m
               WHERE m.thread_id = t.id AND m.sender_id <> $1 AND m.read_at IS NULL)::int AS unread

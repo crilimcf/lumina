@@ -35,3 +35,33 @@ export const ErrorNote = ({ error, onRetry }) => !error ? null : (
 export const Empty = ({ children }) => (
   <div className="m" style={{ padding: 40, textAlign: 'center', lineHeight: 1.6 }}>{children}</div>
 );
+
+/**
+ * Sem isto, um erro de render em qualquer sítio desmonta a app toda e o
+ * React devolve um ecrã branco — sem pista nenhuma do que aconteceu, nem
+ * forma de continuar sem fechar a aba.
+ */
+export class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { console.error('[erro fatal]', error, info.componentStack); }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div style={{
+        minHeight: '100dvh', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', padding: '40px 24px',
+        textAlign: 'center', background: 'linear-gradient(180deg,#EFEDFB,#DFDCF2)',
+      }}>
+        <h1 className="d" style={{ fontSize: 34, marginBottom: 14 }}>Qualquer coisa correu mal</h1>
+        <p style={{ fontSize: 15, lineHeight: 1.5, color: 'var(--grey)', maxWidth: 340, marginBottom: 22 }}>
+          Não é o teu telemóvel, é a Lumina. Recarrega a página — se continuar
+          a acontecer, o que estavas a fazer ajuda-nos a perceber porquê.
+        </p>
+        <button className="p p-brand" style={{ padding: '13px 22px', fontSize: 14 }}
+          onClick={() => window.location.reload()}>Recarregar</button>
+      </div>
+    );
+  }
+}

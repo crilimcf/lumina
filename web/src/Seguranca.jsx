@@ -44,7 +44,7 @@ export function Seguranca({ onBack, ping }) {
   return (
     <div style={{ minHeight: '100dvh', paddingBottom: 100, background: 'linear-gradient(180deg,#EFEDFB,#DFDCF2)' }}>
       <div style={{ maxWidth: 460, margin: '0 auto', padding: 20 }}>
-        <button className="p" onClick={onBack} style={{ padding: 10, marginBottom: 22 }}><ArrowLeft size={16} /></button>
+        <button className="p" onClick={onBack} aria-label="Voltar" style={{ padding: 10, marginBottom: 22 }}><ArrowLeft size={16} /></button>
         <h2 className="d" style={{ fontSize: 38, marginBottom: 26 }}>Segu<span className="it">rança</span></h2>
 
         <ErrorNote error={err} />
@@ -129,7 +129,7 @@ export function Seguranca({ onBack, ping }) {
                 </div>
               </div>
               {!s.current && (
-                <button className="p p-sm" onClick={async () => {
+                <button className="p p-sm" aria-label="Terminar esta sessão" onClick={async () => {
                   try { await api.sessions.revoke(s.id); setSessions(await api.sessions.list()); }
                   catch (e) { ping(e.message); }
                 }}><Trash2 size={13} /></button>
@@ -174,7 +174,7 @@ export function Moderacao({ communities, onBack, ping }) {
 
   if (!mine.length) return (
     <div style={{ minHeight: '100dvh', padding: 20, background: 'linear-gradient(180deg,#EFEDFB,#DFDCF2)' }}>
-      <button className="p" onClick={onBack} style={{ padding: 10, marginBottom: 22 }}><ArrowLeft size={16} /></button>
+      <button className="p" onClick={onBack} aria-label="Voltar" style={{ padding: 10, marginBottom: 22 }}><ArrowLeft size={16} /></button>
       <Empty>Não és moderador de nenhuma comunidade.</Empty>
     </div>
   );
@@ -182,7 +182,7 @@ export function Moderacao({ communities, onBack, ping }) {
   return (
     <div style={{ minHeight: '100dvh', paddingBottom: 100, background: 'linear-gradient(180deg,#EFEDFB,#DFDCF2)' }}>
       <div style={{ maxWidth: 480, margin: '0 auto', padding: 20 }}>
-        <button className="p" onClick={onBack} style={{ padding: 10, marginBottom: 22 }}><ArrowLeft size={16} /></button>
+        <button className="p" onClick={onBack} aria-label="Voltar" style={{ padding: 10, marginBottom: 22 }}><ArrowLeft size={16} /></button>
         <h2 className="d" style={{ fontSize: 38, marginBottom: 10 }}>Mode<span className="it">ração</span></h2>
         <p style={{ fontSize: 14.5, lineHeight: 1.45, color: 'var(--grey)', marginBottom: 20 }}>
           Conteúdo com três denúncias sai de vista automaticamente. Isso é uma
@@ -243,7 +243,7 @@ export function Legal({ page, onBack }) {
   return (
     <div style={{ minHeight: '100dvh', background: 'var(--paper)' }}>
       <div style={{ maxWidth: 640, margin: '0 auto', padding: 20 }}>
-        <button className="p" onClick={onBack} style={{ padding: 10, marginBottom: 22 }}><ArrowLeft size={16} /></button>
+        <button className="p" onClick={onBack} aria-label="Voltar" style={{ padding: 10, marginBottom: 22 }}><ArrowLeft size={16} /></button>
         {text === null ? (
           <Empty>Não foi possível carregar. Escreve para o contacto de apoio.</Empty>
         ) : (

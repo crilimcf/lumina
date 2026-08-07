@@ -354,6 +354,7 @@ export default function App() {
   const [comments, setComments] = useState({});
   const [draft, setDraft] = useState('');
   const [burst, setBurst] = useState(null);
+  const [menuFor, setMenuFor] = useState(null);   // id do post com o menu denunciar/bloquear aberto
   const [blocked, setBlocked] = useState([]);
   const [screen, setScreen] = useState(null);   // seguranca · moderacao · termos · privacidade
 
@@ -541,7 +542,7 @@ export default function App() {
     return (
       <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', background: 'var(--paper)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 16 }}>
-          <button className="p" onClick={() => setThread(null)} style={{ padding: 10 }}><ArrowLeft size={16} /></button>
+          <button className="p" onClick={() => setThread(null)} aria-label="Voltar às conversas" style={{ padding: 10 }}><ArrowLeft size={16} /></button>
           <Orb p={thread.palette} s={36} />
           <div><div style={{ fontSize: 15, fontWeight: 600 }}>{thread.name}</div><div className="m">@{thread.handle}</div></div>
         </div>
@@ -569,7 +570,7 @@ export default function App() {
             <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()}
               placeholder={mode === 'timer' ? 'Mensagem efémera…' : mode === 'once' ? 'Foto de uma vez' : 'Escrever…'} />
             <button className={mode === 'timer' ? 'p p-co' : mode === 'once' ? 'p p-cr' : 'p p-ink'}
-              onClick={send} style={{ padding: '12px 15px' }}>
+              onClick={send} aria-label={mode === 'once' ? 'Enviar foto' : 'Enviar mensagem'} style={{ padding: '12px 15px' }}>
               {mode === 'once' ? <Camera size={16} /> : <Send size={16} />}
             </button>
           </div>
@@ -662,7 +663,7 @@ export default function App() {
           <div style={{ display: 'flex', gap: 9, marginBottom: 26 }}>
             <input value={idea} onChange={e => setIdea(e.target.value)} onKeyDown={e => e.key === 'Enter' && propose()}
               placeholder="ex: uma coisa que não acabaste" maxLength={120} />
-            <button className="p p-ink" onClick={propose} disabled={!idea.trim()} style={{ padding: '12px 16px' }}><Plus size={16} /></button>
+            <button className="p p-ink" onClick={propose} disabled={!idea.trim()} aria-label="Propor convite" style={{ padding: '12px 16px' }}><Plus size={16} /></button>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -687,7 +688,7 @@ export default function App() {
                   <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-.02em', lineHeight: 1.25 }}>{x.text}</div>
                   <div className="m" style={{ marginTop: 4 }}>{i === 0 ? 'a ganhar · ' : ''}{x.author_name || 'alguém'}</div>
                 </div>
-                <button onClick={() => report('proposal', x.id)} style={{ background: 'none', border: 0, cursor: 'pointer', color: '#C4BEDC', padding: 6 }}>
+                <button onClick={() => report('proposal', x.id)} aria-label="Denunciar proposta" style={{ background: 'none', border: 0, cursor: 'pointer', color: '#C4BEDC', padding: 6 }}>
                   <Flag size={14} />
                 </button>
               </div>
@@ -807,7 +808,7 @@ export default function App() {
         <div onClick={e => e.stopPropagation()} className="in" style={{ background: 'linear-gradient(180deg,#F3F1FC,#E9E7F8)', borderRadius: '30px 30px 0 0', width: '100%', maxWidth: 560, margin: '0 auto', padding: '22px 20px calc(26px + env(safe-area-inset-bottom))' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
             <h3 className="d" style={{ fontSize: 26, flex: 1, lineHeight: 1 }}>{comp.title}</h3>
-            <button className="p" onClick={() => setComp(null)} style={{ padding: 10 }}><X size={16} /></button>
+            <button className="p" onClick={() => setComp(null)} aria-label="Fechar" style={{ padding: 10 }}><X size={16} /></button>
           </div>
 
           {!comp.inviteId && coms.length > 1 && (
@@ -853,7 +854,7 @@ export default function App() {
       <header style={{ position: 'sticky', top: 0, zIndex: 40, background: 'rgba(239,237,251,.9)', backdropFilter: 'blur(14px)' }}>
         <div style={{ padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
           <h1 className="d" style={{ fontSize: 25, flex: 1 }}>Lumi<span className="it">na</span></h1>
-          <button className="p" onClick={loadFeed} style={{ padding: 10 }}><Search size={16} /></button>
+          <button className="p" onClick={loadFeed} aria-label="Atualizar feed" style={{ padding: 10 }}><Search size={16} /></button>
         </div>
       </header>
 
@@ -913,15 +914,28 @@ export default function App() {
                     </div>
                   </div>
                   {p.author_id !== me.id && (
-                    <button onClick={() => {
-                      const escolha = prompt(`Escreve "denunciar" ou "bloquear" para ${p.name}:`);
-                      if (escolha === 'denunciar') report('post', p.id);
-                      if (escolha === 'bloquear') api.users.block(p.author_id)
-                        .then(() => { loadFeed(); ping(`${p.name} bloqueado`); })
-                        .catch(e => ping(e.message));
-                    }} style={{ background: 'none', border: 0, cursor: 'pointer', color: '#C4BEDC', padding: 6 }}>
-                      <Flag size={15} />
-                    </button>
+                    <div style={{ position: 'relative' }}>
+                      <button onClick={() => setMenuFor(menuFor === p.id ? null : p.id)}
+                        aria-label="Mais opções" style={{ background: 'none', border: 0, cursor: 'pointer', color: '#C4BEDC', padding: 6 }}>
+                        <Flag size={15} />
+                      </button>
+                      {menuFor === p.id && (
+                        <div className="card in" style={{
+                          position: 'absolute', top: '100%', right: 0, zIndex: 30, minWidth: 150,
+                          padding: 6, display: 'grid',
+                        }}>
+                          <button className="act" style={{ padding: '9px 10px', justifyContent: 'flex-start' }}
+                            onClick={() => { setMenuFor(null); report('post', p.id); }}>Denunciar</button>
+                          <button className="act" style={{ padding: '9px 10px', justifyContent: 'flex-start', color: 'var(--coral)' }}
+                            onClick={() => {
+                              setMenuFor(null);
+                              api.users.block(p.author_id)
+                                .then(() => { loadFeed(); ping(`${p.name} bloqueado`); })
+                                .catch(e => ping(e.message));
+                            }}>Bloquear {p.name}</button>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -942,7 +956,7 @@ export default function App() {
                   <button className={`act${mine.includes('fire') ? '' : ' act-off'}`} onClick={() => react(p, 'fire')}>
                     <span className="em" style={{ filter: mine.includes('fire') ? 'none' : 'grayscale(1) opacity(.55)' }}>🔥</span>{p.fires}
                   </button>
-                  <button className="act act-off" onClick={() => repost(p)}><Repeat2 size={20} />{p.reposts}</button>
+                  <button className="act act-off" onClick={() => repost(p)} aria-label="Republicar"><Repeat2 size={20} />{p.reposts}</button>
                   <button className="act act-off" onClick={() => loadComments(p.id)}>
                     <span className="em" style={{ filter: 'grayscale(1) opacity(.55)' }}>💬</span>{p.comments}
                   </button>

@@ -17,6 +17,7 @@ import { accountRoutes } from './routes/account.js';
 import { uploadRoutes } from './routes/uploads.js';
 import { userRoutes } from './routes/users.js';
 import { twoFactorRoutes, sessionRoutes } from './routes/twofactor.js';
+import { momentRoutes } from './routes/moments.js';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -61,6 +62,7 @@ app.use('/uploads', uploadRoutes);
 app.use('/users', userRoutes);
 app.use('/2fa', twoFactorRoutes);
 app.use('/sessions', sessionRoutes);
+app.use('/moments', momentRoutes);
 
 /**
  * Subscrições de criadores. Fica atrás de flag até haver comunidade que as

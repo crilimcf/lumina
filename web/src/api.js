@@ -140,6 +140,13 @@ export const api = {
   reports: {
     create: (b) => call('/reports', { method: 'POST', body: b }),
   },
+  moments: {
+    list: () => call('/moments'),
+    create: (b) => call('/moments', { method: 'POST', body: b }),
+    view: (id) => call(`/moments/${id}/view`, { method: 'POST' }),
+    viewers: (id) => call(`/moments/${id}/viewers`),
+    remove: (id) => call(`/moments/${id}`, { method: 'DELETE' }),
+  },
 
   /**
    * Envia uma imagem em dois passos: pede um URL assinado e envia o ficheiro

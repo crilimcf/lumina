@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Plus, X, ArrowLeft, ArrowUpRight, Send, Timer, Eye, MessageSquare, Camera, Repeat2, Sparkles, Home, User, ArrowUp, Image, Flag, Loader2, Shield } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Search, Plus, X, ArrowLeft, ArrowUpRight, Send, Timer, Eye, MessageSquare, Camera, Repeat2, Sparkles, Home, User, ArrowUp, Image, Flag, Loader2, Shield, Trash2 } from 'lucide-react';
 import { api, token, ApiError } from './api.js';
 import { PAL, Orb, Skeleton, ErrorNote, Empty } from './ui.jsx';
 import { Seguranca, Moderacao, Legal } from './Seguranca.jsx';
@@ -364,6 +364,138 @@ function Marco({ milestone, onContinue }) {
   );
 }
 
+/* ─────────────────────────────────────────── momentos */
+
+/** O anel à volta do avatar: gradiente para quem tem algo por ver, cinza para quem já viste tudo. */
+function MomentRing({ palette, allSeen, size = 52, children }) {
+  return (
+    <div style={{ padding: 3, borderRadius: '50%', background: allSeen ? '#D6D1EE' : 'linear-gradient(135deg,var(--coral),var(--cobalt))' }}>
+      <div style={{ padding: 3, borderRadius: '50%', background: 'var(--paper)' }}>
+        {children || <Orb p={palette} s={size} />}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Visualizador em ecrã inteiro, no estilo Stories: barras de progresso, avança
+ * sozinho, toca nos lados para navegar.
+ *
+ * `i` pode ficar acima do fim se apagares um momento que não é o último da
+ * sequência enquanto o vês — daí o `safeI`. Sem isto, `item` fica undefined
+ * e o ecrã rebenta a meio de uma sessão de vê-los um a um.
+ */
+function MomentViewer({ group, onClose, onNext, onPrev, onView, onDelete, meId }) {
+  const [i, setI] = useState(0);
+  const safeI = Math.min(i, group.items.length - 1);
+  const item = group.items[safeI];
+  const isMine = group.author.id === meId;
+
+  useEffect(() => { setI(0); }, [group.author.id]);
+  useEffect(() => { if (item && !isMine) onView(item.id); }, [item?.id]);
+
+  useEffect(() => {
+    if (!item) return;
+    const t = setTimeout(() => {
+      if (safeI < group.items.length - 1) setI(safeI + 1);
+      else onNext();
+    }, 5000);
+    return () => clearTimeout(t);
+  }, [safeI, group.author.id, group.items.length]);
+
+  if (!item) return null;   // o pai fecha isto assim que o autor fica sem momentos
+
+  const advance = (dir) => {
+    if (dir > 0 && safeI < group.items.length - 1) return setI(safeI + 1);
+    if (dir < 0 && safeI > 0) return setI(safeI - 1);
+    if (dir > 0) return onNext();
+    onPrev();
+  };
+
+  return (
+    <div className="reveal" style={{ position: 'fixed', inset: 0, zIndex: 80, background: '#0B0A17' }}>
+      <div style={{ display: 'flex', gap: 4, padding: '12px 12px 0' }}>
+        {group.items.map((it, idx) => (
+          <div key={it.id} style={{ flex: 1, height: 3, borderRadius: 9, background: 'rgba(255,255,255,.28)', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%', background: '#fff',
+              width: idx < safeI ? '100%' : idx > safeI ? '0%' : '100%',
+              transition: idx === safeI ? 'width 5s linear' : 'none',
+            }} />
+          </div>
+        ))}
+      </div>
+      <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px' }}>
+        <Orb p={group.author.palette} s={30} />
+        <span style={{ color: '#fff', fontWeight: 600, fontSize: 14 }}>{isMine ? 'Tu' : group.author.name}</span>
+        <span style={{ color: 'rgba(255,255,255,.6)', fontFamily: 'DM Mono, monospace', fontSize: 11 }}>
+          {new Date(item.created_at).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
+        </span>
+        {isMine && (
+          <button onClick={() => onDelete(item.id)} aria-label="Apagar momento"
+            style={{ marginLeft: 'auto', background: 'none', border: 0, color: 'rgba(255,255,255,.8)', padding: 8 }}>
+            <Trash2 size={17} />
+          </button>
+        )}
+        <button onClick={onClose} aria-label="Fechar" style={{ marginLeft: isMine ? 6 : 'auto', background: 'none', border: 0, color: '#fff', padding: 8 }}>
+          <X size={20} />
+        </button>
+      </div>
+
+      <div style={{ position: 'absolute', inset: 0 }}>
+        {item.media_url
+          ? <img src={item.media_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          : <div style={{ width: '100%', height: '100%', background: PAL[item.palette % 5].bg }} />}
+      </div>
+
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', zIndex: 1 }}>
+        <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => advance(-1)} />
+        <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => advance(1)} />
+      </div>
+    </div>
+  );
+}
+
+/** Folha para publicar um momento novo: foto opcional, cor sempre. */
+function MomentComposer({ onClose, onPublish, palette, setPalette, file, setFile, busy }) {
+  const fileInput = useRef(null);
+  return (
+    <div onClick={() => !busy && onClose()} style={{ position: 'fixed', inset: 0, background: 'rgba(24,18,60,.36)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', zIndex: 60 }}>
+      <div onClick={e => e.stopPropagation()} className="in" style={{ background: 'linear-gradient(180deg,#F3F1FC,#E9E7F8)', borderRadius: '30px 30px 0 0', width: '100%', maxWidth: 560, margin: '0 auto', padding: '22px 20px calc(26px + env(safe-area-inset-bottom))' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 10 }}>
+          <h3 className="d" style={{ fontSize: 26, flex: 1, lineHeight: 1 }}>Momento</h3>
+          <button className="p" onClick={onClose} aria-label="Fechar" style={{ padding: 10 }}><X size={16} /></button>
+        </div>
+        <p style={{ fontSize: 13.5, lineHeight: 1.45, color: 'var(--grey)', marginBottom: 16 }}>
+          Fica visível 24 horas para quem partilha uma comunidade contigo. Não precisas de foto — só uma cor já chega.
+        </p>
+
+        <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
+          onChange={e => setFile(e.target.files?.[0] || null)} />
+        <button className="p" onClick={() => fileInput.current?.click()}
+          style={{ width: '100%', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <Image size={15} />{file ? file.name.slice(0, 28) : 'Escolher uma foto (opcional)'}
+        </button>
+
+        {!file && (
+          <div className="scene" style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
+            {PAL.map((t, i) => (
+              <button key={i} onClick={() => setPalette(i)} className="st"
+                style={{ width: 48, height: 60, background: t.bg, border: 0, cursor: 'pointer', padding: 0, transform: palette === i ? 'translateY(-6px) scale(1.06)' : 'none' }}>
+                <div className="gloss" />
+              </button>
+            ))}
+          </div>
+        )}
+
+        <button className="p p-brand" onClick={onPublish} disabled={busy} style={{ width: '100%', padding: 15, fontSize: 15 }}>
+          {busy ? 'A publicar…' : 'Publicar momento'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ─────────────────────────────────────────── aplicação */
 
 export default function App() {
@@ -401,6 +533,13 @@ export default function App() {
   const [draft, setDraft] = useState('');
   const [burst, setBurst] = useState(null);
   const [menuFor, setMenuFor] = useState(null);   // id do post com o menu denunciar/bloquear aberto
+
+  const [moments, setMoments] = useState([]);
+  const [viewingAuthor, setViewingAuthor] = useState(null);   // id de quem estou a ver os momentos
+  const [momentComposer, setMomentComposer] = useState(false);
+  const [momentFile, setMomentFile] = useState(null);
+  const [momentPalette, setMomentPalette] = useState(0);
+  const [momentBusy, setMomentBusy] = useState(false);
   const [blocked, setBlocked] = useState([]);
   const [screen, setScreen] = useState(null);   // seguranca · moderacao · termos · privacidade
 
@@ -431,7 +570,59 @@ export default function App() {
     setPick(c[0]?.id || null);
     setOpening(true);
     loadFeed();
+    loadMoments();
   }
+
+  const loadMoments = useCallback(() => {
+    api.moments.list().then(setMoments).catch(() => {});
+  }, []);
+
+  /** Os momentos, agrupados por autor: o meu primeiro, depois quem ainda tem algo por ver. */
+  const momentGroups = useMemo(() => {
+    const map = new Map();
+    for (const m of moments) {
+      if (!map.has(m.author_id)) {
+        map.set(m.author_id, { author: { id: m.author_id, handle: m.handle, name: m.name, palette: m.author_palette }, items: [] });
+      }
+      map.get(m.author_id).items.push(m);
+    }
+    const groups = [...map.values()];
+    groups.sort((a, b) => {
+      if (a.author.id === me?.id) return -1;
+      if (b.author.id === me?.id) return 1;
+      const aUnseen = a.items.some(i => !i.viewed);
+      const bUnseen = b.items.some(i => !i.viewed);
+      return aUnseen === bUnseen ? 0 : aUnseen ? -1 : 1;
+    });
+    return groups;
+  }, [moments, me?.id]);
+
+  const myMomentGroup = momentGroups.find(g => g.author.id === me?.id) || null;
+
+  const publishMoment = async () => {
+    setMomentBusy(true);
+    try {
+      let mediaUrl = null;
+      if (momentFile) mediaUrl = await api.upload(momentFile);
+      await api.moments.create({ mediaUrl, palette: momentPalette });
+      setMomentComposer(false); setMomentFile(null); setMomentPalette(0);
+      loadMoments();
+      ping('Momento publicado. Fica visível 24 horas.');
+    } catch (e) { ping(e.message); }
+    finally { setMomentBusy(false); }
+  };
+
+  const viewMoment = (id) => { api.moments.view(id).catch(() => {}); setMoments(ms => ms.map(m => m.id === id ? { ...m, viewed: true } : m)); };
+
+  const deleteMoment = async (id) => {
+    try {
+      await api.moments.remove(id);
+      const remaining = moments.filter(m => m.id !== id);
+      setMoments(remaining);
+      if (!remaining.some(m => m.author_id === viewingAuthor)) setViewingAuthor(null);
+      ping('Momento apagado');
+    } catch (e) { ping(e.message); }
+  };
 
   const loadFeed = useCallback(async () => {
     setLoadingFeed(true); setFeedErr(null);
@@ -907,6 +1098,28 @@ export default function App() {
         </div>
       </header>
 
+      <div className="ns" style={{ display: 'flex', gap: 16, overflowX: 'auto', padding: '4px 16px 16px' }}>
+          <button onClick={() => myMomentGroup ? setViewingAuthor(me.id) : setMomentComposer(true)}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, background: 'none', border: 0, cursor: 'pointer', flexShrink: 0 }}>
+            <div style={{ position: 'relative' }}>
+              <MomentRing palette={me.palette} allSeen size={52} />
+              {!myMomentGroup && (
+                <span style={{ position: 'absolute', bottom: -1, right: -1, width: 19, height: 19, borderRadius: 99, background: 'var(--cobalt)', color: '#fff', display: 'grid', placeItems: 'center', boxShadow: '0 0 0 2px var(--paper)' }}>
+                  <Plus size={11} strokeWidth={3} />
+                </span>
+              )}
+            </div>
+            <span className="m">Tu</span>
+          </button>
+          {momentGroups.filter(g => g.author.id !== me.id).map(g => (
+            <button key={g.author.id} onClick={() => setViewingAuthor(g.author.id)}
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, background: 'none', border: 0, cursor: 'pointer', flexShrink: 0, maxWidth: 60 }}>
+              <MomentRing palette={g.author.palette} allSeen={g.items.every(i => i.viewed)} size={52} />
+              <span className="m" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 58 }}>{g.author.name.split(' ')[0]}</span>
+            </button>
+          ))}
+      </div>
+
       {main && (
         <button onClick={() => setTab('invites')} className="sect"
           style={{ width: '100%', border: 0, textAlign: 'left', cursor: 'pointer', padding: '18px 16px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -1052,6 +1265,31 @@ export default function App() {
       <Composer />
       <Nav />
       <Toast />
+
+      {viewingAuthor && (() => {
+        const group = momentGroups.find(g => g.author.id === viewingAuthor);
+        if (!group) return null;
+        const idx = momentGroups.indexOf(group);
+        return (
+          <MomentViewer group={group} meId={me.id}
+            onView={viewMoment}
+            onDelete={deleteMoment}
+            onClose={() => setViewingAuthor(null)}
+            onNext={() => setViewingAuthor(momentGroups[idx + 1]?.author.id || null)}
+            onPrev={() => setViewingAuthor(momentGroups[idx - 1]?.author.id || null)}
+          />
+        );
+      })()}
+
+      {momentComposer && (
+        <MomentComposer
+          file={momentFile} setFile={setMomentFile}
+          palette={momentPalette} setPalette={setMomentPalette}
+          busy={momentBusy}
+          onClose={() => { setMomentComposer(false); setMomentFile(null); setMomentPalette(0); }}
+          onPublish={publishMoment}
+        />
+      )}
     </div>
   );
 }

@@ -43,6 +43,7 @@ provavelmente não é obrigatório, mas confirma.]`
 | Comunidades a que pertences | Mostrar-te o feed certo | Execução do contrato |
 | Convites que propões e votos | Escolher o convite do dia | Execução do contrato |
 | Dias em que respondeste | Mostrar-te o teu registo | Execução do contrato |
+| Momentos (foto ou só cor, 24h) e quem os viu | É o serviço | Execução do contrato |
 
 ### Para segurança
 

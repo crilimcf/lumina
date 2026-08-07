@@ -385,23 +385,27 @@ function MomentRing({ palette, allSeen, size = 52, children }) {
  * sequência enquanto o vês — daí o `safeI`. Sem isto, `item` fica undefined
  * e o ecrã rebenta a meio de uma sessão de vê-los um a um.
  */
-function MomentViewer({ group, onClose, onNext, onPrev, onView, onDelete, meId }) {
+function MomentViewer({ group, onClose, onNext, onPrev, onView, onDelete, onReply, meId }) {
   const [i, setI] = useState(0);
+  const [reply, setReply] = useState('');
+  const [sent, setSent] = useState(false);
   const safeI = Math.min(i, group.items.length - 1);
   const item = group.items[safeI];
   const isMine = group.author.id === meId;
 
-  useEffect(() => { setI(0); }, [group.author.id]);
+  useEffect(() => { setI(0); setReply(''); setSent(false); }, [group.author.id]);
   useEffect(() => { if (item && !isMine) onView(item.id); }, [item?.id]);
 
   useEffect(() => {
-    if (!item) return;
+    // Pausa o avanço automático enquanto se escreve uma resposta — ninguém
+    // quer ver a história mudar a meio de uma frase.
+    if (!item || reply) return;
     const t = setTimeout(() => {
       if (safeI < group.items.length - 1) setI(safeI + 1);
       else onNext();
     }, 5000);
     return () => clearTimeout(t);
-  }, [safeI, group.author.id, group.items.length]);
+  }, [safeI, group.author.id, group.items.length, reply]);
 
   if (!item) return null;   // o pai fecha isto assim que o autor fica sem momentos
 
@@ -410,6 +414,14 @@ function MomentViewer({ group, onClose, onNext, onPrev, onView, onDelete, meId }
     if (dir < 0 && safeI > 0) return setI(safeI - 1);
     if (dir > 0) return onNext();
     onPrev();
+  };
+
+  const submitReply = (e) => {
+    e.preventDefault();
+    if (!reply.trim()) return;
+    onReply(group.author.id, reply.trim());
+    setReply(''); setSent(true);
+    setTimeout(() => setSent(false), 2200);
   };
 
   return (
@@ -452,6 +464,21 @@ function MomentViewer({ group, onClose, onNext, onPrev, onView, onDelete, meId }
         <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => advance(-1)} />
         <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => advance(1)} />
       </div>
+
+      {!isMine && (
+        <form onSubmit={submitReply} style={{
+          position: 'absolute', zIndex: 2, left: 0, right: 0, bottom: 0,
+          padding: '14px 14px calc(14px + env(safe-area-inset-bottom))',
+          display: 'flex', gap: 9, background: 'linear-gradient(0deg,rgba(0,0,0,.5),transparent)',
+        }}>
+          <input value={reply} onChange={e => setReply(e.target.value)}
+            placeholder={sent ? 'Enviado ✓' : `Responder a ${group.author.name.split(' ')[0]}…`}
+            style={{ background: 'rgba(255,255,255,.14)', border: '1.5px solid rgba(255,255,255,.3)', color: '#fff' }}
+            onFocus={e => e.target.placeholder = `Responder a ${group.author.name.split(' ')[0]}…`} />
+          <button type="submit" aria-label="Enviar resposta" disabled={!reply.trim()}
+            className="p p-brand" style={{ padding: '12px 15px' }}><Send size={16} /></button>
+        </form>
+      )}
     </div>
   );
 }
@@ -621,6 +648,15 @@ export default function App() {
       setMoments(remaining);
       if (!remaining.some(m => m.author_id === viewingAuthor)) setViewingAuthor(null);
       ping('Momento apagado');
+    } catch (e) { ping(e.message); }
+  };
+
+  /** Responder a um momento é só abrir (ou continuar) a conversa com quem o publicou. */
+  const replyToMoment = async (authorId, text) => {
+    try {
+      const t = await api.messages.openThread(authorId);
+      await api.messages.send(t.id, { kind: 'text', mode: 'normal', body: text });
+      ping('Resposta enviada');
     } catch (e) { ping(e.message); }
   };
 
@@ -1274,6 +1310,7 @@ export default function App() {
           <MomentViewer group={group} meId={me.id}
             onView={viewMoment}
             onDelete={deleteMoment}
+            onReply={replyToMoment}
             onClose={() => setViewingAuthor(null)}
             onNext={() => setViewingAuthor(momentGroups[idx + 1]?.author.id || null)}
             onPrev={() => setViewingAuthor(momentGroups[idx - 1]?.author.id || null)}

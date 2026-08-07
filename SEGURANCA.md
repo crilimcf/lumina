@@ -213,6 +213,54 @@ conta perdida — nunca houve nenhuma.
 
 ---
 
+## Quarta ronda · Momentos e auditoria de fecho (2026-08-07)
+
+### Alto · Dois momentos rebentavam ou vazavam, apanhados antes de publicar
+
+Ao construir a funcionalidade de Momentos (ver commit próprio):
+apagar um momento que não é o último da sequência enquanto está a ser visto
+deixava o índice fora dos limites e rebentava o visualizador; e
+`POST /moments/:id/view` não aplicava a mesma regra de visibilidade da
+listagem, deixando alguém fora da comunidade (ou bloqueado) marcar-se como
+tendo visto um momento que nunca devia sequer saber que existia. Os dois
+foram encontrados em revisão própria, corrigidos e testados antes de
+qualquer utilizador ver — não depois.
+
+### Médio · RGPD · exportação de dados incompleta
+
+`GET /account/export` não incluía Momentos, quem viu os meus Momentos, nem a
+lista de pessoas bloqueadas. Como é a rota que cumpre o artigo 20.º
+(portabilidade), "um ficheiro com tudo o que temos sobre ti" não estava a
+ser verdade. Acrescentados os três.
+
+### Médio · Duas cópias dos documentos legais, uma delas esquecida
+
+`legal/PRIVACIDADE.md` (a que eu editava) e
+`web/public/legal/PRIVACIDADE.md` (a que a app mostra de verdade dentro do
+ecrã "Privacidade") são ficheiros separados. A segunda ficou parada desde
+antes da correção da região do alojamento — quem lesse a política de
+privacidade dentro da app via "EUA" muito depois de a base já estar na UE
+há dias, e via os placeholders todos por preencher muito depois de eu os
+ter preenchido com os prestadores reais.
+
+Corrigido a sério, não só sincronizado uma vez: `web/scripts/sync-legal.mjs`
+corre antes de cada `dev` e `build`, copiando `legal/*.md` para
+`web/public/legal/` automaticamente. Só há agora um sítio para editar.
+
+### Auditoria de marca
+
+Verificação pedida explicitamente: não há nenhuma referência a Instagram,
+Snapchat, BeReal, TikTok, WhatsApp ou qualquer outra marca de terceiros em
+código, documentos legais ou interface — a Lumina não usa nomes, logótipos
+nem código de ninguém. Os ícones são gerados por script próprio (ver
+`web/scripts` do PWA), as fontes são do Google Fonts com licença aberta.
+Semelhanças funcionais com outras redes (fotos que desaparecem, convite
+diário) são conceitos genéricos, não protegidos por direitos de autor —
+só a expressão concreta (nome, código, imagem) o é, e aí não há
+sobreposição nenhuma.
+
+---
+
 ## O que continua por fazer
 
 ### No código

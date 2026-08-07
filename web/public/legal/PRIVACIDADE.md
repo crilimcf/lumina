@@ -43,6 +43,7 @@ provavelmente não é obrigatório, mas confirma.]`
 | Comunidades a que pertences | Mostrar-te o feed certo | Execução do contrato |
 | Convites que propões e votos | Escolher o convite do dia | Execução do contrato |
 | Dias em que respondeste | Mostrar-te o teu registo | Execução do contrato |
+| Momentos (foto ou só cor, 24h) e quem os viu | É o serviço | Execução do contrato |
 
 ### Para segurança
 
@@ -75,14 +76,14 @@ Trabalhamos com estes prestadores, cada um com contrato de subcontratação:
 
 | Prestador | Para quê | Onde |
 |---|---|---|
-| `[alojamento]` | Servidor e base de dados | `[região]` |
-| `[Vercel]` | Servir a aplicação | `[região]` |
-| `[Resend]` | Enviar emails de recuperação | `[região]` |
-| `[Cloudflare]` | Guardar as imagens | `[região]` |
+| Railway | Servidor e base de dados | UE (europe-west4) |
+| Vercel | Servir a aplicação | `[região]` |
+| Resend | Enviar emails de recuperação | `[região]` — ainda não configurado |
+| Cloudflare R2 | Guardar as imagens | `[região]` — ainda não configurado |
 
-`[Se algum destes tratar dados fora do Espaço Económico Europeu, tens de
-indicar aqui as garantias aplicáveis — normalmente cláusulas contratuais-tipo.
-Escolher regiões europeias evita a questão.]`
+`[Para os restantes prestadores, se algum tratar dados fora do Espaço
+Económico Europeu, indica aqui as garantias aplicáveis. Escolher regiões
+europeias evita a questão — é o que já foi feito para o alojamento.]`
 
 Não vendemos dados a ninguém. Não os cedemos para publicidade. Só os
 entregamos a autoridades quando a lei nos obrigar.

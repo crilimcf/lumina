@@ -84,12 +84,17 @@ accountRoutes.get('/export', auth, h(async (req, res) => {
        FROM posts p JOIN communities c ON c.id = p.community_id WHERE p.author_id = $1`),
     comentarios: await one('SELECT id, post_id, body, created_at FROM comments WHERE author_id = $1'),
     reacoes: await one('SELECT post_id, kind, created_at FROM reactions WHERE user_id = $1'),
+    // Só os que ainda não expiraram: os outros já não existem em lado nenhum, nem aqui.
+    momentos: await one('SELECT id, media_url, palette, created_at, expires_at FROM moments WHERE author_id = $1'),
     convitesPropostos: await one('SELECT id, text, vote_count, created_at FROM proposals WHERE author_id = $1'),
     votos: await one('SELECT proposal_id, created_at FROM proposal_votes WHERE user_id = $1'),
     aSeguir: await one(
       `SELECT u.handle FROM follows f JOIN users u ON u.id = f.following_id WHERE f.follower_id = $1`),
     seguidores: await one(
       `SELECT u.handle FROM follows f JOIN users u ON u.id = f.follower_id WHERE f.following_id = $1`),
+    bloqueados: await one(
+      `SELECT u.handle, b.created_at FROM blocks b JOIN users u ON u.id = b.blocked_id WHERE b.blocker_id = $1`),
+    momentosVistos: await one('SELECT moment_id, seen_at FROM moment_views WHERE user_id = $1'),
     // Mensagens efémeras já apagadas saem como registo, sem conteúdo: é isso que resta.
     mensagens: await one(
       `SELECT id, thread_id, kind, mode, body, created_at, purged_at

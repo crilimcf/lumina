@@ -175,22 +175,30 @@ a app não passava a instalável nem funcionava offline. Gerados os ícones,
 criado `public/sw.js` (cache do essencial + `/assets/*`, nunca da API) e
 registado em `main.jsx`.
 
-### Alto · RGPD · base de dados alojada nos EUA, não na UE
+### Alto · RGPD · base de dados alojada nos EUA, não na UE — ainda por resolver
 
 A `PRIVACIDADE.md` recomenda "escolher regiões europeias" para evitar a
 questão de transferências para fora do Espaço Económico Europeu — mas o
-Postgres na Railway ficou, por omissão, numa região dos EUA. Tentei mover o
-serviço para `eu-west` por comando (`railway service scale`); o resultado foi
-inesperado: a app ficou 503 durante a transição e a base voltou a assentar
-nos EUA na mesma — o volume de dados está fisicamente preso à região onde
-nasceu, e mudar a réplica não muda onde o volume vive.
+Postgres na Railway ficou, por omissão, numa região dos EUA (`sfo`).
+`railway add --database postgres` não tem opção de região; só o painel da
+Railway a deixa escolher, no momento da criação.
 
-**Não tentei outra vez.** A base está vazia (0 utilizadores reais, nunca
-corri o seed em produção), por isso a forma segura de resolver é apagar este
-serviço Postgres e criar um novo já na região certa pelo painel da Railway —
-lá a região é uma escolha explícita no momento da criação, em vez de um
-comando às cegas sobre um recurso com estado. Fica por fazer porque mexer
-outra vez num Postgres com uma base viva não é coisa para tentativa e erro.
+Tentei mudar por comando (`railway service scale eu-west=1 sfo=0`), em duas
+ocasiões, ambas sobre um serviço já criado. As duas vezes a app ficou
+momentaneamente em baixo (503) e a base acabou sempre de novo nos EUA — da
+segunda vez, presa num ciclo de `password authentication failed`, porque
+apagar e recriar o serviço Postgres **parte a referência `DATABASE_URL`**
+que o serviço `api` guarda (`${{Postgres.DATABASE_URL}}` fica a apontar para
+o serviço antigo, já apagado); só voltou a ligar depois de redefinir essa
+variável à mão e forçar um novo deploy da API.
+
+Restaurado a um estado saudável, na região por omissão (EUA) — sem dados
+reais em risco em nenhum momento, a base nunca teve utilizadores. Duas
+incidências ao vivo chegaram para não insistir mais por comando: falta
+apagar este serviço e criar um Postgres novo pelo **painel da Railway**,
+escolhendo a região aí. Depois disso, é preciso confirmar (por comando ou
+pelo painel) que a variável `DATABASE_URL` do serviço `api` aponta mesmo
+para o Postgres novo antes de dar como resolvido.
 
 ### Por decisão, não corrigido nesta ronda
 

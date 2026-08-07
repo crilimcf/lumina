@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Shield, Smartphone, Check, X, Flag, Trash2, RotateCcw } from 'lucide-react';
-import { api, token } from './api.js';
+import { api } from './api.js';
 import { Orb, ErrorNote, Empty, Skeleton } from './ui.jsx';
 
 /* ─────────────────────────── segurança da conta */
@@ -139,7 +139,7 @@ export function Seguranca({ onBack, ping }) {
           <button className="p" style={{ width: '100%', marginTop: 14, color: 'var(--coral)' }}
             onClick={async () => {
               if (!confirm('Fechar a sessão em todos os dispositivos?')) return;
-              try { const r = await api.sessions.revokeAll(); token.set(r.token); load(); ping('Todas as sessões fechadas'); }
+              try { await api.sessions.revokeAll(); load(); ping('Todas as sessões fechadas'); }
               catch (e) { ping(e.message); }
             }}>
             <RotateCcw size={13} style={{ verticalAlign: -2, marginRight: 6 }} />Fechar tudo em todo o lado

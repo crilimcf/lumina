@@ -2,17 +2,25 @@
  * Cliente da API.
  *
  * Um sítio só para falar com o servidor. Os ecrãs chamam `api.posts.feed()`
- * e não sabem nada de fetch, tokens ou cabeçalhos.
+ * e não sabem nada de fetch, cookies ou cabeçalhos.
+ *
+ * A sessão vive num cookie HttpOnly — o browser envia-o sozinho
+ * (`credentials: 'include'`), e o JavaScript nunca lhe consegue tocar. Isso
+ * fecha a porta a um roubo de sessão via XSS que o localStorage deixava
+ * aberta. Pedidos que mudam estado levam também o valor do cookie CSRF
+ * (esse sim legível por JS) num cabeçalho — é a prova de que quem pediu foi
+ * mesmo o nosso próprio JavaScript, e não um site de terceiros a explorar o
+ * cookie de sessão a ser enviado sozinho.
  */
 
 const BASE = import.meta.env.VITE_API_URL || '/api';
-const KEY = 'lumina.token';
+const CSRF_COOKIE = '__Host-lumina-csrf';
+const SAFE_METHODS = new Set(['GET', 'HEAD']);
 
-export const token = {
-  get: () => localStorage.getItem(KEY),
-  set: (t) => localStorage.setItem(KEY, t),
-  clear: () => localStorage.removeItem(KEY),
-};
+function readCsrfCookie() {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${CSRF_COOKIE}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
 
 export class ApiError extends Error {
   constructor(status, message, code) {
@@ -25,21 +33,19 @@ export class ApiError extends Error {
 async function call(path, { method = 'GET', body, auth = true } = {}) {
   const headers = {};
   if (body) headers['content-type'] = 'application/json';
-  if (auth) {
-    const t = token.get();
-    if (t) headers.authorization = `Bearer ${t}`;
+  if (!SAFE_METHODS.has(method)) {
+    const csrf = readCsrfCookie();
+    if (csrf) headers['x-csrf-token'] = csrf;
   }
 
   let res;
   try {
-    res = await fetch(BASE + path, { method, headers, body: body && JSON.stringify(body) });
+    res = await fetch(BASE + path, { method, headers, credentials: 'include', body: body && JSON.stringify(body) });
   } catch {
     throw new ApiError(0, 'Sem ligação. Verifica a internet.', 'offline');
   }
 
-  // Sessão expirada: limpa e deixa a app voltar ao início.
   if (res.status === 401 && auth) {
-    token.clear();
     const data = await res.json().catch(() => ({}));
     throw new ApiError(401, data.error || 'A sessão expirou', data.code || 'unauthorized');
   }
@@ -58,19 +64,20 @@ export const api = {
     me: () => call('/auth/me'),
     update: (b) => call('/auth/me', { method: 'PATCH', body: b }),
     changePassword: (b) => call('/auth/change-password', { method: 'POST', body: b }),
+    logout: () => call('/auth/logout', { method: 'POST' }),
   },
   account: {
     forgot: (email) => call('/account/forgot-password', { method: 'POST', body: { email }, auth: false }),
     reset: (b) => call('/account/reset-password', { method: 'POST', body: b, auth: false }),
     days: () => call('/account/days'),
     /**
-     * Descarrega os dados. Um <a href> nao envia o cabecalho Authorization,
-     * por isso pedimos com fetch e guardamos o ficheiro a partir da resposta.
+     * Descarrega os dados. Um <a href> nao envia o cookie de sessao a um
+     * pedido cross-origin da mesma forma previsivel, por isso pedimos com
+     * fetch (que leva o cookie automaticamente) e guardamos o ficheiro a
+     * partir da resposta.
      */
     async download() {
-      const res = await fetch(`${BASE}/account/export`, {
-        headers: { authorization: `Bearer ${token.get()}` },
-      });
+      const res = await fetch(`${BASE}/account/export`, { credentials: 'include' });
       if (!res.ok) throw new ApiError(res.status, 'Nao foi possivel descarregar');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);

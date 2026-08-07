@@ -1,10 +1,11 @@
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import { env } from './env.js';
 import { pool } from './db.js';
-import { errorHandler, auth, h, HttpError } from './middleware/auth.js';
+import { errorHandler, auth, h, HttpError, SESSION_COOKIE, ensureCsrfCookie } from './middleware/auth.js';
 import { startJobs } from './jobs/daily.js';
 
 import { authRoutes } from './routes/auth.js';
@@ -28,8 +29,29 @@ const origins = env.CORS_ORIGIN?.split(',').map(s => s.trim()).filter(Boolean);
 if (env.NODE_ENV === 'production' && !origins?.length) {
   throw new Error('Em producao e obrigatorio definir CORS_ORIGIN');
 }
-app.use(cors({ origin: origins?.length ? origins : true, maxAge: 86400 }));
+app.use(cors({ origin: origins?.length ? origins : true, credentials: true, maxAge: 86400 }));
 app.use(express.json({ limit: '256kb' }));
+app.use(cookieParser());
+
+// Emite (ou renova) o cookie CSRF em qualquer pedido, e exige que pedidos
+// que mudam estado o devolvam num cabeçalho. Um site de terceiros consegue
+// fazer o browser enviar o cookie de sessão sozinho (é assim que cookies
+// funcionam), mas não consegue ler o cookie CSRF para o repetir no
+// cabeçalho — só JavaScript com acesso à nossa origem consegue.
+const CSRF_SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+app.use((req, res, next) => {
+  const cookieValue = ensureCsrfCookie(req, res);
+  if (CSRF_SAFE_METHODS.has(req.method)) return next();
+  // Pedidos autenticados só por cabeçalho Authorization (sem cookie de
+  // sessão) não estão sujeitos a CSRF: um browser não os consegue forjar
+  // sem conseguir também ler esse cabeçalho.
+  if (!req.cookies?.[SESSION_COOKIE]) return next();
+  const header = req.headers['x-csrf-token'];
+  if (!header || header !== cookieValue) {
+    return next(new HttpError(403, 'Pedido invalido (CSRF)', 'csrf'));
+  }
+  next();
+});
 
 app.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-7', legacyHeaders: false }));
 // Autenticação apanha mais força bruta do que qualquer outra rota.

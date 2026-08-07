@@ -2,7 +2,7 @@ import { Router } from 'express';
 import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { q, tx } from '../db.js';
-import { auth, h, bad, notFound, signToken, audit } from '../middleware/auth.js';
+import { auth, h, bad, notFound, signToken, audit, setSessionCookie, SESSION_COOKIE } from '../middleware/auth.js';
 import { generateSecret, verifyTotp, otpauthUri, generateRecoveryCodes, hashCode } from '../lib/totp.js';
 
 export const twoFactorRoutes = Router();
@@ -78,8 +78,9 @@ twoFactorRoutes.get('/status', auth, h(async (req, res) => {
 export const sessionRoutes = Router();
 
 sessionRoutes.get('/', auth, h(async (req, res) => {
-  const current = crypto.createHash('sha256')
-    .update((req.headers.authorization || '').slice(7)).digest('hex');
+  const header = req.headers.authorization || '';
+  const rawToken = req.cookies?.[SESSION_COOKIE] || (header.startsWith('Bearer ') ? header.slice(7) : '');
+  const current = crypto.createHash('sha256').update(rawToken).digest('hex');
   const { rows } = await q(
     `SELECT id, user_agent, ip, last_seen, created_at, token_hash = $2 AS current
      FROM sessions WHERE user_id = $1 AND revoked_at IS NULL
@@ -108,5 +109,7 @@ sessionRoutes.post('/revoke-all', auth, h(async (req, res) => {
   await q('UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [req.user.id]);
   audit(req.user.id, 'sessoes:todas-fechadas', req.user.id);
   // Token novo para quem pediu não ficar de fora.
-  res.json({ token: signToken(rows[0]) });
+  const token = signToken(rows[0]);
+  setSessionCookie(res, token);
+  res.json({ token });
 }));

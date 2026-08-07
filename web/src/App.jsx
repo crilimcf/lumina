@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Search, Plus, X, ArrowLeft, ArrowUpRight, Send, Timer, Eye, MessageSquare, Camera, Repeat2, Sparkles, Home, User, ArrowUp, Image, Flag, Loader2, Shield, Trash2 } from 'lucide-react';
-import { api, token, ApiError } from './api.js';
+import { api, ApiError } from './api.js';
 import { PAL, Orb, Skeleton, ErrorNote, Empty } from './ui.jsx';
 import { Seguranca, Moderacao, Legal } from './Seguranca.jsx';
 
@@ -112,7 +112,6 @@ function Entrada({ onIn }) {
         : await api.auth.register({ ...f, acceptTerms: terms });
       // Password certa mas a conta tem dois passos: pedimos o codigo.
       if (out.needsCode) { setNeedsCode(true); return; }
-      token.set(out.token);
       onIn(out.user);
     } catch (e) { setErr(e); } finally { setBusy(false); }
   };
@@ -574,14 +573,13 @@ export default function App() {
   const fileInput = useRef(null);
   const ping = (t) => { setToast(t); setTimeout(() => setToast(''), 2600); };
 
-  /* arranque: se há token, tenta retomar a sessão */
+  /* arranque: se o cookie de sessão ainda for válido, retoma a sessão */
   useEffect(() => {
     (async () => {
-      if (!token.get()) return setBooting(false);
       try {
         const user = await api.auth.me();
         await afterLogin(user);
-      } catch { token.clear(); }
+      } catch { /* sem sessão — fica no ecrã de entrada */ }
       finally { setBooting(false); }
     })();
   }, []);
@@ -683,7 +681,7 @@ export default function App() {
   }, [thread]);
   useEffect(() => { end.current?.scrollIntoView?.({ block: 'end' }); }, [msgs]);
 
-  const logout = () => { token.clear(); setMe(null); setTab('feed'); };
+  const logout = () => { api.auth.logout().catch(() => {}); setMe(null); setTab('feed'); };
 
   /* ── ações ── */
 

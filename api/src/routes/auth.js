@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { q } from '../db.js';
 import { env } from '../env.js';
 import crypto from 'node:crypto';
-import { signToken, h, bad, HttpError, auth, audit } from '../middleware/auth.js';
+import { signToken, h, bad, HttpError, auth, audit, setSessionCookie, clearSessionCookie } from '../middleware/auth.js';
 import { verifyTotp, hashCode } from '../lib/totp.js';
 
 export const authRoutes = Router();
@@ -90,7 +90,9 @@ authRoutes.post('/register', h(async (req, res) => {
      VALUES ($1, $2, $3, $4, $5, now(), $6) RETURNING ${PUBLIC}`,
     [handle, email, hash, String(name).trim(), birthDate, TERMS_VERSION]
   );
-  res.status(201).json({ token: signToken(rows[0]), user: rows[0] });
+  const token = signToken(rows[0]);
+  setSessionCookie(res, token);
+  res.status(201).json({ token, user: rows[0] });
 }));
 
 authRoutes.post('/login', h(async (req, res) => {
@@ -153,7 +155,14 @@ authRoutes.post('/login', h(async (req, res) => {
 
   const token = signToken(user);
   recordSession(user.id, token, req);
+  setSessionCookie(res, token);
   res.json({ token, user });
+}));
+
+/** Fecha a sessao do lado do browser: apaga o cookie HttpOnly. */
+authRoutes.post('/logout', h(async (_req, res) => {
+  clearSessionCookie(res);
+  res.status(204).end();
 }));
 
 authRoutes.get('/me', auth, h(async (req, res) => {
@@ -219,5 +228,7 @@ authRoutes.post('/change-password', auth, h(async (req, res) => {
     [req.user.id, await bcrypt.hash(password, 12)]
   );
   // Devolve um token novo para quem mudou nao ficar de fora.
-  res.json({ token: signToken(up[0]), user: up[0] });
+  const token = signToken(up[0]);
+  setSessionCookie(res, token);
+  res.json({ token, user: up[0] });
 }));

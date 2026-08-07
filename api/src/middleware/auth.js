@@ -1,6 +1,48 @@
 import jwt from 'jsonwebtoken';
+import crypto from 'node:crypto';
 import { env } from '../env.js';
 import { q } from '../db.js';
+
+/**
+ * Sessão em cookie HttpOnly em vez de só no corpo da resposta.
+ *
+ * O token continua também no corpo (para quem testa a API diretamente, e
+ * para uma eventual app não-browser, que não tem cookies) — a mudança real
+ * é que o browser deixa de precisar de o guardar em localStorage, onde uma
+ * falha de XSS o conseguiria ler. Um cookie HttpOnly, não.
+ *
+ * `__Host-` no nome: o browser recusa aceitar este cookie sem `Secure`, sem
+ * `Path=/` e com `Domain` definido — proteção extra contra o cookie ser
+ * mal configurado ou "atirado" por um subdomínio.
+ */
+export const SESSION_COOKIE = '__Host-lumina-session';
+export const CSRF_COOKIE = '__Host-lumina-csrf';
+
+const cookieBase = { secure: true, sameSite: 'none', path: '/' };
+
+export function setSessionCookie(res, token) {
+  res.cookie(SESSION_COOKIE, token, { ...cookieBase, httpOnly: true, maxAge: 30 * 24 * 3600_000 });
+}
+
+export function clearSessionCookie(res) {
+  res.clearCookie(SESSION_COOKIE, cookieBase);
+}
+
+/**
+ * Cookie CSRF: legível por JavaScript de propósito — a proteção não vem de
+ * o esconder, vem de um site de terceiros não o conseguir ler (a mesma
+ * política de origem que protege qualquer cookie) nem de o conseguir repetir
+ * num cabeçalho à parte (um formulário simples não consegue definir
+ * cabeçalhos; só JavaScript com acesso CORS à nossa origem consegue).
+ */
+export function ensureCsrfCookie(req, res) {
+  let value = req.cookies?.[CSRF_COOKIE];
+  if (!value) {
+    value = crypto.randomBytes(32).toString('base64url');
+    res.cookie(CSRF_COOKIE, value, { ...cookieBase, httpOnly: false, maxAge: 30 * 24 * 3600_000 });
+  }
+  return value;
+}
 
 export class HttpError extends Error {
   constructor(status, message, code) {
@@ -29,10 +71,11 @@ export function signToken(user) {
 export async function auth(req, _res, next) {
   try {
     const header = req.headers.authorization || '';
-    // So o cabecalho. Um token na query string fica em logs de acesso,
-    // proxies e no Referer de qualquer link de saida — o download de dados
-    // usa fetch() com o cabecalho, por isso este fallback nunca e preciso.
-    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+    // O cookie é o caminho normal agora. O cabeçalho fica como recurso só
+    // para quem ainda tiver a versão antiga do site aberta numa aba (o
+    // token antigo em localStorage continua válido até expirar) e para
+    // quem fala com a API fora do browser, onde não há cookies.
+    const token = req.cookies?.[SESSION_COOKIE] || (header.startsWith('Bearer ') ? header.slice(7) : null);
     if (!token) throw new HttpError(401, 'Sessao em falta');
 
     let payload;

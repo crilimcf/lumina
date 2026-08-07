@@ -22,7 +22,7 @@ guardados e mostram-se à CNPD se ela pedir.
 | **Categorias de dados** | Nome, nome de utilizador, email, password em hash, data de nascimento, data de aceitação dos termos |
 | **Fundamento** | Execução do contrato (art. 6.º/1/b); verificação de idade por obrigação legal (art. 6.º/1/c) |
 | **Destinatários** | Railway (alojamento), Resend (ainda não configurado) |
-| **Transferências fora do EEE** | Sim — Railway aloja atualmente nos EUA. Garantias por indicar; ver `SEGURANCA.md` |
+| **Transferências fora do EEE** | Nenhuma — Railway aloja em `europe-west4` (Países Baixos) |
 | **Prazo de conservação** | Enquanto durar a conta, mais 30 dias após pedido de apagamento |
 | **Medidas de segurança** | bcrypt fator 12, HTTPS, 2FA opcional, bloqueio progressivo |
 

@@ -75,22 +75,14 @@ Trabalhamos com estes prestadores, cada um com contrato de subcontratação:
 
 | Prestador | Para quê | Onde |
 |---|---|---|
-| Railway | Servidor e base de dados | ⚠️ EUA — ver nota abaixo |
+| Railway | Servidor e base de dados | UE (europe-west4) |
 | Vercel | Servir a aplicação | `[região]` |
 | Resend | Enviar emails de recuperação | `[região]` — ainda não configurado |
 | Cloudflare R2 | Guardar as imagens | `[região]` — ainda não configurado |
 
-⚠️ **Por resolver:** a base de dados ficou, por omissão da Railway, alojada
-nos EUA. Isto é uma transferência para fora do Espaço Económico Europeu e
-precisa de uma de duas coisas antes de aceitares utilizadores a sério:
-mudar o alojamento para uma região europeia (a Railway permite escolher no
-painel ao criar o serviço), ou indicar aqui as garantias aplicáveis —
-normalmente cláusulas contratuais-tipo. Ver `SEGURANCA.md` para o que foi
-tentado e porque ficou por fazer.
-
 `[Para os restantes prestadores, se algum tratar dados fora do Espaço
 Económico Europeu, indica aqui as garantias aplicáveis. Escolher regiões
-europeias evita a questão.]`
+europeias evita a questão — é o que já foi feito para o alojamento.]`
 
 Não vendemos dados a ninguém. Não os cedemos para publicidade. Só os
 entregamos a autoridades quando a lei nos obrigar.

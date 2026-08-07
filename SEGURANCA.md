@@ -175,30 +175,29 @@ a app não passava a instalável nem funcionava offline. Gerados os ícones,
 criado `public/sw.js` (cache do essencial + `/assets/*`, nunca da API) e
 registado em `main.jsx`.
 
-### Alto · RGPD · base de dados alojada nos EUA, não na UE — ainda por resolver
+### Alto · RGPD · base de dados alojada nos EUA, não na UE — resolvido
 
 A `PRIVACIDADE.md` recomenda "escolher regiões europeias" para evitar a
 questão de transferências para fora do Espaço Económico Europeu — mas o
 Postgres na Railway ficou, por omissão, numa região dos EUA (`sfo`).
-`railway add --database postgres` não tem opção de região; só o painel da
-Railway a deixa escolher, no momento da criação.
+`railway add --database postgres` não tem opção de região; só
+`railway service scale` a muda depois de criado.
 
-Tentei mudar por comando (`railway service scale eu-west=1 sfo=0`), em duas
-ocasiões, ambas sobre um serviço já criado. As duas vezes a app ficou
-momentaneamente em baixo (503) e a base acabou sempre de novo nos EUA — da
-segunda vez, presa num ciclo de `password authentication failed`, porque
-apagar e recriar o serviço Postgres **parte a referência `DATABASE_URL`**
-que o serviço `api` guarda (`${{Postgres.DATABASE_URL}}` fica a apontar para
-o serviço antigo, já apagado); só voltou a ligar depois de redefinir essa
-variável à mão e forçar um novo deploy da API.
+Duas primeiras tentativas (`railway service scale eu-west=1 sfo=0`, sobre um
+serviço já em uso ou recém-criado) deixaram a app momentaneamente em baixo
+(503): apagar e recriar o serviço Postgres **parte a referência
+`DATABASE_URL`** que o serviço `api` guarda (`${{Postgres.DATABASE_URL}}`
+fica a apontar para o serviço antigo, já apagado), e o sintoma —
+`password authentication failed` em ciclo — parecia um problema de dados,
+não de configuração.
 
-Restaurado a um estado saudável, na região por omissão (EUA) — sem dados
-reais em risco em nenhum momento, a base nunca teve utilizadores. Duas
-incidências ao vivo chegaram para não insistir mais por comando: falta
-apagar este serviço e criar um Postgres novo pelo **painel da Railway**,
-escolhendo a região aí. Depois disso, é preciso confirmar (por comando ou
-pelo painel) que a variável `DATABASE_URL` do serviço `api` aponta mesmo
-para o Postgres novo antes de dar como resolvido.
+Identificada a causa, resolvido à terceira: apagar o Postgres, criar de
+novo, mudar a região numa única chamada (`eu-west=1 sfo=0`) sobre o serviço
+ainda vazio, e **imediatamente a seguir**, sem esperar por sintoma nenhum,
+redefinir `DATABASE_URL` no serviço `api` e deixar o redeploy automático
+seguir. A API ficou saudável em menos de dez segundos. Confirmado por
+comando: `europe-west4`, migrações aplicadas do zero sem erros, nenhuma
+conta perdida — nunca houve nenhuma.
 
 ### Por decisão, não corrigido nesta ronda
 

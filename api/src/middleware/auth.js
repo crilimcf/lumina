@@ -16,7 +16,6 @@ import { q } from '../db.js';
  * mal configurado ou "atirado" por um subdomínio.
  */
 export const SESSION_COOKIE = '__Host-lumina-session';
-export const CSRF_COOKIE = '__Host-lumina-csrf';
 
 const cookieBase = { secure: true, sameSite: 'none', path: '/' };
 
@@ -29,19 +28,42 @@ export function clearSessionCookie(res) {
 }
 
 /**
- * Cookie CSRF: legível por JavaScript de propósito — a proteção não vem de
- * o esconder, vem de um site de terceiros não o conseguir ler (a mesma
- * política de origem que protege qualquer cookie) nem de o conseguir repetir
- * num cabeçalho à parte (um formulário simples não consegue definir
- * cabeçalhos; só JavaScript com acesso CORS à nossa origem consegue).
+ * CSRF: nada de cookie legível por JS. A API e o frontend vivem em domínios
+ * diferentes (Railway e Vercel) — um cookie posto pela API nunca aparece em
+ * `document.cookie` do lado do frontend, por muito que o browser o envie
+ * sozinho no pedido. É a política de origem a fazer o que devia: só que aqui
+ * também nos tapava a nós.
+ *
+ * Em vez disso, o valor CSRF vai dentro do próprio token, assinado. O
+ * servidor devolve-o no corpo da resposta de login/registo/etc (que só quem
+ * fez o pedido consegue ler — outra vez a política de origem, desta vez a
+ * favor); o frontend guarda-o em memória e repete-o num cabeçalho em todo o
+ * pedido que muda estado. Um site de terceiros nunca o vê: não consegue ler
+ * a resposta de um pedido que não é seu, e não consegue adivinhar um valor
+ * assinado dentro de um token que também não consegue ler (o cookie de
+ * sessão é HttpOnly).
  */
-export function ensureCsrfCookie(req, res) {
-  let value = req.cookies?.[CSRF_COOKIE];
-  if (!value) {
-    value = crypto.randomBytes(32).toString('base64url');
-    res.cookie(CSRF_COOKIE, value, { ...cookieBase, httpOnly: false, maxAge: 30 * 24 * 3600_000 });
+export const csrfOf = (token) => jwt.decode(token)?.csrf;
+
+const CSRF_SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+export function csrfGuard(req, _res, next) {
+  if (CSRF_SAFE_METHODS.has(req.method)) return next();
+  const token = req.cookies?.[SESSION_COOKIE];
+  // Sem cookie de sessão: autenticação (se houver) vem do cabeçalho
+  // Authorization, que um site de terceiros não consegue forjar por si só.
+  if (!token) return next();
+  let payload;
+  try {
+    payload = jwt.verify(token, env.JWT_SECRET);
+  } catch {
+    return next(); // token invalido: o auth() da rota da o erro certo
   }
-  return value;
+  const header = req.headers['x-csrf-token'];
+  if (!header || header !== payload.csrf) {
+    return next(new HttpError(403, 'Pedido invalido (CSRF)', 'csrf'));
+  }
+  next();
 }
 
 export class HttpError extends Error {
@@ -62,7 +84,7 @@ export const notFound = (msg = 'Nao encontrado') => new HttpError(404, msg);
  */
 export function signToken(user) {
   return jwt.sign(
-    { sub: user.id, handle: user.handle, v: user.session_version ?? 1 },
+    { sub: user.id, handle: user.handle, v: user.session_version ?? 1, csrf: crypto.randomBytes(24).toString('base64url') },
     env.JWT_SECRET,
     { expiresIn: '30d' }
   );
@@ -99,6 +121,7 @@ export async function auth(req, _res, next) {
     }
 
     req.user = rows[0];
+    req.sessionCsrf = payload.csrf;
     next();
   } catch (err) {
     next(err);

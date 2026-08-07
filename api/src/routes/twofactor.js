@@ -2,7 +2,7 @@ import { Router } from 'express';
 import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { q, tx } from '../db.js';
-import { auth, h, bad, notFound, signToken, audit, setSessionCookie, SESSION_COOKIE } from '../middleware/auth.js';
+import { auth, h, bad, notFound, signToken, audit, setSessionCookie, SESSION_COOKIE, csrfOf } from '../middleware/auth.js';
 import { generateSecret, verifyTotp, otpauthUri, generateRecoveryCodes, hashCode } from '../lib/totp.js';
 
 export const twoFactorRoutes = Router();
@@ -111,5 +111,5 @@ sessionRoutes.post('/revoke-all', auth, h(async (req, res) => {
   // Token novo para quem pediu não ficar de fora.
   const token = signToken(rows[0]);
   setSessionCookie(res, token);
-  res.json({ token });
+  res.json({ token, csrf: csrfOf(token) });
 }));

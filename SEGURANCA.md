@@ -261,6 +261,65 @@ sobreposição nenhuma.
 
 ---
 
+## Quinta ronda · Sessão em cookie, dependências e Resend a sério (2026-08-07)
+
+### Alto · Token em `localStorage`, resolvido
+
+Registado como risco em aberto desde a segunda ronda: uma falha de XSS dava
+acesso direto ao token de sessão. Migrado para cookie `__Host-lumina-session`
+(`HttpOnly`, `Secure`, `SameSite=None`) — o JavaScript da própria app já não
+lhe consegue tocar, muito menos um script injetado.
+
+Isto obriga a proteção CSRF: sem ela, o próprio cookie a ser enviado sozinho
+pelo browser abriria a porta a um pedido forjado por um site de terceiros.
+A primeira versão usou o padrão clássico de "cookie CSRF legível por JS" —
+e **rebentou em teste de browser real contra a produção**, não em revisão de
+código: a API (Railway) e o frontend (Vercel) vivem em domínios diferentes, e
+`document.cookie` do lado do frontend nunca vê um cookie posto pela API,
+mesmo que o browser o envie sozinho no pedido. `curl` não apanha isto — só
+simula o pedido, não a política de origem real de um browser. Um teste
+Playwright contra o site publicado, a clicar em "Sair" a sério, é que expôs
+o `403` que os testes por `curl` (a construir o cabeçalho à mão) mascaravam.
+
+Corrigido com o valor CSRF embutido (assinado) dentro do próprio JWT em vez
+de num cookie à parte: o servidor devolve-o no corpo das respostas de
+login/registo/`/auth/me`/etc, o frontend guarda-o em memória (nunca em
+`localStorage`) e repete-o num cabeçalho `X-CSRF-Token` em todo o pedido que
+muda estado. Um site de terceiros não o consegue forjar — não lê o cookie de
+sessão (`HttpOnly`) nem a resposta de um pedido que não é seu (política de
+origem, desta vez a favor). Testado a fundo: emissão/limpeza dos cookies,
+bloqueio de pedidos sem/com CSRF errado, sobrevivência a reload, compatibilidade
+com o cabeçalho `Authorization` antigo, e a suite de regressão completa — tudo
+contra a API e o frontend publicados, incluindo um percurso real de browser
+(registo → reload → logout pelo botão).
+
+### Médio · Vulnerabilidades de dependências, resolvidas
+
+`node-cron` 3→4 e `vite`/`@vitejs/plugin-react` 5→8, adiadas na terceira ronda
+por exigirem versão maior. Investigada a mudança de comportamento de cada
+uma antes de subir (reescrita interna do `node-cron` não afeta o uso mínimo
+feito aqui; `vite@8` não usa opções de build que dependessem do bundler
+antigo). `npm audit` sem avisos pendentes em nenhum dos dois projetos.
+
+### Resend configurado e testado com envio real
+
+`RESEND_API_KEY` e `EMAIL_FROM` configurados no serviço da API. A primeira
+tentativa falhou (`403`, domínio por omissão `lumina.app` não verificado no
+Resend) — diagnosticado pelos próprios logs do envio, não assumido como
+"deve funcionar". Corrigido apontando `EMAIL_FROM` para um domínio
+verificado do dono da conta. Confirmado com um envio real de recuperação de
+password, entregue e verificado na caixa de entrada.
+
+### Por decidir
+
+- **Cloudflare R2 (armazenamento de imagens).** Ainda por configurar — falta
+  criar o bucket e gerar um par de chaves S3 (Access Key ID + Secret Access
+  Key) através de "R2 → Manage R2 API Tokens"; um token geral da conta
+  Cloudflare não serve, a assinatura usada (`storage.js`) é S3 e precisa
+  desse par específico.
+
+---
+
 ## O que continua por fazer
 
 ### No código
@@ -268,9 +327,6 @@ sobreposição nenhuma.
 - **O limite de pedidos é em memória.** Com mais do que uma instância, cada uma
   conta em separado. Precisa de Redis quando escalares. O bloqueio progressivo
   não sofre disto — vive na base de dados.
-- **O token vive em `localStorage`.** Uma falha de XSS dá acesso à sessão. A
-  alternativa — cookie `HttpOnly` — obriga a proteção CSRF e complica o
-  frontend. Vale a pena trocar antes de crescer.
 - **Não há deteção de imagens de abuso.** Verificamos que o ficheiro é uma
   imagem, não o que a imagem contém. Para uma rede com fotos isto é obrigatório
   na prática, e não é coisa que se resolva sozinho — serviços como o PhotoDNA

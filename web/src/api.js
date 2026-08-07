@@ -7,20 +7,22 @@
  * A sessão vive num cookie HttpOnly — o browser envia-o sozinho
  * (`credentials: 'include'`), e o JavaScript nunca lhe consegue tocar. Isso
  * fecha a porta a um roubo de sessão via XSS que o localStorage deixava
- * aberta. Pedidos que mudam estado levam também o valor do cookie CSRF
- * (esse sim legível por JS) num cabeçalho — é a prova de que quem pediu foi
- * mesmo o nosso próprio JavaScript, e não um site de terceiros a explorar o
- * cookie de sessão a ser enviado sozinho.
+ * aberta.
+ *
+ * Pedidos que mudam estado levam também um valor CSRF num cabeçalho. Não
+ * vive num cookie: a API e o frontend são domínios diferentes (Railway e
+ * Vercel), e um cookie posto pela API nunca aparece em `document.cookie` do
+ * lado do frontend — a política de origem do browser tapa-nos a nós tanto
+ * como a um atacante. Em vez disso, o valor vem embutido (assinado) no
+ * próprio token e é devolvido no corpo das respostas de login/registo/etc;
+ * guardamo-lo aqui em memória (nunca em localStorage, para não abrir de
+ * novo a porta que os cookies HttpOnly fecharam) e repetimo-lo no cabeçalho.
  */
 
 const BASE = import.meta.env.VITE_API_URL || '/api';
-const CSRF_COOKIE = '__Host-lumina-csrf';
 const SAFE_METHODS = new Set(['GET', 'HEAD']);
 
-function readCsrfCookie() {
-  const match = document.cookie.match(new RegExp(`(?:^|; )${CSRF_COOKIE}=([^;]*)`));
-  return match ? decodeURIComponent(match[1]) : null;
-}
+let csrfToken = null;
 
 export class ApiError extends Error {
   constructor(status, message, code) {
@@ -33,10 +35,7 @@ export class ApiError extends Error {
 async function call(path, { method = 'GET', body, auth = true } = {}) {
   const headers = {};
   if (body) headers['content-type'] = 'application/json';
-  if (!SAFE_METHODS.has(method)) {
-    const csrf = readCsrfCookie();
-    if (csrf) headers['x-csrf-token'] = csrf;
-  }
+  if (!SAFE_METHODS.has(method) && csrfToken) headers['x-csrf-token'] = csrfToken;
 
   let res;
   try {
@@ -53,6 +52,7 @@ async function call(path, { method = 'GET', body, auth = true } = {}) {
   if (res.status === 204) return null;
 
   const data = await res.json().catch(() => ({}));
+  if (typeof data?.csrf === 'string') csrfToken = data.csrf;
   if (!res.ok) throw new ApiError(res.status, data.error || 'Alguma coisa correu mal', data.code);
   return data;
 }
@@ -64,7 +64,7 @@ export const api = {
     me: () => call('/auth/me'),
     update: (b) => call('/auth/me', { method: 'PATCH', body: b }),
     changePassword: (b) => call('/auth/change-password', { method: 'POST', body: b }),
-    logout: () => call('/auth/logout', { method: 'POST' }),
+    logout: async () => { const r = await call('/auth/logout', { method: 'POST' }); csrfToken = null; return r; },
   },
   account: {
     forgot: (email) => call('/account/forgot-password', { method: 'POST', body: { email }, auth: false }),

@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { q } from '../db.js';
 import { env } from '../env.js';
 import crypto from 'node:crypto';
-import { signToken, h, bad, HttpError, auth, audit, setSessionCookie, clearSessionCookie } from '../middleware/auth.js';
+import { signToken, h, bad, HttpError, auth, audit, setSessionCookie, clearSessionCookie, csrfOf } from '../middleware/auth.js';
 import { verifyTotp, hashCode } from '../lib/totp.js';
 
 export const authRoutes = Router();
@@ -92,7 +92,7 @@ authRoutes.post('/register', h(async (req, res) => {
   );
   const token = signToken(rows[0]);
   setSessionCookie(res, token);
-  res.status(201).json({ token, user: rows[0] });
+  res.status(201).json({ token, csrf: csrfOf(token), user: rows[0] });
 }));
 
 authRoutes.post('/login', h(async (req, res) => {
@@ -156,7 +156,7 @@ authRoutes.post('/login', h(async (req, res) => {
   const token = signToken(user);
   recordSession(user.id, token, req);
   setSessionCookie(res, token);
-  res.json({ token, user });
+  res.json({ token, csrf: csrfOf(token), user });
 }));
 
 /** Fecha a sessao do lado do browser: apaga o cookie HttpOnly. */
@@ -175,7 +175,9 @@ authRoutes.get('/me', auth, h(async (req, res) => {
      FROM users u WHERE id = $1`,
     [req.user.id]
   );
-  res.json(rows[0]);
+  // Também aqui: depois de um reload, é a única maneira de o frontend
+  // recuperar o valor CSRF (não vive em cookie legível, vive em memória).
+  res.json({ ...rows[0], csrf: req.sessionCsrf });
 }));
 
 /**
@@ -230,5 +232,5 @@ authRoutes.post('/change-password', auth, h(async (req, res) => {
   // Devolve um token novo para quem mudou nao ficar de fora.
   const token = signToken(up[0]);
   setSessionCookie(res, token);
-  res.json({ token, user: up[0] });
+  res.json({ token, csrf: csrfOf(token), user: up[0] });
 }));

@@ -147,5 +147,11 @@ accountRoutes.get('/days', auth, h(async (req, res) => {
     const key = d.toISOString().slice(0, 10);
     days.push({ date: key, answered: set.has(key) });
   }
-  res.json({ days, total: set.size });
+  // Contagem vitalícia, sem janela — para marcos como "30 dias respondidos".
+  // Continua sem streak que reseta: um marco só soma, nunca tira nada a ninguém.
+  const { rows: lifetimeRows } = await q(
+    `SELECT count(DISTINCT local_date)::int AS n FROM answer_days WHERE user_id = $1`,
+    [req.user.id]
+  );
+  res.json({ days, total: set.size, lifetime: lifetimeRows[0].n });
 }));

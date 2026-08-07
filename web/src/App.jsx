@@ -319,12 +319,58 @@ function Abertura({ me, coms, days, onAnswer, onSkip }) {
   );
 }
 
+/* ─────────────────────────────────────────── marcos */
+
+// Sem streak que reseta — a app já assim o diz nos "Os teus dias". Um marco
+// só soma; nunca é uma sequência que se perde por falhar um dia.
+const MILESTONES = [7, 30, 100, 365, 1000];
+const MILESTONE_COPY = {
+  7: 'Uma semana inteira de dias respondidos. Já é um hábito.',
+  30: 'Trinta dias. Um mês inteiro a aparecer para a tua gente.',
+  100: 'Cem dias respondidos. Isto já é teu.',
+  365: 'Um ano inteiro de dias respondidos.',
+  1000: 'Mil dias. A sério.',
+};
+
+/** Compara o total vitalício com o que já foi celebrado e devolve o marco novo, se houver. */
+function checkMilestone(lifetime, userId) {
+  if (!userId || !Number.isFinite(lifetime)) return null;
+  const key = `lumina.milestone.${userId}`;
+  const last = Number(localStorage.getItem(key) || 0);
+  const crossed = MILESTONES.filter(m => m <= lifetime && m > last);
+  if (!crossed.length) return null;
+  const milestone = crossed[crossed.length - 1];
+  localStorage.setItem(key, String(milestone));
+  return milestone;
+}
+
+function Marco({ milestone, onContinue }) {
+  return (
+    <div style={{ minHeight: '100dvh', position: 'relative', display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg,#EFEDFB,#DFDCF2)' }}>
+      <div className="halo" style={{ top: -70, right: -60, width: 260, height: 260, background: '#FF9A7E' }} />
+      <div className="halo" style={{ bottom: 100, left: -80, width: 220, height: 220, background: '#9C93F2', animationDelay: '.3s' }} />
+      <div style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 26px', textAlign: 'center' }}>
+        <div className="pill" style={{ marginBottom: 22 }}><Orb p={2} s={64} cls="float" /></div>
+        <div className="m up" style={{ color: 'var(--coral)', marginBottom: 10 }}>Marco</div>
+        <h1 className="d up" style={{ fontSize: 'clamp(64px,22vw,104px)', animationDelay: '.08s' }}>{milestone}</h1>
+        <p className="up" style={{ fontSize: 17, lineHeight: 1.5, color: 'var(--grey)', maxWidth: 320, margin: '18px 0 34px', animationDelay: '.16s' }}>
+          {MILESTONE_COPY[milestone] || `${milestone} dias respondidos.`}
+        </p>
+        <button className="p p-brand up" style={{ padding: '14px 26px', fontSize: 15, animationDelay: '.24s' }} onClick={onContinue}>
+          Continuar
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ─────────────────────────────────────────── aplicação */
 
 export default function App() {
   const [me, setMe] = useState(null);
   const [booting, setBooting] = useState(true);
   const [opening, setOpening] = useState(false);
+  const [milestone, setMilestone] = useState(null);
   const [tab, setTab] = useState('feed');
   const [toast, setToast] = useState('');
 
@@ -381,6 +427,7 @@ export default function App() {
       api.account.days().catch(() => ({ days: [] })),
     ]);
     setComs(c); setDays(d.days || []);
+    setMilestone(checkMilestone(d.lifetime, user.id));
     setPick(c[0]?.id || null);
     setOpening(true);
     loadFeed();
@@ -512,6 +559,8 @@ export default function App() {
   );
 
   if (!me) return <Entrada onIn={afterLogin} />;
+
+  if (milestone) return <Marco milestone={milestone} onContinue={() => setMilestone(null)} />;
 
   if (opening) return (
     <Abertura me={me} coms={coms} days={days}

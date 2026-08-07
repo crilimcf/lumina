@@ -123,14 +123,19 @@ function Entrada({ onIn }) {
       <div style={{ position: 'absolute', bottom: -60, left: -70, width: 220, height: 220, borderRadius: '50%', background: 'radial-gradient(circle at 40% 35%,#DCD8FF,#2B2BF7 75%)', filter: 'blur(3px)', opacity: .32 }} />
 
       <div style={{ position: 'relative', maxWidth: 440, margin: '0 auto', padding: '52px 22px 40px' }}>
-        <div className="in">
-          <div className="m" style={{ marginBottom: 18 }}>Rede de comunidades</div>
-          <h1 className="d" style={{ fontSize: 'clamp(58px,17vw,84px)' }}>Lumi<span className="it">na</span></h1>
-          <p style={{ fontSize: 16.5, lineHeight: 1.42, color: 'var(--grey)', margin: '20px 0 34px', maxWidth: 320 }}>
-            Cada comunidade tem o seu convite do dia, escolhido por quem lá está.
-            Sem anúncios e sem algoritmo a decidir o que vês.
-          </p>
+        <div className="up" style={{ marginBottom: 18 }}>
+          <span className="m" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+            <span style={{ width: 6, height: 6, borderRadius: 9, background: 'var(--coral)' }} />
+            Rede de amigos
+          </span>
         </div>
+        <h1 className="d up" style={{ fontSize: 'clamp(58px,17vw,84px)', animationDelay: '.06s' }}>
+          Lumi<span className="it it-brand">na</span>
+        </h1>
+        <p className="up" style={{ fontSize: 16.5, lineHeight: 1.42, color: 'var(--grey)', margin: '20px 0 34px', maxWidth: 320, animationDelay: '.12s' }}>
+          Uma pergunta por dia, escolhida pela tua gente — nunca por um algoritmo.
+          Sem anúncios. Sem scroll infinito.
+        </p>
 
         {sent ? (
           <div className="card in" style={{ padding: 22 }}>
@@ -142,7 +147,7 @@ function Entrada({ onIn }) {
             <button className="p" style={{ marginTop: 18 }} onClick={() => { setSent(false); setMode('login'); }}>Voltar</button>
           </div>
         ) : (
-          <form onSubmit={submit} className="card in" style={{ padding: 22, display: 'grid', gap: 12 }}>
+          <form onSubmit={submit} className="card in" style={{ padding: 22, display: 'grid', gap: 12, animationDelay: '.18s' }}>
             {mode === 'registo' && (
               <>
                 <input placeholder="Como te chamas" value={f.name} onChange={set('name')} autoComplete="name" required />
@@ -185,7 +190,7 @@ function Entrada({ onIn }) {
 
             <ErrorNote error={err} />
 
-            <button className="p p-cr" disabled={busy || (mode === 'registo' && !terms)} style={{ padding: 15, fontSize: 15, marginTop: 4 }}>
+            <button className="p p-brand" disabled={busy || (mode === 'registo' && !terms)} style={{ padding: 15, fontSize: 15, marginTop: 4 }}>
               {busy ? 'Um momento…' : mode === 'login' ? 'Entrar' : mode === 'registo' ? 'Criar conta' : 'Enviar ligação'}
             </button>
 

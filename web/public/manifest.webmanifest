@@ -1,7 +1,7 @@
 {
   "name": "Lumina",
   "short_name": "Lumina",
-  "description": "Uma rede de comunidades pequenas.",
+  "description": "Uma pergunta por dia, escolhida pela tua gente — nunca por um algoritmo.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#EFEDFB",

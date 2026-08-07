@@ -558,6 +558,63 @@ desta vez commitado — o anterior não tinha sobrevivido no repositório.
 
 ---
 
+## Nona ronda · Não havia forma nenhuma de criar ou entrar numa comunidade (2026-08-07)
+
+### Crítico · "Erro interno" ao propor convite, "faltam campos" ao publicar
+
+As duas rotas (`api.communities.create/join/list`) estavam completas no
+backend e no cliente (`api.js`) desde sempre — mas nenhum ecrã da app
+alguma vez as chamava. Uma conta nova ficava sem nenhuma comunidade e sem
+forma nenhuma, a partir da interface, de arranjar uma. Isto tinha ficado
+tapado a sessão inteira porque todos os scripts de teste criavam
+comunidades diretamente pela API, nunca pela app a sério.
+
+Sem comunidade, `pick` (a comunidade escolhida nos Convites) e
+`comp.community` (no compositor de posts) ficavam `undefined`. Isso
+mandava a palavra literal `"undefined"` como id de comunidade:
+
+- Ao publicar, falhava a validação de campos obrigatórios → "Faltam campos".
+- Ao propor um convite, `"undefined"` não é um UUID válido — o Postgres
+  recusa com o código `22P02`, que o `errorHandler` não tratava, caindo
+  no 500 genérico → "Erro interno".
+
+Três correções, todas verificadas com uma conta nova a sério, num browser
+real, do registo até publicar e propor:
+
+1. **Ecrã "Comunidades" novo** (`Comunidades` em `App.jsx`): descobrir
+   comunidades públicas e entrar, ou criar uma nova (nome, identificador
+   com sugestão automática, e as `SEED_PROPOSALS_REQUIRED` ideias de
+   arranque que o backend já exigia). Acessível pelo Perfil, e a partir
+   dos estados vazios da Abertura e dos Convites quando a conta não tem
+   nenhuma comunidade.
+2. **`22P02` mapeado para 400 limpo** em `errorHandler`
+   (`api/src/middleware/auth.js`): `"Identificador inválido"` em vez do
+   500 genérico — mesmo que outro sítio no futuro volte a mandar um id
+   por preencher, o erro passa a ser compreensível.
+3. **Guarda no botão "Novo"** da navegação: sem comunidade nenhuma, nem
+   chega a abrir o compositor — mostra logo "Junta-te a uma comunidade
+   primeiro, em Convites."
+
+### Ecrã de Amigos: sugestões, não só pesquisa
+
+Só mostrava resultados depois de escrever um nome — impossível descobrir
+alguém sem já saber quem procurar. Rota nova, `GET /users/me/suggestions`
+(`api/src/routes/users.js`): pessoas que partilham uma comunidade e ainda
+não sigo, ordenadas por comunidades em comum. O ecrã agora mostra sempre
+duas listas por omissão — "Os teus amigos" e "Pessoas que talvez
+conheças" — e só troca para resultados de pesquisa quando há termo
+escrito.
+
+### Verificado com fluxo completo, não só por rota
+
+Registo → popup de boas-vindas → "Criar ou entrar numa comunidade" →
+criar (5 seeds) → publicar um post (`201`) → propor um convite. O único
+erro que sobrou foi `400 account_too_new` — a regra já existente que
+impede contas com menos de `MIN_ACCOUNT_AGE_HOURS` de proporem convite,
+a funcionar como esperado, não um bug.
+
+---
+
 ## O que continua por fazer
 
 ### No código

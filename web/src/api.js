@@ -102,7 +102,7 @@ export const api = {
     cancelRemoval: () => call('/account/delete/cancel', { method: 'POST' }),
   },
   communities: {
-    list: () => call('/communities'),
+    list: () => call('/communities', { auth: false }),
     mine: () => call('/communities/mine'),
     create: (b) => call('/communities', { method: 'POST', body: b }),
     join: (id) => call(`/communities/${id}/join`, { method: 'POST' }),
@@ -155,6 +155,7 @@ export const api = {
     unblock: (id) => call(`/users/${id}/block`, { method: 'DELETE' }),
     blocked: () => call('/users/me/blocked'),
     following: () => call('/users/me/following'),
+    suggestions: () => call('/users/me/suggestions'),
   },
   reports: {
     create: (b) => call('/reports', { method: 'POST', body: b }),

@@ -106,6 +106,32 @@ userRoutes.get('/me/following', auth, h(async (req, res) => {
   res.json(rows);
 }));
 
+/**
+ * Pessoas para conhecer: quem partilha uma comunidade contigo e ainda não
+ * segues. Sem isto o ecrã de Amigos só mostrava alguém depois de já saberes
+ * o nome ou utilizador — impossível de descobrir gente nova.
+ */
+userRoutes.get('/me/suggestions', auth, h(async (req, res) => {
+  const { rows } = await q(
+    `SELECT u.id, u.handle, u.name, u.bio, u.palette, u.avatar_url,
+            (SELECT count(*) FROM follows WHERE following_id = u.id)::int AS followers,
+            false AS following
+     FROM memberships m
+     JOIN memberships mine ON mine.community_id = m.community_id AND mine.user_id = $1
+     JOIN users u ON u.id = m.user_id
+     WHERE u.id <> $1 AND u.suspended_at IS NULL
+       AND NOT EXISTS (SELECT 1 FROM follows WHERE follower_id = $1 AND following_id = u.id)
+       AND NOT EXISTS (SELECT 1 FROM blocks b
+                       WHERE (b.blocker_id = $1 AND b.blocked_id = u.id)
+                          OR (b.blocked_id = $1 AND b.blocker_id = u.id))
+     GROUP BY u.id
+     ORDER BY count(*) DESC, followers DESC
+     LIMIT 20`,
+    [req.user.id]
+  );
+  res.json(rows);
+}));
+
 userRoutes.get('/me/blocked', auth, h(async (req, res) => {
   const { rows } = await q(
     `SELECT u.id, u.handle, u.name, u.palette, b.created_at

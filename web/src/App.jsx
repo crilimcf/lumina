@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Search, Plus, X, ArrowLeft, ArrowUpRight, Send, Timer, Eye, MessageSquare, Camera, Repeat2, Sparkles, Home, User, ArrowUp, Image, Flag, Loader2, Shield, Trash2 } from 'lucide-react';
+import { Search, Plus, X, ArrowLeft, ArrowUpRight, Send, Timer, Eye, MessageSquare, Camera, Repeat2, Sparkles, Home, User, Users, ArrowUp, Image, Flag, Loader2, Shield, Trash2 } from 'lucide-react';
 import { api, ApiError, onUnauthorized } from './api.js';
 import { PAL, Orb, Skeleton, ErrorNote, Empty } from './ui.jsx';
 import { Seguranca, Moderacao, Legal } from './Seguranca.jsx';
@@ -221,7 +221,7 @@ function Entrada({ onIn }) {
 
 /* ─────────────────────────────────────────── abertura */
 
-function Abertura({ me, coms, days, onAnswer, onSkip }) {
+function Abertura({ me, coms, days, onAnswer, onSkip, onCreateCommunity }) {
   const [step, setStep] = useState(0);
   useEffect(() => {
     const a = setTimeout(() => setStep(1), 240);
@@ -254,6 +254,14 @@ function Abertura({ me, coms, days, onAnswer, onSkip }) {
         <div style={{ marginBottom: 30 }}>
           {step === 0 ? (
             <><Skeleton w="58%" h={15} st={{ marginBottom: 18 }} /><Skeleton w="90%" h={44} st={{ marginBottom: 12 }} /><Skeleton w="62%" h={44} /></>
+          ) : coms.length === 0 ? (
+            <>
+              <div className="m up" style={{ color: 'var(--coral)', marginBottom: 16 }}>Ainda sem comunidade</div>
+              <h1 className="d up" style={{ fontSize: 'clamp(34px,9vw,46px)' }}>Junta-te ou cria a tua <span className="it">comunidade</span></h1>
+              <p className="up" style={{ fontSize: 15, lineHeight: 1.45, color: 'var(--grey)', marginTop: 16 }}>
+                Sem uma comunidade não há convite diário nem publicações. Cria a tua ou entra numa já existente — demora menos de um minuto.
+              </p>
+            </>
           ) : !main?.invite_text ? (
             <>
               <div className="m up" style={{ color: 'var(--coral)', marginBottom: 16 }}>Hoje sem convite</div>
@@ -308,6 +316,12 @@ function Abertura({ me, coms, days, onAnswer, onSkip }) {
 
         <div style={{ marginTop: 34 }}>
           {step === 0 ? <Skeleton w="100%" h={52} r={99} /> : step >= 2 && (
+            coms.length === 0 ? (
+              <button className="p p-cr up" onClick={onCreateCommunity}
+                style={{ width: '100%', padding: 15, fontSize: 15, animationDelay: '.34s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9 }}>
+                Criar ou entrar numa comunidade <ArrowUpRight size={17} />
+              </button>
+            ) : (
             <>
               {main?.invite_id && !main.answered && (
                 <button className="p p-cr up" onClick={() => onAnswer(main)}
@@ -320,6 +334,7 @@ function Abertura({ me, coms, days, onAnswer, onSkip }) {
                 {pending > 1 ? `Ver o feed · +${pending - 1} convites por responder` : 'Ver o feed'}
               </button>
             </>
+            )
           )}
         </div>
       </div>
@@ -809,10 +824,15 @@ function EditarPerfil({ me, onSave, onBack, ping }) {
 function Amigos({ onBack, ping }) {
   const [q, setQ] = useState('');
   const [following, setFollowing] = useState([]);
+  const [suggestions, setSuggestions] = useState([]);
   const [results, setResults] = useState(null);   // null = ainda sem pesquisa feita
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { api.users.following().then(setFollowing).catch(() => []).finally(() => setLoading(false)); }, []);
+  useEffect(() => {
+    Promise.all([api.users.following().catch(() => []), api.users.suggestions().catch(() => [])])
+      .then(([f, s]) => { setFollowing(f); setSuggestions(s); })
+      .finally(() => setLoading(false));
+  }, []);
 
   useEffect(() => {
     const term = q.trim();
@@ -830,6 +850,7 @@ function Amigos({ onBack, ping }) {
       else { await api.users.follow(person.id); ping(`Agora segues ${person.name}`); }
       const flip = (list) => list.map(p => p.id === person.id ? { ...p, following: !p.following } : p);
       setResults(r => r && flip(r));
+      setSuggestions(s => person.following ? s : s.filter(p => p.id !== person.id));
       setFollowing(f => person.following ? f.filter(p => p.id !== person.id) : f);
       if (!person.following) setFollowing(f => [{ ...person, following: true }, ...f]);
     } catch (e) { ping(e.message); }
@@ -848,8 +869,6 @@ function Amigos({ onBack, ping }) {
     </div>
   );
 
-  const list = results ?? following;
-
   return (
     <div style={{ minHeight: '100dvh', paddingBottom: 40, background: 'linear-gradient(180deg,#EFEDFB,#DFDCF2)' }}>
       <div style={{ maxWidth: 460, margin: '0 auto', padding: 20 }}>
@@ -861,17 +880,143 @@ function Amigos({ onBack, ping }) {
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="Pesquisar por nome ou utilizador…"
           style={{ marginBottom: 18 }} autoCapitalize="none" />
 
-        {results === null && (
-          <div className="m" style={{ marginBottom: 10 }}>{loading ? 'A carregar…' : `A seguir (${following.length})`}</div>
+        {loading && <Skeleton h={80} />}
+
+        {!loading && results !== null && (
+          <>
+            <div className="m" style={{ marginBottom: 10 }}>Resultados</div>
+            {results.length === 0 && <Empty>Ninguém encontrado.</Empty>}
+            <div style={{ display: 'grid', gap: 10, marginBottom: 24 }}>
+              {results.map(p => <Row key={p.id} p={p} />)}
+            </div>
+          </>
         )}
 
-        {!loading && list.length === 0 && (
-          <Empty>{results === null ? 'Ainda não segues ninguém. Pesquisa por nome ou utilizador para encontrar amigos.' : 'Ninguém encontrado.'}</Empty>
-        )}
+        {!loading && results === null && (
+          <>
+            <div className="m" style={{ marginBottom: 10 }}>Os teus amigos ({following.length})</div>
+            {following.length === 0 && <Empty>Ainda não segues ninguém.</Empty>}
+            <div style={{ display: 'grid', gap: 10, marginBottom: 24 }}>
+              {following.map(p => <Row key={p.id} p={p} />)}
+            </div>
 
-        <div style={{ display: 'grid', gap: 10 }}>
-          {list.map(p => <Row key={p.id} p={p} />)}
+            <div className="m" style={{ marginBottom: 10 }}>Pessoas que talvez conheças</div>
+            {suggestions.length === 0
+              ? <Empty>Sem sugestões por agora — entra numa comunidade para conheceres gente nova, ou pesquisa acima.</Empty>
+              : (
+                <div style={{ display: 'grid', gap: 10 }}>
+                  {suggestions.map(p => <Row key={p.id} p={p} />)}
+                </div>
+              )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const SEEDS_NEEDED = 5;
+
+/**
+ * Criar ou entrar numa comunidade. Sem isto não havia forma nenhuma de o
+ * fazer a partir da app — as rotas existiam no backend, ligadas a nada.
+ * Sem comunidade nenhuma, publicar e propor convites falhavam com erros
+ * confusos ("faltam campos", ou pior, um erro genérico do servidor).
+ */
+function Comunidades({ mine, onJoined, onBack, ping }) {
+  const [mode, setMode] = useState(mine.length ? 'descobrir' : 'criar');
+  const [all, setAll] = useState(null);
+  const [busyId, setBusyId] = useState(null);
+
+  const [name, setName] = useState('');
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [slug, setSlug] = useState('');
+  const [seeds, setSeeds] = useState(Array(SEEDS_NEEDED).fill(''));
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => { if (mode === 'descobrir' && all === null) api.communities.list().then(setAll).catch(() => setAll([])); }, [mode]);
+
+  const slugify = (s) => s.toLowerCase().trim()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+
+  const join = async (c) => {
+    setBusyId(c.id);
+    try { await api.communities.join(c.id); ping(`Entraste em ${c.name}`); onJoined(); }
+    catch (e) { ping(e.message); }
+    finally { setBusyId(null); }
+  };
+
+  const create = async () => {
+    const cleanSeeds = seeds.map(s => s.trim()).filter(Boolean);
+    if (name.trim().length < 2) return ping('Dá um nome à comunidade');
+    if (cleanSeeds.length < SEEDS_NEEDED) return ping(`Escreve ${SEEDS_NEEDED} convites de arranque`);
+    setCreating(true);
+    try {
+      const c = await api.communities.create({ slug: slug || slugify(name), name: name.trim(), seedProposals: cleanSeeds });
+      ping(`${c.name} criada`);
+      onJoined();
+    } catch (e) { ping(e.message); }
+    finally { setCreating(false); }
+  };
+
+  return (
+    <div style={{ minHeight: '100dvh', paddingBottom: 40, background: 'linear-gradient(180deg,#EFEDFB,#DFDCF2)' }}>
+      <div style={{ maxWidth: 460, margin: '0 auto', padding: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+          {onBack && <button className="p" onClick={onBack} aria-label="Voltar" style={{ padding: 10 }}><ArrowLeft size={16} /></button>}
+          <h2 className="d" style={{ fontSize: 24, flex: 1 }}>Comunidades</h2>
         </div>
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+          <button className={mode === 'descobrir' ? 'p p-sm p-ink' : 'p p-sm'} onClick={() => setMode('descobrir')}>Descobrir</button>
+          <button className={mode === 'criar' ? 'p p-sm p-ink' : 'p p-sm'} onClick={() => setMode('criar')}>Criar a minha</button>
+        </div>
+
+        {mode === 'descobrir' ? (
+          <>
+            {all === null && <Skeleton h={80} />}
+            {all?.length === 0 && <Empty>Ainda não há nenhuma comunidade pública. Cria a primeira.</Empty>}
+            <div style={{ display: 'grid', gap: 10 }}>
+              {all?.filter(c => !mine.some(m => m.id === c.id)).map(c => (
+                <div key={c.id} className="card in" style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 600 }}>{c.name}</div>
+                    <div className="m" style={{ marginTop: 3 }}>{c.member_count} membros</div>
+                    {c.description && <p style={{ fontSize: 13, color: 'var(--grey)', marginTop: 6 }}>{c.description}</p>}
+                  </div>
+                  <button className="p p-brand p-sm" disabled={busyId === c.id} onClick={() => join(c)}>
+                    {busyId === c.id ? '…' : 'Entrar'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="card" style={{ padding: 18 }}>
+            <label className="m" style={{ display: 'block', marginBottom: 6 }}>Nome da comunidade</label>
+            <input value={name} onChange={e => { setName(e.target.value); if (!slugTouched) setSlug(slugify(e.target.value)); }}
+              placeholder="ex: Amigos da faculdade" style={{ marginBottom: 14 }} />
+            <label className="m" style={{ display: 'block', marginBottom: 6 }}>Identificador (usado no link)</label>
+            <input value={slug} onChange={e => { setSlug(slugify(e.target.value)); setSlugTouched(true); }}
+              placeholder="amigos-da-faculdade" autoCapitalize="none" style={{ marginBottom: 18 }} />
+
+            <label className="m" style={{ display: 'block', marginBottom: 8 }}>
+              {SEEDS_NEEDED} convites de arranque — sem eles não há nada para propor no primeiro dia
+            </label>
+            <div style={{ display: 'grid', gap: 8, marginBottom: 18 }}>
+              {seeds.map((s, i) => (
+                <input key={i} value={s} maxLength={120}
+                  onChange={e => setSeeds(arr => arr.map((v, j) => j === i ? e.target.value : v))}
+                  placeholder={`ideia ${i + 1}, ex: uma coisa que não acabaste`} />
+              ))}
+            </div>
+
+            <button className="p p-brand" style={{ width: '100%', padding: 14 }} disabled={creating} onClick={create}>
+              {creating ? 'A criar…' : 'Criar comunidade'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -897,12 +1042,22 @@ function Toast({ text }) {
   ) : null;
 }
 
-function Nav({ tab, setTab, setThread, setComp, coms, threads }) {
+function Nav({ tab, setTab, setThread, setComp, coms, threads, ping }) {
   return (
     <div className="nav">
       {[['feed', Home, 'Feed'], ['invites', Sparkles, 'Convites'], ['new', Plus, 'Novo'], ['dms', Send, 'Conversas'], ['me', User, 'Perfil']].map(([k, I, l]) => (
         <button key={k} className={`nb${tab === k ? ' nb-on' : ''}`}
-          onClick={() => { if (k === 'new') return setComp({ community: coms[0]?.id, title: 'Publicar' }); setTab(k); setThread(null); }}>
+          onClick={() => {
+            if (k === 'new') {
+              // Sem comunidade nenhuma, "community" ia undefined — o pedido
+              // ao publicar chegava com o id em falta e a API recusava com
+              // uma mensagem confusa ("faltam campos"), em vez de dizer logo
+              // aqui o que faltava mesmo fazer primeiro.
+              if (!coms.length) return ping?.('Junta-te a uma comunidade primeiro, em Convites.');
+              return setComp({ community: coms[0].id, title: 'Publicar' });
+            }
+            setTab(k); setThread(null);
+          }}>
           <I size={21} strokeWidth={tab === k ? 2.4 : 1.9} />{l}
           {k === 'invites' && coms.some(c => c.invite_id && !c.answered) && <span className="dot-badge" />}
           {k === 'dms' && threads.some(t => t.unread > 0) && <span className="dot-badge" />}
@@ -1261,7 +1416,8 @@ export default function App() {
   if (opening) return (
     <Abertura me={me} coms={coms} days={days}
       onSkip={() => setOpening(false)}
-      onAnswer={(c) => { setOpening(false); setPick(c.id); setComp({ community: c.id, inviteId: c.invite_id, title: c.invite_text }); }} />
+      onAnswer={(c) => { setOpening(false); setPick(c.id); setComp({ community: c.id, inviteId: c.invite_id, title: c.invite_text }); }}
+      onCreateCommunity={() => { setOpening(false); setScreen('comunidades'); }} />
   );
 
   if (screen === 'seguranca') return <Seguranca onBack={() => setScreen(null)} ping={ping} />;
@@ -1269,6 +1425,16 @@ export default function App() {
   if (screen === 'TERMOS' || screen === 'PRIVACIDADE') return <Legal page={screen} onBack={() => setScreen(null)} />;
   if (screen === 'editar-perfil') return <EditarPerfil me={me} onSave={setMe} onBack={() => setScreen(null)} ping={ping} />;
   if (screen === 'amigos') return <Amigos onBack={() => setScreen(null)} ping={ping} />;
+  if (screen === 'comunidades') return (
+    <Comunidades mine={coms} ping={ping} onBack={() => setScreen(null)}
+      onJoined={async () => {
+        const c = await api.communities.mine().catch(() => coms);
+        setComs(c);
+        if (!pick && c[0]) setPick(c[0].id);
+        setScreen(null);
+        loadFeed();
+      }} />
+  );
 
   /* conversa */
   if (tab === 'dms' && thread) {
@@ -1335,11 +1501,28 @@ export default function App() {
           ))}
         </div>
       </div>
-      <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} coms={coms} threads={threads} />
+      <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} coms={coms} threads={threads} ping={ping} />
     </div>
   );
 
   /* convites */
+  if (tab === 'invites' && coms.length === 0) {
+    return (
+      <div style={{ minHeight: '100dvh', paddingBottom: 100, background: 'linear-gradient(180deg,#EFEDFB,#DFDCF2)' }}>
+        <div style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px' }}>
+          <h2 className="d" style={{ fontSize: 42, margin: '10px 0 10px' }}>Con<span className="it">vites</span></h2>
+          <Empty>
+            Ainda não estás em nenhuma comunidade — por isso não há convite nenhum para mostrar.
+            <button className="p p-cr" style={{ width: '100%', padding: 14, fontSize: 15, marginTop: 16 }}
+              onClick={() => setScreen('comunidades')}>Criar ou entrar numa comunidade</button>
+          </Empty>
+        </div>
+        <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} coms={coms} threads={threads} ping={ping} />
+        <Toast text={toast} />
+      </div>
+    );
+  }
+
   if (tab === 'invites') {
     const cur = coms.find(c => c.id === pick);
     // -1 quando `pick` não corresponde a nada em `coms` (ex: conta sem
@@ -1435,7 +1618,7 @@ export default function App() {
         </div>
         <Composer comp={comp} setComp={setComp} coms={coms} file={file} setFile={setFile}
           palette={palette} setPalette={setPalette} body={body} setBody={setBody} busy={busy} publish={publish} />
-        <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} coms={coms} threads={threads} />
+        <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} coms={coms} threads={threads} ping={ping} />
         <Toast text={toast} />
       </div>
     );
@@ -1492,6 +1675,13 @@ export default function App() {
           <ArrowUpRight size={17} color="#ADA6CC" />
         </button>
 
+        <button className="card" onClick={() => setScreen('comunidades')}
+          style={{ width: '100%', border: 0, cursor: 'pointer', padding: 18, textAlign: 'left', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Users size={17} color="var(--grey)" />
+          <span style={{ flex: 1, fontSize: 15, fontWeight: 600 }}>Comunidades</span>
+          <ArrowUpRight size={17} color="#ADA6CC" />
+        </button>
+
         <button className="card" onClick={() => setScreen('seguranca')}
           style={{ width: '100%', border: 0, cursor: 'pointer', padding: 18, textAlign: 'left', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
           <Shield size={17} color="var(--grey)" />
@@ -1531,7 +1721,7 @@ export default function App() {
 
         <button className="p" onClick={logout} style={{ width: '100%', color: 'var(--coral)' }}>Sair</button>
       </div>
-      <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} coms={coms} threads={threads} />
+      <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} coms={coms} threads={threads} ping={ping} />
       <Toast text={toast} />
     </div>
   );
@@ -1715,7 +1905,7 @@ export default function App() {
 
       <Composer comp={comp} setComp={setComp} coms={coms} file={file} setFile={setFile}
         palette={palette} setPalette={setPalette} body={body} setBody={setBody} busy={busy} publish={publish} />
-      <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} coms={coms} threads={threads} />
+      <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} coms={coms} threads={threads} ping={ping} />
       <Toast text={toast} />
 
       {viewingAuthor && (() => {

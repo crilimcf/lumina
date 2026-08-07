@@ -220,6 +220,11 @@ export function errorHandler(err, _req, res, _next) {
   if (err.code === '23505') return res.status(409).json({ error: 'Ja existe', code: 'duplicate' });
   if (err.code === '23514') return res.status(400).json({ error: 'Dados invalidos', code: 'check' });
   if (err.code === '23503') return res.status(400).json({ error: 'Referencia invalida', code: 'fk' });
+  // 22P02: sintaxe invalida para o tipo da coluna — normalmente um UUID mal
+  // formado (ex: a palavra "undefined" chegou a virar id de comunidade,
+  // porque o frontend nao verificou se havia alguma antes de enviar).
+  // Sem isto, isto caia direto no 500 generico por baixo.
+  if (err.code === '22P02') return res.status(400).json({ error: 'Identificador invalido', code: 'bad_id' });
   console.error(err);
   res.status(500).json({ error: 'Erro interno' });
 }

@@ -310,13 +310,24 @@ Resend) — diagnosticado pelos próprios logs do envio, não assumido como
 verificado do dono da conta. Confirmado com um envio real de recuperação de
 password, entregue e verificado na caixa de entrada.
 
-### Por decidir
+### Cloudflare R2 configurado e testado com upload real
 
-- **Cloudflare R2 (armazenamento de imagens).** Ainda por configurar — falta
-  criar o bucket e gerar um par de chaves S3 (Access Key ID + Secret Access
-  Key) através de "R2 → Manage R2 API Tokens"; um token geral da conta
-  Cloudflare não serve, a assinatura usada (`storage.js`) é S3 e precisa
-  desse par específico.
+Bucket `lumina-media` criado na Europa (`EEUR`), com acesso público via
+domínio `r2.dev` gerido pela própria Cloudflare. Duas armadilhas pelo
+caminho, nenhuma no código: (1) um token geral da conta Cloudflare não
+serve para assinatura S3 — precisa do par Access Key ID + Secret Access
+Key específico, gerado só através de "R2 → Manage R2 API Tokens"; (2) o
+R2 precisa de ser ativado uma vez por conta antes de qualquer chamada à
+API funcionar — sem isso, tanto o token geral como um token R2 bem
+configurado devolvem o mesmo erro genérico de autenticação, o que
+mascarava a causa real.
+
+Testado de ponta a ponta contra o R2 verdadeiro (não simulado): pedido de
+URL assinado, envio direto do ficheiro, verificação da assinatura do
+formato a partir do URL público, o URL público a servir o conteúdo
+correto, um ficheiro forjado (extensão certa, conteúdo errado) a ser
+recusado, e o caso de uso real — publicar um Momento com foto e ele
+aparecer na listagem de quem partilha a comunidade.
 
 ---
 

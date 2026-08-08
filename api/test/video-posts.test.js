@@ -45,7 +45,7 @@ async function communityFor(user) {
     body: {
       slug: 'video-posts',
       name: 'Video posts',
-      seedProposals: ['um', 'dois', 'tres', 'quatro', 'cinco'],
+      seedProposals: ['ideia um', 'ideia dois', 'ideia tres', 'ideia quatro', 'ideia cinco'],
     },
   });
   assert.equal(out.response.status, 201, JSON.stringify(out.data));

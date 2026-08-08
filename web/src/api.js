@@ -3,34 +3,12 @@
  *
  * Um sítio só para falar com o servidor. Os ecrãs chamam `api.posts.feed()`
  * e não sabem nada de fetch, cookies ou cabeçalhos.
- *
- * A sessão vive num cookie HttpOnly — o browser envia-o sozinho
- * (`credentials: 'include'`), e o JavaScript nunca lhe consegue tocar. Isso
- * fecha a porta a um roubo de sessão via XSS que o localStorage deixava
- * aberta.
- *
- * Pedidos que mudam estado levam também um valor CSRF num cabeçalho. Não
- * vive num cookie legível: o valor vem embutido (assinado) no próprio
- * token e é devolvido no corpo das respostas de login/registo/etc;
- * guardamo-lo aqui em memória (nunca em localStorage, para não abrir de
- * novo a porta que os cookies HttpOnly fecharam) e repetimo-lo no cabeçalho.
- * (A API vive num domínio à parte — `/api/*` é reencaminhado pela Vercel —
- * mas do ponto de vista do browser é tudo a mesma origem.)
  */
 
 const BASE = import.meta.env.VITE_API_URL || '/api';
 const SAFE_METHODS = new Set(['GET', 'HEAD']);
 
 let csrfToken = null;
-
-/**
- * Quando um pedido autenticado leva 401 a meio da sessão (token expirado,
- * password mudada noutro sítio, "fechar tudo em todo o lado"), alguém tem
- * de tirar a pessoa do ecrã em que está — senão fica presa a ver erros
- * silenciosos em cada ação, sem perceber que precisa de entrar outra vez.
- * A App regista aqui o que fazer; sem handler registado, não faz nada
- * (mantém o comportamento antigo até a App arrancar).
- */
 let unauthorizedHandler = () => {};
 export const onUnauthorized = (fn) => { unauthorizedHandler = fn; };
 
@@ -49,7 +27,12 @@ async function call(path, { method = 'GET', body, auth = true } = {}) {
 
   let res;
   try {
-    res = await fetch(BASE + path, { method, headers, credentials: 'include', body: body && JSON.stringify(body) });
+    res = await fetch(BASE + path, {
+      method,
+      headers,
+      credentials: 'include',
+      body: body && JSON.stringify(body),
+    });
   } catch {
     throw new ApiError(0, 'Sem ligação. Verifica a internet.', 'offline');
   }
@@ -75,18 +58,16 @@ export const api = {
     me: () => call('/auth/me'),
     update: (b) => call('/auth/me', { method: 'PATCH', body: b }),
     changePassword: (b) => call('/auth/change-password', { method: 'POST', body: b }),
-    logout: async () => { const r = await call('/auth/logout', { method: 'POST' }); csrfToken = null; return r; },
+    logout: async () => {
+      const r = await call('/auth/logout', { method: 'POST' });
+      csrfToken = null;
+      return r;
+    },
   },
   account: {
     forgot: (email) => call('/account/forgot-password', { method: 'POST', body: { email }, auth: false }),
     reset: (b) => call('/account/reset-password', { method: 'POST', body: b, auth: false }),
     days: () => call('/account/days'),
-    /**
-     * Descarrega os dados. Um <a href> nao envia o cookie de sessao a um
-     * pedido cross-origin da mesma forma previsivel, por isso pedimos com
-     * fetch (que leva o cookie automaticamente) e guardamos o ficheiro a
-     * partir da resposta.
-     */
     async download() {
       const res = await fetch(`${BASE}/account/export`, { credentials: 'include' });
       if (!res.ok) throw new ApiError(res.status, 'Nao foi possivel descarregar');
@@ -133,7 +114,7 @@ export const api = {
   },
   twoFactor: {
     status: () => call('/2fa/status'),
-    setup: () => call('/2fa/setup', { method: 'POST' }),
+    setup: (password) => call('/2fa/setup', { method: 'POST', body: { password } }),
     enable: (code) => call('/2fa/enable', { method: 'POST', body: { code } }),
     disable: (password) => call('/2fa/disable', { method: 'POST', body: { password } }),
   },
@@ -168,10 +149,6 @@ export const api = {
     remove: (id) => call(`/moments/${id}`, { method: 'DELETE' }),
   },
 
-  /**
-   * Envia uma imagem em dois passos: pede um URL assinado e envia o ficheiro
-   * direto para o armazenamento. A API nunca toca no ficheiro.
-   */
   async upload(file) {
     const { uploadUrl, key } = await call('/uploads/sign', {
       method: 'POST',
@@ -183,8 +160,6 @@ export const api = {
       body: file,
     });
     if (!res.ok) throw new ApiError(res.status, 'Não foi possível enviar a imagem');
-    // O servidor lê os primeiros bytes e confirma que é mesmo uma imagem.
-    // Só depois disto o URL pode ser usado num post.
     const { url } = await call('/uploads/confirm', { method: 'POST', body: { key } });
     return url;
   },

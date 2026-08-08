@@ -352,112 +352,125 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
   const filter = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%)`;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 110, background: '#080711', color: '#fff', overflowY: 'auto' }}>
-      <div style={{ width: '100%', maxWidth: 430, minHeight: '100dvh', margin: '0 auto', padding: '14px 14px calc(20px + env(safe-area-inset-bottom))' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-          <div style={{ flex: 1 }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 110, background: '#080711', color: '#fff', overflow: 'hidden' }}>
+      <div style={{
+        width: '100%', maxWidth: 430, height: '100dvh', margin: '0 auto',
+        padding: 'calc(10px + env(safe-area-inset-top)) 14px calc(10px + env(safe-area-inset-bottom))',
+        display: 'flex', flexDirection: 'column',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10, flexShrink: 0 }}>
+          <button className="p" onClick={onCancel} aria-label="Cancelar edição do momento"
+            style={{ padding: 10, background: 'rgba(255,255,255,.1)', color: '#fff', borderColor: 'transparent' }}><X size={17} /></button>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div className="d" style={{ fontSize: 24, color: '#fff' }}>Editar momento</div>
             <div style={{ fontSize: 11.5, opacity: .62, marginTop: 2 }}>1 dedo move · 2 dedos aproximam · 9:16</div>
           </div>
-          <button className="p" onClick={onCancel} aria-label="Fechar editor de momento"
-            style={{ padding: 10, background: 'rgba(255,255,255,.1)', color: '#fff', borderColor: 'transparent' }}><X size={17} /></button>
-        </div>
-
-        <div
-          data-testid="moment-photo-frame"
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerEnd}
-          onPointerCancel={onPointerEnd}
-          style={{
-            width: FRAME_W, height: FRAME_H, maxWidth: '100%', margin: '0 auto 12px', position: 'relative', overflow: 'hidden',
-            borderRadius: 24, background: '#05040A', touchAction: 'none', boxShadow: '0 20px 54px rgba(0,0,0,.42)',
-          }}>
-          <div style={{ position: 'absolute', left: '50%', top: '50%', width: dispW, height: dispH, transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))` }}>
-            <img
-              ref={(node) => {
-                imgRef.current = node;
-                if (node?.complete && node.naturalWidth > 0) setNatural(current => current || { w: node.naturalWidth, h: node.naturalHeight });
-              }}
-              src={imgUrl}
-              alt="Foto do momento a editar"
-              draggable={false}
-              onLoad={(event) => setNatural({ w: event.currentTarget.naturalWidth, h: event.currentTarget.naturalHeight })}
-              style={{
-                position: 'absolute', left: '50%', top: '50%', width: natural ? natural.w * scale : FRAME_W,
-                height: natural ? natural.h * scale : FRAME_H, maxWidth: 'none', userSelect: 'none', pointerEvents: 'none', filter,
-                transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
-              }} />
-          </div>
-          <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(180deg,rgba(0,0,0,.12),transparent 20%,transparent 76%,rgba(0,0,0,.18))' }} />
-          {texts.map(item => (
-            <TextOverlay key={item.id} item={item} selected={item.id === selectedTextId}
-              onSelect={selectText} onMove={moveText} onStop={stopText} />
-          ))}
-          <div data-testid="moment-photo-zoom-readout" style={{ position: 'absolute', top: 11, left: 11, zIndex: 5, padding: '6px 9px', borderRadius: 999, background: 'rgba(0,0,0,.5)', fontSize: 10.5, fontWeight: 700 }}>
-            {Math.round(zoom * 100)}%
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-          <button type="button" className="p" onClick={rotate} style={{ flex: 1, justifyContent: 'center', background: 'rgba(255,255,255,.09)', color: '#fff', borderColor: 'transparent' }}>
-            <RotateCw size={15} /> Rodar
-          </button>
-          <button type="button" className="p" onClick={reset} style={{ flex: 1, justifyContent: 'center', background: 'rgba(255,255,255,.09)', color: '#fff', borderColor: 'transparent' }}>
-            <Undo2 size={15} /> Repor foto
+          <button type="button" className="p p-brand" onClick={save} disabled={!natural || saving}
+            aria-label="Confirmar edição do momento"
+            style={{ padding: '10px 16px', flexShrink: 0, fontWeight: 800 }}>
+            {saving ? '…' : 'OK'}
           </button>
         </div>
 
-        <div style={{ padding: 12, borderRadius: 18, background: 'rgba(255,255,255,.07)', marginBottom: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9, fontSize: 12, fontWeight: 700 }}><Type size={15} /> Texto sobre a foto</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <textarea aria-label="Texto do momento" placeholder="Escreve sobre a foto…" value={draftText}
-              onChange={event => setDraftText(event.target.value)} maxLength={180} rows={2}
-              style={{ minHeight: 62, resize: 'none', background: 'rgba(255,255,255,.95)', color: '#171425' }} />
-            <button type="button" className="p p-brand" onClick={saveText} disabled={!draftText.trim()}
-              style={{ alignSelf: 'stretch', padding: '10px 13px' }}>{selectedTextId ? 'Atualizar' : 'Adicionar'}</button>
-          </div>
-          <div style={{ display: 'flex', gap: 7, marginTop: 9, overflowX: 'auto' }}>
-            {[['clean', 'Livre'], ['highlight', 'Claro'], ['dark', 'Escuro']].map(([value, label]) => (
-              <button key={value} type="button" className="p p-sm" onClick={() => updateSelectedStyle(value)}
-                aria-pressed={draftStyle === value}
-                style={{ flexShrink: 0, background: draftStyle === value ? '#fff' : 'rgba(255,255,255,.08)', color: draftStyle === value ? '#171425' : '#fff', borderColor: 'transparent' }}>{label}</button>
+        <div data-testid="moment-editor-scroll" style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 10 }}>
+          <div
+            data-testid="moment-photo-frame"
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerEnd}
+            onPointerCancel={onPointerEnd}
+            style={{
+              width: FRAME_W, height: FRAME_H, maxWidth: '100%', margin: '0 auto 12px', position: 'relative', overflow: 'hidden',
+              borderRadius: 24, background: '#05040A', touchAction: 'none', boxShadow: '0 20px 54px rgba(0,0,0,.42)',
+            }}>
+            <div style={{ position: 'absolute', left: '50%', top: '50%', width: dispW, height: dispH, transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))` }}>
+              <img
+                ref={(node) => {
+                  imgRef.current = node;
+                  if (node?.complete && node.naturalWidth > 0) setNatural(current => current || { w: node.naturalWidth, h: node.naturalHeight });
+                }}
+                src={imgUrl}
+                alt="Foto do momento a editar"
+                draggable={false}
+                onLoad={(event) => setNatural({ w: event.currentTarget.naturalWidth, h: event.currentTarget.naturalHeight })}
+                style={{
+                  position: 'absolute', left: '50%', top: '50%', width: natural ? natural.w * scale : FRAME_W,
+                  height: natural ? natural.h * scale : FRAME_H, maxWidth: 'none', userSelect: 'none', pointerEvents: 'none', filter,
+                  transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+                }} />
+            </div>
+            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(180deg,rgba(0,0,0,.12),transparent 20%,transparent 76%,rgba(0,0,0,.18))' }} />
+            {texts.map(item => (
+              <TextOverlay key={item.id} item={item} selected={item.id === selectedTextId}
+                onSelect={selectText} onMove={moveText} onStop={stopText} />
             ))}
-            {selectedTextId && (
-              <button type="button" className="p p-sm" onClick={removeSelectedText}
-                style={{ marginLeft: 'auto', color: '#FF7A70', background: 'rgba(255,255,255,.08)', borderColor: 'transparent' }}>
-                <Trash2 size={13} /> Apagar
-              </button>
-            )}
+            <div data-testid="moment-photo-zoom-readout" style={{ position: 'absolute', top: 11, left: 11, zIndex: 5, padding: '6px 9px', borderRadius: 999, background: 'rgba(0,0,0,.5)', fontSize: 10.5, fontWeight: 700 }}>
+              {Math.round(zoom * 100)}%
+            </div>
           </div>
-          <label style={{ display: 'grid', gridTemplateColumns: '72px 1fr 34px', alignItems: 'center', gap: 8, marginTop: 10, fontSize: 11.5, opacity: .9 }}>
-            Tamanho
-            <input aria-label="Tamanho do texto" type="range" min="22" max="54" value={draftSize}
-              onChange={event => updateSelectedSize(Number(event.target.value))} />
-            <span>{draftSize}</span>
-          </label>
-          <div style={{ fontSize: 10.5, opacity: .55, marginTop: 7 }}>Toca no texto para o editar · arrasta-o diretamente sobre a foto · emojis também funcionam.</div>
+
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <button type="button" className="p" onClick={rotate} style={{ flex: 1, justifyContent: 'center', background: 'rgba(255,255,255,.09)', color: '#fff', borderColor: 'transparent' }}>
+              <RotateCw size={15} /> Rodar
+            </button>
+            <button type="button" className="p" onClick={reset} style={{ flex: 1, justifyContent: 'center', background: 'rgba(255,255,255,.09)', color: '#fff', borderColor: 'transparent' }}>
+              <Undo2 size={15} /> Repor foto
+            </button>
+          </div>
+
+          <div style={{ padding: 12, borderRadius: 18, background: 'rgba(255,255,255,.07)', marginBottom: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9, fontSize: 12, fontWeight: 700 }}><Type size={15} /> Texto sobre a foto</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <textarea aria-label="Texto do momento" placeholder="Escreve sobre a foto…" value={draftText}
+                onChange={event => setDraftText(event.target.value)} maxLength={180} rows={2}
+                style={{ minHeight: 62, resize: 'none', background: 'rgba(255,255,255,.95)', color: '#171425' }} />
+              <button type="button" className="p p-brand" onClick={saveText} disabled={!draftText.trim()}
+                style={{ alignSelf: 'stretch', padding: '10px 13px' }}>{selectedTextId ? 'Atualizar' : 'Adicionar'}</button>
+            </div>
+            <div style={{ display: 'flex', gap: 7, marginTop: 9, overflowX: 'auto' }}>
+              {[['clean', 'Livre'], ['highlight', 'Claro'], ['dark', 'Escuro']].map(([value, label]) => (
+                <button key={value} type="button" className="p p-sm" onClick={() => updateSelectedStyle(value)}
+                  aria-pressed={draftStyle === value}
+                  style={{ flexShrink: 0, background: draftStyle === value ? '#fff' : 'rgba(255,255,255,.08)', color: draftStyle === value ? '#171425' : '#fff', borderColor: 'transparent' }}>{label}</button>
+              ))}
+              {selectedTextId && (
+                <button type="button" className="p p-sm" onClick={removeSelectedText}
+                  style={{ marginLeft: 'auto', color: '#FF7A70', background: 'rgba(255,255,255,.08)', borderColor: 'transparent' }}>
+                  <Trash2 size={13} /> Apagar
+                </button>
+              )}
+            </div>
+            <label style={{ display: 'grid', gridTemplateColumns: '72px 1fr 34px', alignItems: 'center', gap: 8, marginTop: 10, fontSize: 11.5, opacity: .9 }}>
+              Tamanho
+              <input aria-label="Tamanho do texto" type="range" min="22" max="54" value={draftSize}
+                onChange={event => updateSelectedSize(Number(event.target.value))} />
+              <span>{draftSize}</span>
+            </label>
+            <div style={{ fontSize: 10.5, opacity: .55, marginTop: 7 }}>Toca no texto para o editar · arrasta-o diretamente sobre a foto · emojis também funcionam.</div>
+          </div>
+
+          <details style={{ padding: '0 2px', marginBottom: 12 }}>
+            <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 700, opacity: .8, display: 'flex', alignItems: 'center', gap: 7 }}>
+              <SlidersHorizontal size={14} /> Ajustar imagem
+            </summary>
+            <div style={{ display: 'grid', gap: 8, marginTop: 9 }}>
+              {[['Brilho', brightness, setBrightness, 65, 145], ['Contraste', contrast, setContrast, 65, 145], ['Saturação', saturation, setSaturation, 0, 180]].map(([label, value, setter, min, max]) => (
+                <label key={label} style={{ display: 'grid', gridTemplateColumns: '72px 1fr 38px', alignItems: 'center', gap: 8, fontSize: 11.5 }}>
+                  {label}
+                  <input aria-label={label} type="range" min={min} max={max} value={value} onChange={event => setter(Number(event.target.value))} />
+                  <span style={{ textAlign: 'right', opacity: .72 }}>{value}</span>
+                </label>
+              ))}
+            </div>
+          </details>
         </div>
 
-        <details style={{ padding: '0 2px', marginBottom: 12 }}>
-          <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 700, opacity: .8, display: 'flex', alignItems: 'center', gap: 7 }}>
-            <SlidersHorizontal size={14} /> Ajustar imagem
-          </summary>
-          <div style={{ display: 'grid', gap: 8, marginTop: 9 }}>
-            {[['Brilho', brightness, setBrightness, 65, 145], ['Contraste', contrast, setContrast, 65, 145], ['Saturação', saturation, setSaturation, 0, 180]].map(([label, value, setter, min, max]) => (
-              <label key={label} style={{ display: 'grid', gridTemplateColumns: '72px 1fr 38px', alignItems: 'center', gap: 8, fontSize: 11.5 }}>
-                {label}
-                <input aria-label={label} type="range" min={min} max={max} value={value} onChange={event => setter(Number(event.target.value))} />
-                <span style={{ textAlign: 'right', opacity: .72 }}>{value}</span>
-              </label>
-            ))}
-          </div>
-        </details>
-
-        <button type="button" className="p p-brand" onClick={save} disabled={!natural || saving}
-          style={{ width: '100%', padding: 15, fontSize: 15 }}>
-          {saving ? 'A preparar…' : 'Usar no momento'}
-        </button>
+        <div style={{ flexShrink: 0, paddingTop: 9, background: 'linear-gradient(180deg,rgba(8,7,17,0),#080711 28%)' }}>
+          <button type="button" className="p p-brand" onClick={save} disabled={!natural || saving}
+            style={{ width: '100%', padding: 15, fontSize: 15 }}>
+            {saving ? 'A preparar…' : 'Usar no momento'}
+          </button>
+        </div>
       </div>
     </div>
   );

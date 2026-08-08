@@ -52,6 +52,16 @@ async function communityFor(user) {
   return out.data;
 }
 
+async function confirmedVideo(user, name) {
+  const url = `https://media.example.test/${user.user.id}/${name}.mp4`;
+  await q(
+    `INSERT INTO uploads (owner_id, key, url, mime, bytes, confirmed_at)
+     VALUES ($1, $2, $3, 'video/mp4', 4096, now())`,
+    [user.user.id, `${user.user.id}/${name}.mp4`, url]
+  );
+  return url;
+}
+
 before(async () => {
   await migrate();
   const { rows } = await q(
@@ -99,27 +109,28 @@ test('a rota de assinatura aceita formatos de vídeo suportados e aplica o limit
   assert.equal(unsupported.data.code, 'bad_type');
 });
 
-test('vídeo confirmado pode ser usado num post mas continua bloqueado em conteúdos que só suportam imagem', async () => {
+test('vídeo confirmado pode ser usado em posts e Momentos com o MIME preservado', async () => {
   const alice = await register('video.post');
   const community = await communityFor(alice);
-  const url = `https://media.example.test/${alice.user.id}/clip.mp4`;
 
-  await q(
-    `INSERT INTO uploads (owner_id, key, url, mime, bytes, confirmed_at)
-     VALUES ($1, $2, $3, 'video/mp4', 4096, now())`,
-    [alice.user.id, `${alice.user.id}/clip.mp4`, url]
-  );
-
+  const momentUrl = await confirmedVideo(alice, 'moment-clip');
   const moment = await request('/moments', {
     method: 'POST', token: alice.token,
-    body: { mediaUrl: url, palette: 0 },
+    body: { mediaUrl: momentUrl, palette: 0 },
   });
-  assert.equal(moment.response.status, 400, JSON.stringify(moment.data));
-  assert.equal(moment.data.code, 'unconfirmed_upload');
+  assert.equal(moment.response.status, 201, JSON.stringify(moment.data));
+  assert.equal(moment.data.media_mime, 'video/mp4');
 
+  const moments = await request('/moments', { token: alice.token });
+  assert.equal(moments.response.status, 200, JSON.stringify(moments.data));
+  const fromMoments = moments.data.find((row) => row.id === moment.data.id);
+  assert.ok(fromMoments);
+  assert.equal(fromMoments.media_mime, 'video/mp4');
+
+  const postUrl = await confirmedVideo(alice, 'post-clip');
   const post = await request('/posts', {
     method: 'POST', token: alice.token,
-    body: { communityId: community.id, body: 'primeiro vídeo', mediaUrl: url, palette: 0 },
+    body: { communityId: community.id, body: 'primeiro vídeo', mediaUrl: postUrl, palette: 0 },
   });
   assert.equal(post.response.status, 201, JSON.stringify(post.data));
   assert.equal(post.data.media_mime, 'video/mp4');

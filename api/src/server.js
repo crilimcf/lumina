@@ -34,16 +34,27 @@ app.use(express.json({ limit: '256kb' }));
 app.use(cookieParser());
 app.use(csrfGuard);
 
-app.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-7', legacyHeaders: false }));
+// Os testes de integração criam várias contas no mesmo processo/IP para
+// atravessar fronteiras de autorização. Não deixamos o rate limiter esconder
+// esses cenários; fora de NODE_ENV=test os limites de produção mantêm-se.
+const skipInTests = () => env.NODE_ENV === 'test';
+app.use(rateLimit({
+  windowMs: 60_000,
+  limit: 120,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skip: skipInTests,
+}));
 // Autenticação apanha mais força bruta do que qualquer outra rota.
 app.use('/auth/login', rateLimit({
   windowMs: 15 * 60_000, limit: 10,
   // Por IP e por email: um atacante com muitos IPs nao fica com caminho livre
   // para a mesma conta.
   keyGenerator: (req) => `${req.ip}:${String(req.body?.email || '').toLowerCase()}`,
+  skip: skipInTests,
 }));
-app.use('/auth/register', rateLimit({ windowMs: 60 * 60_000, limit: 5 }));
-app.use('/account/forgot-password', rateLimit({ windowMs: 60 * 60_000, limit: 5 }));
+app.use('/auth/register', rateLimit({ windowMs: 60 * 60_000, limit: 5, skip: skipInTests }));
+app.use('/account/forgot-password', rateLimit({ windowMs: 60 * 60_000, limit: 5, skip: skipInTests }));
 
 app.get('/health', async (_req, res) => {
   try {
@@ -69,7 +80,7 @@ app.use('/moments', momentRoutes);
 
 /**
  * Subscrições de criadores. Fica atrás de flag até haver comunidade que as
- * justifique — mexer em dinheiro traz obrigações que não valem a pena antes
+ * justifiquem — mexer em dinheiro traz obrigações que não valem a pena antes
  * de haver quem pague.
  */
 app.use('/subscriptions', auth, h(async () => {

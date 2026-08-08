@@ -5,7 +5,20 @@ const FRAME_W = 320;
 const FRAME_H = 569;
 const OUTPUT_W = 1080;
 const OUTPUT_H = 1920;
-const EMOJIS = ['😂', '❤️', '🔥', '✨', '😍', '🥰', '😎', '🥳', '🤍', '⭐️', '🎉', '🙌', '🫶', '💯', '🌙', '☀️', '🌊', '🍀'];
+
+const TEXT_COLORS = [
+  ['Branco', '#FFFFFF'], ['Preto', '#111018'], ['Amarelo', '#FFE45C'], ['Laranja', '#FF9B42'],
+  ['Vermelho', '#FF5B57'], ['Rosa', '#FF6FC8'], ['Roxo', '#9B7BFF'], ['Azul', '#5F8CFF'],
+  ['Ciano', '#58E3F2'], ['Verde', '#5FE09D'],
+];
+
+const DRAW_COLORS = TEXT_COLORS;
+
+const EMOJIS = [
+  '😂', '❤️', '🔥', '✨', '😍', '🥰', '😎', '🥳', '🤍', '⭐️', '🎉', '🙌',
+  '🫶', '💯', '🌙', '☀️', '🌊', '🍀', '⚡️', '💫', '💜', '💙', '💚', '🧡',
+  '💛', '🤩', '😜', '🤪', '🥹', '🤭', '🦋', '🌸', '🌈', '🍾', '🎂', '🎵',
+];
 
 const limit = (value, min, max) => Math.min(max, Math.max(min, value));
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -46,6 +59,19 @@ function wrapLines(ctx, value, maxWidth) {
   return lines.slice(0, 8);
 }
 
+function isDarkColor(hex) {
+  const value = String(hex || '#FFFFFF').replace('#', '');
+  if (value.length !== 6) return false;
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) < 145;
+}
+
+function effectStroke(color) {
+  return isDarkColor(color) ? 'rgba(255,255,255,.92)' : 'rgba(0,0,0,.82)';
+}
+
 function TextOverlay({ item, selected, onSelect, onMove, onStop }) {
   return (
     <div
@@ -58,9 +84,11 @@ function TextOverlay({ item, selected, onSelect, onMove, onStop }) {
         position: 'absolute', left: item.x, top: item.y, transform: 'translate(-50%, -50%)',
         maxWidth: '86%', padding: item.style === 'clean' ? '4px 7px' : '7px 11px',
         borderRadius: 12, cursor: 'grab', touchAction: 'none', userSelect: 'none',
-        color: item.style === 'highlight' ? '#111018' : '#fff',
-        background: item.style === 'highlight' ? 'rgba(255,255,255,.94)' : item.style === 'dark' ? 'rgba(10,8,20,.72)' : 'transparent',
-        textShadow: item.style === 'clean' ? '0 2px 9px rgba(0,0,0,.82)' : 'none',
+        color: item.color || '#FFFFFF',
+        background: item.style === 'highlight' ? 'rgba(255,255,255,.94)' : item.style === 'dark' ? 'rgba(10,8,20,.74)' : 'transparent',
+        textShadow: item.effect === 'shadow' ? '0 3px 12px rgba(0,0,0,.78)' : 'none',
+        WebkitTextStroke: item.effect === 'outline' ? `1px ${effectStroke(item.color)}` : '0 transparent',
+        paintOrder: 'stroke fill',
         fontSize: item.size, fontWeight: 800, lineHeight: 1.08, textAlign: 'center',
         whiteSpace: 'pre-wrap', overflowWrap: 'anywhere',
         outline: selected ? '2px solid rgba(255,255,255,.92)' : '2px solid transparent',
@@ -91,7 +119,28 @@ function StickerOverlay({ item, selected, onSelect, onMove, onStop }) {
   );
 }
 
-/** Editor vertical para Momentos: foto 9:16 + texto e stickers arrastáveis. */
+function ColorStrip({ colors, value, onChange, prefix }) {
+  return (
+    <div style={{ display: 'flex', gap: 9, overflowX: 'auto', padding: '2px 2px 5px', WebkitOverflowScrolling: 'touch' }}>
+      {colors.map(([name, color]) => (
+        <button
+          key={`${prefix}-${name}`}
+          type="button"
+          aria-label={`${prefix} ${name}`}
+          aria-pressed={value === color}
+          onClick={() => onChange(color)}
+          style={{
+            width: 31, height: 31, minWidth: 31, borderRadius: 99, padding: 0,
+            background: color, border: value === color ? '3px solid #fff' : '2px solid rgba(255,255,255,.28)',
+            boxShadow: value === color ? '0 0 0 2px rgba(126,107,255,.9)' : 'none',
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** Editor vertical de Momentos: foto 9:16 + texto, stickers e desenho livre. */
 export function MomentImageEditor({ file, onSave, onCancel }) {
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
@@ -103,11 +152,16 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
   const [saving, setSaving] = useState(false);
   const [texts, setTexts] = useState([]);
   const [stickers, setStickers] = useState([]);
+  const [strokes, setStrokes] = useState([]);
   const [selectedTextId, setSelectedTextId] = useState(null);
   const [selectedStickerId, setSelectedStickerId] = useState(null);
   const [draftText, setDraftText] = useState('');
   const [draftStyle, setDraftStyle] = useState('clean');
   const [draftSize, setDraftSize] = useState(32);
+  const [draftColor, setDraftColor] = useState('#FFFFFF');
+  const [draftEffect, setDraftEffect] = useState('shadow');
+  const [drawColor, setDrawColor] = useState('#FFFFFF');
+  const [drawSize, setDrawSize] = useState(5);
   const [activeTool, setActiveTool] = useState(null);
 
   const imgRef = useRef(null);
@@ -118,6 +172,7 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
   const pinchRef = useRef(null);
   const textDragRef = useRef(null);
   const stickerDragRef = useRef(null);
+  const drawRef = useRef(null);
   const zoomRef = useRef(1);
   const offsetRef = useRef({ x: 0, y: 0 });
 
@@ -162,6 +217,14 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [maxX, maxY]);
 
+  const framePoint = (event) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return {
+      x: limit((event.clientX - rect.left) * (FRAME_W / rect.width), 0, FRAME_W),
+      y: limit((event.clientY - rect.top) * (FRAME_H / rect.height), 0, FRAME_H),
+    };
+  };
+
   const beginPinch = () => {
     const points = [...pointersRef.current.values()].slice(0, 2);
     if (points.length < 2) return;
@@ -175,9 +238,20 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
   };
 
   const onPointerDown = (event) => {
-    if (event.target.closest?.('[data-moment-text-overlay], [data-moment-sticker-overlay]')) return;
+    if (event.target.closest?.('[data-moment-text-overlay], [data-moment-sticker-overlay], [data-moment-draw-controls]')) return;
     setSelectedTextId(null);
     setSelectedStickerId(null);
+
+    if (activeTool === 'draw') {
+      event.preventDefault();
+      const id = `${Date.now()}-${Math.random()}`;
+      const point = framePoint(event);
+      drawRef.current = { id, pointerId: event.pointerId };
+      setStrokes(current => [...current, { id, color: drawColor, size: drawSize, points: [point] }]);
+      try { event.currentTarget.setPointerCapture?.(event.pointerId); } catch { /* Safari */ }
+      return;
+    }
+
     pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     try { event.currentTarget.setPointerCapture?.(event.pointerId); } catch { /* Safari */ }
     if (pointersRef.current.size >= 2) beginPinch();
@@ -192,6 +266,17 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
   };
 
   const onPointerMove = (event) => {
+    if (activeTool === 'draw') {
+      const active = drawRef.current;
+      if (!active || active.pointerId !== event.pointerId) return;
+      event.preventDefault();
+      const point = framePoint(event);
+      setStrokes(current => current.map(stroke => stroke.id === active.id
+        ? { ...stroke, points: [...stroke.points, point] }
+        : stroke));
+      return;
+    }
+
     if (!pointersRef.current.has(event.pointerId)) return;
     pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (pointersRef.current.size >= 2) {
@@ -218,14 +303,16 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
   };
 
   const onPointerEnd = (event) => {
+    if (activeTool === 'draw') {
+      if (drawRef.current?.pointerId === event.pointerId) drawRef.current = null;
+      return;
+    }
     pointersRef.current.delete(event.pointerId);
     pinchRef.current = null;
     const remaining = [...pointersRef.current.entries()][0];
     if (remaining) {
       panRef.current = {
-        pointerId: remaining[0],
-        startX: remaining[1].x,
-        startY: remaining[1].y,
+        pointerId: remaining[0], startX: remaining[1].x, startY: remaining[1].y,
         startOffset: { ...offsetRef.current },
       };
     } else panRef.current = null;
@@ -252,6 +339,8 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
       setDraftText('');
       setDraftStyle('clean');
       setDraftSize(32);
+      setDraftColor('#FFFFFF');
+      setDraftEffect('shadow');
     }
     setSelectedStickerId(null);
     setActiveTool('text');
@@ -262,12 +351,12 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
     if (!clean) return;
     if (selectedTextId) {
       setTexts(current => current.map(item => item.id === selectedTextId
-        ? { ...item, text: clean, style: draftStyle, size: draftSize }
+        ? { ...item, text: clean, style: draftStyle, size: draftSize, color: draftColor, effect: draftEffect }
         : item));
     } else {
       const id = `${Date.now()}-${Math.random()}`;
       setTexts(current => [...current, {
-        id, text: clean, style: draftStyle, size: draftSize,
+        id, text: clean, style: draftStyle, size: draftSize, color: draftColor, effect: draftEffect,
         x: FRAME_W / 2, y: FRAME_H * (0.38 + Math.min(current.length, 3) * 0.1),
       }]);
       setSelectedTextId(id);
@@ -282,12 +371,10 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
     setDraftText(item.text);
     setDraftStyle(item.style);
     setDraftSize(item.size);
+    setDraftColor(item.color || '#FFFFFF');
+    setDraftEffect(item.effect || 'shadow');
     textDragRef.current = {
-      id: item.id,
-      startX: event.clientX,
-      startY: event.clientY,
-      x: item.x,
-      y: item.y,
+      id: item.id, startX: event.clientX, startY: event.clientY, x: item.x, y: item.y,
     };
     try { event.currentTarget.setPointerCapture?.(event.pointerId); } catch { /* Safari */ }
   };
@@ -304,11 +391,6 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
   const stopText = (event) => {
     event?.stopPropagation?.();
     textDragRef.current = null;
-  };
-
-  const updateSelectedStyle = (style) => {
-    setDraftStyle(style);
-    if (selectedTextId) setTexts(current => current.map(item => item.id === selectedTextId ? { ...item, style } : item));
   };
 
   const updateSelectedSize = (size) => {
@@ -328,8 +410,7 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
   const addSticker = (emoji) => {
     const id = `${Date.now()}-${Math.random()}`;
     setStickers(current => [...current, {
-      id, emoji, size: 72,
-      x: FRAME_W / 2,
+      id, emoji, size: 72, x: FRAME_W / 2,
       y: FRAME_H * (0.44 + Math.min(current.length, 3) * 0.08),
     }]);
     setSelectedTextId(null);
@@ -342,11 +423,7 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
     setSelectedTextId(null);
     setSelectedStickerId(item.id);
     stickerDragRef.current = {
-      id: item.id,
-      startX: event.clientX,
-      startY: event.clientY,
-      x: item.x,
-      y: item.y,
+      id: item.id, startX: event.clientX, startY: event.clientY, x: item.x, y: item.y,
     };
     try { event.currentTarget.setPointerCapture?.(event.pointerId); } catch { /* Safari */ }
   };
@@ -378,6 +455,15 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
     setSelectedStickerId(null);
   };
 
+  const toggleDraw = () => {
+    setSelectedTextId(null);
+    setSelectedStickerId(null);
+    setActiveTool(current => current === 'draw' ? null : 'draw');
+  };
+
+  const undoStroke = () => setStrokes(current => current.slice(0, -1));
+  const clearStrokes = () => setStrokes([]);
+
   const save = () => {
     if (!natural || !imgRef.current || saving) return;
     setSaving(true);
@@ -408,33 +494,66 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
     const ctx = output.getContext('2d');
     ctx.drawImage(rotated, sx, sy, sw, sh, 0, 0, OUTPUT_W, OUTPUT_H);
 
-    const textScale = OUTPUT_W / FRAME_W;
+    const scaleX = OUTPUT_W / FRAME_W;
+    const scaleY = OUTPUT_H / FRAME_H;
+
+    strokes.forEach((stroke) => {
+      if (!stroke.points.length) return;
+      ctx.save();
+      ctx.strokeStyle = stroke.color;
+      ctx.fillStyle = stroke.color;
+      ctx.lineWidth = stroke.size * scaleX;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      if (stroke.points.length === 1) {
+        const point = stroke.points[0];
+        ctx.beginPath();
+        ctx.arc(point.x * scaleX, point.y * scaleY, (stroke.size * scaleX) / 2, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.beginPath();
+        stroke.points.forEach((point, index) => {
+          const x = point.x * scaleX;
+          const y = point.y * scaleY;
+          if (index === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      }
+      ctx.restore();
+    });
+
     texts.forEach((item) => {
-      const fontSize = Math.round(item.size * textScale);
+      const fontSize = Math.round(item.size * scaleX);
       const lineHeight = Math.round(fontSize * 1.1);
       ctx.font = `800 ${fontSize}px -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       const lines = wrapLines(ctx, item.text, OUTPUT_W * 0.82);
-      const centerX = item.x * textScale;
-      const centerY = item.y * (OUTPUT_H / FRAME_H);
+      const centerX = item.x * scaleX;
+      const centerY = item.y * scaleY;
       const startY = centerY - ((lines.length - 1) * lineHeight) / 2;
       lines.forEach((line, index) => {
         const y = startY + index * lineHeight;
         const width = Math.min(OUTPUT_W * 0.86, ctx.measureText(line || ' ').width + fontSize * 0.62);
         if (item.style !== 'clean') {
           ctx.save();
-          ctx.fillStyle = item.style === 'highlight' ? 'rgba(255,255,255,.94)' : 'rgba(10,8,20,.72)';
+          ctx.fillStyle = item.style === 'highlight' ? 'rgba(255,255,255,.94)' : 'rgba(10,8,20,.74)';
           roundedRect(ctx, centerX - width / 2, y - lineHeight * 0.48, width, lineHeight * 0.96, fontSize * 0.2);
           ctx.fill();
           ctx.restore();
         }
         ctx.save();
-        ctx.fillStyle = item.style === 'highlight' ? '#111018' : '#FFFFFF';
-        if (item.style === 'clean') {
-          ctx.shadowColor = 'rgba(0,0,0,.72)';
+        ctx.fillStyle = item.color || '#FFFFFF';
+        if (item.effect === 'shadow') {
+          ctx.shadowColor = 'rgba(0,0,0,.76)';
           ctx.shadowBlur = Math.max(8, fontSize * 0.16);
           ctx.shadowOffsetY = Math.max(2, fontSize * 0.035);
+        } else if (item.effect === 'outline') {
+          ctx.strokeStyle = effectStroke(item.color || '#FFFFFF');
+          ctx.lineWidth = Math.max(4, fontSize * 0.055);
+          ctx.lineJoin = 'round';
+          ctx.strokeText(line, centerX, y);
         }
         ctx.fillText(line, centerX, y);
         ctx.restore();
@@ -442,12 +561,12 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
     });
 
     stickers.forEach((item) => {
-      const size = Math.round(item.size * textScale);
+      const size = Math.round(item.size * scaleX);
       ctx.save();
       ctx.font = `${size}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(item.emoji, item.x * textScale, item.y * (OUTPUT_H / FRAME_H));
+      ctx.fillText(item.emoji, item.x * scaleX, item.y * scaleY);
       ctx.restore();
     });
 
@@ -459,6 +578,9 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
   };
 
   const filter = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%)`;
+  const previewBackground = draftStyle === 'highlight'
+    ? 'rgba(255,255,255,.94)'
+    : draftStyle === 'dark' ? 'rgba(10,8,20,.74)' : 'transparent';
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 110, background: '#080711', color: '#fff', overflow: 'hidden' }}>
@@ -472,7 +594,7 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
             style={{ padding: 10, background: 'rgba(255,255,255,.1)', color: '#fff', borderColor: 'transparent' }}><X size={17} /></button>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="d" style={{ fontSize: 24, color: '#fff' }}>Editar momento</div>
-            <div style={{ fontSize: 11.5, opacity: .62, marginTop: 2 }}>Arrasta · aproxima · escreve · decora</div>
+            <div style={{ fontSize: 11.5, opacity: .62, marginTop: 2 }}>Arrasta · aproxima · escreve · decora · desenha</div>
           </div>
           <button type="button" className="p p-brand" onClick={save} disabled={!natural || saving}
             aria-label="Confirmar edição do momento"
@@ -510,6 +632,13 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
             </div>
             <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(180deg,rgba(0,0,0,.12),transparent 20%,transparent 76%,rgba(0,0,0,.18))' }} />
 
+            <svg aria-label="Desenho do momento" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 3, pointerEvents: 'none' }} viewBox={`0 0 ${FRAME_W} ${FRAME_H}`}>
+              {strokes.map(stroke => (
+                <polyline key={stroke.id} data-moment-drawing-stroke points={stroke.points.map(point => `${point.x},${point.y}`).join(' ')}
+                  fill="none" stroke={stroke.color} strokeWidth={stroke.size} strokeLinecap="round" strokeLinejoin="round" />
+              ))}
+            </svg>
+
             {texts.map(item => (
               <TextOverlay key={item.id} item={item} selected={item.id === selectedTextId}
                 onSelect={selectText} onMove={moveText} onStop={stopText} />
@@ -532,9 +661,38 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
                 style={{ width: 46, height: 46, borderRadius: 99, border: '1px solid rgba(255,255,255,.24)', background: 'rgba(12,10,26,.66)', backdropFilter: 'blur(12px)', color: '#fff', fontSize: 21, boxShadow: '0 7px 22px rgba(0,0,0,.22)' }}>
                 😊
               </button>
+              <button type="button" onClick={toggleDraw} aria-label="Desenhar no momento" aria-pressed={activeTool === 'draw'}
+                style={{ width: 46, height: 46, borderRadius: 99, border: '1px solid rgba(255,255,255,.24)', background: activeTool === 'draw' ? '#6C55FF' : 'rgba(12,10,26,.66)', backdropFilter: 'blur(12px)', color: '#fff', fontSize: 21, fontWeight: 800, boxShadow: '0 7px 22px rgba(0,0,0,.22)' }}>
+                ✎
+              </button>
             </div>
 
-            {(selectedTextId || selectedStickerId) && (
+            {activeTool === 'draw' && (
+              <div data-moment-draw-controls style={{
+                position: 'absolute', left: 10, right: 10, bottom: 10, zIndex: 9,
+                padding: 9, borderRadius: 20, background: 'rgba(10,8,22,.78)', backdropFilter: 'blur(14px)',
+                border: '1px solid rgba(255,255,255,.18)', boxShadow: '0 8px 28px rgba(0,0,0,.28)',
+              }}>
+                <ColorStrip colors={DRAW_COLORS} value={drawColor} onChange={setDrawColor} prefix="Cor do desenho" />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
+                  {[3, 6, 10].map(size => (
+                    <button key={size} type="button" onClick={() => setDrawSize(size)} aria-label={`Espessura do desenho ${size}`}
+                      aria-pressed={drawSize === size}
+                      style={{ flex: 1, height: 34, borderRadius: 999, border: 0, background: drawSize === size ? '#fff' : 'rgba(255,255,255,.1)', color: drawSize === size ? '#111018' : '#fff', fontWeight: 800 }}>
+                      {size === 3 ? 'Fino' : size === 6 ? 'Médio' : 'Grosso'}
+                    </button>
+                  ))}
+                  <button type="button" onClick={undoStroke} aria-label="Desfazer último traço" disabled={!strokes.length}
+                    style={{ width: 38, height: 34, borderRadius: 999, border: 0, background: 'rgba(255,255,255,.1)', color: '#fff' }}>↶</button>
+                  <button type="button" onClick={clearStrokes} aria-label="Limpar desenho" disabled={!strokes.length}
+                    style={{ width: 38, height: 34, borderRadius: 999, border: 0, background: 'rgba(255,90,90,.15)', color: '#FF8C86' }}>⌫</button>
+                  <button type="button" onClick={() => setActiveTool(null)} aria-label="Concluir desenho"
+                    style={{ width: 42, height: 34, borderRadius: 999, border: 0, background: '#6C55FF', color: '#fff', fontWeight: 900 }}>✓</button>
+                </div>
+              </div>
+            )}
+
+            {activeTool !== 'draw' && (selectedTextId || selectedStickerId) && (
               <div style={{
                 position: 'absolute', left: '50%', bottom: 12, transform: 'translateX(-50%)', zIndex: 8,
                 display: 'flex', alignItems: 'center', gap: 6, padding: 6, borderRadius: 999,
@@ -594,7 +752,7 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
 
       {activeTool === 'text' && (
         <div role="dialog" aria-label="Editor de texto do momento" style={{
-          position: 'fixed', inset: 0, zIndex: 130, background: 'rgba(5,4,13,.76)', backdropFilter: 'blur(10px)',
+          position: 'fixed', inset: 0, zIndex: 130, background: 'rgba(5,4,13,.78)', backdropFilter: 'blur(10px)',
           padding: 'calc(12px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom))',
           display: 'flex', flexDirection: 'column',
         }}>
@@ -609,27 +767,46 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
               onChange={event => setDraftText(event.target.value)} maxLength={180} rows={3}
               style={{
                 width: '100%', maxWidth: 380, minHeight: 130, resize: 'none', border: 0, outline: 0,
-                background: 'transparent', color: draftStyle === 'highlight' ? '#111018' : '#fff',
+                background: previewBackground, color: draftColor,
                 fontSize: draftSize, fontWeight: 800, lineHeight: 1.08, textAlign: 'center',
-                textShadow: draftStyle === 'clean' ? '0 3px 12px rgba(0,0,0,.7)' : 'none',
-                padding: 16, borderRadius: 18,
-                boxShadow: draftStyle === 'highlight' ? 'inset 0 0 0 999px rgba(255,255,255,.94)' : draftStyle === 'dark' ? 'inset 0 0 0 999px rgba(10,8,20,.72)' : 'none',
+                textShadow: draftEffect === 'shadow' ? '0 3px 12px rgba(0,0,0,.76)' : 'none',
+                WebkitTextStroke: draftEffect === 'outline' ? `1px ${effectStroke(draftColor)}` : '0 transparent',
+                paintOrder: 'stroke fill', padding: 16, borderRadius: 18,
               }} />
           </div>
 
-          <div style={{ padding: 12, borderRadius: 22, background: 'rgba(255,255,255,.08)' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
-              {[['clean', 'Livre'], ['highlight', 'Claro'], ['dark', 'Escuro']].map(([value, label]) => (
-                <button key={value} type="button" className="p p-sm" onClick={() => setDraftStyle(value)} aria-pressed={draftStyle === value}
-                  style={{ background: draftStyle === value ? '#fff' : 'rgba(255,255,255,.08)', color: draftStyle === value ? '#171425' : '#fff', borderColor: 'transparent' }}>{label}</button>
-              ))}
+          <div style={{ padding: 12, borderRadius: 22, background: 'rgba(255,255,255,.08)', display: 'grid', gap: 11 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 750, opacity: .7, marginBottom: 7 }}>Cor</div>
+              <ColorStrip colors={TEXT_COLORS} value={draftColor} onChange={setDraftColor} prefix="Cor do texto" />
             </div>
+
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 750, opacity: .7, marginBottom: 7 }}>Fundo</div>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
+                {[['clean', 'Livre'], ['highlight', 'Claro'], ['dark', 'Escuro']].map(([value, label]) => (
+                  <button key={value} type="button" className="p p-sm" onClick={() => setDraftStyle(value)} aria-pressed={draftStyle === value}
+                    style={{ flex: 1, justifyContent: 'center', background: draftStyle === value ? '#fff' : 'rgba(255,255,255,.08)', color: draftStyle === value ? '#171425' : '#fff', borderColor: 'transparent' }}>{label}</button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 750, opacity: .7, marginBottom: 7 }}>Efeito</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {[['shadow', 'Sombra'], ['outline', 'Contorno'], ['none', 'Sem efeito']].map(([value, label]) => (
+                  <button key={value} type="button" className="p p-sm" onClick={() => setDraftEffect(value)} aria-pressed={draftEffect === value}
+                    style={{ flex: 1, justifyContent: 'center', background: draftEffect === value ? '#6C55FF' : 'rgba(255,255,255,.08)', color: '#fff', borderColor: 'transparent' }}>{label}</button>
+                ))}
+              </div>
+            </div>
+
             <label style={{ display: 'grid', gridTemplateColumns: '68px 1fr 34px', alignItems: 'center', gap: 8, fontSize: 12 }}>
               Tamanho
               <input aria-label="Tamanho do texto" type="range" min="22" max="54" value={draftSize} onChange={event => setDraftSize(Number(event.target.value))} />
               <span>{draftSize}</span>
             </label>
-            <div style={{ marginTop: 9, textAlign: 'center', fontSize: 10.5, opacity: .6 }}>Também podes escrever emojis no texto. Depois arrasta-o diretamente sobre a fotografia.</div>
+            <div style={{ textAlign: 'center', fontSize: 10.5, opacity: .6 }}>Podes usar emojis no texto e depois arrastar tudo diretamente sobre a fotografia.</div>
           </div>
         </div>
       )}
@@ -650,7 +827,7 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
               </div>
               <button type="button" className="p" onClick={() => setActiveTool(null)} aria-label="Fechar emojis" style={{ background: 'rgba(255,255,255,.09)', color: '#fff', borderColor: 'transparent' }}><X size={16} /></button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8, maxHeight: '44dvh', overflowY: 'auto' }}>
               {EMOJIS.map((emoji, index) => (
                 <button key={`${emoji}-${index}`} type="button" onClick={() => addSticker(emoji)} aria-label={`Adicionar emoji ${emoji}`}
                   style={{ aspectRatio: '1', border: 0, borderRadius: 16, background: 'rgba(255,255,255,.08)', fontSize: 28 }}>

@@ -28,7 +28,7 @@ async function openFeed(page) {
   await expect(page.getByRole('button', { name: 'Novo' })).toBeVisible();
 }
 
-test('Momentos usam media vertical, editor de texto e vídeo em Mobile Safari', async ({ page }) => {
+test('Momentos usam editor Story visível, texto, stickers e vídeo em Mobile Safari', async ({ page }) => {
   await openFeed(page);
 
   await page.getByRole('button', { name: 'Tu' }).click();
@@ -48,7 +48,7 @@ test('Momentos usam media vertical, editor de texto e vídeo em Mobile Safari', 
   });
 
   await expect(page.getByText('Editar momento', { exact: true })).toBeVisible();
-  await expect(page.getByText('1 dedo move · 2 dedos aproximam · 9:16')).toBeVisible();
+  await expect(page.getByText('Arrasta · aproxima · escreve · decora')).toBeVisible();
   await expect(page.getByTestId('moment-photo-zoom-readout')).toHaveText('100%');
 
   const confirmButton = page.getByRole('button', { name: 'Confirmar edição do momento' });
@@ -61,10 +61,25 @@ test('Momentos usam media vertical, editor de texto e vídeo em Mobile Safari', 
   expect(box.y).toBeGreaterThanOrEqual(0);
   expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
 
-  await page.getByPlaceholder('Escreve sobre a foto…').fill('Noite em Lisboa ✨');
-  await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
-  await expect(page.locator('[data-moment-text-overlay]')).toContainText('Noite em Lisboa');
+  const textTool = page.getByRole('button', { name: 'Adicionar texto ao momento' });
+  const emojiTool = page.getByRole('button', { name: 'Adicionar emoji ao momento' });
+  await expect(textTool).toBeVisible();
+  await expect(emojiTool).toBeVisible();
+
+  await textTool.click();
+  await expect(page.getByRole('dialog', { name: 'Editor de texto do momento' })).toBeVisible();
+  await page.getByPlaceholder('Escreve algo…').fill('Noite em Lisboa ✨');
   await page.getByLabel('Tamanho do texto').fill('40');
+  await page.getByRole('button', { name: 'Concluir texto' }).click();
+  await expect(page.locator('[data-moment-text-overlay]')).toContainText('Noite em Lisboa');
+
+  await emojiTool.click();
+  await expect(page.getByRole('dialog', { name: 'Escolher emoji para o momento' })).toBeVisible();
+  await page.getByRole('button', { name: 'Adicionar emoji 😂' }).click();
+  await expect(page.locator('[data-moment-sticker-overlay]')).toContainText('😂');
+  await expect(page.getByRole('button', { name: 'Aumentar sticker' })).toBeVisible();
+  await page.getByRole('button', { name: 'Aumentar sticker' }).click();
+
   await confirmButton.click();
 
   await expect(page.getByText('Editar momento', { exact: true })).toBeHidden();

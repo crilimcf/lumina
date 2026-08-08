@@ -24,7 +24,8 @@ const SELECT_POST = `
  */
 postRoutes.get('/feed', auth, h(async (req, res) => {
   const before = req.query.before || null;
-  const limit = Math.min(Number(req.query.limit) || 20, 50);
+  const asked = Number(req.query.limit);
+  const limit = Number.isInteger(asked) && asked > 0 ? Math.min(asked, 50) : 20;
 
   const { rows } = await q(
     `${SELECT_POST}
@@ -43,8 +44,12 @@ postRoutes.get('/feed', auth, h(async (req, res) => {
 }));
 
 postRoutes.post('/', auth, h(async (req, res) => {
-  const { communityId, body, mediaUrl = null, palette = 0, inviteId = null } = req.body;
+  const { communityId, mediaUrl = null, inviteId = null } = req.body;
+  const body = String(req.body.body || '').trim();
+  const palette = Number(req.body.palette ?? 0);
   if (!communityId || !body) throw bad('Faltam campos');
+  if (body.length > 2000) throw bad('A publicação tem no máximo 2000 caracteres');
+  if (!Number.isInteger(palette) || palette < 0 || palette > 4) throw bad('Cor inválida', 'bad_palette');
 
   // A imagem tem de ser tua e ter passado a verificacao de assinatura. Sem
   // isto, bastava apontar mediaUrl para qualquer coisa na internet.
@@ -157,6 +162,7 @@ postRoutes.get('/:postId/comments', auth, requirePostMember, h(async (req, res) 
 postRoutes.post('/:postId/comments', auth, requirePostMember, h(async (req, res) => {
   const body = String(req.body.body || '').trim();
   if (!body) throw bad('Comentário vazio');
+  if (body.length > 1000) throw bad('O comentário tem no máximo 1000 caracteres');
   const { rows } = await q(
     `INSERT INTO comments (post_id, author_id, body) VALUES ($1, $2, $3)
      RETURNING id, body, created_at`,

@@ -23,7 +23,7 @@ export function Comunidades({ mine, onJoined, onBack, ping }) {
 
   const slugify = (s) => s.toLowerCase().trim()
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32);
 
   const join = async (c) => {
     setBusyId(c.id);
@@ -35,6 +35,8 @@ export function Comunidades({ mine, onJoined, onBack, ping }) {
   const create = async () => {
     const cleanSeeds = seeds.map(s => s.trim()).filter(Boolean);
     if (name.trim().length < 2) return ping('Dá um nome à comunidade');
+    if (name.trim().length > 60) return ping('O nome pode ter no máximo 60 caracteres');
+    if ((slug || slugify(name)).length < 2) return ping('O identificador precisa de pelo menos 2 caracteres');
     if (cleanSeeds.length < SEEDS_NEEDED) return ping(`Escreve ${SEEDS_NEEDED} convites de arranque`);
     setCreating(true);
     try {
@@ -80,10 +82,11 @@ export function Comunidades({ mine, onJoined, onBack, ping }) {
         ) : (
           <div className="card" style={{ padding: 18 }}>
             <label className="m" style={{ display: 'block', marginBottom: 6 }}>Nome da comunidade</label>
-            <input value={name} onChange={e => { setName(e.target.value); if (!slugTouched) setSlug(slugify(e.target.value)); }}
+            <input value={name} maxLength={60}
+              onChange={e => { setName(e.target.value); if (!slugTouched) setSlug(slugify(e.target.value)); }}
               placeholder="ex: Amigos da faculdade" style={{ marginBottom: 14 }} />
             <label className="m" style={{ display: 'block', marginBottom: 6 }}>Identificador (usado no link)</label>
-            <input value={slug} onChange={e => { setSlug(slugify(e.target.value)); setSlugTouched(true); }}
+            <input value={slug} maxLength={32} onChange={e => { setSlug(slugify(e.target.value)); setSlugTouched(true); }}
               placeholder="amigos-da-faculdade" autoCapitalize="none" style={{ marginBottom: 18 }} />
 
             <label className="m" style={{ display: 'block', marginBottom: 8 }}>

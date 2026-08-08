@@ -57,9 +57,12 @@ inviteRoutes.post('/:communityId/proposals', auth, requireMember(), h(async (req
     throw bad('Contas novas podem propor a partir de amanhã', 'account_too_new');
   }
 
+  // As propostas-semente são obrigatórias para arrancar uma comunidade e não
+  // representam spam/atividade semanal. Contá-las aqui bloqueava imediatamente
+  // quem acabava de fundar uma comunidade (5 seeds > limite normal de 3).
   const { rows: recent } = await q(
     `SELECT count(*)::int AS n FROM proposals
-     WHERE author_id = $1 AND created_at > now() - interval '7 days'`,
+     WHERE author_id = $1 AND is_seed = false AND created_at > now() - interval '7 days'`,
     [req.user.id]
   );
   if (recent[0].n >= env.PROPOSALS_PER_WEEK) {

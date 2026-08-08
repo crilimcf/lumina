@@ -94,7 +94,7 @@ postRoutes.post('/', auth, h(async (req, res) => {
 }));
 
 /** Reagir. Duas reações independentes, nenhuma delas mexe na ordem do feed. */
-postRoutes.post('/:postId/reactions/:kind', auth, h(async (req, res) => {
+postRoutes.post('/:postId/reactions/:kind', auth, requirePostMember, h(async (req, res) => {
   const { postId, kind } = req.params;
   if (!['like', 'fire'].includes(kind)) throw bad('Reação inválida');
 

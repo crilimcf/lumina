@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
+    "test": "node --test --test-concurrency=1 test/*.test.js",
     "migrate": "node -e \"import('./src/db.js').then(m=>m.migrate().then(()=>{console.log('migrado');process.exit(0)}))\"",
     "seed": "node scripts/seed.js",
     "cron": "node scripts/cron.js",

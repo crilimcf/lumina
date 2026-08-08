@@ -84,6 +84,9 @@ authRoutes.post('/register', h(async (req, res) => {
     [handle, email, hash, String(name).trim(), birthDate, TERMS_VERSION]
   );
   const token = signToken(rows[0]);
+  // Um registo já é uma sessão real. Registamo-la antes de responder para que
+  // o ecrã Segurança mostre imediatamente o dispositivo atual, tal como no login.
+  await recordSession(rows[0].id, token, req);
   setSessionCookie(res, token);
   res.status(201).json({ token, csrf: csrfOf(token), user: rows[0] });
 }));

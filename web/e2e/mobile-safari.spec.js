@@ -84,7 +84,7 @@ test('botão Novo abre o composer a partir de Perfil e Conversas', async ({ page
   await expect(page.getByPlaceholder('O que estás a ver?')).toBeVisible();
 });
 
-test('Perfil funciona como hub social sem páginas-menu de Amigos e Comunidades', async ({ page }) => {
+test('Perfil funciona como hub social com ligações clicáveis', async ({ page }) => {
   await registerFromUI(page);
   await createCommunityFromUI(page);
 
@@ -93,6 +93,18 @@ test('Perfil funciona como hub social sem páginas-menu de Amigos e Comunidades'
   await expect(page.getByText('OS TEUS CÍRCULOS', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Amigos', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Comunidades', exact: true })).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Ver seguidores' }).click();
+  await expect(page.getByText('Ligações', { exact: true })).toBeVisible();
+  await expect(page.getByPlaceholder('Pesquisar seguidores…')).toBeVisible();
+  await page.getByRole('button', { name: /A seguir ·/ }).click();
+  await expect(page.getByPlaceholder('Pesquisar quem segues…')).toBeVisible();
+  await page.getByRole('button', { name: 'Fechar ligações' }).click();
+  await expect(page.getByText('Ligações', { exact: true })).toBeHidden();
+
+  await page.getByRole('button', { name: 'Ver a seguir' }).click();
+  await expect(page.getByPlaceholder('Pesquisar quem segues…')).toBeVisible();
+  await page.getByRole('button', { name: 'Fechar ligações' }).click();
 
   await page.getByRole('button', { name: /Descobrir/ }).first().click();
   await expect(page.getByPlaceholder('Pesquisar pessoas…')).toBeVisible();

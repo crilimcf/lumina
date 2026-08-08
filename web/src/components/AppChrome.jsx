@@ -21,7 +21,13 @@ export function Nav({ tab, setTab, setThread, setComp, coms, threads, ping }) {
           onClick={() => {
             if (k === 'new') {
               if (!coms.length) return ping?.('Junta-te a uma comunidade primeiro, em Convites.');
-              return setComp({ community: coms[0].id, title: 'Publicar' });
+              // O composer é global, mas abrimo-lo sempre sobre um contexto estável.
+              // Assim Perfil/Conversas não precisam de ter qualquer conhecimento do modal
+              // e o botão + tem exatamente o mesmo comportamento em todas as abas.
+              setThread(null);
+              setTab('feed');
+              setComp({ community: coms[0].id, title: 'Publicar' });
+              return;
             }
             setTab(k); setThread(null);
           }}>

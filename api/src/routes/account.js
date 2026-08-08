@@ -56,6 +56,12 @@ accountRoutes.post('/reset-password', h(async (req, res) => {
     await c.query(
       'UPDATE users SET password_hash = $2, session_version = session_version + 1 WHERE id = $1',
       [rows[0].user_id, await bcrypt.hash(password, 12)]);
+    // A tabela de sessões tem de contar a mesma história que session_version:
+    // depois de um reset não pode continuar a mostrar dispositivos "ativos".
+    await c.query(
+      'UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL',
+      [rows[0].user_id]
+    );
     await c.query('UPDATE password_resets SET used_at = now() WHERE token_hash = $1', [hashToken(token)]);
     // Invalida os outros pedidos pendentes da mesma conta.
     await c.query('UPDATE password_resets SET used_at = now() WHERE user_id = $1 AND used_at IS NULL',

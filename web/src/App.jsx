@@ -187,10 +187,11 @@ export default function App() {
     );
   } else if (tab === 'me') {
     activeScreen = (
-      <Perfil me={me} coms={coms} days={days} blocked={blocked} setBlocked={setBlocked}
+      <Perfil me={me} coms={coms} setComs={setComs} days={days} blocked={blocked} setBlocked={setBlocked}
         setScreen={setScreen} logout={logout} tab={tab} setTab={setTab}
         setThread={messageState.setThread} setComp={composerState.setComp}
-        threads={messageState.threads} ping={ping} toast={toast} />
+        threads={messageState.threads} ping={ping} toast={toast}
+        onOpenCommunity={(communityId) => { setPick(communityId); setTab('invites'); }} />
     );
   } else {
     activeScreen = (

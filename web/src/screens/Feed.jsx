@@ -89,6 +89,8 @@ export function Feed({
           {feed.map((p, i) => {
             const mine = p.my_reactions || [];
             const cs = comments[p.id] || [];
+            const isVideo = p.media_mime?.startsWith('video/')
+              || /\.(mp4|mov|webm)(?:$|\?)/i.test(p.media_url || '');
             return (
               <article key={p.id} className="sect in" style={{ animationDelay: `${Math.min(i, 6) * 60}ms` }}>
                 {p.repost_of && (
@@ -128,8 +130,14 @@ export function Feed({
                 </div>
 
                 {p.media_url ? (
-                  <img src={p.media_url} alt="" loading="lazy"
-                    style={{ width: '100%', aspectRatio: '4/5', objectFit: 'cover', display: 'block' }} />
+                  isVideo ? (
+                    <video src={p.media_url} controls playsInline preload="metadata"
+                      aria-label={`Vídeo de ${p.name}`}
+                      style={{ width: '100%', maxHeight: '72dvh', background: '#0B0914', objectFit: 'contain', display: 'block' }} />
+                  ) : (
+                    <img src={p.media_url} alt="" loading="lazy"
+                      style={{ width: '100%', aspectRatio: '4/5', objectFit: 'cover', display: 'block' }} />
+                  )
                 ) : (
                   <div className="block" style={{ width: '100%', aspectRatio: '4 / 5', background: PAL[p.palette % 5].bg }}>
                     <div className="gloss" />

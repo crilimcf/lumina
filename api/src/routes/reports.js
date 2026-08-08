@@ -66,10 +66,11 @@ reportRoutes.post('/', auth, h(async (req, res) => {
   await assertReportable(req.user, targetType, targetId);
 
   const out = await tx(async (c) => {
+    // A constraint UNIQUE é também a resposta de produto: repetir a mesma
+    // denúncia devolve 409/duplicate em vez de fingir que foi aceite outra vez.
     await c.query(
       `INSERT INTO reports (reporter_id, target_type, target_id, reason, note)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (reporter_id, target_type, target_id) DO NOTHING`,
+       VALUES ($1, $2, $3, $4, $5)`,
       [req.user.id, targetType, targetId, reason, note]
     );
 

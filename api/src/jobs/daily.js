@@ -7,8 +7,9 @@ import { removeObject } from '../lib/storage.js';
  *
  * Corre de hora a hora e trata as comunidades cuja meia-noite local já passou
  * sem terem convite para o dia de hoje. É por isso que o fuso vive na
- * comunidade e não no servidor: cada uma vira o dia à sua hora, sempre a mesma,
- * e o convite passa a ser um encontro marcado em vez de uma hora à deriva.
+ * comunidade e não no servidor: cada uma vira o dia à meia-noite local,
+ * sempre a mesma, e o convite passa a ser um encontro marcado em vez de uma
+ * hora à deriva.
  */
 export async function rotateInvites() {
   const { rows: communities } = await q(
@@ -117,20 +118,81 @@ export async function purgeStaleUploads() {
  * RGPD artigo 17: executa os apagamentos de conta cujo prazo de
  * arrependimento (30 dias) já passou.
  *
- * Sem isto correr nalgum lado, "a conta será apagada dentro de 30 dias" é uma
- * promessa que a app faz e não cumpre — o pedido fica agendado para sempre.
+ * Há duas armadilhas que uma simples DELETE não resolve:
+ *  - communities.founder_id impede apagar um fundador por chave estrangeira;
+ *  - apagar a linha de uploads não apaga o objeto físico no R2.
+ *
+ * Por isso apagamos primeiro os objetos do utilizador. Se o armazenamento
+ * falhar, mantemos o pedido pendente para tentar de novo, em vez de declarar a
+ * conta apagada deixando ficheiros públicos para trás. Depois transferimos as
+ * comunidades fundadas (moderador primeiro, depois membro mais antigo); se a
+ * pessoa era o único membro, a comunidade é removida.
  */
 export async function runAccountDeletions() {
   const { rows } = await q(
     `SELECT user_id FROM deletion_requests
      WHERE cancelled_at IS NULL AND execute_at < now()`
   );
+
+  let deleted = 0;
   for (const r of rows) {
-    // ON DELETE CASCADE trata do resto: posts, mensagens, votos, tudo.
-    await q('DELETE FROM users WHERE id = $1', [r.user_id]);
-    console.log(`[rgpd] conta apagada: ${r.user_id}`);
+    try {
+      const { rows: files } = await q('SELECT key FROM uploads WHERE owner_id = $1', [r.user_id]);
+      for (const file of files) await removeObject(file.key);
+
+      await tx(async (c) => {
+        const { rows: memberships } = await c.query(
+          'SELECT community_id FROM memberships WHERE user_id = $1', [r.user_id]
+        );
+        const affected = memberships.map(m => m.community_id);
+
+        const { rows: founded } = await c.query(
+          'SELECT id FROM communities WHERE founder_id = $1 FOR UPDATE', [r.user_id]
+        );
+
+        for (const community of founded) {
+          const { rows: next } = await c.query(
+            `SELECT user_id FROM memberships
+             WHERE community_id = $1 AND user_id <> $2
+             ORDER BY CASE role WHEN 'moderator' THEN 0 ELSE 1 END, joined_at ASC
+             LIMIT 1`,
+            [community.id, r.user_id]
+          );
+
+          if (next[0]) {
+            await c.query(
+              `UPDATE memberships SET role = 'founder'
+               WHERE community_id = $1 AND user_id = $2`,
+              [community.id, next[0].user_id]
+            );
+            await c.query('UPDATE communities SET founder_id = $2 WHERE id = $1',
+              [community.id, next[0].user_id]);
+          } else {
+            await c.query('DELETE FROM communities WHERE id = $1', [community.id]);
+          }
+        }
+
+        await c.query('DELETE FROM users WHERE id = $1', [r.user_id]);
+
+        // memberships desaparecem por CASCADE; o contador denormalizado tem de
+        // voltar a refletir a realidade nas comunidades que ficaram vivas.
+        if (affected.length) {
+          await c.query(
+            `UPDATE communities c
+             SET member_count = (SELECT count(*)::int FROM memberships m WHERE m.community_id = c.id)
+             WHERE c.id = ANY($1::uuid[])`,
+            [affected]
+          );
+        }
+      });
+
+      deleted++;
+      console.log(`[rgpd] conta apagada: ${r.user_id}`);
+    } catch (err) {
+      console.error(`[rgpd] falhou apagar ${r.user_id}; fica pendente para nova tentativa:`, err.message);
+    }
   }
-  return rows.length;
+  return deleted;
 }
 
 /** Tokens de recuperação de password expirados há mais de 7 dias. */

@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { RotateCw, SlidersHorizontal, Trash2, Type, Undo2, X } from 'lucide-react';
+import { Minus, Plus, RotateCw, SlidersHorizontal, Trash2, Undo2, X } from 'lucide-react';
 
 const FRAME_W = 320;
 const FRAME_H = 569;
 const OUTPUT_W = 1080;
 const OUTPUT_H = 1920;
+const EMOJIS = ['😂', '❤️', '🔥', '✨', '😍', '🥰', '😎', '🥳', '🤍', '⭐️', '🎉', '🙌', '🫶', '💯', '🌙', '☀️', '🌊', '🍀'];
 
 const limit = (value, min, max) => Math.min(max, Math.max(min, value));
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -70,7 +71,27 @@ function TextOverlay({ item, selected, onSelect, onMove, onStop }) {
   );
 }
 
-/** Editor vertical para Momentos: foto 9:16 + texto arrastável. */
+function StickerOverlay({ item, selected, onSelect, onMove, onStop }) {
+  return (
+    <div
+      data-moment-sticker-overlay
+      onPointerDown={(event) => onSelect(event, item)}
+      onPointerMove={onMove}
+      onPointerUp={onStop}
+      onPointerCancel={onStop}
+      style={{
+        position: 'absolute', left: item.x, top: item.y, transform: 'translate(-50%, -50%)',
+        fontSize: item.size, lineHeight: 1, cursor: 'grab', touchAction: 'none', userSelect: 'none',
+        filter: 'drop-shadow(0 4px 10px rgba(0,0,0,.28))',
+        outline: selected ? '2px solid rgba(255,255,255,.94)' : '2px solid transparent',
+        outlineOffset: 5, borderRadius: 12, zIndex: 4,
+      }}>
+      {item.emoji}
+    </div>
+  );
+}
+
+/** Editor vertical para Momentos: foto 9:16 + texto e stickers arrastáveis. */
 export function MomentImageEditor({ file, onSave, onCancel }) {
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
@@ -81,23 +102,33 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
   const [natural, setNatural] = useState(null);
   const [saving, setSaving] = useState(false);
   const [texts, setTexts] = useState([]);
+  const [stickers, setStickers] = useState([]);
   const [selectedTextId, setSelectedTextId] = useState(null);
+  const [selectedStickerId, setSelectedStickerId] = useState(null);
   const [draftText, setDraftText] = useState('');
   const [draftStyle, setDraftStyle] = useState('clean');
   const [draftSize, setDraftSize] = useState(32);
+  const [activeTool, setActiveTool] = useState(null);
 
   const imgRef = useRef(null);
+  const textInputRef = useRef(null);
   const imgUrl = useMemo(() => URL.createObjectURL(file), [file]);
   const pointersRef = useRef(new Map());
   const panRef = useRef(null);
   const pinchRef = useRef(null);
   const textDragRef = useRef(null);
+  const stickerDragRef = useRef(null);
   const zoomRef = useRef(1);
   const offsetRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => () => URL.revokeObjectURL(imgUrl), [imgUrl]);
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
   useEffect(() => { offsetRef.current = offset; }, [offset]);
+  useEffect(() => {
+    if (activeTool !== 'text') return;
+    const timer = setTimeout(() => textInputRef.current?.focus(), 60);
+    return () => clearTimeout(timer);
+  }, [activeTool]);
 
   const sideways = rotation % 180 !== 0;
   const effectiveW = natural ? (sideways ? natural.h : natural.w) : FRAME_W;
@@ -144,8 +175,9 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
   };
 
   const onPointerDown = (event) => {
-    if (event.target.closest?.('[data-moment-text-overlay]')) return;
+    if (event.target.closest?.('[data-moment-text-overlay], [data-moment-sticker-overlay]')) return;
     setSelectedTextId(null);
+    setSelectedStickerId(null);
     pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     try { event.currentTarget.setPointerCapture?.(event.pointerId); } catch { /* Safari */ }
     if (pointersRef.current.size >= 2) beginPinch();
@@ -215,6 +247,16 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
     setOffset({ x: 0, y: 0 });
   };
 
+  const openTextTool = () => {
+    if (!selectedTextId) {
+      setDraftText('');
+      setDraftStyle('clean');
+      setDraftSize(32);
+    }
+    setSelectedStickerId(null);
+    setActiveTool('text');
+  };
+
   const saveText = () => {
     const clean = draftText.trim();
     if (!clean) return;
@@ -230,10 +272,12 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
       }]);
       setSelectedTextId(id);
     }
+    setActiveTool(null);
   };
 
   const selectText = (event, item) => {
     event.stopPropagation();
+    setSelectedStickerId(null);
     setSelectedTextId(item.id);
     setDraftText(item.text);
     setDraftStyle(item.style);
@@ -268,8 +312,9 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
   };
 
   const updateSelectedSize = (size) => {
-    setDraftSize(size);
-    if (selectedTextId) setTexts(current => current.map(item => item.id === selectedTextId ? { ...item, size } : item));
+    const safe = limit(size, 22, 54);
+    setDraftSize(safe);
+    if (selectedTextId) setTexts(current => current.map(item => item.id === selectedTextId ? { ...item, size: safe } : item));
   };
 
   const removeSelectedText = () => {
@@ -277,6 +322,60 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
     setTexts(current => current.filter(item => item.id !== selectedTextId));
     setSelectedTextId(null);
     setDraftText('');
+    setActiveTool(null);
+  };
+
+  const addSticker = (emoji) => {
+    const id = `${Date.now()}-${Math.random()}`;
+    setStickers(current => [...current, {
+      id, emoji, size: 72,
+      x: FRAME_W / 2,
+      y: FRAME_H * (0.44 + Math.min(current.length, 3) * 0.08),
+    }]);
+    setSelectedTextId(null);
+    setSelectedStickerId(id);
+    setActiveTool(null);
+  };
+
+  const selectSticker = (event, item) => {
+    event.stopPropagation();
+    setSelectedTextId(null);
+    setSelectedStickerId(item.id);
+    stickerDragRef.current = {
+      id: item.id,
+      startX: event.clientX,
+      startY: event.clientY,
+      x: item.x,
+      y: item.y,
+    };
+    try { event.currentTarget.setPointerCapture?.(event.pointerId); } catch { /* Safari */ }
+  };
+
+  const moveSticker = (event) => {
+    const drag = stickerDragRef.current;
+    if (!drag) return;
+    event.stopPropagation();
+    const x = limit(drag.x + (event.clientX - drag.startX), 28, FRAME_W - 28);
+    const y = limit(drag.y + (event.clientY - drag.startY), 28, FRAME_H - 28);
+    setStickers(current => current.map(item => item.id === drag.id ? { ...item, x, y } : item));
+  };
+
+  const stopSticker = (event) => {
+    event?.stopPropagation?.();
+    stickerDragRef.current = null;
+  };
+
+  const resizeSelectedSticker = (delta) => {
+    if (!selectedStickerId) return;
+    setStickers(current => current.map(item => item.id === selectedStickerId
+      ? { ...item, size: limit(item.size + delta, 42, 140) }
+      : item));
+  };
+
+  const removeSelectedSticker = () => {
+    if (!selectedStickerId) return;
+    setStickers(current => current.filter(item => item.id !== selectedStickerId));
+    setSelectedStickerId(null);
   };
 
   const save = () => {
@@ -342,6 +441,16 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
       });
     });
 
+    stickers.forEach((item) => {
+      const size = Math.round(item.size * textScale);
+      ctx.save();
+      ctx.font = `${size}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(item.emoji, item.x * textScale, item.y * (OUTPUT_H / FRAME_H));
+      ctx.restore();
+    });
+
     output.toBlob((blob) => {
       setSaving(false);
       if (!blob) return;
@@ -363,7 +472,7 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
             style={{ padding: 10, background: 'rgba(255,255,255,.1)', color: '#fff', borderColor: 'transparent' }}><X size={17} /></button>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="d" style={{ fontSize: 24, color: '#fff' }}>Editar momento</div>
-            <div style={{ fontSize: 11.5, opacity: .62, marginTop: 2 }}>1 dedo move · 2 dedos aproximam · 9:16</div>
+            <div style={{ fontSize: 11.5, opacity: .62, marginTop: 2 }}>Arrasta · aproxima · escreve · decora</div>
           </div>
           <button type="button" className="p p-brand" onClick={save} disabled={!natural || saving}
             aria-label="Confirmar edição do momento"
@@ -400,13 +509,54 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
                 }} />
             </div>
             <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(180deg,rgba(0,0,0,.12),transparent 20%,transparent 76%,rgba(0,0,0,.18))' }} />
+
             {texts.map(item => (
               <TextOverlay key={item.id} item={item} selected={item.id === selectedTextId}
                 onSelect={selectText} onMove={moveText} onStop={stopText} />
             ))}
+            {stickers.map(item => (
+              <StickerOverlay key={item.id} item={item} selected={item.id === selectedStickerId}
+                onSelect={selectSticker} onMove={moveSticker} onStop={stopSticker} />
+            ))}
+
             <div data-testid="moment-photo-zoom-readout" style={{ position: 'absolute', top: 11, left: 11, zIndex: 5, padding: '6px 9px', borderRadius: 999, background: 'rgba(0,0,0,.5)', fontSize: 10.5, fontWeight: 700 }}>
               {Math.round(zoom * 100)}%
             </div>
+
+            <div aria-label="Ferramentas do momento" style={{ position: 'absolute', top: 52, right: 10, zIndex: 7, display: 'grid', gap: 9 }}>
+              <button type="button" onClick={openTextTool} aria-label="Adicionar texto ao momento"
+                style={{ width: 46, height: 46, borderRadius: 99, border: '1px solid rgba(255,255,255,.24)', background: 'rgba(12,10,26,.66)', backdropFilter: 'blur(12px)', color: '#fff', fontSize: 18, fontWeight: 900, boxShadow: '0 7px 22px rgba(0,0,0,.22)' }}>
+                Aa
+              </button>
+              <button type="button" onClick={() => setActiveTool('emoji')} aria-label="Adicionar emoji ao momento"
+                style={{ width: 46, height: 46, borderRadius: 99, border: '1px solid rgba(255,255,255,.24)', background: 'rgba(12,10,26,.66)', backdropFilter: 'blur(12px)', color: '#fff', fontSize: 21, boxShadow: '0 7px 22px rgba(0,0,0,.22)' }}>
+                😊
+              </button>
+            </div>
+
+            {(selectedTextId || selectedStickerId) && (
+              <div style={{
+                position: 'absolute', left: '50%', bottom: 12, transform: 'translateX(-50%)', zIndex: 8,
+                display: 'flex', alignItems: 'center', gap: 6, padding: 6, borderRadius: 999,
+                background: 'rgba(10,8,22,.72)', backdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,.18)',
+                boxShadow: '0 8px 24px rgba(0,0,0,.26)',
+              }}>
+                {selectedTextId ? (
+                  <>
+                    <button type="button" onClick={openTextTool} aria-label="Editar texto" style={{ border: 0, background: 'rgba(255,255,255,.12)', color: '#fff', borderRadius: 99, width: 38, height: 38, fontWeight: 900 }}>Aa</button>
+                    <button type="button" onClick={() => updateSelectedSize(draftSize - 4)} aria-label="Diminuir texto" style={{ border: 0, background: 'transparent', color: '#fff', width: 38, height: 38 }}><Minus size={17} /></button>
+                    <button type="button" onClick={() => updateSelectedSize(draftSize + 4)} aria-label="Aumentar texto" style={{ border: 0, background: 'transparent', color: '#fff', width: 38, height: 38 }}><Plus size={17} /></button>
+                    <button type="button" onClick={removeSelectedText} aria-label="Apagar texto" style={{ border: 0, background: 'transparent', color: '#FF8077', width: 38, height: 38 }}><Trash2 size={17} /></button>
+                  </>
+                ) : (
+                  <>
+                    <button type="button" onClick={() => resizeSelectedSticker(-12)} aria-label="Diminuir sticker" style={{ border: 0, background: 'transparent', color: '#fff', width: 38, height: 38 }}><Minus size={17} /></button>
+                    <button type="button" onClick={() => resizeSelectedSticker(12)} aria-label="Aumentar sticker" style={{ border: 0, background: 'transparent', color: '#fff', width: 38, height: 38 }}><Plus size={17} /></button>
+                    <button type="button" onClick={removeSelectedSticker} aria-label="Apagar sticker" style={{ border: 0, background: 'transparent', color: '#FF8077', width: 38, height: 38 }}><Trash2 size={17} /></button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
@@ -416,37 +566,6 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
             <button type="button" className="p" onClick={reset} style={{ flex: 1, justifyContent: 'center', background: 'rgba(255,255,255,.09)', color: '#fff', borderColor: 'transparent' }}>
               <Undo2 size={15} /> Repor foto
             </button>
-          </div>
-
-          <div style={{ padding: 12, borderRadius: 18, background: 'rgba(255,255,255,.07)', marginBottom: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9, fontSize: 12, fontWeight: 700 }}><Type size={15} /> Texto sobre a foto</div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <textarea aria-label="Texto do momento" placeholder="Escreve sobre a foto…" value={draftText}
-                onChange={event => setDraftText(event.target.value)} maxLength={180} rows={2}
-                style={{ minHeight: 62, resize: 'none', background: 'rgba(255,255,255,.95)', color: '#171425' }} />
-              <button type="button" className="p p-brand" onClick={saveText} disabled={!draftText.trim()}
-                style={{ alignSelf: 'stretch', padding: '10px 13px' }}>{selectedTextId ? 'Atualizar' : 'Adicionar'}</button>
-            </div>
-            <div style={{ display: 'flex', gap: 7, marginTop: 9, overflowX: 'auto' }}>
-              {[['clean', 'Livre'], ['highlight', 'Claro'], ['dark', 'Escuro']].map(([value, label]) => (
-                <button key={value} type="button" className="p p-sm" onClick={() => updateSelectedStyle(value)}
-                  aria-pressed={draftStyle === value}
-                  style={{ flexShrink: 0, background: draftStyle === value ? '#fff' : 'rgba(255,255,255,.08)', color: draftStyle === value ? '#171425' : '#fff', borderColor: 'transparent' }}>{label}</button>
-              ))}
-              {selectedTextId && (
-                <button type="button" className="p p-sm" onClick={removeSelectedText}
-                  style={{ marginLeft: 'auto', color: '#FF7A70', background: 'rgba(255,255,255,.08)', borderColor: 'transparent' }}>
-                  <Trash2 size={13} /> Apagar
-                </button>
-              )}
-            </div>
-            <label style={{ display: 'grid', gridTemplateColumns: '72px 1fr 34px', alignItems: 'center', gap: 8, marginTop: 10, fontSize: 11.5, opacity: .9 }}>
-              Tamanho
-              <input aria-label="Tamanho do texto" type="range" min="22" max="54" value={draftSize}
-                onChange={event => updateSelectedSize(Number(event.target.value))} />
-              <span>{draftSize}</span>
-            </label>
-            <div style={{ fontSize: 10.5, opacity: .55, marginTop: 7 }}>Toca no texto para o editar · arrasta-o diretamente sobre a foto · emojis também funcionam.</div>
           </div>
 
           <details style={{ padding: '0 2px', marginBottom: 12 }}>
@@ -472,6 +591,76 @@ export function MomentImageEditor({ file, onSave, onCancel }) {
           </button>
         </div>
       </div>
+
+      {activeTool === 'text' && (
+        <div role="dialog" aria-label="Editor de texto do momento" style={{
+          position: 'fixed', inset: 0, zIndex: 130, background: 'rgba(5,4,13,.76)', backdropFilter: 'blur(10px)',
+          padding: 'calc(12px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom))',
+          display: 'flex', flexDirection: 'column',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button type="button" className="p" onClick={() => setActiveTool(null)} style={{ background: 'rgba(255,255,255,.1)', color: '#fff', borderColor: 'transparent' }}>Cancelar</button>
+            <div style={{ flex: 1, textAlign: 'center', fontWeight: 800 }}>Texto</div>
+            <button type="button" className="p p-brand" onClick={saveText} disabled={!draftText.trim()} aria-label="Concluir texto">Concluir</button>
+          </div>
+
+          <div style={{ flex: 1, display: 'grid', placeItems: 'center', minHeight: 0 }}>
+            <textarea ref={textInputRef} aria-label="Texto do momento" placeholder="Escreve algo…" value={draftText}
+              onChange={event => setDraftText(event.target.value)} maxLength={180} rows={3}
+              style={{
+                width: '100%', maxWidth: 380, minHeight: 130, resize: 'none', border: 0, outline: 0,
+                background: 'transparent', color: draftStyle === 'highlight' ? '#111018' : '#fff',
+                fontSize: draftSize, fontWeight: 800, lineHeight: 1.08, textAlign: 'center',
+                textShadow: draftStyle === 'clean' ? '0 3px 12px rgba(0,0,0,.7)' : 'none',
+                padding: 16, borderRadius: 18,
+                boxShadow: draftStyle === 'highlight' ? 'inset 0 0 0 999px rgba(255,255,255,.94)' : draftStyle === 'dark' ? 'inset 0 0 0 999px rgba(10,8,20,.72)' : 'none',
+              }} />
+          </div>
+
+          <div style={{ padding: 12, borderRadius: 22, background: 'rgba(255,255,255,.08)' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
+              {[['clean', 'Livre'], ['highlight', 'Claro'], ['dark', 'Escuro']].map(([value, label]) => (
+                <button key={value} type="button" className="p p-sm" onClick={() => setDraftStyle(value)} aria-pressed={draftStyle === value}
+                  style={{ background: draftStyle === value ? '#fff' : 'rgba(255,255,255,.08)', color: draftStyle === value ? '#171425' : '#fff', borderColor: 'transparent' }}>{label}</button>
+              ))}
+            </div>
+            <label style={{ display: 'grid', gridTemplateColumns: '68px 1fr 34px', alignItems: 'center', gap: 8, fontSize: 12 }}>
+              Tamanho
+              <input aria-label="Tamanho do texto" type="range" min="22" max="54" value={draftSize} onChange={event => setDraftSize(Number(event.target.value))} />
+              <span>{draftSize}</span>
+            </label>
+            <div style={{ marginTop: 9, textAlign: 'center', fontSize: 10.5, opacity: .6 }}>Também podes escrever emojis no texto. Depois arrasta-o diretamente sobre a fotografia.</div>
+          </div>
+        </div>
+      )}
+
+      {activeTool === 'emoji' && (
+        <div role="dialog" aria-label="Escolher emoji para o momento" onClick={() => setActiveTool(null)} style={{
+          position: 'fixed', inset: 0, zIndex: 130, background: 'rgba(5,4,13,.58)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'flex-end',
+        }}>
+          <div onClick={event => event.stopPropagation()} style={{
+            width: '100%', maxWidth: 430, margin: '0 auto', padding: '16px 16px calc(18px + env(safe-area-inset-bottom))',
+            borderRadius: '28px 28px 0 0', background: '#171426', boxShadow: '0 -18px 50px rgba(0,0,0,.35)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 18, fontWeight: 850 }}>Emojis e stickers</div>
+                <div style={{ fontSize: 11, opacity: .58, marginTop: 3 }}>Toca num · depois arrasta e muda o tamanho na foto</div>
+              </div>
+              <button type="button" className="p" onClick={() => setActiveTool(null)} aria-label="Fechar emojis" style={{ background: 'rgba(255,255,255,.09)', color: '#fff', borderColor: 'transparent' }}><X size={16} /></button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
+              {EMOJIS.map((emoji, index) => (
+                <button key={`${emoji}-${index}`} type="button" onClick={() => addSticker(emoji)} aria-label={`Adicionar emoji ${emoji}`}
+                  style={{ aspectRatio: '1', border: 0, borderRadius: 16, background: 'rgba(255,255,255,.08)', fontSize: 28 }}>
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

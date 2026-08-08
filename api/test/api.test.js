@@ -2,6 +2,7 @@ import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
 import app from '../src/server.js';
 import { migrate, pool, q } from '../src/db.js';
+import { runAccountDeletions } from '../src/jobs/daily.js';
 
 let server;
 let baseUrl;
@@ -108,6 +109,15 @@ test('autenticação e autorizações críticas funcionam de ponta a ponta', asy
     assert.equal(data[0].current, true);
   }
 
+  // A declaração de tamanho do upload tem de ser um inteiro positivo real.
+  for (const bytes of [-1, 0, 1.5, 8 * 1024 * 1024 + 1]) {
+    const { response, data } = await request('/uploads/sign', {
+      method: 'POST', token: alice.token, body: { mime: 'image/jpeg', bytes },
+    });
+    assert.equal(response.status, 400);
+    assert.equal(data.code, 'too_big');
+  }
+
   // Criar comunidade nunca pode funcionar sem autenticação.
   {
     const { response } = await request('/communities', {
@@ -140,6 +150,17 @@ test('autenticação e autorizações críticas funcionam de ponta a ponta', asy
     body: { communityId: community.data.id, body: 'Post privado da comunidade', palette: 1 },
   });
   assert.equal(alicePost.response.status, 201, JSON.stringify(alicePost.data));
+
+  // Uma paleta manipulada não pode guardar conteúdo que faça o React crashar.
+  {
+    const { response, data } = await request('/posts', {
+      method: 'POST',
+      token: alice.token,
+      body: { communityId: community.data.id, body: 'cor hostil', palette: -1 },
+    });
+    assert.equal(response.status, 400);
+    assert.equal(data.code, 'bad_palette');
+  }
 
   const bob = await register({
     handle: 'bob.teste',
@@ -228,6 +249,19 @@ test('autenticação e autorizações críticas funcionam de ponta a ponta', asy
     assert.equal(response.status, 201);
   }
 
+  // Uma decisão que não se aplica ao alvo não pode fechar a fila de moderação.
+  {
+    const queue = await request(`/reports/community/${community.data.id}`, { token: alice.token });
+    assert.equal(queue.response.status, 200);
+    const report = queue.data.find(r => r.target_id === alicePost.data.id);
+    assert.ok(report);
+    const { response, data } = await request(`/reports/${report.id}/resolve`, {
+      method: 'POST', token: alice.token, body: { resolution: 'suspenso' },
+    });
+    assert.equal(response.status, 400);
+    assert.equal(data.code, 'bad_resolution');
+  }
+
   // Um moderador não ganha o direito de fabricar outros moderadores.
   const charlie = await register({
     handle: 'charlie.teste',
@@ -297,6 +331,22 @@ test('autenticação e autorizações críticas funcionam de ponta a ponta', asy
     assert.equal(data.code, 'unconfirmed_upload');
   }
 
+  // Nem payloads de media vazios nem paletas fora da gama entram na conversa.
+  {
+    const { response, data } = await request(`/messages/threads/${thread.data.id}/messages`, {
+      method: 'POST', token: bob.token, body: { kind: 'media', mode: 'once', palette: 1 },
+    });
+    assert.equal(response.status, 400);
+    assert.equal(data.code, 'media_required');
+  }
+  {
+    const { response, data } = await request(`/messages/threads/${thread.data.id}/messages`, {
+      method: 'POST', token: bob.token, body: { kind: 'text', mode: 'normal', body: 'oi', palette: -1 },
+    });
+    assert.equal(response.status, 400);
+    assert.equal(data.code, 'bad_palette');
+  }
+
   // Trocar a password invalida imediatamente o token anterior.
   const changed = await request('/auth/change-password', {
     method: 'POST',
@@ -315,4 +365,86 @@ test('autenticação e autorizações críticas funcionam de ponta a ponta', asy
     const { response } = await request('/auth/me', { token: changed.data.token });
     assert.equal(response.status, 200);
   }
+});
+
+test('apagamento RGPD transfere comunidades fundadas e corrige contadores', async () => {
+  const founder = await register({
+    handle: 'fundador.delete',
+    email: 'fundador-delete@example.test',
+    name: 'Fundador Delete',
+  });
+  const successor = await register({
+    handle: 'sucessor.delete',
+    email: 'sucessor-delete@example.test',
+    name: 'Sucessor Delete',
+  });
+
+  const community = await request('/communities', {
+    method: 'POST', token: founder.token,
+    body: {
+      slug: 'delete-transfer', name: 'Delete Transfer',
+      seedProposals: ['um teste', 'dois testes', 'tres testes', 'quatro testes', 'cinco testes'],
+    },
+  });
+  assert.equal(community.response.status, 201, JSON.stringify(community.data));
+
+  {
+    const { response } = await request(`/communities/${community.data.id}/join`, {
+      method: 'POST', token: successor.token,
+    });
+    assert.equal(response.status, 200);
+  }
+
+  {
+    const { response } = await request('/account/delete', { method: 'POST', token: founder.token });
+    assert.equal(response.status, 200);
+  }
+  await q(
+    `UPDATE deletion_requests SET execute_at = now() - interval '1 minute'
+     WHERE user_id = $1`, [founder.user.id]
+  );
+
+  assert.equal(await runAccountDeletions(), 1);
+
+  {
+    const { rows } = await q('SELECT founder_id, member_count FROM communities WHERE id = $1', [community.data.id]);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].founder_id, successor.user.id);
+    assert.equal(rows[0].member_count, 1);
+  }
+  {
+    const { rows } = await q('SELECT role FROM memberships WHERE community_id = $1 AND user_id = $2',
+      [community.data.id, successor.user.id]);
+    assert.equal(rows[0].role, 'founder');
+  }
+  {
+    const { rows } = await q('SELECT 1 FROM users WHERE id = $1', [founder.user.id]);
+    assert.equal(rows.length, 0);
+  }
+});
+
+test('apagamento RGPD remove comunidade quando o fundador era o único membro', async () => {
+  const founder = await register({
+    handle: 'fundador.sozinho',
+    email: 'fundador-sozinho@example.test',
+    name: 'Fundador Sozinho',
+  });
+  const community = await request('/communities', {
+    method: 'POST', token: founder.token,
+    body: {
+      slug: 'delete-alone', name: 'Delete Alone',
+      seedProposals: ['um sozinho', 'dois sozinho', 'tres sozinho', 'quatro sozinho', 'cinco sozinho'],
+    },
+  });
+  assert.equal(community.response.status, 201, JSON.stringify(community.data));
+
+  await request('/account/delete', { method: 'POST', token: founder.token });
+  await q(
+    `UPDATE deletion_requests SET execute_at = now() - interval '1 minute'
+     WHERE user_id = $1`, [founder.user.id]
+  );
+
+  assert.equal(await runAccountDeletions(), 1);
+  const { rows } = await q('SELECT 1 FROM communities WHERE id = $1', [community.data.id]);
+  assert.equal(rows.length, 0);
 });

@@ -1,4 +1,4 @@
 Lumina QA
-Moments media editor v5
-Story tools: text colors, effects, emoji stickers and freehand drawing
-2026-08-08 23:54 Europe/Lisbon
+Moments media editor v6
+Pinch-to-resize text and emoji stickers with two fingers
+2026-08-09 00:03 Europe/Lisbon

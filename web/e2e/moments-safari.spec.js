@@ -51,11 +51,21 @@ test('Momentos usam media vertical, editor de texto e vídeo em Mobile Safari', 
   await expect(page.getByText('1 dedo move · 2 dedos aproximam · 9:16')).toBeVisible();
   await expect(page.getByTestId('moment-photo-zoom-readout')).toHaveText('100%');
 
+  const confirmButton = page.getByRole('button', { name: 'Confirmar edição do momento' });
+  await expect(confirmButton).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Usar no momento' })).toBeVisible();
+  const box = await confirmButton.boundingBox();
+  const viewport = page.viewportSize();
+  expect(box).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+
   await page.getByPlaceholder('Escreve sobre a foto…').fill('Noite em Lisboa ✨');
   await page.getByRole('button', { name: 'Adicionar', exact: true }).click();
   await expect(page.locator('[data-moment-text-overlay]')).toContainText('Noite em Lisboa');
   await page.getByLabel('Tamanho do texto').fill('40');
-  await page.getByRole('button', { name: 'Usar no momento' }).click();
+  await confirmButton.click();
 
   await expect(page.getByText('Editar momento', { exact: true })).toBeHidden();
   await expect(page.getByRole('img', { name: 'Pré-visualização do momento' })).toBeVisible();

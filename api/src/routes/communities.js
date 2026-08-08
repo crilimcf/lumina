@@ -21,9 +21,19 @@ function validTimezone(tz) {
  * nova acorda no primeiro dia sem nada para propor — e morre à nascença.
  */
 communityRoutes.post('/', auth, h(async (req, res) => {
-  const { slug, name, description = '', timezone = 'Europe/Lisbon', seedProposals } = req.body;
+  const cleanSlug = String(req.body.slug || '').trim().toLowerCase();
+  const cleanName = String(req.body.name || '').trim();
+  const description = String(req.body.description || '').trim();
+  const timezone = String(req.body.timezone || 'Europe/Lisbon');
+  const seedProposals = req.body.seedProposals;
 
-  if (!slug || !name) throw bad('Falta o slug ou o nome');
+  if (!/^[a-z0-9-]{2,32}$/.test(cleanSlug)) {
+    throw bad('O identificador tem 2 a 32 caracteres: letras minúsculas, números ou hífen', 'bad_slug');
+  }
+  if (cleanName.length < 2 || cleanName.length > 60) {
+    throw bad('O nome da comunidade tem entre 2 e 60 caracteres', 'bad_name');
+  }
+  if (description.length > 300) throw bad('A descrição tem no máximo 300 caracteres', 'bad_description');
   if (!validTimezone(timezone)) throw bad('Fuso horário inválido (usa formato IANA, ex: Europe/Lisbon)');
 
   const seeds = Array.isArray(seedProposals) ? seedProposals.map(s => String(s).trim()).filter(Boolean) : [];
@@ -36,7 +46,7 @@ communityRoutes.post('/', auth, h(async (req, res) => {
     const { rows } = await c.query(
       `INSERT INTO communities (slug, name, description, timezone, founder_id, member_count)
        VALUES ($1, $2, $3, $4, $5, 1) RETURNING *`,
-      [slug, name, description, timezone, req.user.id]
+      [cleanSlug, cleanName, description, timezone, req.user.id]
     );
     const com = rows[0];
 
@@ -104,7 +114,7 @@ communityRoutes.post('/:communityId/join', auth, h(async (req, res) => {
 }));
 
 communityRoutes.post('/:communityId/leave', auth, h(async (req, res) => {
-  await tx(async (c) => {
+  const left = await tx(async (c) => {
     const del = await c.query(
       `DELETE FROM memberships WHERE community_id = $1 AND user_id = $2 AND role <> 'founder'
        RETURNING user_id`,
@@ -113,9 +123,19 @@ communityRoutes.post('/:communityId/leave', auth, h(async (req, res) => {
     if (del.rowCount) {
       await c.query('UPDATE communities SET member_count = member_count - 1 WHERE id = $1',
         [req.params.communityId]);
+      return true;
     }
+
+    const { rows: membership } = await c.query(
+      'SELECT role FROM memberships WHERE community_id = $1 AND user_id = $2',
+      [req.params.communityId, req.user.id]
+    );
+    if (membership[0]?.role === 'founder') {
+      throw bad('Quem fundou a comunidade não pode sair sem transferir a responsabilidade', 'founder_cannot_leave');
+    }
+    return false;
   });
-  res.json({ left: true });
+  res.json({ left });
 }));
 
 /** Quem funda nomeia moderadores. Staff pode intervir em caso de emergência. */

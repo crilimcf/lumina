@@ -17,7 +17,8 @@ export const env = {
   APP_URL: process.env.APP_URL || 'http://localhost:5173',
   CORS_ORIGIN: process.env.CORS_ORIGIN,
 
-  // Email (Resend). Sem chave, os emails vao para a consola.
+  // Email (Resend). Sem chave só simulamos fora de produção; nunca registamos
+  // no log o corpo de emails que possa conter tokens de recuperação.
   RESEND_API_KEY: process.env.RESEND_API_KEY,
   EMAIL_FROM: process.env.EMAIL_FROM || 'Lumina <ola@lumina.app>',
 
@@ -36,7 +37,8 @@ export const env = {
   REPORTS_TO_AUTOHIDE: Number(process.env.REPORTS_TO_AUTOHIDE || 3),
   PROPOSALS_PER_WEEK: Number(process.env.PROPOSALS_PER_WEEK || 3),
   MIN_ACCOUNT_AGE_HOURS: Number(process.env.MIN_ACCOUNT_AGE_HOURS || 24),
-  // Idade minima. O RGPD fixa 16; Portugal manteve os 16.
+  // Política do produto: o Lumina é 16+ por defeito. Não confundir este valor
+  // com a idade mínima legal de consentimento digital de cada jurisdição.
   MIN_AGE: Number(process.env.MIN_AGE || 16),
 
   // Convites e mensagens

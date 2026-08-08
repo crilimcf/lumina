@@ -9,12 +9,22 @@ export const twoFactorRoutes = Router();
 
 /**
  * Passo 1: gerar o segredo e mostrar o QR code.
- * Só fica ativo depois de a pessoa provar que consegue gerar um código —
- * senão bastava um engano para ficar trancada fora da própria conta.
+ *
+ * Ativar 2FA é uma alteração de segurança sensível: uma sessão já aberta não
+ * chega. Exigimos também a password atual para impedir que alguém que tenha
+ * tomado controlo temporário de uma sessão configure o seu próprio autenticador
+ * e tente prender o dono da conta fora dela.
  */
 twoFactorRoutes.post('/setup', auth, h(async (req, res) => {
-  const { rows } = await q('SELECT totp_enabled_at FROM users WHERE id = $1', [req.user.id]);
+  const { password } = req.body;
+  const { rows } = await q(
+    'SELECT password_hash, totp_enabled_at FROM users WHERE id = $1',
+    [req.user.id]
+  );
   if (rows[0].totp_enabled_at) throw bad('Já tens dois passos ativos', 'already_enabled');
+  if (!password || !await bcrypt.compare(password, rows[0].password_hash)) {
+    throw bad('Password errada', 'reauth_required');
+  }
 
   const secret = generateSecret();
   await q('UPDATE users SET totp_secret = $2 WHERE id = $1', [req.user.id, secret]);
@@ -44,7 +54,6 @@ twoFactorRoutes.post('/enable', auth, h(async (req, res) => {
   });
 
   audit(req.user.id, '2fa:ativado', req.user.id);
-  // Os códigos só aparecem aqui. Guardamos apenas o hash.
   res.json({ enabled: true, recoveryCodes: codes });
 }));
 
@@ -108,8 +117,6 @@ sessionRoutes.post('/revoke-all', auth, h(async (req, res) => {
   );
   await q('UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [req.user.id]);
   audit(req.user.id, 'sessoes:todas-fechadas', req.user.id);
-  // Token novo para quem pediu não ficar de fora — e regista-o antes de
-  // responder para Segurança o mostrar imediatamente como sessão atual.
   const token = signToken(rows[0]);
   await recordSession(rows[0].id, token, req);
   setSessionCookie(res, token);

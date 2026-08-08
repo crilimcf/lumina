@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { q, tx } from '../db.js';
 import { env } from '../env.js';
 import { auth, h, bad, notFound, forbidden } from '../middleware/auth.js';
+import { claimUpload } from '../lib/uploads.js';
 
 export const messageRoutes = Router();
 
@@ -83,7 +84,6 @@ messageRoutes.get('/threads/:threadId/messages', auth, h(async (req, res) => {
   const { rows } = await q(
     `SELECT id, sender_id, kind, mode, palette, opened_at, expires_at, purged_at, created_at,
             CASE
-              -- conteúdo efémero só sai do servidor depois de o destinatário o abrir
               WHEN purged_at IS NOT NULL THEN NULL
               WHEN mode <> 'normal' AND sender_id <> $2 AND opened_at IS NULL THEN NULL
               ELSE body
@@ -119,16 +119,6 @@ messageRoutes.post('/threads/:threadId/messages', auth, h(async (req, res) => {
   }
   if (mode === 'once' && kind !== 'media') throw bad('O modo uma vez é só para fotos');
 
-  // Uma imagem de conversa segue a mesma regra dos posts e Momentos: só
-  // aceitamos URLs de uploads pertencentes ao remetente e já verificados.
-  if (mediaUrl) {
-    const { rows: up } = await q(
-      'SELECT 1 FROM uploads WHERE url = $1 AND owner_id = $2 AND confirmed_at IS NOT NULL',
-      [mediaUrl, req.user.id]
-    );
-    if (!up[0]) throw bad('Imagem não verificada', 'unconfirmed_upload');
-  }
-
   const t = await assertParticipant(req.params.threadId, req.user.id);
   const other = t.user_a === req.user.id ? t.user_b : t.user_a;
   const { rows: blk } = await q(
@@ -138,13 +128,29 @@ messageRoutes.post('/threads/:threadId/messages', auth, h(async (req, res) => {
   );
   if (blk[0]) throw forbidden('Esta conversa já não está disponível');
 
-  const { rows } = await q(
-    `INSERT INTO messages (thread_id, sender_id, kind, mode, body, media_url, palette)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING id, kind, mode, created_at`,
-    [req.params.threadId, req.user.id, kind, mode, body, mediaUrl, palette]
-  );
-  res.status(201).json(rows[0]);
+  // Claim + INSERT no mesmo COMMIT: se a mensagem falhar, o upload volta a
+  // ficar disponível; se passar, essa URL deixa de poder ser reutilizada.
+  const message = await tx(async (c) => {
+    if (mediaUrl) {
+      const claimed = await claimUpload(
+        mediaUrl,
+        req.user.id,
+        'message',
+        (text, params) => c.query(text, params)
+      );
+      if (!claimed) throw bad('Imagem não verificada ou já utilizada', 'unconfirmed_upload');
+    }
+
+    const { rows } = await c.query(
+      `INSERT INTO messages (thread_id, sender_id, kind, mode, body, media_url, palette)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, kind, mode, created_at`,
+      [req.params.threadId, req.user.id, kind, mode, body, mediaUrl, palette]
+    );
+    return rows[0];
+  });
+
+  res.status(201).json(message);
 }));
 
 function bodyOrNull(value) {
@@ -156,9 +162,6 @@ function bodyOrNull(value) {
 /**
  * Abrir uma mensagem efémera. É aqui que o relógio começa: gravamos opened_at
  * e marcamos a hora em que o conteúdo é apagado do servidor.
- *
- * Nota honesta para a interface: isto impede que a mensagem seja lida de novo,
- * não impede uma captura de ecrã. A app diz isso ao utilizador.
  */
 messageRoutes.post('/:messageId/open', auth, h(async (req, res) => {
   const out = await tx(async (c) => {
@@ -175,7 +178,6 @@ messageRoutes.post('/:messageId/open', auth, h(async (req, res) => {
     if (m.mode === 'normal') throw bad('Esta mensagem não é efémera', 'not_ephemeral');
     if (m.purged_at) throw bad('Já não existe', 'purged');
     if (m.opened_at) {
-      // Ver uma vez significa uma vez. Segunda tentativa não devolve nada.
       if (m.mode === 'once') throw bad('Esta foto já foi vista', 'already_seen');
       return { body: m.body, mediaUrl: m.media_url, expiresAt: m.expires_at };
     }

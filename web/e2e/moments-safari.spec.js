@@ -28,7 +28,7 @@ async function openFeed(page) {
   await expect(page.getByRole('button', { name: 'Novo' })).toBeVisible();
 }
 
-test('Momentos usam editor Story visível, texto, stickers e vídeo em Mobile Safari', async ({ page }) => {
+test('Momentos têm editor Story completo com cores, stickers, desenho e vídeo em Mobile Safari', async ({ page }) => {
   await openFeed(page);
 
   await page.getByRole('button', { name: 'Tu' }).click();
@@ -48,7 +48,7 @@ test('Momentos usam editor Story visível, texto, stickers e vídeo em Mobile Sa
   });
 
   await expect(page.getByText('Editar momento', { exact: true })).toBeVisible();
-  await expect(page.getByText('Arrasta · aproxima · escreve · decora')).toBeVisible();
+  await expect(page.getByText('Arrasta · aproxima · escreve · decora · desenha')).toBeVisible();
   await expect(page.getByTestId('moment-photo-zoom-readout')).toHaveText('100%');
 
   const confirmButton = page.getByRole('button', { name: 'Confirmar edição do momento' });
@@ -63,15 +63,22 @@ test('Momentos usam editor Story visível, texto, stickers e vídeo em Mobile Sa
 
   const textTool = page.getByRole('button', { name: 'Adicionar texto ao momento' });
   const emojiTool = page.getByRole('button', { name: 'Adicionar emoji ao momento' });
+  const drawTool = page.getByRole('button', { name: 'Desenhar no momento' });
   await expect(textTool).toBeVisible();
   await expect(emojiTool).toBeVisible();
+  await expect(drawTool).toBeVisible();
 
   await textTool.click();
   await expect(page.getByRole('dialog', { name: 'Editor de texto do momento' })).toBeVisible();
   await page.getByPlaceholder('Escreve algo…').fill('Noite em Lisboa ✨');
+  await page.getByRole('button', { name: 'Cor do texto Rosa' }).click();
+  await page.getByRole('button', { name: 'Contorno' }).click();
   await page.getByLabel('Tamanho do texto').fill('40');
   await page.getByRole('button', { name: 'Concluir texto' }).click();
-  await expect(page.locator('[data-moment-text-overlay]')).toContainText('Noite em Lisboa');
+
+  const textOverlay = page.locator('[data-moment-text-overlay]');
+  await expect(textOverlay).toContainText('Noite em Lisboa');
+  await expect(textOverlay).toHaveCSS('color', 'rgb(255, 111, 200)');
 
   await emojiTool.click();
   await expect(page.getByRole('dialog', { name: 'Escolher emoji para o momento' })).toBeVisible();
@@ -79,6 +86,22 @@ test('Momentos usam editor Story visível, texto, stickers e vídeo em Mobile Sa
   await expect(page.locator('[data-moment-sticker-overlay]')).toContainText('😂');
   await expect(page.getByRole('button', { name: 'Aumentar sticker' })).toBeVisible();
   await page.getByRole('button', { name: 'Aumentar sticker' }).click();
+
+  await drawTool.click();
+  await expect(page.getByRole('button', { name: 'Cor do desenho Azul' })).toBeVisible();
+  await page.getByRole('button', { name: 'Cor do desenho Azul' }).click();
+  await page.getByRole('button', { name: 'Espessura do desenho 6' }).click();
+
+  const frame = page.getByTestId('moment-photo-frame');
+  const frameBox = await frame.boundingBox();
+  expect(frameBox).not.toBeNull();
+  await page.mouse.move(frameBox.x + 70, frameBox.y + 250);
+  await page.mouse.down();
+  await page.mouse.move(frameBox.x + 145, frameBox.y + 285, { steps: 4 });
+  await page.mouse.move(frameBox.x + 210, frameBox.y + 245, { steps: 4 });
+  await page.mouse.up();
+  await expect(page.locator('[data-moment-drawing-stroke]')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Concluir desenho' }).click();
 
   await confirmButton.click();
 

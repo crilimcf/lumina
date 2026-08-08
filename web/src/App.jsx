@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, onUnauthorized } from './api.js';
 import { Seguranca, Moderacao, Legal } from './Seguranca.jsx';
+import { Composer } from './components/AppChrome.jsx';
 import { Marco, Welcome, checkMilestone } from './components/Milestones.jsx';
 import { Entrada } from './screens/Entrada.jsx';
 import { Abertura } from './screens/Abertura.jsx';
@@ -162,38 +163,52 @@ export default function App() {
     );
   }
 
+  // O composer de publicação pertence à shell principal, não a uma página.
+  // Assim o botão + da navegação funciona de forma idêntica em Feed, Convites,
+  // Conversas e Perfil. Feed/Convites recebem comp=null para manter os seus
+  // composers antigos desmontados até os removermos numa limpeza posterior.
+  const { comp, ...composerWithoutComp } = composerState;
+  let activeScreen;
+
   if (tab === 'dms') {
-    return (
+    activeScreen = (
       <Conversas me={me} tab={tab} setTab={setTab} coms={coms}
-        comp={composerState.comp} setComp={composerState.setComp} ping={ping}
+        comp={comp} setComp={composerState.setComp} ping={ping}
         {...messageState} />
     );
-  }
-
-  if (tab === 'invites') {
-    return (
+  } else if (tab === 'invites') {
+    activeScreen = (
       <Convites tab={tab} setTab={setTab} coms={coms} pick={pick} setPick={setPick}
         pool={inviteState.pool} idea={inviteState.idea} setIdea={inviteState.setIdea}
         vote={inviteState.vote} propose={inviteState.propose} report={report}
-        setScreen={setScreen} {...composerState}
+        setScreen={setScreen} comp={null} {...composerWithoutComp}
         threads={messageState.threads} setThread={messageState.setThread}
         ping={ping} toast={toast} />
     );
-  }
-
-  if (tab === 'me') {
-    return (
+  } else if (tab === 'me') {
+    activeScreen = (
       <Perfil me={me} coms={coms} days={days} blocked={blocked} setBlocked={setBlocked}
         setScreen={setScreen} logout={logout} tab={tab} setTab={setTab}
         setThread={messageState.setThread} setComp={composerState.setComp}
         threads={messageState.threads} ping={ping} toast={toast} />
     );
+  } else {
+    activeScreen = (
+      <Feed me={me} coms={coms} tab={tab} setTab={setTab} setScreen={setScreen}
+        {...feedState} report={report} comp={null} {...composerWithoutComp}
+        threads={messageState.threads} setThread={messageState.setThread}
+        ping={ping} toast={toast} {...momentState} />
+    );
   }
 
   return (
-    <Feed me={me} coms={coms} tab={tab} setTab={setTab} setScreen={setScreen}
-      {...feedState} report={report} {...composerState}
-      threads={messageState.threads} setThread={messageState.setThread}
-      ping={ping} toast={toast} {...momentState} />
+    <>
+      {activeScreen}
+      <Composer comp={comp} setComp={composerState.setComp} coms={coms}
+        file={composerState.file} setFile={composerState.setFile}
+        palette={composerState.palette} setPalette={composerState.setPalette}
+        body={composerState.body} setBody={composerState.setBody}
+        busy={composerState.busy} publish={composerState.publish} />
+    </>
   );
 }

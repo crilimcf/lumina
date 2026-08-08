@@ -147,8 +147,16 @@ test('autenticação e autorizações críticas funcionam de ponta a ponta', asy
     name: 'Bob Teste',
   });
 
-  // Bob conhece o UUID do post, mas ainda não pertence à comunidade.
-  // Nem ler comentários, nem reagir, nem republicar deve ser possível.
+  // Bob conhece UUIDs, mas ainda não pertence à comunidade. Nem conteúdo,
+  // nem votação, nem denúncias podem funcionar fora dessa fronteira.
+  {
+    const { response } = await request(`/invites/${community.data.id}/proposals`, { token: bob.token });
+    assert.equal(response.status, 403);
+  }
+  {
+    const { response } = await request(`/invites/${community.data.id}/today`, { token: bob.token });
+    assert.equal(response.status, 403);
+  }
   {
     const { response } = await request(`/posts/${alicePost.data.id}/comments`, { token: bob.token });
     assert.equal(response.status, 403);
@@ -166,8 +174,16 @@ test('autenticação e autorizações críticas funcionam de ponta a ponta', asy
     assert.equal(response.status, 400);
     assert.equal(data.code, 'not_member');
   }
+  {
+    const { response } = await request('/reports', {
+      method: 'POST',
+      token: bob.token,
+      body: { targetType: 'post', targetId: alicePost.data.id, reason: 'abuso' },
+    });
+    assert.equal(response.status, 404);
+  }
 
-  // Não pode apagar o post de Alice nem promover moderadores.
+  // Não pode apagar o post de Alice nem gerir moderadores.
   {
     const { response } = await request(`/posts/${alicePost.data.id}`, {
       method: 'DELETE', token: bob.token,
@@ -202,6 +218,83 @@ test('autenticação e autorizações críticas funcionam de ponta a ponta', asy
     });
     assert.equal(response.status, 200);
     assert.equal(data.active, true);
+  }
+  {
+    const { response } = await request('/reports', {
+      method: 'POST',
+      token: bob.token,
+      body: { targetType: 'post', targetId: alicePost.data.id, reason: 'abuso' },
+    });
+    assert.equal(response.status, 201);
+  }
+
+  // Um moderador não ganha o direito de fabricar outros moderadores.
+  const charlie = await register({
+    handle: 'charlie.teste',
+    email: 'charlie@example.test',
+    name: 'Charlie Teste',
+  });
+  {
+    const { response } = await request(`/communities/${community.data.id}/join`, {
+      method: 'POST', token: charlie.token,
+    });
+    assert.equal(response.status, 200);
+  }
+  {
+    const { response } = await request(`/communities/${community.data.id}/moderators`, {
+      method: 'POST',
+      token: alice.token,
+      body: { userId: bob.user.id, role: 'moderator' },
+    });
+    assert.equal(response.status, 200);
+  }
+  {
+    const { response } = await request(`/communities/${community.data.id}/moderators`, {
+      method: 'POST',
+      token: bob.token,
+      body: { userId: charlie.user.id, role: 'moderator' },
+    });
+    assert.equal(response.status, 403);
+  }
+
+  // Abrir a conversa efémera nunca pode transformar uma mensagem normal em
+  // mensagem que expira. O conteúdo normal deve continuar intacto.
+  const thread = await request('/messages/threads', {
+    method: 'POST', token: bob.token, body: { userId: alice.user.id },
+  });
+  assert.equal(thread.response.status, 201, JSON.stringify(thread.data));
+  const normalMessage = await request(`/messages/threads/${thread.data.id}/messages`, {
+    method: 'POST',
+    token: bob.token,
+    body: { kind: 'text', mode: 'normal', body: 'Isto não pode desaparecer.' },
+  });
+  assert.equal(normalMessage.response.status, 201, JSON.stringify(normalMessage.data));
+  {
+    const { response, data } = await request(`/messages/${normalMessage.data.id}/open`, {
+      method: 'POST', token: alice.token,
+    });
+    assert.equal(response.status, 400);
+    assert.equal(data.code, 'not_ephemeral');
+  }
+  {
+    const { response, data } = await request(`/messages/threads/${thread.data.id}/messages`, {
+      token: alice.token,
+    });
+    assert.equal(response.status, 200);
+    const saved = data.find(m => m.id === normalMessage.data.id);
+    assert.equal(saved.body, 'Isto não pode desaparecer.');
+    assert.equal(saved.expires_at, null);
+  }
+
+  // URLs externas não verificadas não entram como imagens de mensagens.
+  {
+    const { response, data } = await request(`/messages/threads/${thread.data.id}/messages`, {
+      method: 'POST',
+      token: bob.token,
+      body: { kind: 'media', mode: 'normal', mediaUrl: 'https://example.com/tracker.png' },
+    });
+    assert.equal(response.status, 400);
+    assert.equal(data.code, 'unconfirmed_upload');
   }
 
   // Trocar a password invalida imediatamente o token anterior.

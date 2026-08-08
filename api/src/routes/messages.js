@@ -101,9 +101,20 @@ messageRoutes.get('/threads/:threadId/messages', auth, h(async (req, res) => {
 
 messageRoutes.post('/threads/:threadId/messages', auth, h(async (req, res) => {
   const { kind = 'text', mode = 'normal', body = null, mediaUrl = null, palette = 0 } = req.body;
+  if (!['text', 'media'].includes(kind)) throw bad('Tipo de mensagem inválido');
   if (!['normal', 'timer', 'once'].includes(mode)) throw bad('Modo inválido');
   if (kind === 'text' && !String(body || '').trim()) throw bad('Mensagem vazia');
   if (mode === 'once' && kind !== 'media') throw bad('O modo uma vez é só para fotos');
+
+  // Uma imagem de conversa segue a mesma regra dos posts e Momentos: só
+  // aceitamos URLs de uploads pertencentes ao remetente e já verificados.
+  if (mediaUrl) {
+    const { rows: up } = await q(
+      'SELECT 1 FROM uploads WHERE url = $1 AND owner_id = $2 AND confirmed_at IS NOT NULL',
+      [mediaUrl, req.user.id]
+    );
+    if (!up[0]) throw bad('Imagem não verificada', 'unconfirmed_upload');
+  }
 
   const t = await assertParticipant(req.params.threadId, req.user.id);
   const other = t.user_a === req.user.id ? t.user_b : t.user_a;
@@ -142,6 +153,7 @@ messageRoutes.post('/:messageId/open', auth, h(async (req, res) => {
     if (!m) throw notFound('Mensagem não encontrada');
     if (m.user_a !== req.user.id && m.user_b !== req.user.id) throw forbidden();
     if (m.sender_id === req.user.id) throw bad('É tua');
+    if (m.mode === 'normal') throw bad('Esta mensagem não é efémera', 'not_ephemeral');
     if (m.purged_at) throw bad('Já não existe', 'purged');
     if (m.opened_at) {
       // Ver uma vez significa uma vez. Segunda tentativa não devolve nada.

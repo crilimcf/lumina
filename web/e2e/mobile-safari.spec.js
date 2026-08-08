@@ -49,6 +49,8 @@ test('registo, reload, comunidade e publicação funcionam em Mobile Safari', as
   await page.getByRole('button', { name: 'Novo' }).click();
   const composer = page.getByPlaceholder('O que estás a ver?');
   await expect(composer).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Adicionar fotografia' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Adicionar vídeo' })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Cor \d/ })).toHaveCount(0);
 
   await composer.pressSequentially(publishedText, { delay: 12 });
@@ -123,7 +125,7 @@ test('composer de fotografia usa gestos e stickers em Mobile Safari', async ({ p
     'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR42mP8z8AARAwMjDAGjB0AANsBA/0X8GkAAAAASUVORK5CYII=',
     'base64'
   );
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.locator('input[accept*="image/jpeg"]').setInputFiles({
     name: 'IMG_9226.png',
     mimeType: 'image/png',
     buffer: png,
@@ -149,6 +151,31 @@ test('composer de fotografia usa gestos e stickers em Mobile Safari', async ({ p
   await expect(page.getByText('4:5 · PRONTA')).toBeVisible();
   await expect(page.getByText('IMG_9226.png')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Editar foto' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Trocar/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Remover/ })).toBeVisible();
+});
+
+test('composer aceita vídeo com preview inline em Mobile Safari', async ({ page }) => {
+  await registerFromUI(page);
+  await createCommunityFromUI(page);
+  await page.getByRole('button', { name: 'Novo' }).click();
+
+  // Cabeçalho mínimo de contentor ISO BMFF. O objetivo deste teste de UI é
+  // confirmar seleção/preview; a validade binária completa é testada na API.
+  const mp4 = Buffer.from([
+    0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70,
+    0x69, 0x73, 0x6f, 0x6d, 0x00, 0x00, 0x02, 0x00,
+    0x69, 0x73, 0x6f, 0x6d, 0x6d, 0x70, 0x34, 0x32,
+  ]);
+  await page.locator('input[accept*="video/mp4"]').setInputFiles({
+    name: 'clip.mp4',
+    mimeType: 'video/mp4',
+    buffer: mp4,
+  });
+
+  await expect(page.getByLabel('Pré-visualização do vídeo')).toBeVisible();
+  await expect(page.getByText('VÍDEO · PRONTO')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Editar foto' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Trocar/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /Remover/ })).toBeVisible();
 });

@@ -83,7 +83,7 @@ test('botão Novo abre o composer a partir de Perfil e Conversas', async ({ page
   await expect(page.getByPlaceholder('O que estás a ver?')).toBeVisible();
 });
 
-test('composer de foto mostra preview e editor em vez do nome técnico do ficheiro', async ({ page }) => {
+test('composer de fotografia usa gestos e stickers em Mobile Safari', async ({ page }) => {
   await registerFromUI(page);
   await createCommunityFromUI(page);
   await page.getByRole('button', { name: 'Novo' }).click();
@@ -99,7 +99,15 @@ test('composer de foto mostra preview e editor em vez do nome técnico do fichei
   });
 
   await expect(page.getByText('Editar foto', { exact: true })).toBeVisible();
-  await expect(page.getByText('Arrasta para enquadrar · formato 4:5')).toBeVisible();
+  await expect(page.getByText('1 dedo move · 2 dedos aproximam · formato 4:5')).toBeVisible();
+  await expect(page.getByLabel('Zoom')).toHaveCount(0);
+  await expect(page.getByTestId('photo-zoom-readout')).toHaveText('100%');
+
+  await page.getByRole('button', { name: 'Adicionar emoji ✨' }).click();
+  await expect(page.getByTestId('photo-sticker')).toHaveCount(1);
+  await expect(page.getByLabel('Tamanho do emoji')).toBeVisible();
+  await page.getByLabel('Tamanho do emoji').fill('68');
+
   await expect(page.getByLabel('Brilho')).toBeVisible();
   await page.getByLabel('Brilho').fill('110');
   await page.getByRole('button', { name: /Rodar/ }).click();

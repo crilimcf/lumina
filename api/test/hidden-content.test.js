@@ -29,7 +29,7 @@ async function register(handle) {
     method: 'POST',
     body: {
       handle,
-      email: `${handle.replaceAll('.', '-') }@example.test`,
+      email: `${handle.replaceAll('.', '-')}@example.test`,
       password: 'lumina-test-1234',
       name: handle,
       birthDate: '1990-01-01',
@@ -102,6 +102,15 @@ test('post auto-ocultado deixa de aceitar acesso social por UUID até ser repost
       body: { targetType: 'post', targetId: post.data.id, reason: 'abuso' },
     });
     assert.equal(reported.response.status, 201, JSON.stringify(reported.data));
+
+    if (i === 0) {
+      const duplicate = await request('/reports', {
+        method: 'POST', token: reporters[i].token,
+        body: { targetType: 'post', targetId: post.data.id, reason: 'spam' },
+      });
+      assert.equal(duplicate.response.status, 409);
+      assert.equal(duplicate.data.code, 'duplicate');
+    }
     if (i === reporters.length - 1) assert.equal(reported.data.hidden, true);
   }
 

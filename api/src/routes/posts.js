@@ -6,7 +6,9 @@ import { claimUpload, removeUploadIfUnreferenced } from '../lib/uploads.js';
 export const postRoutes = Router();
 
 const SELECT_POST = `
-  SELECT p.id, p.body, p.media_url, p.palette, p.created_at, p.invite_id, p.repost_of,
+  SELECT p.id, p.body, p.media_url,
+         (SELECT up.mime FROM uploads up WHERE up.url = p.media_url LIMIT 1) AS media_mime,
+         p.palette, p.created_at, p.invite_id, p.repost_of,
          c.slug AS community_slug, c.name AS community_name,
          u.id AS author_id, u.handle, u.name, u.palette AS author_palette, u.avatar_url AS author_avatar_url,
          (SELECT count(*) FROM reactions r WHERE r.post_id = p.id AND r.kind = 'like')::int AS likes,
@@ -69,9 +71,10 @@ postRoutes.post('/', auth, h(async (req, res) => {
         mediaUrl,
         req.user.id,
         'post',
-        (text, params) => c.query(text, params)
+        (text, params) => c.query(text, params),
+        { allowVideo: true }
       );
-      if (!claimed) throw bad('Imagem nao verificada ou ja utilizada', 'unconfirmed_upload');
+      if (!claimed) throw bad('Media não verificado ou já utilizado', 'unconfirmed_upload');
     }
 
     const { rows } = await c.query(

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { q, tx } from '../db.js';
 import { auth, h, bad, notFound, requirePostMember } from '../middleware/auth.js';
+import { claimUpload, removeUploadIfUnreferenced } from '../lib/uploads.js';
 
 export const postRoutes = Router();
 
@@ -18,10 +19,7 @@ const SELECT_POST = `
   JOIN communities c ON c.id = p.community_id
 `;
 
-/**
- * Feed. Cronológico, sempre. Não há ordenação por reações — é a promessa
- * central do produto e é aqui que ela se cumpre ou se perde.
- */
+/** Feed cronológico, sempre. */
 postRoutes.get('/feed', auth, h(async (req, res) => {
   const before = req.query.before || null;
   const asked = Number(req.query.limit);
@@ -31,7 +29,6 @@ postRoutes.get('/feed', auth, h(async (req, res) => {
     `${SELECT_POST}
      WHERE p.hidden_at IS NULL
        AND p.community_id IN (SELECT community_id FROM memberships WHERE user_id = $1)
-       -- bloqueios cortam nos dois sentidos: nem eu vejo, nem quem me bloqueou me ve
        AND NOT EXISTS (SELECT 1 FROM blocks b
                        WHERE (b.blocker_id = $1 AND b.blocked_id = p.author_id)
                           OR (b.blocked_id = $1 AND b.blocker_id = p.author_id))
@@ -51,16 +48,6 @@ postRoutes.post('/', auth, h(async (req, res) => {
   if (body.length > 2000) throw bad('A publicação tem no máximo 2000 caracteres');
   if (!Number.isInteger(palette) || palette < 0 || palette > 4) throw bad('Cor inválida', 'bad_palette');
 
-  // A imagem tem de ser tua e ter passado a verificacao de assinatura. Sem
-  // isto, bastava apontar mediaUrl para qualquer coisa na internet.
-  if (mediaUrl) {
-    const { rows: up } = await q(
-      'SELECT 1 FROM uploads WHERE url = $1 AND owner_id = $2 AND confirmed_at IS NOT NULL',
-      [mediaUrl, req.user.id]
-    );
-    if (!up[0]) throw bad('Imagem nao verificada', 'unconfirmed_upload');
-  }
-
   const { rows: mem } = await q(
     'SELECT 1 FROM memberships WHERE community_id = $1 AND user_id = $2',
     [communityId, req.user.id]
@@ -76,6 +63,17 @@ postRoutes.post('/', auth, h(async (req, res) => {
       );
       if (!inv[0]) throw bad('Esse convite já fechou', 'invite_closed');
     }
+
+    if (mediaUrl) {
+      const claimed = await claimUpload(
+        mediaUrl,
+        req.user.id,
+        'post',
+        (text, params) => c.query(text, params)
+      );
+      if (!claimed) throw bad('Imagem nao verificada ou ja utilizada', 'unconfirmed_upload');
+    }
+
     const { rows } = await c.query(
       `INSERT INTO posts (author_id, community_id, body, media_url, palette, invite_id)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
@@ -83,7 +81,6 @@ postRoutes.post('/', auth, h(async (req, res) => {
     );
     if (inviteId) {
       await c.query('UPDATE invites SET reply_count = reply_count + 1 WHERE id = $1', [inviteId]);
-      // Marca o dia no registo. Sem contador, sem reset: so acumula.
       await c.query(
         `INSERT INTO answer_days (user_id, community_id, local_date)
          SELECT $1, $2, i.local_date FROM invites i WHERE i.id = $3
@@ -98,7 +95,6 @@ postRoutes.post('/', auth, h(async (req, res) => {
   res.status(201).json(rows[0]);
 }));
 
-/** Reagir. Duas reações independentes, nenhuma delas mexe na ordem do feed. */
 postRoutes.post('/:postId/reactions/:kind', auth, requirePostMember, h(async (req, res) => {
   const { postId, kind } = req.params;
   if (!['like', 'fire'].includes(kind)) throw bad('Reação inválida');
@@ -119,7 +115,7 @@ postRoutes.post('/:postId/reactions/:kind', auth, requirePostMember, h(async (re
   res.json({ active: !del.rowCount, ...rows[0] });
 }));
 
-/** Republicar. Cria um post novo que aponta para o original. */
+/** Republicar copia a referência do original; não reclama o upload outra vez. */
 postRoutes.post('/:postId/repost', auth, h(async (req, res) => {
   const { rows: orig } = await q(
     'SELECT community_id, body, media_url, palette FROM posts WHERE id = $1 AND hidden_at IS NULL',
@@ -127,8 +123,6 @@ postRoutes.post('/:postId/repost', auth, h(async (req, res) => {
   );
   if (!orig[0]) throw notFound('Publicação não encontrada');
 
-  // Sem isto, republicar metia conteudo em nome de quem nao e membro da
-  // comunidade — a mesma regra que POST / ja aplica a publicar de raiz.
   const { rows: mem } = await q(
     'SELECT 1 FROM memberships WHERE community_id = $1 AND user_id = $2',
     [orig[0].community_id, req.user.id]
@@ -136,10 +130,16 @@ postRoutes.post('/:postId/repost', auth, h(async (req, res) => {
   if (!mem[0]) throw bad('Só membros desta comunidade republicam aqui', 'not_member');
 
   const del = await q(
-    'DELETE FROM posts WHERE author_id = $1 AND repost_of = $2 RETURNING id',
+    'DELETE FROM posts WHERE author_id = $1 AND repost_of = $2 RETURNING id, media_url',
     [req.user.id, req.params.postId]
   );
-  if (del.rowCount) return res.json({ reposted: false });
+  if (del.rowCount) {
+    if (del.rows[0].media_url) {
+      removeUploadIfUnreferenced(del.rows[0].media_url)
+        .catch(err => console.error('[posts] falhou limpar media do repost:', err.message));
+    }
+    return res.json({ reposted: false });
+  }
 
   const { rows } = await q(
     `INSERT INTO posts (author_id, community_id, body, media_url, palette, repost_of)
@@ -172,8 +172,15 @@ postRoutes.post('/:postId/comments', auth, requirePostMember, h(async (req, res)
 }));
 
 postRoutes.delete('/:postId', auth, h(async (req, res) => {
-  const { rowCount } = await q('DELETE FROM posts WHERE id = $1 AND author_id = $2',
-    [req.params.postId, req.user.id]);
-  if (!rowCount) throw notFound('Publicação não encontrada');
+  const { rows } = await q(
+    'DELETE FROM posts WHERE id = $1 AND author_id = $2 RETURNING media_url',
+    [req.params.postId, req.user.id]
+  );
+  if (!rows[0]) throw notFound('Publicação não encontrada');
+
+  if (rows[0].media_url) {
+    removeUploadIfUnreferenced(rows[0].media_url)
+      .catch(err => console.error('[posts] falhou limpar media apagado:', err.message));
+  }
   res.json({ deleted: true });
 }));

@@ -2,28 +2,24 @@
 /**
  * Trabalhos periódicos, para correr como processo separado.
  *
- * Existe porque num plano gratuito o serviço web adormece por inatividade —
- * e um processo adormecido não corre cron nenhum. A comunidade acordava sem
- * convite e ninguém dava por isso durante dias.
- *
- * Faz o que tem a fazer e sai. No Railway os trabalhos correm dentro do
- * processo da API e isto nao e preciso — fica para quem alojar num sitio que
- * hiberne, ou para correr uma tarefa a mao:
- *
  *   node scripts/cron.js invites    de hora a hora
- *   node scripts/cron.js purge      de cinco em cinco minutos
+ *   node scripts/cron.js purge      periodicamente
  *   node scripts/cron.js deletions  uma vez por dia
  *   node scripts/cron.js all        tudo de uma vez
  */
 import { pool } from '../src/db.js';
 import {
-  rotateInvites, purgeMessages, purgeMoments, purgeStaleUploads,
+  rotateInvites, purgeMessages, purgeMoments, purgeStaleUploads, purgeOrphanUploads,
   runAccountDeletions, purgeExpiredTokens, purgeOldLoginAttempts,
 } from '../src/jobs/daily.js';
 
 const TASKS = {
   invites: rotateInvites,
-  purge: async () => (await purgeMessages()) + (await purgeMoments()) + (await purgeStaleUploads()),
+  purge: async () =>
+    (await purgeMessages()) +
+    (await purgeMoments()) +
+    (await purgeStaleUploads()) +
+    (await purgeOrphanUploads()),
   deletions: runAccountDeletions,
   tokens: async () => (await purgeExpiredTokens()) + (await purgeOldLoginAttempts()),
 };
@@ -45,7 +41,6 @@ for (const name of names) {
     const n = await TASKS[name]();
     console.log(`[cron] ${name}: ${n ?? 0} · ${Date.now() - t0} ms`);
   } catch (err) {
-    // Uma tarefa a falhar não impede as outras de correr.
     failed = true;
     console.error(`[cron] ${name} falhou:`, err.message);
   }

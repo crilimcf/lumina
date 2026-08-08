@@ -1,3 +1,4 @@
 Lumina QA
-Moments media editor v2
+Moments media editor v3
+Visible OK and bottom confirmation on iPhone
 2026-08-08

@@ -1,16 +1,9 @@
 import cron from 'node-cron';
 import { q, tx } from '../db.js';
 import { removeObject } from '../lib/storage.js';
+import { uploadReferenceCount, removeUploadIfUnreferenced } from '../lib/uploads.js';
 
-/**
- * Roda os convites diários.
- *
- * Corre de hora a hora e trata as comunidades cuja meia-noite local já passou
- * sem terem convite para o dia de hoje. É por isso que o fuso vive na
- * comunidade e não no servidor: cada uma vira o dia à meia-noite local,
- * sempre a mesma, e o convite passa a ser um encontro marcado em vez de uma
- * hora à deriva.
- */
+/** Roda os convites diários de acordo com o fuso da comunidade. */
 export async function rotateInvites() {
   const { rows: communities } = await q(
     `SELECT c.id, c.slug, c.timezone,
@@ -27,7 +20,6 @@ export async function rotateInvites() {
   for (const com of communities) {
     try {
       await tx(async (c) => {
-        // Bloqueia a proposta escolhida para não haver corrida entre instâncias.
         const { rows: pick } = await c.query(
           `SELECT id, text, author_id FROM proposals
            WHERE community_id = $1 AND used_at IS NULL AND hidden_at IS NULL
@@ -35,12 +27,8 @@ export async function rotateInvites() {
            LIMIT 1 FOR UPDATE SKIP LOCKED`,
           [com.id]
         );
-
-        // Comunidade sem propostas: fica sem convite hoje em vez de repetir um.
-        // Se acontecer, é sinal para avisar os moderadores — não para inventar.
         if (!pick[0]) return;
 
-        // opens_at é a meia-noite local do dia; closes_at é a meia-noite seguinte.
         await c.query(
           `INSERT INTO invites
              (community_id, proposal_id, text, author_id, local_date, opens_at, closes_at)
@@ -65,34 +53,119 @@ export async function rotateInvites() {
 }
 
 /**
- * Apaga a sério o conteúdo das mensagens expiradas.
+ * Apaga de verdade mensagens expiradas.
  *
- * Esconder no cliente não é apagar. Se a promessa é que a mensagem desaparece,
- * o texto e o ficheiro têm de sair do servidor — fica só o registo de que
- * existiu, para a conversa fazer sentido.
+ * Para uploads novos com purpose=message sabemos que o objeto foi consumido
+ * exclusivamente por essa mensagem. Apagamos o objeto físico antes de marcar
+ * a mensagem como purgada; se o storage falhar, a linha fica pendente e o job
+ * volta a tentar no minuto seguinte.
+ *
+ * Dados legacy podem ter reutilizado a mesma URL antes de existir a regra de
+ * consumo único. Nesses casos só apagamos o objeto antecipadamente se esta for
+ * a última referência; caso contrário retiramos o conteúdo desta mensagem e o
+ * objeto será removido quando desaparecer a última referência legítima.
  */
 export async function purgeMessages() {
-  const { rowCount } = await q(
-    `UPDATE messages
-     SET body = NULL, media_url = NULL, purged_at = now()
-     WHERE purged_at IS NULL AND expires_at IS NOT NULL AND expires_at < now()`
+  const { rows } = await q(
+    `SELECT id, media_url FROM messages
+     WHERE purged_at IS NULL AND expires_at IS NOT NULL AND expires_at < now()
+     ORDER BY expires_at LIMIT 500`
   );
-  if (rowCount) console.log(`[mensagens] ${rowCount} apagadas`);
-  return rowCount;
-}
 
-/** Momentos duram 24 h. Passado isso saem da base. */
-export async function purgeMoments() {
-  const { rowCount } = await q('DELETE FROM moments WHERE expires_at < now()');
-  if (rowCount) console.log(`[momentos] ${rowCount} expirados`);
-  return rowCount;
+  let purged = 0;
+  for (const message of rows) {
+    const url = message.media_url;
+    let storageRemoved = false;
+
+    try {
+      if (url) {
+        const { rows: uploads } = await q(
+          'SELECT key, purpose FROM uploads WHERE url = $1', [url]
+        );
+        const upload = uploads[0];
+        if (upload) {
+          const refs = await uploadReferenceCount(url);
+          if (upload.purpose === 'message' || refs <= 1) {
+            await removeObject(upload.key);
+            storageRemoved = true;
+          }
+        }
+      }
+
+      const { rowCount } = await q(
+        `UPDATE messages
+         SET body = NULL, media_url = NULL, purged_at = now()
+         WHERE id = $1 AND purged_at IS NULL`,
+        [message.id]
+      );
+      if (!rowCount) continue;
+
+      if (url) {
+        // Se já apagámos o objeto, a segunda remoção é idempotente e elimina a
+        // linha uploads. Se era legacy partilhado, só remove quando refs=0.
+        await removeUploadIfUnreferenced(url).catch(err => {
+          console.error('[mensagens] media órfão fica para retry:', err.message);
+        });
+      }
+      purged++;
+    } catch (err) {
+      // Se o objeto exclusivo não saiu do storage, não declaramos a mensagem
+      // purgada. `storageRemoved` serve apenas para tornar explícita a escolha:
+      // remover media primeiro é preferível a manter um URL secreto acessível.
+      console.error(`[mensagens] falhou apagar ${message.id}${storageRemoved ? ' após remover media' : ''}:`, err.message);
+    }
+  }
+
+  if (purged) console.log(`[mensagens] ${purged} apagadas`);
+  return purged;
 }
 
 /**
- * Remove objetos que receberam uma assinatura de upload mas nunca chegaram a
- * ser confirmados. Isto fecha a janela em que um cliente alterado podia pedir
- * URLs válidos, enviar lixo para o bucket e abandonar a confirmação.
+ * Momentos duram 24 h. Para uploads novos, o objeto físico sai antes da linha;
+ * falha no storage deixa o momento expirado invisível mas pendente para retry.
  */
+export async function purgeMoments() {
+  const { rows } = await q(
+    `SELECT id, media_url FROM moments
+     WHERE expires_at < now() ORDER BY expires_at LIMIT 500`
+  );
+
+  let purged = 0;
+  for (const moment of rows) {
+    const url = moment.media_url;
+    try {
+      if (url) {
+        const { rows: uploads } = await q(
+          'SELECT key, purpose FROM uploads WHERE url = $1', [url]
+        );
+        const upload = uploads[0];
+        if (upload) {
+          const refs = await uploadReferenceCount(url);
+          if (upload.purpose === 'moment' || refs <= 1) {
+            await removeObject(upload.key);
+          }
+        }
+      }
+
+      const { rowCount } = await q('DELETE FROM moments WHERE id = $1 AND expires_at < now()', [moment.id]);
+      if (!rowCount) continue;
+
+      if (url) {
+        await removeUploadIfUnreferenced(url).catch(err => {
+          console.error('[momentos] media órfão fica para retry:', err.message);
+        });
+      }
+      purged++;
+    } catch (err) {
+      console.error(`[momentos] falhou apagar ${moment.id}:`, err.message);
+    }
+  }
+
+  if (purged) console.log(`[momentos] ${purged} expirados`);
+  return purged;
+}
+
+/** Upload iniciado mas nunca confirmado. */
 export async function purgeStaleUploads() {
   const { rows } = await q(
     `SELECT id, key FROM uploads
@@ -115,18 +188,46 @@ export async function purgeStaleUploads() {
 }
 
 /**
- * RGPD artigo 17: executa os apagamentos de conta cujo prazo de
- * arrependimento (30 dias) já passou.
+ * Upload confirmado mas abandonado, ou upload consumido cuja referência já
+ * desapareceu. Também funciona como retry para uma limpeza física que tenha
+ * falhado depois de apagar um Post/Momento/avatar da base.
+ */
+export async function purgeOrphanUploads() {
+  const { rows } = await q(
+    `SELECT id, key, url FROM uploads
+     WHERE confirmed_at IS NOT NULL
+       AND created_at < now() - interval '2 hours'
+     ORDER BY created_at LIMIT 500`
+  );
+
+  let removed = 0;
+  for (const upload of rows) {
+    try {
+      if (await uploadReferenceCount(upload.url)) continue;
+      await removeObject(upload.key);
+      const { rowCount } = await q(
+        `DELETE FROM uploads WHERE id = $1
+         AND NOT EXISTS (SELECT 1 FROM users WHERE avatar_url = $2)
+         AND NOT EXISTS (SELECT 1 FROM posts WHERE media_url = $2)
+         AND NOT EXISTS (SELECT 1 FROM moments WHERE media_url = $2)
+         AND NOT EXISTS (SELECT 1 FROM messages WHERE media_url = $2)`,
+        [upload.id, upload.url]
+      );
+      removed += rowCount;
+    } catch (err) {
+      console.error(`[uploads] órfão ${upload.key} fica para retry:`, err.message);
+    }
+  }
+  if (removed) console.log(`[uploads] ${removed} órfãos removidos`);
+  return removed;
+}
+
+/**
+ * RGPD artigo 17: executa apagamentos cujo prazo de 30 dias terminou.
  *
- * Há duas armadilhas que uma simples DELETE não resolve:
- *  - communities.founder_id impede apagar um fundador por chave estrangeira;
- *  - apagar a linha de uploads não apaga o objeto físico no R2.
- *
- * Por isso apagamos primeiro os objetos do utilizador. Se o armazenamento
- * falhar, mantemos o pedido pendente para tentar de novo, em vez de declarar a
- * conta apagada deixando ficheiros públicos para trás. Depois transferimos as
- * comunidades fundadas (moderador primeiro, depois membro mais antigo); se a
- * pessoa era o único membro, a comunidade é removida.
+ * Os objetos físicos saem antes da conta. Reposts ou qualquer referência
+ * legacy feita por outra conta perde a URL no mesmo ciclo: o conteúdo da
+ * pessoa apagada não fica preservado por uma cópia derivada.
  */
 export async function runAccountDeletions() {
   const { rows } = await q(
@@ -137,8 +238,11 @@ export async function runAccountDeletions() {
   let deleted = 0;
   for (const r of rows) {
     try {
-      const { rows: files } = await q('SELECT key FROM uploads WHERE owner_id = $1', [r.user_id]);
+      const { rows: files } = await q(
+        'SELECT key, url FROM uploads WHERE owner_id = $1', [r.user_id]
+      );
       for (const file of files) await removeObject(file.key);
+      const urls = files.map(file => file.url);
 
       await tx(async (c) => {
         const { rows: memberships } = await c.query(
@@ -172,10 +276,31 @@ export async function runAccountDeletions() {
           }
         }
 
+        // Reposts podem copiar media_url do post original. Ao apagar o dono do
+        // ficheiro, uma cópia derivada não pode mantê-lo vivo.
+        if (urls.length) {
+          await c.query(
+            'UPDATE posts SET media_url = NULL WHERE author_id <> $1 AND media_url = ANY($2::text[])',
+            [r.user_id, urls]
+          );
+          // Estes casos não são produzidos pelo cliente atual (ownership era
+          // validado), mas limpam dados legacy caso tenham existido.
+          await c.query(
+            'UPDATE messages SET media_url = NULL WHERE sender_id <> $1 AND media_url = ANY($2::text[])',
+            [r.user_id, urls]
+          );
+          await c.query(
+            'UPDATE moments SET media_url = NULL WHERE author_id <> $1 AND media_url = ANY($2::text[])',
+            [r.user_id, urls]
+          );
+          await c.query(
+            'UPDATE users SET avatar_url = NULL WHERE id <> $1 AND avatar_url = ANY($2::text[])',
+            [r.user_id, urls]
+          );
+        }
+
         await c.query('DELETE FROM users WHERE id = $1', [r.user_id]);
 
-        // memberships desaparecem por CASCADE; o contador denormalizado tem de
-        // voltar a refletir a realidade nas comunidades que ficaram vivas.
         if (affected.length) {
           await c.query(
             `UPDATE communities c
@@ -195,7 +320,6 @@ export async function runAccountDeletions() {
   return deleted;
 }
 
-/** Tokens de recuperação de password expirados há mais de 7 dias. */
 export async function purgeExpiredTokens() {
   const { rowCount } = await q(
     `DELETE FROM password_resets WHERE expires_at < now() - interval '7 days'`
@@ -204,11 +328,6 @@ export async function purgeExpiredTokens() {
   return rowCount;
 }
 
-/**
- * Tentativas de entrada com mais de 90 dias.
- * A política de privacidade promete este prazo; sem limpeza, a promessa não
- * é cumprida e a tabela cresce para sempre.
- */
 export async function purgeOldLoginAttempts() {
   const { rowCount } = await q(
     `DELETE FROM login_attempts WHERE created_at < now() - interval '90 days'`
@@ -217,26 +336,16 @@ export async function purgeOldLoginAttempts() {
   return rowCount;
 }
 
-/**
- * Agenda os trabalhos dentro do processo da API.
- *
- * So faz sentido se o servico estiver sempre acordado. Num plano que adormece
- * por inatividade, usa antes `scripts/cron.js` como processo separado e poe
- * RUN_JOBS_IN_PROCESS=false.
- */
 export function startJobs() {
   if (process.env.RUN_JOBS_IN_PROCESS === 'false') {
     console.log('[jobs] desligados neste processo — a correr como cron externo');
     return;
   }
-  // De hora a hora: apanha a meia-noite de qualquer fuso, incluindo os de :30 e :45.
   cron.schedule('2 * * * *', () => rotateInvites().catch(console.error));
-  // De minuto a minuto: as efémeras têm de sair depressa.
   cron.schedule('* * * * *', () => purgeMessages().catch(console.error));
   cron.schedule('15 * * * *', () => purgeMoments().catch(console.error));
-  // Uploads nunca confirmados não ficam indefinidamente no armazenamento.
   cron.schedule('35 * * * *', () => purgeStaleUploads().catch(console.error));
-  // Uma vez por dia: apagamentos de conta e limpeza de dados que passaram o prazo de retenção.
+  cron.schedule('45 * * * *', () => purgeOrphanUploads().catch(console.error));
   cron.schedule('10 3 * * *', () => runAccountDeletions().catch(console.error));
   cron.schedule('20 3 * * *', () => purgeExpiredTokens().catch(console.error));
   cron.schedule('30 3 * * *', () => purgeOldLoginAttempts().catch(console.error));

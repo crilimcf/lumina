@@ -17,13 +17,13 @@
  */
 import { pool } from '../src/db.js';
 import {
-  rotateInvites, purgeMessages, purgeMoments,
+  rotateInvites, purgeMessages, purgeMoments, purgeStaleUploads,
   runAccountDeletions, purgeExpiredTokens, purgeOldLoginAttempts,
 } from '../src/jobs/daily.js';
 
 const TASKS = {
   invites: rotateInvites,
-  purge: async () => (await purgeMessages()) + (await purgeMoments()),
+  purge: async () => (await purgeMessages()) + (await purgeMoments()) + (await purgeStaleUploads()),
   deletions: runAccountDeletions,
   tokens: async () => (await purgeExpiredTokens()) + (await purgeOldLoginAttempts()),
 };

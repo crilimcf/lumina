@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import { q } from '../db.js';
+import { q, tx } from '../db.js';
 import { env } from '../env.js';
 import { signToken, h, bad, HttpError, auth, audit, setSessionCookie, clearSessionCookie, csrfOf, recordSession, revokeSessionToken, SESSION_COOKIE } from '../middleware/auth.js';
 import { verifyTotp, hashCode } from '../lib/totp.js';
+import { claimUpload, removeUploadIfUnreferenced } from '../lib/uploads.js';
 
 export const authRoutes = Router();
 
@@ -16,13 +17,6 @@ const PUBLIC = 'id, handle, name, bio, palette, avatar_url, stars, created_at, s
  */
 const DUMMY_HASH = bcrypt.hashSync('lumina-nao-existe-conta-nenhuma', 12);
 
-/**
- * Bloqueio progressivo por conta.
- *
- * O limite por janela de tempo nao chega: um atacante paciente passa por baixo
- * e um atacante com muitos IPs contorna-o de todo. Isto conta as falhas da
- * propria conta e vai esperando cada vez mais.
- */
 async function checkLockout(email) {
   const { rows } = await q(
     `SELECT count(*)::int AS fails, max(created_at) AS last
@@ -32,7 +26,6 @@ async function checkLockout(email) {
   );
   const { fails, last } = rows[0];
   if (fails < 5) return;
-  // 5 falhas: 1 min. 6: 2 min. 7: 4 min... ate 30 min.
   const waitMs = Math.min(2 ** (fails - 5) * 60_000, 30 * 60_000);
   const since = Date.now() - new Date(last).getTime();
   if (since < waitMs) {
@@ -49,7 +42,6 @@ const recordAttempt = (email, ip, success) =>
 
 const TERMS_VERSION = '2026-08-01';
 
-/** Idade em anos completos. */
 function ageFrom(birthDate) {
   const b = new Date(birthDate);
   if (Number.isNaN(b.getTime())) return null;
@@ -84,8 +76,6 @@ authRoutes.post('/register', h(async (req, res) => {
     [handle, email, hash, String(name).trim(), birthDate, TERMS_VERSION]
   );
   const token = signToken(rows[0]);
-  // Um registo já é uma sessão real. Registamo-la antes de responder para que
-  // o ecrã Segurança mostre imediatamente o dispositivo atual, tal como no login.
   await recordSession(rows[0].id, token, req);
   setSessionCookie(res, token);
   res.status(201).json({ token, csrf: csrfOf(token), user: rows[0] });
@@ -103,9 +93,6 @@ authRoutes.post('/login', h(async (req, res) => {
     [email]
   );
   const user = rows[0];
-  // Mesma resposta para email errado e password errada: nao revelamos quem tem conta.
-  // bcrypt.compare corre sempre, exista ou nao a conta, para a resposta nao
-  // demorar de forma diferente consoante o email exista.
   const passwordMatches = await bcrypt.compare(password, user?.password_hash || DUMMY_HASH);
   const ok = user && passwordMatches;
   if (!ok) {
@@ -114,15 +101,10 @@ authRoutes.post('/login', h(async (req, res) => {
   }
   if (user.suspended_at) throw new HttpError(403, 'Conta suspensa');
 
-  // Dois passos: password certa nao chega.
   if (user.totp_enabled_at) {
-    if (!code) {
-      // Nao gravamos como falha: a password estava certa.
-      return res.status(200).json({ needsCode: true });
-    }
+    if (!code) return res.status(200).json({ needsCode: true });
     let valid = verifyTotp(user.totp_secret, code);
     if (!valid) {
-      // Pode ser um codigo de emergencia, que so serve uma vez.
       const { rowCount } = await q(
         `UPDATE recovery_codes SET used_at = now()
          WHERE code_hash = $1 AND user_id = $2 AND used_at IS NULL`,
@@ -145,7 +127,6 @@ authRoutes.post('/login', h(async (req, res) => {
   delete user.totp_enabled_at;
   user.two_factor = twoFactor;
 
-  // Entrar cancela um apagamento pendente: e o arrependimento em acao.
   await q('UPDATE deletion_requests SET cancelled_at = now() WHERE user_id = $1 AND cancelled_at IS NULL',
     [user.id]).catch(() => {});
 
@@ -174,58 +155,67 @@ authRoutes.get('/me', auth, h(async (req, res) => {
      FROM users u WHERE id = $1`,
     [req.user.id]
   );
-  // Também aqui: depois de um reload, é a única maneira de o frontend
-  // recuperar o valor CSRF (não vive em cookie legível, vive em memória).
   res.json({ ...rows[0], csrf: req.sessionCsrf });
 }));
 
-/**
- * RGPD artigo 16: direito de retificacao.
- * Sem isto, a pessoa nao consegue corrigir dados errados sobre si propria.
- */
+/** RGPD artigo 16: direito de retificacao. */
 authRoutes.patch('/me', auth, h(async (req, res) => {
   const { name, bio, palette, stars, avatarUrl } = req.body;
-  const sets = [];
-  const vals = [req.user.id];
 
-  if (name !== undefined) {
-    if (String(name).trim().length < 2 || String(name).length > 60) throw bad('Nome invalido');
-    sets.push(`name = $${vals.push(String(name).trim())}`);
-  }
-  if (bio !== undefined) {
-    if (String(bio).length > 300) throw bad('A descricao tem no maximo 300 caracteres');
-    sets.push(`bio = $${vals.push(String(bio))}`);
-  }
-  if (palette !== undefined) {
-    const p = Number(palette);
-    if (!Number.isInteger(p) || p < 0 || p > 4) throw bad('Cor invalida');
-    sets.push(`palette = $${vals.push(p)}`);
-  }
-  if (stars !== undefined) {
-    if (!Array.isArray(stars) || stars.length > 8) throw bad('No maximo 8 estrelas');
-    const clean = stars.map(s => String(s).trim().slice(0, 24)).filter(Boolean);
-    sets.push(`stars = $${vals.push(clean)}`);
-  }
-  if (avatarUrl !== undefined) {
-    if (avatarUrl === null || avatarUrl === '') {
-      sets.push(`avatar_url = $${vals.push(null)}`);
-    } else {
-      // Tem de ser tua e ter passado a verificacao de assinatura — sem
-      // isto, bastava apontar avatarUrl para qualquer coisa na internet.
-      const { rows: up } = await q(
-        'SELECT 1 FROM uploads WHERE url = $1 AND owner_id = $2 AND confirmed_at IS NOT NULL',
-        [avatarUrl, req.user.id]
-      );
-      if (!up[0]) throw bad('Imagem nao verificada', 'unconfirmed_upload');
-      sets.push(`avatar_url = $${vals.push(avatarUrl)}`);
+  const result = await tx(async (c) => {
+    const { rows: currentRows } = await c.query(
+      'SELECT avatar_url FROM users WHERE id = $1 FOR UPDATE', [req.user.id]
+    );
+    const oldAvatar = currentRows[0]?.avatar_url || null;
+
+    const sets = [];
+    const vals = [req.user.id];
+
+    if (name !== undefined) {
+      if (String(name).trim().length < 2 || String(name).length > 60) throw bad('Nome invalido');
+      sets.push(`name = $${vals.push(String(name).trim())}`);
     }
-  }
-  if (!sets.length) throw bad('Nada para alterar');
+    if (bio !== undefined) {
+      if (String(bio).length > 300) throw bad('A descricao tem no maximo 300 caracteres');
+      sets.push(`bio = $${vals.push(String(bio))}`);
+    }
+    if (palette !== undefined) {
+      const p = Number(palette);
+      if (!Number.isInteger(p) || p < 0 || p > 4) throw bad('Cor invalida');
+      sets.push(`palette = $${vals.push(p)}`);
+    }
+    if (stars !== undefined) {
+      if (!Array.isArray(stars) || stars.length > 8) throw bad('No maximo 8 estrelas');
+      const clean = stars.map(s => String(s).trim().slice(0, 24)).filter(Boolean);
+      sets.push(`stars = $${vals.push(clean)}`);
+    }
+    if (avatarUrl !== undefined) {
+      const nextAvatar = avatarUrl === null || avatarUrl === '' ? null : String(avatarUrl);
+      if (nextAvatar && nextAvatar !== oldAvatar) {
+        const claimed = await claimUpload(
+          nextAvatar,
+          req.user.id,
+          'avatar',
+          (text, params) => c.query(text, params)
+        );
+        if (!claimed) throw bad('Imagem nao verificada ou ja utilizada', 'unconfirmed_upload');
+      }
+      sets.push(`avatar_url = $${vals.push(nextAvatar)}`);
+    }
+    if (!sets.length) throw bad('Nada para alterar');
 
-  const { rows } = await q(
-    `UPDATE users SET ${sets.join(', ')} WHERE id = $1 RETURNING ${PUBLIC}`, vals
-  );
-  res.json(rows[0]);
+    const { rows } = await c.query(
+      `UPDATE users SET ${sets.join(', ')} WHERE id = $1 RETURNING ${PUBLIC}`, vals
+    );
+    return { user: rows[0], oldAvatar };
+  });
+
+  if (avatarUrl !== undefined && result.oldAvatar && result.oldAvatar !== result.user.avatar_url) {
+    removeUploadIfUnreferenced(result.oldAvatar)
+      .catch(err => console.error('[perfil] falhou limpar avatar antigo:', err.message));
+  }
+
+  res.json(result.user);
 }));
 
 /** Mudar a password estando dentro. Fecha as outras sessoes. */
@@ -242,8 +232,6 @@ authRoutes.post('/change-password', auth, h(async (req, res) => {
      WHERE id = $1 RETURNING ${PUBLIC}`,
     [req.user.id, await bcrypt.hash(password, 12)]
   );
-  // A subida de session_version invalida os JWTs; marcamos também as linhas
-  // para Segurança não continuar a mostrar dispositivos que já não funcionam.
   await q('UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [req.user.id]);
   const token = signToken(up[0]);
   await recordSession(up[0].id, token, req);

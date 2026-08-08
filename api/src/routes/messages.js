@@ -100,10 +100,23 @@ messageRoutes.get('/threads/:threadId/messages', auth, h(async (req, res) => {
 }));
 
 messageRoutes.post('/threads/:threadId/messages', auth, h(async (req, res) => {
-  const { kind = 'text', mode = 'normal', body = null, mediaUrl = null, palette = 0 } = req.body;
+  const { kind = 'text', mode = 'normal', mediaUrl = null } = req.body;
+  const body = bodyOrNull(req.body.body);
+  const palette = Number(req.body.palette ?? 0);
+
   if (!['text', 'media'].includes(kind)) throw bad('Tipo de mensagem inválido');
   if (!['normal', 'timer', 'once'].includes(mode)) throw bad('Modo inválido');
-  if (kind === 'text' && !String(body || '').trim()) throw bad('Mensagem vazia');
+  if (!Number.isInteger(palette) || palette < 0 || palette > 4) throw bad('Cor inválida', 'bad_palette');
+
+  if (kind === 'text') {
+    if (!body) throw bad('Mensagem vazia');
+    if (body.length > 4000) throw bad('A mensagem tem no máximo 4000 caracteres');
+    if (mediaUrl) throw bad('Mensagem de texto não leva imagem');
+  }
+  if (kind === 'media') {
+    if (!mediaUrl) throw bad('Falta a imagem', 'media_required');
+    if (body) throw bad('Mensagem de imagem não leva texto');
+  }
   if (mode === 'once' && kind !== 'media') throw bad('O modo uma vez é só para fotos');
 
   // Uma imagem de conversa segue a mesma regra dos posts e Momentos: só
@@ -133,6 +146,12 @@ messageRoutes.post('/threads/:threadId/messages', auth, h(async (req, res) => {
   );
   res.status(201).json(rows[0]);
 }));
+
+function bodyOrNull(value) {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  return text || null;
+}
 
 /**
  * Abrir uma mensagem efémera. É aqui que o relógio começa: gravamos opened_at

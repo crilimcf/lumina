@@ -5,7 +5,6 @@ import { auth, h, bad, notFound, forbidden, requireMember } from '../middleware/
 
 export const communityRoutes = Router();
 
-// Lista de fusos aceites. Validar contra a Intl evita lixo na base.
 function validTimezone(tz) {
   try {
     new Intl.DateTimeFormat('pt-PT', { timeZone: tz });
@@ -15,16 +14,11 @@ function validTimezone(tz) {
   }
 }
 
-/**
- * Criar comunidade.
- * Exige SEED_PROPOSALS_REQUIRED convites de arranque. Sem eles, uma comunidade
- * nova acorda no primeiro dia sem nada para propor — e morre à nascença.
- */
 communityRoutes.post('/', auth, h(async (req, res) => {
   const cleanSlug = String(req.body.slug || '').trim().toLowerCase();
   const cleanName = String(req.body.name || '').trim();
   const description = String(req.body.description || '').trim();
-  const timezone = String(req.body.timezone || 'Europe/Lisbon');
+  const timezone = String(req.body.timezone || 'Europe/Lisbon').trim();
   const seedProposals = req.body.seedProposals;
 
   if (!/^[a-z0-9-]{2,32}$/.test(cleanSlug)) {
@@ -40,7 +34,9 @@ communityRoutes.post('/', auth, h(async (req, res) => {
   if (seeds.length < env.SEED_PROPOSALS_REQUIRED) {
     throw bad(`Escreve ${env.SEED_PROPOSALS_REQUIRED} convites de arranque para a comunidade`, 'seeds_required');
   }
+  if (seeds.length > 20) throw bad('No máximo 20 convites de arranque', 'too_many_seeds');
   if (seeds.some(s => s.length < 3 || s.length > 120)) throw bad('Cada convite tem entre 3 e 120 caracteres');
+  if (seeds.some(s => /https?:\/\/|www\./i.test(s))) throw bad('Sem ligações nos convites');
 
   const community = await tx(async (c) => {
     const { rows } = await c.query(
@@ -68,6 +64,7 @@ communityRoutes.post('/', auth, h(async (req, res) => {
   res.status(201).json(community);
 }));
 
+/** Comunidades públicas para descoberta. */
 communityRoutes.get('/', h(async (_req, res) => {
   const { rows } = await q(
     `SELECT id, slug, name, description, timezone, member_count
@@ -76,7 +73,6 @@ communityRoutes.get('/', h(async (_req, res) => {
   res.json(rows);
 }));
 
-/** As comunidades a que pertenco, com o convite de hoje ja resolvido. */
 communityRoutes.get('/mine', auth, h(async (req, res) => {
   const { rows } = await q(
     `SELECT c.id, c.slug, c.name, c.timezone, c.member_count, m.role,
@@ -92,14 +88,21 @@ communityRoutes.get('/mine', auth, h(async (req, res) => {
   res.json(rows);
 }));
 
+/** Aceita UUID ou slug sem obrigar o PostgreSQL a inferir $1 como dois tipos. */
 communityRoutes.get('/:communityId', h(async (req, res) => {
-  const { rows } = await q('SELECT * FROM communities WHERE id = $1 OR slug = $1', [req.params.communityId]);
+  const { rows } = await q(
+    'SELECT * FROM communities WHERE id::text = $1 OR slug = $1',
+    [String(req.params.communityId)]
+  );
   if (!rows[0]) throw notFound('Comunidade não encontrada');
   res.json(rows[0]);
 }));
 
 communityRoutes.post('/:communityId/join', auth, h(async (req, res) => {
   await tx(async (c) => {
+    const { rows: exists } = await c.query('SELECT 1 FROM communities WHERE id = $1', [req.params.communityId]);
+    if (!exists[0]) throw notFound('Comunidade não encontrada');
+
     const ins = await c.query(
       `INSERT INTO memberships (community_id, user_id) VALUES ($1, $2)
        ON CONFLICT DO NOTHING RETURNING user_id`,
@@ -121,7 +124,7 @@ communityRoutes.post('/:communityId/leave', auth, h(async (req, res) => {
       [req.params.communityId, req.user.id]
     );
     if (del.rowCount) {
-      await c.query('UPDATE communities SET member_count = member_count - 1 WHERE id = $1',
+      await c.query('UPDATE communities SET member_count = GREATEST(member_count - 1, 0) WHERE id = $1',
         [req.params.communityId]);
       return true;
     }
@@ -138,9 +141,9 @@ communityRoutes.post('/:communityId/leave', auth, h(async (req, res) => {
   res.json({ left });
 }));
 
-/** Quem funda nomeia moderadores. Staff pode intervir em caso de emergência. */
 communityRoutes.post('/:communityId/moderators', auth, h(async (req, res) => {
   const { userId, role = 'moderator' } = req.body;
+  if (!userId) throw bad('Falta a pessoa', 'user_required');
   if (!['member', 'moderator'].includes(role)) throw bad('Papel inválido');
 
   if (!req.user.is_staff) {

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { q } from '../db.js';
 import { env } from '../env.js';
-import { signToken, h, bad, HttpError, auth, audit, setSessionCookie, clearSessionCookie, csrfOf, recordSession } from '../middleware/auth.js';
+import { signToken, h, bad, HttpError, auth, audit, setSessionCookie, clearSessionCookie, csrfOf, recordSession, revokeSessionToken, SESSION_COOKIE } from '../middleware/auth.js';
 import { verifyTotp, hashCode } from '../lib/totp.js';
 
 export const authRoutes = Router();
@@ -150,13 +150,16 @@ authRoutes.post('/login', h(async (req, res) => {
     [user.id]).catch(() => {});
 
   const token = signToken(user);
-  recordSession(user.id, token, req);
+  await recordSession(user.id, token, req);
   setSessionCookie(res, token);
   res.json({ token, csrf: csrfOf(token), user });
 }));
 
-/** Fecha a sessao do lado do browser: apaga o cookie HttpOnly. */
-authRoutes.post('/logout', h(async (_req, res) => {
+/** Fecha a sessão atual no servidor e apaga o cookie no browser. */
+authRoutes.post('/logout', h(async (req, res) => {
+  const header = req.headers.authorization || '';
+  const token = req.cookies?.[SESSION_COOKIE] || (header.startsWith('Bearer ') ? header.slice(7) : '');
+  await revokeSessionToken(token);
   clearSessionCookie(res);
   res.status(204).end();
 }));
@@ -239,12 +242,11 @@ authRoutes.post('/change-password', auth, h(async (req, res) => {
      WHERE id = $1 RETURNING ${PUBLIC}`,
     [req.user.id, await bcrypt.hash(password, 12)]
   );
-  // Devolve um token novo para quem mudou nao ficar de fora. Sem registar
-  // esta sessao, a lista em "Seguranca" ficava sem o dispositivo atual e
-  // continuava a mostrar os outros como ativos (ja tinham sido invalidados
-  // pela subida de session_version, so a tabela sessions nao sabia disso).
+  // A subida de session_version invalida os JWTs; marcamos também as linhas
+  // para Segurança não continuar a mostrar dispositivos que já não funcionam.
+  await q('UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [req.user.id]);
   const token = signToken(up[0]);
-  recordSession(up[0].id, token, req);
+  await recordSession(up[0].id, token, req);
   setSessionCookie(res, token);
   res.json({ token, csrf: csrfOf(token), user: up[0] });
 }));

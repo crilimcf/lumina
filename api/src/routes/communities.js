@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { q, tx } from '../db.js';
 import { env } from '../env.js';
-import { auth, h, bad, notFound, requireMember, requireModerator } from '../middleware/auth.js';
+import { auth, h, bad, notFound, forbidden, requireMember } from '../middleware/auth.js';
 
 export const communityRoutes = Router();
 
@@ -118,10 +118,20 @@ communityRoutes.post('/:communityId/leave', auth, h(async (req, res) => {
   res.json({ left: true });
 }));
 
-/** Quem funda nomeia moderadores. A moderação vive dentro da comunidade. */
-communityRoutes.post('/:communityId/moderators', auth, requireModerator(), h(async (req, res) => {
+/** Quem funda nomeia moderadores. Staff pode intervir em caso de emergência. */
+communityRoutes.post('/:communityId/moderators', auth, h(async (req, res) => {
   const { userId, role = 'moderator' } = req.body;
   if (!['member', 'moderator'].includes(role)) throw bad('Papel inválido');
+
+  if (!req.user.is_staff) {
+    const { rows: founder } = await q(
+      `SELECT 1 FROM memberships
+       WHERE community_id = $1 AND user_id = $2 AND role = 'founder'`,
+      [req.params.communityId, req.user.id]
+    );
+    if (!founder[0]) throw forbidden('Só quem fundou esta comunidade gere moderadores');
+  }
+
   const { rows } = await q(
     `UPDATE memberships SET role = $3
      WHERE community_id = $1 AND user_id = $2 AND role <> 'founder' RETURNING *`,

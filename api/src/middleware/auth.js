@@ -99,6 +99,8 @@ export function signToken(user) {
   );
 }
 
+const sessionTokenHash = (token) => crypto.createHash('sha256').update(token).digest('hex');
+
 /**
  * Guarda a impressão digital do token para a pessoa poder ver e fechar
  * sessões. Chamar isto sempre que um token novo é emitido (login, registo,
@@ -109,9 +111,16 @@ export function signToken(user) {
  */
 export const recordSession = (userId, token, req) =>
   q(`INSERT INTO sessions (user_id, token_hash, user_agent, ip)
-     VALUES ($1, $2, $3, $4) ON CONFLICT (token_hash) DO UPDATE SET last_seen = now()`,
-    [userId, crypto.createHash('sha256').update(token).digest('hex'),
+     VALUES ($1, $2, $3, $4) ON CONFLICT (token_hash) DO UPDATE SET last_seen = now(), revoked_at = NULL`,
+    [userId, sessionTokenHash(token),
      String(req.headers['user-agent'] || '').slice(0, 200), req.ip]).catch(() => {});
+
+/** Revoga uma sessão concreta sem precisar de descodificar ou guardar o JWT. */
+export const revokeSessionToken = (token) => {
+  if (!token) return Promise.resolve();
+  return q('UPDATE sessions SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL',
+    [sessionTokenHash(token)]).catch(() => {});
+};
 
 export async function auth(req, _res, next) {
   try {
@@ -130,10 +139,14 @@ export async function auth(req, _res, next) {
       throw new HttpError(401, 'Sessao invalida');
     }
 
+    const tokenHash = sessionTokenHash(token);
     const { rows } = await q(
-      `SELECT id, handle, email, name, is_staff, suspended_at, created_at, session_version
-       FROM users WHERE id = $1`,
-      [payload.sub]
+      `SELECT u.id, u.handle, u.email, u.name, u.is_staff, u.suspended_at, u.created_at, u.session_version,
+              s.id AS tracked_session_id, s.revoked_at AS tracked_session_revoked
+       FROM users u
+       LEFT JOIN sessions s ON s.user_id = u.id AND s.token_hash = $2
+       WHERE u.id = $1`,
+      [payload.sub, tokenHash]
     );
     if (!rows[0]) throw new HttpError(401, 'Sessao invalida');
     if (rows[0].suspended_at) throw new HttpError(403, 'Conta suspensa');
@@ -143,6 +156,18 @@ export async function auth(req, _res, next) {
       throw new HttpError(401, 'A sessao expirou. Entra outra vez.', 'session_revoked');
     }
 
+    // Sessões emitidas desde que passámos a registá-las podem ser fechadas
+    // individualmente. Tokens legados que nunca tiveram linha em `sessions`
+    // continuam válidos até expirarem, evitando um logout global na migração.
+    if (rows[0].tracked_session_revoked) {
+      throw new HttpError(401, 'A sessao foi fechada. Entra outra vez.', 'session_revoked');
+    }
+    if (rows[0].tracked_session_id) {
+      await q('UPDATE sessions SET last_seen = now() WHERE id = $1', [rows[0].tracked_session_id]);
+    }
+
+    delete rows[0].tracked_session_id;
+    delete rows[0].tracked_session_revoked;
     req.user = rows[0];
     req.sessionCsrf = payload.csrf;
     next();

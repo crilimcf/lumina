@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { q, tx } from '../db.js';
+import { removeObject } from '../lib/storage.js';
 
 /**
  * Roda os convites diários.
@@ -87,6 +88,32 @@ export async function purgeMoments() {
 }
 
 /**
+ * Remove objetos que receberam uma assinatura de upload mas nunca chegaram a
+ * ser confirmados. Isto fecha a janela em que um cliente alterado podia pedir
+ * URLs válidos, enviar lixo para o bucket e abandonar a confirmação.
+ */
+export async function purgeStaleUploads() {
+  const { rows } = await q(
+    `SELECT id, key FROM uploads
+     WHERE confirmed_at IS NULL AND created_at < now() - interval '2 hours'
+     ORDER BY created_at LIMIT 500`
+  );
+
+  let removed = 0;
+  for (const upload of rows) {
+    try {
+      await removeObject(upload.key);
+      await q('DELETE FROM uploads WHERE id = $1 AND confirmed_at IS NULL', [upload.id]);
+      removed++;
+    } catch (err) {
+      console.error(`[uploads] falhou a limpar ${upload.key}:`, err.message);
+    }
+  }
+  if (removed) console.log(`[uploads] ${removed} uploads incompletos removidos`);
+  return removed;
+}
+
+/**
  * RGPD artigo 17: executa os apagamentos de conta cujo prazo de
  * arrependimento (30 dias) já passou.
  *
@@ -145,6 +172,8 @@ export function startJobs() {
   // De minuto a minuto: as efémeras têm de sair depressa.
   cron.schedule('* * * * *', () => purgeMessages().catch(console.error));
   cron.schedule('15 * * * *', () => purgeMoments().catch(console.error));
+  // Uploads nunca confirmados não ficam indefinidamente no armazenamento.
+  cron.schedule('35 * * * *', () => purgeStaleUploads().catch(console.error));
   // Uma vez por dia: apagamentos de conta e limpeza de dados que passaram o prazo de retenção.
   cron.schedule('10 3 * * *', () => runAccountDeletions().catch(console.error));
   cron.schedule('20 3 * * *', () => purgeExpiredTokens().catch(console.error));

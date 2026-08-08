@@ -29,7 +29,10 @@ async function createCommunityFromUI(page) {
   await page.getByRole('button', { name: /Criar ou entrar numa comunidade/ }).click();
   await expect(page.getByRole('heading', { name: 'Comunidades' })).toBeVisible();
 
-  await page.getByPlaceholder('ex: Amigos da faculdade').fill('Safari QA Community');
+  // Playwright pode repetir o teste no mesmo PostgreSQL. Um nome/slug único
+  // impede que o retry falhe só por colidir com a comunidade da tentativa anterior.
+  const communityName = `Safari QA ${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  await page.getByPlaceholder('ex: Amigos da faculdade').fill(communityName);
   const seeds = page.locator('input[placeholder^="ideia "]');
   await expect(seeds).toHaveCount(5);
   for (let i = 0; i < 5; i++) {
@@ -54,7 +57,7 @@ test('registo, reload, comunidade e publicação funcionam em Mobile Safari', as
   await expect(composer).toBeFocused();
   await expect(composer).toHaveValue(publishedText);
   await page.getByRole('button', { name: 'Publicar', exact: true }).click();
-  await expect(page.getByText(publishedText, { exact: true })).toBeVisible();
+  await expect(page.locator('article').filter({ hasText: publishedText })).toBeVisible();
 
   // Este reload é o teste mais importante para Safari: o cookie HttpOnly/SameSite
   // tem de sobreviver e a app deve voltar autenticada, não ao formulário de login.
@@ -62,7 +65,7 @@ test('registo, reload, comunidade e publicação funcionam em Mobile Safari', as
   await expect(page.getByText('Olá, Safari')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Ver o feed' })).toBeVisible();
   await page.getByRole('button', { name: 'Ver o feed' }).click();
-  await expect(page.getByText(publishedText, { exact: true })).toBeVisible();
+  await expect(page.locator('article').filter({ hasText: publishedText })).toBeVisible();
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(1);

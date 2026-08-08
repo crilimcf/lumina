@@ -135,6 +135,7 @@ export const api = {
     block: (id) => call(`/users/${id}/block`, { method: 'POST' }),
     unblock: (id) => call(`/users/${id}/block`, { method: 'DELETE' }),
     blocked: () => call('/users/me/blocked'),
+    followers: () => call('/users/me/followers'),
     following: () => call('/users/me/following'),
     suggestions: () => call('/users/me/suggestions'),
   },

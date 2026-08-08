@@ -2,12 +2,11 @@ import { Router } from 'express';
 import crypto from 'node:crypto';
 import { q } from '../db.js';
 import { auth, h, bad } from '../middleware/auth.js';
-import { signedUploadUrl, publicUrl, verifyStoredImage, removeObject } from '../lib/storage.js';
+import { signedUploadUrl, publicUrl, verifyStoredImage, removeObject, MAX_IMAGE_BYTES } from '../lib/storage.js';
 
 export const uploadRoutes = Router();
 
 const ALLOWED = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
-const MAX_BYTES = 8 * 1024 * 1024;
 
 /**
  * Pede um URL para enviar a imagem.
@@ -17,10 +16,13 @@ const MAX_BYTES = 8 * 1024 * 1024;
  * prenda o servidor.
  */
 uploadRoutes.post('/sign', auth, h(async (req, res) => {
-  const { mime, bytes } = req.body;
+  const { mime } = req.body;
+  const bytes = Number(req.body.bytes);
   const ext = ALLOWED[mime];
   if (!ext) throw bad('So aceitamos JPEG, PNG ou WebP', 'bad_type');
-  if (!bytes || bytes > MAX_BYTES) throw bad('A imagem tem de ter menos de 8 MB', 'too_big');
+  if (!Number.isSafeInteger(bytes) || bytes <= 0 || bytes > MAX_IMAGE_BYTES) {
+    throw bad('A imagem tem de ter menos de 8 MB', 'too_big');
+  }
 
   const key = `${req.user.id}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${ext}`;
   const url = await signedUploadUrl(key, mime);
@@ -36,12 +38,10 @@ uploadRoutes.post('/sign', auth, h(async (req, res) => {
 /**
  * Confirmar o upload.
  *
- * O cliente diz que enviou uma imagem; ate aqui ninguem verificou. Lemos os
- * primeiros bytes do ficheiro guardado e comparamos com a assinatura do
- * formato. Um executavel com o nome acabado em .jpg nao passa.
- *
- * So depois de confirmado e que o URL pode ser usado num post — ver
- * assertUploadConfirmed em posts.js.
+ * O cliente diz que enviou uma imagem; ate aqui ninguem verificou. Medimos o
+ * tamanho real guardado e lemos os primeiros bytes do ficheiro. Só passa se o
+ * tamanho coincidir com o que foi declarado ao pedir a assinatura, estiver
+ * dentro do limite e a assinatura binaria corresponder ao formato declarado.
  */
 uploadRoutes.post('/confirm', auth, h(async (req, res) => {
   const key = String(req.body.key || '');
@@ -54,7 +54,7 @@ uploadRoutes.post('/confirm', auth, h(async (req, res) => {
   if (!rows[0]) throw bad('Upload desconhecido', 'unknown_upload');
   if (rows[0].confirmed_at) return res.json({ url: rows[0].url, confirmed: true });
 
-  const check = await verifyStoredImage(key, rows[0].mime);
+  const check = await verifyStoredImage(key, rows[0].mime, rows[0].bytes);
   if (!check.ok) {
     await q('UPDATE uploads SET rejected_reason = $2 WHERE key = $1', [key, check.reason]);
     removeObject(key).catch(() => {});   // nao deixamos lixo no armazenamento

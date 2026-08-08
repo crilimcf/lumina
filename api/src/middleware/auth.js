@@ -103,23 +103,22 @@ const sessionTokenHash = (token) => crypto.createHash('sha256').update(token).di
 
 /**
  * Guarda a impressão digital do token para a pessoa poder ver e fechar
- * sessões. Chamar isto sempre que um token novo é emitido (login, registo,
- * troca de password, "fechar tudo em todo o lado") — esquecer numa dessas
- * rotas deixa a lista de sessões (`GET /sessions`) desatualizada: mostra
- * dispositivos já invalidados como ativos, ou não mostra o dispositivo
- * atual de todo.
+ * sessões. Sessões novas têm de ficar registadas antes de saírem da API: se
+ * esta escrita falhar, emitir o JWT criaria uma sessão impossível de revogar
+ * individualmente. Por isso esta operação falha fechada, sem `.catch()`.
  */
 export const recordSession = (userId, token, req) =>
   q(`INSERT INTO sessions (user_id, token_hash, user_agent, ip)
      VALUES ($1, $2, $3, $4) ON CONFLICT (token_hash) DO UPDATE SET last_seen = now(), revoked_at = NULL`,
     [userId, sessionTokenHash(token),
-     String(req.headers['user-agent'] || '').slice(0, 200), req.ip]).catch(() => {});
+     String(req.headers['user-agent'] || '').slice(0, 200), req.ip]);
 
 /** Revoga uma sessão concreta sem precisar de descodificar ou guardar o JWT. */
 export const revokeSessionToken = (token) => {
   if (!token) return Promise.resolve();
+  // Uma ação de segurança não deve fingir sucesso se a base falhar.
   return q('UPDATE sessions SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL',
-    [sessionTokenHash(token)]).catch(() => {});
+    [sessionTokenHash(token)]);
 };
 
 export async function auth(req, _res, next) {

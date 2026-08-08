@@ -40,13 +40,35 @@ userRoutes.get('/search', auth, h(async (req, res) => {
 }));
 
 /** Rotas /me antes de /:handle: "me" nunca deve ser interpretado como handle. */
+userRoutes.get('/me/followers', auth, h(async (req, res) => {
+  const { rows } = await q(
+    `SELECT u.id, u.handle, u.name, u.bio, u.palette, u.avatar_url,
+            (SELECT count(*) FROM follows WHERE following_id = u.id)::int AS followers,
+            EXISTS (SELECT 1 FROM follows mine WHERE mine.follower_id = $1 AND mine.following_id = u.id) AS following,
+            true AS follows_me
+     FROM follows f
+     JOIN users u ON u.id = f.follower_id
+     WHERE f.following_id = $1 AND u.suspended_at IS NULL
+       AND NOT EXISTS (SELECT 1 FROM blocks b
+                       WHERE (b.blocker_id = $1 AND b.blocked_id = u.id)
+                          OR (b.blocked_id = $1 AND b.blocker_id = u.id))
+     ORDER BY f.created_at DESC`,
+    [req.user.id]
+  );
+  res.json(rows);
+}));
+
 userRoutes.get('/me/following', auth, h(async (req, res) => {
   const { rows } = await q(
     `SELECT u.id, u.handle, u.name, u.bio, u.palette, u.avatar_url,
             (SELECT count(*) FROM follows WHERE following_id = u.id)::int AS followers,
-            true AS following
+            true AS following,
+            EXISTS (SELECT 1 FROM follows theirs WHERE theirs.follower_id = u.id AND theirs.following_id = $1) AS follows_me
      FROM follows f JOIN users u ON u.id = f.following_id
      WHERE f.follower_id = $1 AND u.suspended_at IS NULL
+       AND NOT EXISTS (SELECT 1 FROM blocks b
+                       WHERE (b.blocker_id = $1 AND b.blocked_id = u.id)
+                          OR (b.blocked_id = $1 AND b.blocker_id = u.id))
      ORDER BY f.created_at DESC`,
     [req.user.id]
   );

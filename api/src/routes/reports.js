@@ -119,20 +119,26 @@ reportRoutes.get('/community/:communityId', auth, requireModerator(), h(async (r
 }));
 
 /**
- * Decidir. 'mantido' repoe o conteudo; 'removido' deixa-o oculto.
- * Resolve todas as denuncias do mesmo alvo de uma vez.
+ * Decidir. Conteúdo só pode ser mantido/removido; contas só podem ser
+ * mantidas/suspensas. Validar depois de carregar a denúncia impede que uma
+ * decisão com nome válido mas sem efeito feche a fila silenciosamente.
  */
 reportRoutes.post('/:reportId/resolve', auth, h(async (req, res) => {
   const { resolution } = req.body;
   if (!['removido', 'mantido', 'suspenso'].includes(resolution)) throw bad('Decisao invalida');
 
   const out = await tx(async (c) => {
-    const { rows } = await c.query('SELECT * FROM reports WHERE id = $1', [req.params.reportId]);
+    const { rows } = await c.query('SELECT * FROM reports WHERE id = $1 FOR UPDATE', [req.params.reportId]);
     const r = rows[0];
     if (!r) throw notFound('Denuncia nao encontrada');
     if (r.resolved_at) throw bad('Ja foi decidida', 'already_resolved');
 
     const table = TABLE[r.target_type];
+    if (r.target_type === 'user') {
+      if (!['mantido', 'suspenso'].includes(resolution)) throw bad('Decisao invalida para uma conta', 'bad_resolution');
+    } else if (!['mantido', 'removido'].includes(resolution)) {
+      throw bad('Decisao invalida para conteudo', 'bad_resolution');
+    }
 
     // Quem decide: staff, ou moderador da comunidade a que o conteudo pertence.
     if (!req.user.is_staff) {
@@ -162,7 +168,7 @@ reportRoutes.post('/:reportId/resolve', auth, h(async (req, res) => {
     if (table && resolution === 'removido') {
       await c.query(`UPDATE ${table} SET hidden_at = now() WHERE id = $1`, [r.target_id]);
     }
-    if (resolution === 'suspenso' && req.user.is_staff && r.target_type === 'user') {
+    if (resolution === 'suspenso') {
       await c.query('UPDATE users SET suspended_at = now() WHERE id = $1', [r.target_id]);
     }
     return { resolution, target: r.target_id };

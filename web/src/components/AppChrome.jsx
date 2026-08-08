@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Home, Image, Pencil, Plus, RefreshCw, Send, Sparkles, Trash2, User, X } from 'lucide-react';
-import { PAL } from '../ui.jsx';
 import { PostImageEditor } from './posts/PostImageEditor.jsx';
 
 export function Toast({ text }) {
@@ -38,7 +37,7 @@ export function Nav({ tab, setTab, setThread, setComp, coms, threads, ping }) {
   );
 }
 
-export function Composer({ comp, setComp, coms, file, setFile, palette, setPalette, body, setBody, busy, publish }) {
+export function Composer({ comp, setComp, coms, file, setFile, body, setBody, busy, publish }) {
   const fileInput = useRef(null);
   const [editingPhoto, setEditingPhoto] = useState(false);
   const previewUrl = useMemo(() => file ? URL.createObjectURL(file) : null, [file]);
@@ -148,18 +147,6 @@ export function Composer({ comp, setComp, coms, file, setFile, palette, setPalet
               <span style={{ fontSize: 14, fontWeight: 700 }}>Adicionar fotografia</span>
               <span className="m">Podes recortar e ajustar antes de publicar</span>
             </button>
-          )}
-
-          {!file && (
-            <div className="scene" style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-              {PAL.map((t, i) => (
-                <button key={i} onClick={() => setPalette(i)} className="st"
-                  aria-label={`Cor ${i + 1}`}
-                  style={{ width: 48, height: 60, background: t.bg, border: 0, cursor: 'pointer', padding: 0, transform: palette === i ? 'translateY(-6px) scale(1.06)' : 'none' }}>
-                  <div className="gloss" />
-                </button>
-              ))}
-            </div>
           )}
 
           <div style={{ position: 'relative', marginBottom: 16 }}>

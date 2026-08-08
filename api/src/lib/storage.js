@@ -11,6 +11,8 @@ import { env } from '../env.js';
  * Sem SDK: são cerca de 40 linhas e evita 15 MB de dependências.
  */
 
+export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+
 const enc = (s) => encodeURIComponent(s).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 const hmac = (key, s) => crypto.createHmac('sha256', key).update(s).digest();
@@ -67,24 +69,40 @@ const SIGNATURES = {
 };
 
 /**
- * Le os primeiros bytes do ficheiro guardado e confirma que e mesmo uma imagem
- * do tipo declarado.
+ * Le o objeto já guardado e confirma três coisas antes de o tornar utilizável:
+ * tamanho real, tamanho declarado e assinatura do formato.
  *
- * Confiar no content-type que o cliente envia e confiar no atacante. Um
- * ficheiro executavel com extensao .jpg passava sem isto.
+ * O tamanho enviado no pedido de assinatura não chega como proteção: um
+ * cliente alterado pode obter um PUT assinado dizendo "1 MB" e tentar mandar
+ * mais. Por isso a confirmação mede o objeto que ficou no armazenamento.
  */
-export async function verifyStoredImage(key, mime) {
+export async function verifyStoredImage(key, mime, expectedBytes = null) {
   const check = SIGNATURES[mime];
   if (!check) return { ok: false, reason: 'tipo nao suportado' };
   if (!env.S3_BUCKET) return { ok: true, reason: 'armazenamento nao configurado' };
 
   try {
-    const res = await fetch(publicUrl(key), { headers: { range: 'bytes=0-31' } });
+    const url = publicUrl(key);
+    const meta = await fetch(url, { method: 'HEAD' });
+    if (!meta.ok) return { ok: false, reason: `ficheiro inacessivel (${meta.status})` };
+
+    const actualBytes = Number(meta.headers.get('content-length'));
+    if (!Number.isSafeInteger(actualBytes) || actualBytes <= 0) {
+      return { ok: false, reason: 'tamanho do ficheiro indisponivel' };
+    }
+    if (actualBytes > MAX_IMAGE_BYTES) {
+      return { ok: false, reason: 'ficheiro demasiado grande' };
+    }
+    if (expectedBytes !== null && actualBytes !== Number(expectedBytes)) {
+      return { ok: false, reason: 'tamanho real nao corresponde ao declarado' };
+    }
+
+    const res = await fetch(url, { headers: { range: 'bytes=0-31' } });
     if (!res.ok) return { ok: false, reason: `ficheiro inacessivel (${res.status})` };
     const head = Buffer.from(await res.arrayBuffer());
     if (head.length < 12) return { ok: false, reason: 'ficheiro demasiado pequeno' };
     return check(head)
-      ? { ok: true }
+      ? { ok: true, bytes: actualBytes }
       : { ok: false, reason: 'assinatura nao corresponde ao tipo declarado' };
   } catch (err) {
     return { ok: false, reason: `erro ao verificar: ${err.message}` };

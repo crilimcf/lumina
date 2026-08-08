@@ -51,11 +51,39 @@ after(async () => {
 test('rotas /users/me não são engolidas pelo perfil dinâmico /:handle', async () => {
   const alice = await register('route.alice', 'route-alice@example.test');
 
-  for (const path of ['/users/me/following', '/users/me/suggestions', '/users/me/blocked']) {
+  for (const path of ['/users/me/followers', '/users/me/following', '/users/me/suggestions', '/users/me/blocked']) {
     const out = await request(path, { token: alice.token });
     assert.equal(out.response.status, 200, `${path}: ${JSON.stringify(out.data)}`);
     assert.ok(Array.isArray(out.data));
   }
+});
+
+test('followers e following expõem corretamente ligações mútuas', async () => {
+  const alice = await register('links.alice', 'links-alice@example.test');
+  const bob = await register('links.bob', 'links-bob@example.test');
+  const charlie = await register('links.charlie', 'links-charlie@example.test');
+
+  let out = await request(`/users/${alice.user.id}/follow`, { method: 'POST', token: bob.token });
+  assert.equal(out.response.status, 200, JSON.stringify(out.data));
+  out = await request(`/users/${bob.user.id}/follow`, { method: 'POST', token: alice.token });
+  assert.equal(out.response.status, 200, JSON.stringify(out.data));
+  out = await request(`/users/${alice.user.id}/follow`, { method: 'POST', token: charlie.token });
+  assert.equal(out.response.status, 200, JSON.stringify(out.data));
+
+  const followers = await request('/users/me/followers', { token: alice.token });
+  assert.equal(followers.response.status, 200, JSON.stringify(followers.data));
+  const bobAsFollower = followers.data.find(person => person.id === bob.user.id);
+  const charlieAsFollower = followers.data.find(person => person.id === charlie.user.id);
+  assert.equal(bobAsFollower?.follows_me, true);
+  assert.equal(bobAsFollower?.following, true);
+  assert.equal(charlieAsFollower?.follows_me, true);
+  assert.equal(charlieAsFollower?.following, false);
+
+  const following = await request('/users/me/following', { token: alice.token });
+  assert.equal(following.response.status, 200, JSON.stringify(following.data));
+  const bobAsFollowing = following.data.find(person => person.id === bob.user.id);
+  assert.equal(bobAsFollowing?.following, true);
+  assert.equal(bobAsFollowing?.follows_me, true);
 });
 
 test('follow e block rejeitam utilizadores inexistentes ou suspensos sem erro de integridade', async () => {

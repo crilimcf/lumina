@@ -6,19 +6,20 @@ import { removeObject } from './storage.js';
  * utilizador. A mesma URL deixa de poder ser reutilizada manualmente noutro
  * post/momento/mensagem/avatar.
  *
- * `query` tem a mesma assinatura de q(); numa transação passa-se
- * `(text, params) => client.query(text, params)` para o claim fazer parte do
- * mesmo COMMIT que cria o conteúdo.
+ * Vídeo é opt-in: por defeito um consumidor só pode reclamar imagens. Assim,
+ * adicionar vídeo às publicações não faz com que avatar, momentos ou mensagens
+ * que ainda esperam imagem passem a aceitar vídeo sem querer.
  */
-export async function claimUpload(url, ownerId, purpose, query = q) {
+export async function claimUpload(url, ownerId, purpose, query = q, { allowVideo = false } = {}) {
   if (!url) return null;
   const { rows } = await query(
     `UPDATE uploads
      SET consumed_at = now(), purpose = $3
      WHERE url = $1 AND owner_id = $2
        AND confirmed_at IS NOT NULL AND consumed_at IS NULL
-     RETURNING id, key, url`,
-    [url, ownerId, purpose]
+       AND ($4::boolean OR mime NOT LIKE 'video/%')
+     RETURNING id, key, url, mime`,
+    [url, ownerId, purpose, allowVideo]
   );
   return rows[0] || null;
 }
@@ -56,19 +57,11 @@ export async function removeUploadIfUnreferenced(url) {
 
   await removeObject(upload.key);
 
-  // Confirma de novo depois do I/O externo. Uploads consumidos não podem ser
-  // reclamados novamente pela API, mas esta segunda leitura também protege
-  // dados legacy e referências derivadas que possam ter surgido entretanto.
   if (await uploadReferenceCount(url)) return false;
   await q('DELETE FROM uploads WHERE id = $1', [upload.id]);
   return true;
 }
 
-/**
- * Apaga fisicamente um upload que sabemos pertencer exclusivamente ao tipo de
- * conteúdo indicado. Só é usado para uploads novos (não legacy) e depois de a
- * referência do conteúdo ter sido removida da base.
- */
 export async function removeClaimedUploadIfUnreferenced(url, purpose) {
   if (!url) return false;
   const { rows } = await q(

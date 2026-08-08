@@ -6,7 +6,7 @@ import { auth, h, bad, notFound, requireMember } from '../middleware/auth.js';
 export const inviteRoutes = Router();
 
 /** O convite ativo da comunidade (o de hoje, no fuso dela). */
-inviteRoutes.get('/:communityId/today', auth, h(async (req, res) => {
+inviteRoutes.get('/:communityId/today', auth, requireMember(), h(async (req, res) => {
   const { rows } = await q(
     `SELECT i.*, u.handle AS author_handle, u.name AS author_name,
        EXISTS (
@@ -26,7 +26,7 @@ inviteRoutes.get('/:communityId/today', auth, h(async (req, res) => {
  * A bolsa de propostas em votação, mais votadas primeiro.
  * A primeira da lista é a candidata a convite de amanhã.
  */
-inviteRoutes.get('/:communityId/proposals', auth, h(async (req, res) => {
+inviteRoutes.get('/:communityId/proposals', auth, requireMember(), h(async (req, res) => {
   const { rows } = await q(
     `SELECT p.id, p.text, p.vote_count, p.is_seed, p.created_at,
             u.handle AS author_handle, u.name AS author_name,
@@ -115,17 +115,23 @@ inviteRoutes.post('/proposals/:proposalId/vote', auth, h(async (req, res) => {
   res.json(out);
 }));
 
-/** As respostas ao convite. Só abrem depois de a pessoa responder. */
+/** As respostas ao convite. Só membros podem consultar; só abrem após responder. */
 inviteRoutes.get('/:inviteId/replies', auth, h(async (req, res) => {
+  const { rows: access } = await q(
+    `SELECT i.reply_count
+     FROM invites i
+     JOIN memberships m ON m.community_id = i.community_id
+     WHERE i.id = $1 AND m.user_id = $2`,
+    [req.params.inviteId, req.user.id]
+  );
+  if (!access[0]) throw notFound('Convite não encontrado');
+
   const { rows: mine } = await q(
     'SELECT 1 FROM posts WHERE invite_id = $1 AND author_id = $2',
     [req.params.inviteId, req.user.id]
   );
   if (!mine[0]) {
-    const { rows: n } = await q(
-      'SELECT reply_count FROM invites WHERE id = $1', [req.params.inviteId]
-    );
-    return res.json({ locked: true, replyCount: n[0]?.reply_count ?? 0, replies: [] });
+    return res.json({ locked: true, replyCount: access[0].reply_count, replies: [] });
   }
 
   const { rows } = await q(

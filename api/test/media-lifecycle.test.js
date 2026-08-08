@@ -110,7 +110,7 @@ test('um upload confirmado só pode ser consumido por um conteúdo', async () =>
   assert.equal(reuse.data.code, 'unconfirmed_upload');
 });
 
-test('apagar o original preserva media enquanto um repost ainda a referencia', async () => {
+test('apagar o original apaga também o repost e liberta o upload', async () => {
   const alice = await register('repost.alice');
   const bob = await register('repost.bob');
   const community = await communityFor(alice, 'media-repost');
@@ -129,22 +129,17 @@ test('apagar o original preserva media enquanto um repost ainda a referencia', a
   const deleted = await request(`/posts/${post.data.id}`, { method: 'DELETE', token: alice.token });
   assert.equal(deleted.response.status, 200);
 
-  // A limpeza assíncrona do endpoint não deve apagar o objeto enquanto o
-  // repost ainda tiver a referência.
+  // repost_of tem ON DELETE CASCADE: um repost é referência ao original, não
+  // uma cópia independente que sobreviva ao apagamento do autor.
   await new Promise(resolve => setTimeout(resolve, 25));
+  {
+    const { rows } = await q('SELECT 1 FROM posts WHERE id = $1', [repost.data.id]);
+    assert.equal(rows.length, 0);
+  }
   {
     const { rows } = await q('SELECT 1 FROM uploads WHERE url = $1', [url]);
-    assert.equal(rows.length, 1);
+    assert.equal(rows.length, 0);
   }
-  {
-    const { rows } = await q('SELECT media_url FROM posts WHERE id = $1', [repost.data.id]);
-    assert.equal(rows[0].media_url, url);
-  }
-
-  await request(`/posts/${repost.data.id}`, { method: 'DELETE', token: bob.token });
-  await new Promise(resolve => setTimeout(resolve, 25));
-  const { rows } = await q('SELECT 1 FROM uploads WHERE url = $1', [url]);
-  assert.equal(rows.length, 0);
 });
 
 test('foto de uma vez é purgada da mensagem e da tabela de uploads quando expira', async () => {
@@ -197,7 +192,7 @@ test('Momento expirado remove a linha e o upload associado', async () => {
   assert.equal(u.rows.length, 0);
 });
 
-test('apagamento RGPD elimina media do dono também dos reposts derivados', async () => {
+test('apagamento RGPD do autor remove reposts derivados e o upload', async () => {
   const alice = await register('erase.alice');
   const bob = await register('erase.bob');
   const community = await communityFor(alice, 'erase-media');
@@ -219,8 +214,9 @@ test('apagamento RGPD elimina media do dono também dos reposts derivados', asyn
   );
   assert.equal(await runAccountDeletions(), 1);
 
-  const surviving = await q('SELECT media_url FROM posts WHERE id = $1', [repost.data.id]);
-  assert.equal(surviving.rows[0].media_url, null);
+  // Apagar o post original por CASCADE apaga também o repost.
+  const surviving = await q('SELECT 1 FROM posts WHERE id = $1', [repost.data.id]);
+  assert.equal(surviving.rows.length, 0);
   const upload = await q('SELECT 1 FROM uploads WHERE url = $1', [url]);
   assert.equal(upload.rows.length, 0);
 });

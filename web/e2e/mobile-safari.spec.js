@@ -76,7 +76,7 @@ test('botão Novo abre o composer a partir de Perfil e Conversas', async ({ page
   await createCommunityFromUI(page);
 
   await page.getByRole('button', { name: 'Perfil' }).click();
-  await expect(page.getByText('Os teus dados')).toBeVisible();
+  await expect(page.getByText('Os teus dados', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Novo' }).click();
   await expect(page.getByPlaceholder('O que estás a ver?')).toBeVisible();
   await page.getByRole('button', { name: 'Fechar' }).click();

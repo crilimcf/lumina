@@ -1,4 +1,4 @@
 Lumina QA
-Moments media editor v4
-Story-style Aa text and emoji stickers
-2026-08-08
+Moments media editor v5
+Story tools: text colors, effects, emoji stickers and freehand drawing
+2026-08-08 23:54 Europe/Lisbon

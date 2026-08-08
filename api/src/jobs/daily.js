@@ -29,7 +29,7 @@ export async function rotateInvites() {
         );
         if (!pick[0]) return;
 
-        await c.query(
+        const inserted = await c.query(
           `INSERT INTO invites
              (community_id, proposal_id, text, author_id, local_date, opens_at, closes_at)
            VALUES (
@@ -37,9 +37,14 @@ export async function rotateInvites() {
              ($5::date::timestamp AT TIME ZONE $6),
              (($5::date + 1)::timestamp AT TIME ZONE $6)
            )
-           ON CONFLICT (community_id, local_date) DO NOTHING`,
+           ON CONFLICT (community_id, local_date) DO NOTHING
+           RETURNING id`,
           [com.id, pick[0].id, pick[0].text, pick[0].author_id, com.local_date, com.timezone]
         );
+
+        // Outra instância pode ter criado o convite depois do SELECT inicial.
+        // Nesse caso esta proposta não foi mostrada e não deve ser consumida.
+        if (!inserted.rowCount) return;
 
         await c.query('UPDATE proposals SET used_at = now() WHERE id = $1', [pick[0].id]);
         created++;

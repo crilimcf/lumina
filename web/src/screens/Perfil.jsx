@@ -13,7 +13,7 @@ function roleLabel(role) {
 }
 
 function DiscoverySheet({
-  open, onClose, initialTab, following, setFollowing, suggestions, setSuggestions,
+  open, onClose, initialTab, followers, setFollowers, following, setFollowing, suggestions, setSuggestions,
   publicCommunities, coms, setComs, onOpenCommunity, ping,
 }) {
   const [tab, setTab] = useState(initialTab || 'people');
@@ -50,6 +50,7 @@ function DiscoverySheet({
       const nowFollowing = !person.following;
       const next = { ...person, following: nowFollowing };
       setPeopleResults(rows => rows && rows.map(p => p.id === person.id ? next : p));
+      setFollowers(rows => rows.map(p => p.id === person.id ? { ...p, following: nowFollowing } : p));
       setFollowing(rows => nowFollowing
         ? [next, ...rows.filter(p => p.id !== person.id)]
         : rows.filter(p => p.id !== person.id));
@@ -184,25 +185,150 @@ function DiscoverySheet({
   );
 }
 
+function ConnectionsSheet({
+  open, onClose, initialTab, followers, setFollowers, following, setFollowing, suggestions, setSuggestions, ping,
+}) {
+  const [tab, setTab] = useState(initialTab || 'followers');
+  const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    setTab(initialTab || 'followers');
+    setQuery('');
+  }, [open, initialTab]);
+
+  const visible = useMemo(() => {
+    const rows = tab === 'followers' ? followers : following;
+    const term = query.trim().toLowerCase();
+    if (!term) return rows;
+    return rows.filter(person => `${person.name} ${person.handle}`.toLowerCase().includes(term));
+  }, [tab, followers, following, query]);
+
+  const toggleFollow = async (person) => {
+    try {
+      const nowFollowing = !person.following;
+      if (nowFollowing) await api.users.follow(person.id);
+      else await api.users.unfollow(person.id);
+
+      const next = { ...person, following: nowFollowing };
+      setFollowers(rows => rows.map(p => p.id === person.id ? { ...p, following: nowFollowing } : p));
+      setFollowing(rows => nowFollowing
+        ? [next, ...rows.filter(p => p.id !== person.id)]
+        : rows.filter(p => p.id !== person.id));
+      setSuggestions(rows => nowFollowing
+        ? rows.filter(p => p.id !== person.id)
+        : [next, ...rows.filter(p => p.id !== person.id)]);
+      ping(nowFollowing ? `Agora segues ${person.name}` : `Deixaste de seguir ${person.name}`);
+    } catch (e) { ping(e.message); }
+  };
+
+  if (!open) return null;
+
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 87, background: 'rgba(16,12,38,.5)',
+      backdropFilter: 'blur(9px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+    }}>
+      <div onClick={e => e.stopPropagation()} className="in" style={{
+        width: '100%', maxWidth: 520, maxHeight: '86dvh', overflow: 'hidden',
+        background: 'linear-gradient(180deg,#F8F7FE,#ECE9FA)', borderRadius: '30px 30px 0 0',
+        boxShadow: '0 -20px 64px rgba(20,18,42,.24)',
+      }}>
+        <div style={{ padding: '18px 18px 12px', background: 'rgba(248,247,254,.95)', backdropFilter: 'blur(16px)' }}>
+          <div style={{ width: 42, height: 5, borderRadius: 9, background: '#D7D2EA', margin: '0 auto 15px' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+            <div style={{ flex: 1 }}>
+              <div className="d" style={{ fontSize: 27 }}>Ligações</div>
+              <div className="m" style={{ marginTop: 3 }}>A tua rede, sem saíres do perfil.</div>
+            </div>
+            <button className="p" aria-label="Fechar ligações" onClick={onClose} style={{ padding: 10 }}><X size={16} /></button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: 4, background: '#E7E3F5', borderRadius: 16, marginBottom: 12 }}>
+            <button onClick={() => { setTab('followers'); setQuery(''); }}
+              style={{ border: 0, borderRadius: 13, padding: '10px 12px', cursor: 'pointer', fontWeight: 750,
+                color: tab === 'followers' ? 'var(--ink)' : 'var(--grey)', background: tab === 'followers' ? '#fff' : 'transparent',
+                boxShadow: tab === 'followers' ? '0 5px 16px rgba(30,20,75,.09)' : 'none' }}>
+              Seguidores · {followers.length}
+            </button>
+            <button onClick={() => { setTab('following'); setQuery(''); }}
+              style={{ border: 0, borderRadius: 13, padding: '10px 12px', cursor: 'pointer', fontWeight: 750,
+                color: tab === 'following' ? 'var(--ink)' : 'var(--grey)', background: tab === 'following' ? '#fff' : 'transparent',
+                boxShadow: tab === 'following' ? '0 5px 16px rgba(30,20,75,.09)' : 'none' }}>
+              A seguir · {following.length}
+            </button>
+          </div>
+
+          <div style={{ position: 'relative' }}>
+            <Search size={17} style={{ position: 'absolute', left: 15, top: '50%', transform: 'translateY(-50%)', color: '#9A94B7' }} />
+            <input value={query} onChange={e => setQuery(e.target.value)}
+              placeholder={tab === 'followers' ? 'Pesquisar seguidores…' : 'Pesquisar quem segues…'}
+              style={{ paddingLeft: 43, background: '#fff' }} autoCapitalize="none" />
+          </div>
+        </div>
+
+        <div className="ns" style={{ overflowY: 'auto', maxHeight: 'calc(86dvh - 190px)', padding: '8px 18px calc(26px + env(safe-area-inset-bottom))' }}>
+          {visible.length === 0 ? (
+            <div style={{ padding: '32px 14px', textAlign: 'center' }}>
+              <div style={{ width: 52, height: 52, borderRadius: 20, display: 'grid', placeItems: 'center', margin: '0 auto 12px', background: '#E9E5F8' }}>
+                <Users size={21} />
+              </div>
+              <div style={{ fontWeight: 800 }}>{query ? 'Nenhuma ligação encontrada.' : tab === 'followers' ? 'Ainda sem seguidores.' : 'Ainda não segues ninguém.'}</div>
+              <div className="m" style={{ marginTop: 6 }}>{query ? 'Experimenta outro nome.' : 'À medida que a tua rede cresce, as pessoas aparecem aqui.'}</div>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 9 }}>
+              {visible.map(person => {
+                const mutual = person.following && person.follows_me;
+                return (
+                  <div key={person.id} className="card" style={{ padding: 13, display: 'flex', alignItems: 'center', gap: 11 }}>
+                    <Orb p={person.palette} avatarUrl={person.avatar_url} s={47} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 780, fontSize: 14.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{person.name}</div>
+                      <div className="m" style={{ marginTop: 2 }}>@{person.handle}</div>
+                      <div style={{ marginTop: 6, display: 'inline-flex', borderRadius: 999, padding: '4px 7px', fontSize: 9.5, fontWeight: 750,
+                        background: mutual ? '#EEE9FF' : '#F2F0F8', color: mutual ? '#654FDB' : 'var(--grey)' }}>
+                        {mutual ? 'Ligação mútua' : tab === 'followers' ? 'Segue-te' : person.follows_me ? 'Segue-te também' : 'Na tua órbita'}
+                      </div>
+                    </div>
+                    <button className={person.following ? 'p p-sm' : 'p p-sm p-brand'} onClick={() => toggleFollow(person)}>
+                      {person.following ? 'A seguir' : person.follows_me ? 'Seguir de volta' : 'Seguir'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Perfil({
   me, coms, setComs, days, blocked, setBlocked, setScreen, logout,
   tab, setTab, setThread, setComp, threads, ping, toast, onOpenCommunity,
 }) {
+  const [followers, setFollowers] = useState([]);
   const [following, setFollowing] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [publicCommunities, setPublicCommunities] = useState([]);
   const [socialLoading, setSocialLoading] = useState(true);
   const [discoveryOpen, setDiscoveryOpen] = useState(false);
   const [discoveryTab, setDiscoveryTab] = useState('people');
+  const [connectionsOpen, setConnectionsOpen] = useState(false);
+  const [connectionsTab, setConnectionsTab] = useState('followers');
 
   useEffect(() => {
     let active = true;
     Promise.all([
+      api.users.followers().catch(() => []),
       api.users.following().catch(() => []),
       api.users.suggestions().catch(() => []),
       api.communities.list().catch(() => []),
-    ]).then(([people, suggested, communities]) => {
+    ]).then(([peopleFollowingMe, people, suggested, communities]) => {
       if (!active) return;
+      setFollowers(peopleFollowingMe);
       setFollowing(people);
       setSuggestions(suggested);
       setPublicCommunities(communities);
@@ -215,7 +341,18 @@ export function Perfil({
     setDiscoveryOpen(true);
   };
 
+  const openConnections = (nextTab) => {
+    setConnectionsTab(nextTab);
+    setConnectionsOpen(true);
+  };
+
   const answeredDays = days.filter(d => d.answered).length;
+  const followerCount = socialLoading ? (me.followers || 0) : followers.length;
+
+  const metricStyle = {
+    background: 'rgba(255,255,255,.66)', border: '1px solid rgba(255,255,255,.8)', borderRadius: 18,
+    padding: '13px 10px', textAlign: 'center', backdropFilter: 'blur(12px)', boxShadow: '0 8px 22px rgba(35,24,80,.08)',
+  };
 
   return (
     <div style={{ minHeight: '100dvh', paddingBottom: 105, background: 'linear-gradient(180deg,#EFEDFB,#DFDCF2)' }}>
@@ -229,16 +366,20 @@ export function Perfil({
         <p style={{ fontSize: 16, lineHeight: 1.48, color: 'var(--grey)', margin: '14px 2px 20px' }}>{me.bio || 'Sem descrição.'}</p>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 14 }}>
-          {[
-            ['Seguidores', me.followers || 0],
-            ['A seguir', following.length],
-            ['Dias', answeredDays],
-          ].map(([label, value]) => (
-            <div key={label} style={{ background: 'rgba(255,255,255,.66)', border: '1px solid rgba(255,255,255,.8)', borderRadius: 18, padding: '13px 10px', textAlign: 'center', backdropFilter: 'blur(12px)', boxShadow: '0 8px 22px rgba(35,24,80,.08)' }}>
-              <div className="d" style={{ fontSize: 23 }}>{value}</div>
-              <div className="m" style={{ marginTop: 4, fontSize: 9.5 }}>{label}</div>
-            </div>
-          ))}
+          <button aria-label="Ver seguidores" onClick={() => openConnections('followers')}
+            style={{ ...metricStyle, border: '1px solid rgba(255,255,255,.9)', cursor: 'pointer', color: 'var(--ink)' }}>
+            <div className="d" style={{ fontSize: 23 }}>{followerCount}</div>
+            <div className="m" style={{ marginTop: 4, fontSize: 9.5 }}>Seguidores <ArrowUpRight size={10} style={{ verticalAlign: -1 }} /></div>
+          </button>
+          <button aria-label="Ver a seguir" onClick={() => openConnections('following')}
+            style={{ ...metricStyle, border: '1px solid rgba(255,255,255,.9)', cursor: 'pointer', color: 'var(--ink)' }}>
+            <div className="d" style={{ fontSize: 23 }}>{following.length}</div>
+            <div className="m" style={{ marginTop: 4, fontSize: 9.5 }}>A seguir <ArrowUpRight size={10} style={{ verticalAlign: -1 }} /></div>
+          </button>
+          <div style={metricStyle}>
+            <div className="d" style={{ fontSize: 23 }}>{answeredDays}</div>
+            <div className="m" style={{ marginTop: 4, fontSize: 9.5 }}>Dias</div>
+          </div>
         </div>
 
         <section style={{
@@ -267,7 +408,7 @@ export function Perfil({
                 </button>
               )}
               {!socialLoading && following.slice(0, 8).map(person => (
-                <button key={person.id} onClick={() => openDiscovery('people')}
+                <button key={person.id} onClick={() => openConnections('following')}
                   style={{ minWidth: 72, maxWidth: 72, background: 'none', border: 0, color: '#fff', padding: 0, cursor: 'pointer', textAlign: 'center' }}>
                   <div style={{ width: 56, height: 56, borderRadius: 999, padding: 2, margin: '0 auto 7px', background: 'linear-gradient(135deg,#FF735F,#8B72FF)' }}>
                     <div style={{ borderRadius: 999, padding: 2, background: '#1C1838', width: '100%', height: '100%', display: 'grid', placeItems: 'center' }}>
@@ -384,9 +525,15 @@ export function Perfil({
 
       <DiscoverySheet
         open={discoveryOpen} onClose={() => setDiscoveryOpen(false)} initialTab={discoveryTab}
+        followers={followers} setFollowers={setFollowers}
         following={following} setFollowing={setFollowing} suggestions={suggestions} setSuggestions={setSuggestions}
         publicCommunities={publicCommunities} coms={coms} setComs={setComs}
         onOpenCommunity={onOpenCommunity} ping={ping}
+      />
+      <ConnectionsSheet
+        open={connectionsOpen} onClose={() => setConnectionsOpen(false)} initialTab={connectionsTab}
+        followers={followers} setFollowers={setFollowers} following={following} setFollowing={setFollowing}
+        suggestions={suggestions} setSuggestions={setSuggestions} ping={ping}
       />
       <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} coms={coms} threads={threads} ping={ping} />
       <Toast text={toast} />

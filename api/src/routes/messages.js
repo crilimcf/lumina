@@ -9,14 +9,26 @@ export const messageRoutes = Router();
 /** Threads guardam o par ordenado, por isso não há conversas duplicadas. */
 const pair = (a, b) => (a < b ? [a, b] : [b, a]);
 
-async function findOrCreateThread(userA, userB) {
-  if (userA === userB) throw bad('Não podes falar contigo');
-  const { rows: blk } = await q(
+async function blocked(a, b, query = q) {
+  const { rows } = await query(
     `SELECT 1 FROM blocks
      WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)`,
-    [userA, userB]
+    [a, b]
   );
-  if (blk[0]) throw forbidden('Não é possível iniciar esta conversa');
+  return !!rows[0];
+}
+
+async function findOrCreateThread(userA, userB) {
+  if (!userB) throw bad('Falta a pessoa', 'user_required');
+  if (userA === userB) throw bad('Não podes falar contigo');
+
+  const { rows: target } = await q(
+    'SELECT id FROM users WHERE id = $1 AND suspended_at IS NULL',
+    [userB]
+  );
+  if (!target[0]) throw notFound('Pessoa não encontrada');
+  if (await blocked(userA, userB)) throw forbidden('Não é possível iniciar esta conversa');
+
   const [a, b] = pair(userA, userB);
   const { rows } = await q(
     `INSERT INTO threads (user_a, user_b) VALUES ($1, $2)
@@ -41,6 +53,7 @@ messageRoutes.get('/threads', auth, h(async (req, res) => {
        WHERE m.thread_id = t.id ORDER BY m.created_at DESC LIMIT 1
      ) last ON true
      WHERE (t.user_a = $1 OR t.user_b = $1)
+       AND u.suspended_at IS NULL
        AND NOT EXISTS (SELECT 1 FROM blocks bl
                        WHERE (bl.blocker_id = $1 AND bl.blocked_id = u.id)
                           OR (bl.blocked_id = $1 AND bl.blocker_id = u.id))
@@ -69,6 +82,9 @@ async function assertParticipant(threadId, userId) {
     [threadId, userId]
   );
   if (!rows[0]) throw forbidden('Não fazes parte desta conversa');
+
+  const other = rows[0].user_a === userId ? rows[0].user_b : rows[0].user_a;
+  if (await blocked(userId, other)) throw forbidden('Esta conversa já não está disponível');
   return rows[0];
 }
 
@@ -119,14 +135,7 @@ messageRoutes.post('/threads/:threadId/messages', auth, h(async (req, res) => {
   }
   if (mode === 'once' && kind !== 'media') throw bad('O modo uma vez é só para fotos');
 
-  const t = await assertParticipant(req.params.threadId, req.user.id);
-  const other = t.user_a === req.user.id ? t.user_b : t.user_a;
-  const { rows: blk } = await q(
-    `SELECT 1 FROM blocks
-     WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)`,
-    [req.user.id, other]
-  );
-  if (blk[0]) throw forbidden('Esta conversa já não está disponível');
+  await assertParticipant(req.params.threadId, req.user.id);
 
   // Claim + INSERT no mesmo COMMIT: se a mensagem falhar, o upload volta a
   // ficar disponível; se passar, essa URL deixa de poder ser reutilizada.
@@ -174,6 +183,11 @@ messageRoutes.post('/:messageId/open', auth, h(async (req, res) => {
     const m = rows[0];
     if (!m) throw notFound('Mensagem não encontrada');
     if (m.user_a !== req.user.id && m.user_b !== req.user.id) throw forbidden();
+
+    const other = m.user_a === req.user.id ? m.user_b : m.user_a;
+    if (await blocked(req.user.id, other, (text, params) => c.query(text, params))) {
+      throw forbidden('Esta conversa já não está disponível');
+    }
     if (m.sender_id === req.user.id) throw bad('É tua');
     if (m.mode === 'normal') throw bad('Esta mensagem não é efémera', 'not_ephemeral');
     if (m.purged_at) throw bad('Já não existe', 'purged');

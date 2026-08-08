@@ -3,8 +3,6 @@ import { ArrowLeft, Shield, Smartphone, Check, X, Flag, Trash2, RotateCcw } from
 import { api } from './api.js';
 import { Orb, ErrorNote, Empty, Skeleton } from './ui.jsx';
 
-/* ─────────────────────────── segurança da conta */
-
 export function Seguranca({ onBack, ping }) {
   const [status, setStatus] = useState(null);
   const [sessions, setSessions] = useState([]);
@@ -22,8 +20,10 @@ export function Seguranca({ onBack, ping }) {
 
   const start = async () => {
     setErr(null);
-    try { setSetup(await api.twoFactor.setup()); }
-    catch (e) { setErr(e); }
+    try {
+      setSetup(await api.twoFactor.setup(pw));
+      setPw('');
+    } catch (e) { setErr(e); }
   };
 
   const enable = async () => {
@@ -49,7 +49,6 @@ export function Seguranca({ onBack, ping }) {
 
         <ErrorNote error={err} />
 
-        {/* ── dois passos ── */}
         <div className="card" style={{ padding: 20, marginBottom: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
             <Shield size={17} color={status?.enabled ? '#1E9E62' : 'var(--grey)'} />
@@ -99,7 +98,7 @@ export function Seguranca({ onBack, ping }) {
                 Restam-te {status.codesLeft} códigos de emergência.
               </p>
               <input type="password" value={pw} onChange={e => setPw(e.target.value)}
-                placeholder="Password, para desligar" style={{ marginBottom: 10 }} />
+                autoComplete="current-password" placeholder="Password, para desligar" style={{ marginBottom: 10 }} />
               <button className="p" onClick={disable} disabled={!pw} style={{ width: '100%', color: 'var(--coral)' }}>
                 Desligar dois passos
               </button>
@@ -108,14 +107,15 @@ export function Seguranca({ onBack, ping }) {
             <>
               <p style={{ fontSize: 14, lineHeight: 1.45, color: 'var(--grey)', marginBottom: 14 }}>
                 Com dois passos, saber a tua password deixa de chegar para entrar
-                na tua conta.
+                na tua conta. Confirma primeiro a tua password atual.
               </p>
-              <button className="p p-co" onClick={start} style={{ width: '100%', padding: 14 }}>Ligar</button>
+              <input type="password" value={pw} onChange={e => setPw(e.target.value)}
+                autoComplete="current-password" placeholder="Password atual" style={{ marginBottom: 10 }} />
+              <button className="p p-co" onClick={start} disabled={!pw} style={{ width: '100%', padding: 14 }}>Ligar</button>
             </>
           )}
         </div>
 
-        {/* ── sessões ── */}
         <div className="card" style={{ padding: 20 }}>
           <div className="m" style={{ marginBottom: 12 }}>Onde tens sessão iniciada</div>
           {sessions.length === 0 ? <Skeleton h={40} /> : sessions.map(s => (
@@ -149,8 +149,6 @@ export function Seguranca({ onBack, ping }) {
     </div>
   );
 }
-
-/* ─────────────────────────── fila de moderação */
 
 export function Moderacao({ communities, onBack, ping }) {
   const mine = communities.filter(c => c.role === 'moderator' || c.role === 'founder');
@@ -231,8 +229,6 @@ export function Moderacao({ communities, onBack, ping }) {
     </div>
   );
 }
-
-/* ─────────────────────────── páginas legais */
 
 export function Legal({ page, onBack }) {
   const [text, setText] = useState(null);

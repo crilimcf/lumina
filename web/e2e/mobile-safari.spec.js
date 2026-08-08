@@ -49,6 +49,7 @@ test('registo, reload, comunidade e publicação funcionam em Mobile Safari', as
   await page.getByRole('button', { name: 'Novo' }).click();
   const composer = page.getByPlaceholder('O que estás a ver?');
   await expect(composer).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Cor \d/ })).toHaveCount(0);
 
   await composer.pressSequentially(publishedText, { delay: 12 });
   await expect(composer).toBeFocused();
@@ -81,6 +82,24 @@ test('botão Novo abre o composer a partir de Perfil e Conversas', async ({ page
   await expect(page.getByRole('heading', { name: /Conversas/i })).toBeVisible();
   await page.getByRole('button', { name: 'Novo' }).click();
   await expect(page.getByPlaceholder('O que estás a ver?')).toBeVisible();
+});
+
+test('Perfil funciona como hub social sem páginas-menu de Amigos e Comunidades', async ({ page }) => {
+  await registerFromUI(page);
+  await createCommunityFromUI(page);
+
+  await page.getByRole('button', { name: 'Perfil' }).click();
+  await expect(page.getByText('A TUA ÓRBITA', { exact: true })).toBeVisible();
+  await expect(page.getByText('OS TEUS CÍRCULOS', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Amigos', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Comunidades', exact: true })).toHaveCount(0);
+
+  await page.getByRole('button', { name: /Descobrir/ }).first().click();
+  await expect(page.getByPlaceholder('Pesquisar pessoas…')).toBeVisible();
+  await page.getByRole('button', { name: 'Comunidades', exact: true }).click();
+  await expect(page.getByPlaceholder('Pesquisar comunidades…')).toBeVisible();
+  await page.getByRole('button', { name: 'Fechar descobrir' }).click();
+  await expect(page.getByPlaceholder('Pesquisar comunidades…')).toBeHidden();
 });
 
 test('composer de fotografia usa gestos e stickers em Mobile Safari', async ({ page }) => {

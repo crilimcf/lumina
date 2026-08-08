@@ -29,8 +29,6 @@ async function createCommunityFromUI(page) {
   await page.getByRole('button', { name: /Criar ou entrar numa comunidade/ }).click();
   await expect(page.getByRole('heading', { name: 'Comunidades' })).toBeVisible();
 
-  // Playwright pode repetir o teste no mesmo PostgreSQL. Um nome/slug único
-  // impede que o retry falhe só por colidir com a comunidade da tentativa anterior.
   const communityName = `Safari QA ${Date.now()}${Math.floor(Math.random() * 1000)}`;
   await page.getByPlaceholder('ex: Amigos da faculdade').fill(communityName);
   const seeds = page.locator('input[placeholder^="ideia "]');
@@ -52,15 +50,12 @@ test('registo, reload, comunidade e publicação funcionam em Mobile Safari', as
   const composer = page.getByPlaceholder('O que estás a ver?');
   await expect(composer).toBeVisible();
 
-  // Regressão do bug móvel em que cada tecla remontava o composer e roubava o foco.
   await composer.pressSequentially(publishedText, { delay: 12 });
   await expect(composer).toBeFocused();
   await expect(composer).toHaveValue(publishedText);
   await page.getByRole('button', { name: 'Publicar', exact: true }).click();
   await expect(page.locator('article').filter({ hasText: publishedText })).toBeVisible();
 
-  // Este reload é o teste mais importante para Safari: o cookie HttpOnly/SameSite
-  // tem de sobreviver e a app deve voltar autenticada, não ao formulário de login.
   await page.reload();
   await expect(page.getByText('Olá, Safari')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Ver o feed' })).toBeVisible();
@@ -86,6 +81,37 @@ test('botão Novo abre o composer a partir de Perfil e Conversas', async ({ page
   await expect(page.getByRole('heading', { name: /Conversas/i })).toBeVisible();
   await page.getByRole('button', { name: 'Novo' }).click();
   await expect(page.getByPlaceholder('O que estás a ver?')).toBeVisible();
+});
+
+test('composer de foto mostra preview e editor em vez do nome técnico do ficheiro', async ({ page }) => {
+  await registerFromUI(page);
+  await createCommunityFromUI(page);
+  await page.getByRole('button', { name: 'Novo' }).click();
+
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR42mP8z8AARAwMjDAGjB0AANsBA/0X8GkAAAAASUVORK5CYII=',
+    'base64'
+  );
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'IMG_9226.png',
+    mimeType: 'image/png',
+    buffer: png,
+  });
+
+  await expect(page.getByText('Editar foto', { exact: true })).toBeVisible();
+  await expect(page.getByText('Arrasta para enquadrar · formato 4:5')).toBeVisible();
+  await expect(page.getByLabel('Brilho')).toBeVisible();
+  await page.getByLabel('Brilho').fill('110');
+  await page.getByRole('button', { name: /Rodar/ }).click();
+  await page.getByRole('button', { name: 'Usar esta foto' }).click();
+
+  await expect(page.getByText('Editar foto', { exact: true })).toBeHidden();
+  await expect(page.getByRole('img', { name: 'Pré-visualização da foto' })).toBeVisible();
+  await expect(page.getByText('4:5 · PRONTA')).toBeVisible();
+  await expect(page.getByText('IMG_9226.png')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Editar foto' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Trocar/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Remover/ })).toBeVisible();
 });
 
 test('formulário de registo mantém os dados ao consultar os Termos', async ({ page }) => {

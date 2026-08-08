@@ -68,6 +68,23 @@ test('registo, reload, comunidade e publicação funcionam em Mobile Safari', as
   expect(overflow).toBeLessThanOrEqual(1);
 });
 
+test('botão Novo abre o composer a partir de Perfil e Conversas', async ({ page }) => {
+  await registerFromUI(page);
+  await createCommunityFromUI(page);
+
+  await page.getByRole('button', { name: 'Perfil' }).click();
+  await expect(page.getByText('Os teus dados')).toBeVisible();
+  await page.getByRole('button', { name: 'Novo' }).click();
+  await expect(page.getByPlaceholder('O que estás a ver?')).toBeVisible();
+  await page.getByRole('button', { name: 'Fechar' }).click();
+  await expect(page.getByPlaceholder('O que estás a ver?')).toBeHidden();
+
+  await page.getByRole('button', { name: 'Conversas' }).click();
+  await expect(page.getByRole('heading', { name: /Conversas/i })).toBeVisible();
+  await page.getByRole('button', { name: 'Novo' }).click();
+  await expect(page.getByPlaceholder('O que estás a ver?')).toBeVisible();
+});
+
 test('formulário de registo mantém os dados ao consultar os Termos', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Criar conta' }).click();

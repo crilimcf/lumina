@@ -95,7 +95,7 @@ test('formulário de registo mantém os dados ao consultar os Termos', async ({ 
   await page.getByPlaceholder('Email').fill('preservar@example.test');
 
   await page.getByRole('button', { name: 'termos' }).click();
-  await expect(page.getByText('Termos', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Termos de Utilização/)).toBeVisible();
   await page.getByRole('button', { name: /Voltar/i }).click();
 
   await expect(page.getByPlaceholder('Como te chamas')).toHaveValue('Dados Mantidos');

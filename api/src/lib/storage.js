@@ -6,12 +6,15 @@ import { env } from '../env.js';
  *
  * Funciona tal e qual com Cloudflare R2, Backblaze B2 e AWS S3; muda só o
  * endpoint. Escolhi o R2 como referência porque não cobra saída de dados, que
- * numa app de fotografia é o custo que mais cresce.
- *
- * Sem SDK: são cerca de 40 linhas e evita 15 MB de dependências.
+ * numa app social com fotografia e vídeo é o custo que mais cresce.
  */
 
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+export const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+
+export function maxUploadBytes(mime) {
+  return String(mime || '').startsWith('video/') ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+}
 
 const enc = (s) => encodeURIComponent(s).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
@@ -59,24 +62,26 @@ export async function signedUploadUrl(key, mime, expires = 600, method = 'PUT') 
   return `${env.S3_ENDPOINT.replace(/\/$/, '')}${path}?${params}&X-Amz-Signature=${signature}`;
 }
 
-
 /** Assinaturas dos formatos que aceitamos. Os primeiros bytes nao mentem. */
 const SIGNATURES = {
   'image/jpeg': (b) => b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF,
   'image/png':  (b) => b.subarray(0, 8).equals(Buffer.from([0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A])),
   'image/webp': (b) => b.subarray(0, 4).toString('ascii') === 'RIFF'
                     && b.subarray(8, 12).toString('ascii') === 'WEBP',
+  // MP4 e MOV modernos usam o contentor ISO Base Media e têm a caixa `ftyp`
+  // logo no início. O brand interno distingue mp4/quicktime, mas para segurança
+  // basta confirmar que é realmente este contentor e manter o MIME declarado.
+  'video/mp4':       (b) => b.subarray(4, 8).toString('ascii') === 'ftyp',
+  'video/quicktime': (b) => b.subarray(4, 8).toString('ascii') === 'ftyp',
+  // WebM começa pelo cabeçalho EBML 1A 45 DF A3.
+  'video/webm':      (b) => b.subarray(0, 4).equals(Buffer.from([0x1A,0x45,0xDF,0xA3])),
 };
 
 /**
- * Le o objeto já guardado e confirma três coisas antes de o tornar utilizável:
- * tamanho real, tamanho declarado e assinatura do formato.
- *
- * O tamanho enviado no pedido de assinatura não chega como proteção: um
- * cliente alterado pode obter um PUT assinado dizendo "1 MB" e tentar mandar
- * mais. Por isso a confirmação mede o objeto que ficou no armazenamento.
+ * Le o objeto já guardado e confirma tamanho real, tamanho declarado e
+ * assinatura binária do formato antes de o tornar utilizável.
  */
-export async function verifyStoredImage(key, mime, expectedBytes = null) {
+export async function verifyStoredMedia(key, mime, expectedBytes = null) {
   const check = SIGNATURES[mime];
   if (!check) return { ok: false, reason: 'tipo nao suportado' };
   if (!env.S3_BUCKET) return { ok: true, reason: 'armazenamento nao configurado' };
@@ -90,14 +95,14 @@ export async function verifyStoredImage(key, mime, expectedBytes = null) {
     if (!Number.isSafeInteger(actualBytes) || actualBytes <= 0) {
       return { ok: false, reason: 'tamanho do ficheiro indisponivel' };
     }
-    if (actualBytes > MAX_IMAGE_BYTES) {
+    if (actualBytes > maxUploadBytes(mime)) {
       return { ok: false, reason: 'ficheiro demasiado grande' };
     }
     if (expectedBytes !== null && actualBytes !== Number(expectedBytes)) {
       return { ok: false, reason: 'tamanho real nao corresponde ao declarado' };
     }
 
-    const res = await fetch(url, { headers: { range: 'bytes=0-31' } });
+    const res = await fetch(url, { headers: { range: 'bytes=0-63' } });
     if (!res.ok) return { ok: false, reason: `ficheiro inacessivel (${res.status})` };
     const head = Buffer.from(await res.arrayBuffer());
     if (head.length < 12) return { ok: false, reason: 'ficheiro demasiado pequeno' };
@@ -108,6 +113,9 @@ export async function verifyStoredImage(key, mime, expectedBytes = null) {
     return { ok: false, reason: `erro ao verificar: ${err.message}` };
   }
 }
+
+// Mantém compatibilidade com código antigo que ainda importa este nome.
+export const verifyStoredImage = verifyStoredMedia;
 
 /** Apaga um objeto do armazenamento. Usado quando a verificacao falha. */
 export async function removeObject(key) {

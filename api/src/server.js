@@ -35,9 +35,19 @@ app.use(cookieParser());
 app.use(csrfGuard);
 
 // Os testes de integração criam várias contas no mesmo processo/IP para
-// atravessar fronteiras de autorização. Não deixamos o rate limiter esconder
-// esses cenários; fora de NODE_ENV=test os limites de produção mantêm-se.
-const skipInTests = () => env.NODE_ENV === 'test';
+// atravessar fronteiras de autorização. O WebKit E2E faz o mesmo num stack
+// local HTTPS em development. Só aceitamos o bypass E2E quando o alvo e
+// explicitamente localhost/127.0.0.1; nunca num deployment ou em producao.
+const localE2E = (() => {
+  if (env.NODE_ENV !== 'development') return false;
+  try {
+    const url = new URL(process.env.E2E_BASE_URL || '');
+    return ['localhost', '127.0.0.1'].includes(url.hostname);
+  } catch {
+    return false;
+  }
+})();
+const skipInTests = () => env.NODE_ENV === 'test' || localE2E;
 app.use(rateLimit({
   windowMs: 60_000,
   limit: 120,

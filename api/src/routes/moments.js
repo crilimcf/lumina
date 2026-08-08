@@ -26,14 +26,16 @@ momentRoutes.post('/', auth, h(async (req, res) => {
   if (!Number.isInteger(p) || p < 0 || p > 4) throw bad('Cor inválida');
 
   const moment = await tx(async (c) => {
+    let claimed = null;
     if (mediaUrl) {
-      const claimed = await claimUpload(
+      claimed = await claimUpload(
         mediaUrl,
         req.user.id,
         'moment',
-        (text, params) => c.query(text, params)
+        (text, params) => c.query(text, params),
+        { allowVideo: true }
       );
-      if (!claimed) throw bad('Imagem não verificada ou já utilizada', 'unconfirmed_upload');
+      if (!claimed) throw bad('Media não verificado ou já utilizado', 'unconfirmed_upload');
     }
 
     const { rows } = await c.query(
@@ -41,7 +43,7 @@ momentRoutes.post('/', auth, h(async (req, res) => {
        RETURNING id, media_url, palette, created_at, expires_at`,
       [req.user.id, mediaUrl, p]
     );
-    return rows[0];
+    return { ...rows[0], media_mime: claimed?.mime || null };
   });
 
   res.status(201).json(moment);
@@ -50,7 +52,9 @@ momentRoutes.post('/', auth, h(async (req, res) => {
 /** Os momentos ainda vivos de quem partilha comunidade contigo (e o teu). */
 momentRoutes.get('/', auth, h(async (req, res) => {
   const { rows } = await q(
-    `SELECT m.id, m.media_url, m.palette, m.created_at, m.expires_at,
+    `SELECT m.id, m.media_url,
+            (SELECT up.mime FROM uploads up WHERE up.url = m.media_url LIMIT 1) AS media_mime,
+            m.palette, m.created_at, m.expires_at,
             u.id AS author_id, u.handle, u.name, u.palette AS author_palette, u.avatar_url AS author_avatar_url,
             EXISTS (SELECT 1 FROM moment_views v WHERE v.moment_id = m.id AND v.user_id = $1) AS viewed
      FROM moments m JOIN users u ON u.id = m.author_id

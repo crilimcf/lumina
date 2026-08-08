@@ -196,16 +196,16 @@ export function requireMember(paramName = 'communityId') {
 }
 
 /**
- * Exige que o utilizador seja membro da comunidade a que o post pertence.
- * Usado para ler e escrever comentarios: sem isto, o conteudo de uma
- * comunidade fechada era legivel por qualquer pessoa com o id do post.
+ * Exige que o utilizador seja membro da comunidade a que o post pertence e
+ * que o post ainda esteja visível. Conteúdo auto-ocultado/moderado só volta a
+ * circular quando um moderador o repuser — conhecer o UUID não é um atalho.
  */
 export async function requirePostMember(req, _res, next) {
   try {
     const { rows } = await q(
       `SELECT 1 FROM posts p
        JOIN memberships m ON m.community_id = p.community_id
-       WHERE p.id = $1 AND m.user_id = $2`,
+       WHERE p.id = $1 AND p.hidden_at IS NULL AND m.user_id = $2`,
       [req.params.postId, req.user.id]
     );
     if (!rows[0]) throw forbidden('So membros desta comunidade veem isto');

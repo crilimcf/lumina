@@ -67,8 +67,8 @@ authRoutes.post('/register', h(async (req, res) => {
   if (!/^[a-z0-9._]{3,24}$/.test(handle)) throw bad('Nome de utilizador invalido: minusculas, numeros, ponto ou underscore');
   if (String(name).trim().length < 2 || String(name).length > 60) throw bad('Nome invalido');
 
-  // O RGPD fixa a idade de consentimento em 16 anos; Portugal manteve os 16.
-  // Uma rede social sem verificacao nenhuma nao e defensavel.
+  // O Lumina adota 16+ como política do produto. Este limiar não deve ser
+  // apresentado como a idade mínima legal de consentimento digital em Portugal.
   if (!birthDate) throw bad('Falta a data de nascimento', 'birth_required');
   const age = ageFrom(birthDate);
   if (age === null) throw bad('Data de nascimento invalida');

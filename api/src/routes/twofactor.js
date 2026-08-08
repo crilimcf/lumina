@@ -108,10 +108,10 @@ sessionRoutes.post('/revoke-all', auth, h(async (req, res) => {
   );
   await q('UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [req.user.id]);
   audit(req.user.id, 'sessoes:todas-fechadas', req.user.id);
-  // Token novo para quem pediu não ficar de fora — e regista-o já, senão
-  // o próprio dispositivo que pediu "fechar tudo" desaparecia da lista.
+  // Token novo para quem pediu não ficar de fora — e regista-o antes de
+  // responder para Segurança o mostrar imediatamente como sessão atual.
   const token = signToken(rows[0]);
-  recordSession(rows[0].id, token, req);
+  await recordSession(rows[0].id, token, req);
   setSessionCookie(res, token);
   res.json({ token, csrf: csrfOf(token) });
 }));

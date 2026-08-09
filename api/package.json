@@ -11,7 +11,6 @@
     "test": "node --test --test-concurrency=1 test/*.test.js",
     "migrate": "node -e \"import('./src/db.js').then(m=>m.migrate().then(()=>{console.log('migrado');process.exit(0)}))\"",
     "seed": "node scripts/seed.js",
-    "reset:production": "node scripts/reset-production.js",
     "cron": "node scripts/cron.js",
     "cron:invites": "node scripts/cron.js invites",
     "cron:purge": "node scripts/cron.js purge",

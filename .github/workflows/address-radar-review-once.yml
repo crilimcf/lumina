@@ -1,0 +1,46 @@
+name: Address Radar review once
+
+on:
+  push:
+    paths:
+      - '.github/workflows/address-radar-review-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/radar-ingestion
+      - name: Address review findings
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          radar = Path('api/src/jobs/radar.js')
+          text = radar.read_text()
+          old = "    request.setTimeout(FETCH_TIMEOUT_MS, () => request.destroy(new Error('Timeout ao obter fonte RSS')));\n    request.on('error', reject);"
+          new = "    const absoluteTimeout = setTimeout(\n      () => request.destroy(new Error('Timeout total ao obter fonte RSS')),\n      FETCH_TIMEOUT_MS,\n    );\n    absoluteTimeout.unref?.();\n    request.once('close', () => clearTimeout(absoluteTimeout));\n    request.setTimeout(FETCH_TIMEOUT_MS, () => request.destroy(new Error('Timeout de inatividade ao obter fonte RSS')));\n    request.on('error', reject);"
+          if old not in text:
+              raise SystemExit('expected feed timeout block not found')
+          radar.write_text(text.replace(old, new, 1))
+
+          sync = Path('api/src/routes/radar-sync.js')
+          text = sync.read_text()
+          old = "  const result = await syncRadarSources({ sourceId: source.id });\n  audit(req.user.id, 'radar_source_sync', `radar_source:${source.id}`, result);\n  res.status(result.skipped ? 202 : 200).json(result);"
+          new = "  const result = await syncRadarSources({ sourceId: source.id });\n  audit(req.user.id, 'radar_source_sync', `radar_source:${source.id}`, result);\n  if (result.failed) {\n    const { rows: state } = await q('SELECT last_fetch_error FROM radar_sources WHERE id=$1', [source.id]);\n    return res.status(502).json({\n      ...result,\n      error: state[0]?.last_fetch_error || 'A sincronização da fonte falhou',\n      code: 'radar_sync_failed',\n    });\n  }\n  res.status(result.skipped ? 202 : 200).json(result);"
+          if old not in text:
+              raise SystemExit('expected manual sync response block not found')
+          sync.write_text(text.replace(old, new, 1))
+          PY
+      - name: Commit review fixes
+        run: |
+          set -eu
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add api/src/jobs/radar.js api/src/routes/radar-sync.js
+          git commit -m 'fix: bound Radar sync time and surface failures'
+          git push origin HEAD:feature/radar-ingestion

@@ -74,7 +74,7 @@ test('Sala pública cria, abre, envia e apaga mensagem em Mobile Safari', async 
   await page.getByPlaceholder('Nome da sala').fill(roomName);
   await page.getByPlaceholder('Tópico principal').fill('Liga Portugal esta noite');
   await page.getByPlaceholder('Descrição (opcional)').fill('Conversa em tempo real sem poluir o feed.');
-  await page.getByRole('button', { name: /Pública/ }).click();
+  await page.getByRole('button', { name: 'Pública Qualquer pessoa', exact: true }).click();
   await page.getByRole('button', { name: 'Criar sala', exact: true }).click();
 
   const roomCard = page.getByText(roomName, { exact: true });

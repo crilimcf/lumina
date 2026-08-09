@@ -21,7 +21,7 @@ test('nova navegação separa Salas e Promoções e o post é editável/apagáve
 
 test('Salas públicas criam cartão com tópico e chat interno em Mobile Safari',async({page})=>{
   await openLumina(page);await page.getByRole('button',{name:'Salas'}).click();await expect(page.getByRole('heading',{name:/Salas/i})).toBeVisible();await page.getByRole('button',{name:/Criar/}).click();
-  await page.getByPlaceholder('Nome da sala').fill('Sala Futebol QA');await page.getByPlaceholder('Tópico principal').fill('Liga Portugal esta noite');await page.getByPlaceholder('Descrição (opcional)').fill('Conversa em tempo real sem poluir o feed.');await page.getByRole('button',{name:'Pública Qualquer pessoa',exact:true}).click();await page.getByRole('button',{name:'Criar sala',exact:true}).click();
+  await page.getByPlaceholder('Nome da sala').fill('Sala Futebol QA');await page.getByPlaceholder('Tópico principal').fill('Liga Portugal esta noite');await page.getByPlaceholder('Descrição (opcional)').fill('Conversa em tempo real sem poluir o feed.');await page.locator('button').filter({hasText:'Qualquer pessoa Lumina pode entrar.'}).click();await page.getByRole('button',{name:'Criar sala',exact:true}).click();
   const roomName=page.getByText('Sala Futebol QA',{exact:true});await expect(roomName).toBeVisible();await roomName.click();await expect(page.getByText('Liga Portugal esta noite',{exact:true})).toBeVisible();const input=page.getByPlaceholder('Mensagem para a sala…');await input.fill('Boa noite sala 👋');await page.getByRole('button',{name:'Enviar para a sala'}).click();await expect(page.getByText('Boa noite sala 👋')).toBeVisible();
 });
 

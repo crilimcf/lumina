@@ -136,7 +136,7 @@ export default function App() {
   let activeScreen;
   if (tab==='dms') activeScreen=<Conversas me={me} {...navProps} comp={comp} {...messageState}/>;
   else if (tab==='rooms') activeScreen=<Salas me={me} {...navProps}/>;
-  else if (tab==='promos') activeScreen=<Promocoes {...navProps}/>;
+  else if (tab==='promos') activeScreen=<Promocoes me={me} setScreen={setScreen} {...navProps}/>;
   else if (tab==='alerts') activeScreen=<Atividade {...navProps} onUnreadChange={setUnreadCount}/>;
   else if (tab==='me') activeScreen=<Perfil me={me} blocked={blocked} setBlocked={setBlocked} setScreen={setScreen} logout={logout} tab={tab} setTab={setTab} setThread={messageState.setThread} setComp={composerState.setComp} threads={messageState.threads} ping={ping} toast={toast} unreadCount={unreadCount}/>;
   else activeScreen=<Feed me={me} tab={tab} setTab={setTab} setScreen={setScreen} {...feedState} report={report} comp={null} {...composerWithoutComp} threads={messageState.threads} setThread={messageState.setThread} ping={ping} toast={toast} unreadCount={unreadCount} {...momentState}/>;

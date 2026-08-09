@@ -63,6 +63,25 @@ export function useMoments({ me, ping }) {
     }
   };
 
+  const editMoment = async (id, file) => {
+    if (!file || momentBusy) return false;
+    setMomentBusy(true);
+    try {
+      const mediaUrl = await api.upload(file);
+      const edited = await api.moments.update(id, { mediaUrl });
+      setMoments(current => current.map(moment =>
+        moment.id === id ? { ...moment, ...edited } : moment
+      ));
+      ping('Momento atualizado');
+      return true;
+    } catch (e) {
+      ping(e.message);
+      return false;
+    } finally {
+      setMomentBusy(false);
+    }
+  };
+
   const viewMoment = (id) => {
     api.moments.view(id).catch(() => {});
     setMoments(current => current.map(moment =>
@@ -113,6 +132,7 @@ export function useMoments({ me, ping }) {
     setMomentPalette,
     momentBusy,
     publishMoment,
+    editMoment,
     viewMoment,
     deleteMoment,
     replyToMoment,

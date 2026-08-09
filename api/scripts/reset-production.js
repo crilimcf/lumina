@@ -1,11 +1,13 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { env } from '../src/env.js';
 import { migrate, pool, q, tx } from '../src/db.js';
 import { signedUploadUrl } from '../src/lib/storage.js';
 
-const REQUIRED_CONFIRMATION = 'RESET_LUMINA_PRODUCTION';
+export const REQUIRED_CONFIRMATION = 'RESET_LUMINA_PRODUCTION';
 // Fora da sequência normal das migrations. Fica em schema_migrations para o
 // reset ser atómico e impossível de repetir num restart da mesma release.
-const RESET_MARKER_VERSION = 900009;
+export const RESET_MARKER_VERSION = 900009;
 
 const quoteIdent = (value) => `"${String(value).replaceAll('"', '""')}"`;
 
@@ -18,8 +20,8 @@ async function removeTrackedObject(key) {
   }
 }
 
-async function main() {
-  if (process.env.LUMINA_RESET_CONFIRM !== REQUIRED_CONFIRMATION) {
+export async function resetProduction({ confirmation = process.env.LUMINA_RESET_CONFIRM } = {}) {
+  if (confirmation !== REQUIRED_CONFIRMATION) {
     throw new Error(
       `Reset recusado. Define LUMINA_RESET_CONFIRM=${REQUIRED_CONFIRMATION} apenas para a release de limpeza.`
     );
@@ -33,7 +35,7 @@ async function main() {
   );
   if (marker.rowCount) {
     console.log('[reset] limpeza final já foi executada; nada a fazer');
-    return;
+    return { alreadyDone: true };
   }
 
   const [{ rows: uploads }, { rows: tables }, { rows: summary }] = await Promise.all([
@@ -80,13 +82,18 @@ async function main() {
   if (Object.values(after[0]).some(Number)) {
     throw new Error('Reset terminou com dados sociais residuais; intervenção necessária');
   }
+
+  return { alreadyDone: false, before: summary[0], after: after[0] };
 }
 
-main()
-  .catch((error) => {
-    console.error('[reset] FALHOU:', error.message);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await pool.end().catch(() => {});
-  });
+const isCli = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isCli) {
+  resetProduction()
+    .catch((error) => {
+      console.error('[reset] FALHOU:', error.message);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await pool.end().catch(() => {});
+    });
+}

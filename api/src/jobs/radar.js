@@ -420,9 +420,8 @@ export function canonicalArticleUrl(value) {
   } catch { return null; }
 }
 
-function fingerprint(_sourceId, entry) {
-  const identity = canonicalArticleUrl(entry.externalUrl) || entry.stableId;
-  return `rss:${crypto.createHash('sha256').update(String(identity || '')).digest('hex')}`;
+function fingerprint(sourceId, entry) {
+  return `rss:${crypto.createHash('sha256').update(`${sourceId}\n${entry.stableId}`).digest('hex')}`;
 }
 
 async function recordFailure(sourceId, error) {
@@ -457,9 +456,27 @@ export async function ingestRssSource(source, { fetchFeedImpl = fetchPublicFeed 
       .sort((a, b) => (Date.parse(b.publishedAt || '') || 0) - (Date.parse(a.publishedAt || '') || 0))
       .slice(0, config.maxItems);
     const initialStatus = source.trusted && config.autoPublish ? 'published' : 'draft';
+    const { rows: existingRssItems } = await q(
+      `SELECT fingerprint, external_url
+         FROM radar_items
+        WHERE fingerprint LIKE 'rss:%'
+          AND external_url IS NOT NULL
+          AND published_at >= now() - ($1::int * interval '1 day')`,
+      [config.maxAgeDays]
+    );
+    const canonicalExisting = new Map();
+    for (const existing of existingRssItems) {
+      const canonical = canonicalArticleUrl(existing.external_url);
+      if (canonical && !canonicalExisting.has(canonical)) canonicalExisting.set(canonical, existing.fingerprint);
+    }
     let touched = 0;
 
     for (const entry of entries) {
+      const itemFingerprint = fingerprint(source.id, entry);
+      const canonical = canonicalArticleUrl(entry.externalUrl);
+      const duplicateFingerprint = canonical ? canonicalExisting.get(canonical) : null;
+      if (duplicateFingerprint && duplicateFingerprint !== itemFingerprint) continue;
+
       const tags = [...new Set([...config.tags, ...entry.tags])].slice(0, 12);
       const { rowCount } = await q(
         `INSERT INTO radar_items (
@@ -484,10 +501,11 @@ export async function ingestRssSource(source, { fetchFeedImpl = fetchPublicFeed 
         [
           source.default_type, entry.title, entry.summary, entry.imageUrl, entry.externalUrl,
           source.id, source.name, source.url, tags, config.region, entry.publishedAt,
-          initialStatus, config.priority, fingerprint(source.id, entry),
+          initialStatus, config.priority, itemFingerprint,
         ]
       );
       touched += rowCount;
+      if (canonical) canonicalExisting.set(canonical, itemFingerprint);
     }
 
     await q(

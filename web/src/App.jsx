@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, onUnauthorized } from './api.js';
 import { Seguranca, Moderacao, Legal } from './Seguranca.jsx';
 import { Composer } from './components/AppChrome.jsx';
-import { Marco, Welcome, checkMilestone } from './components/Milestones.jsx';
+import { Welcome } from './components/Milestones.jsx';
 import { Entrada } from './screens/Entrada.jsx';
 import { Abertura } from './screens/Abertura.jsx';
 import { EditarPerfil } from './screens/EditarPerfil.jsx';
@@ -28,7 +28,6 @@ export default function App() {
   const [me, setMe] = useState(null);
   const [booting, setBooting] = useState(true);
   const [opening, setOpening] = useState(false);
-  const [milestone, setMilestone] = useState(null);
   const [showWelcome, setShowWelcome] = useState(false);
   const [tab, setTab] = useState(initialTab);
   const [toast, setToast] = useState('');
@@ -83,7 +82,6 @@ export default function App() {
     ]);
     setComs(communities);
     setDays(answerDays.days || []);
-    setMilestone(checkMilestone(answerDays.lifetime, user.id));
     setOpening(true);
     feedState.loadFeed();
     momentState.loadMoments();
@@ -112,7 +110,6 @@ export default function App() {
   if (booting) return <div style={{minHeight:'100dvh',display:'grid',placeItems:'center'}}><div className="d" style={{fontSize:34,opacity:.25}}>Lumi<span className="it">na</span></div></div>;
   if (!me) return <Entrada onIn={afterLogin}/>;
   if (showWelcome) return <Welcome onContinue={()=>setShowWelcome(false)}/>;
-  if (milestone) return <Marco milestone={milestone} onContinue={()=>setMilestone(null)}/>;
   if (opening) return <Abertura me={me} coms={coms} days={days} onSkip={()=>setOpening(false)} onRooms={()=>{setOpening(false);setTab('rooms')}} onCreateCommunity={()=>{setOpening(false);setScreen('comunidades')}}/>;
 
   if (screen==='seguranca') return <Seguranca onBack={()=>setScreen(null)} ping={ping}/>;

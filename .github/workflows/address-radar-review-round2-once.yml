@@ -1,0 +1,90 @@
+name: Address Radar review round 2 once
+
+on:
+  push:
+    paths:
+      - '.github/workflows/address-radar-review-round2-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/radar-ingestion
+      - name: Address second review findings
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          radar = Path('api/src/jobs/radar.js')
+          text = radar.read_text()
+
+          old = "  const stableId = cleanText(item?.guid ?? item?.id ?? externalUrl ?? `${title}:${publishedAt}`, 2_000);"
+          new = "  const stableId = [item?.guid, item?.id, externalUrl, `${title}:${publishedAt}`]\n    .map(value => cleanText(value, 2_000))\n    .find(Boolean);"
+          if old not in text:
+              raise SystemExit('stableId block not found')
+          text = text.replace(old, new, 1)
+
+          anchor = "function isBlockedAddress(address, family) {\n"
+          helper = "function remainingDeadlineMs(deadlineAt) {\n  const remaining = Number(deadlineAt) - Date.now();\n  if (!Number.isFinite(remaining) || remaining <= 0) throw new Error('Timeout total ao obter fonte RSS');\n  return remaining;\n}\n\nexport async function withDeadline(promise, deadlineAt, message = 'Timeout total ao obter fonte RSS') {\n  const remaining = remainingDeadlineMs(deadlineAt);\n  let timer;\n  try {\n    return await Promise.race([\n      promise,\n      new Promise((_resolve, reject) => {\n        timer = setTimeout(() => reject(new Error(message)), remaining);\n      }),\n    ]);\n  } finally {\n    if (timer) clearTimeout(timer);\n  }\n}\n\nexport function resolveRedirectUrl(location, base) {\n  try { return new URL(String(location || ''), base).toString(); }\n  catch { throw new Error('Redirect RSS inválido'); }\n}\n\n"
+          if anchor not in text:
+              raise SystemExit('blocked-address anchor not found')
+          text = text.replace(anchor, helper + anchor, 1)
+
+          old = "export async function resolvePublicFeedTarget(input) {"
+          new = "export async function resolvePublicFeedTarget(input, { deadlineAt = Date.now() + FETCH_TIMEOUT_MS, lookup = dns.lookup } = {}) {"
+          if old not in text:
+              raise SystemExit('resolve target signature not found')
+          text = text.replace(old, new, 1)
+
+          old = "  const addresses = literalFamily\n    ? [{ address: hostname, family: literalFamily }]\n    : await dns.lookup(hostname, { all: true, verbatim: true });"
+          new = "  const addresses = literalFamily\n    ? [{ address: hostname, family: literalFamily }]\n    : await withDeadline(\n        lookup(hostname, { all: true, verbatim: true }),\n        deadlineAt,\n        'Timeout ao resolver DNS da fonte RSS',\n      );"
+          if old not in text:
+              raise SystemExit('DNS lookup block not found')
+          text = text.replace(old, new, 1)
+
+          old = "export async function fetchPublicFeed(input, { etag = null, lastModified = null, redirects = 0 } = {}) {\n  if (redirects > MAX_REDIRECTS) throw new Error('Demasiados redirects na fonte RSS');\n  const target = await resolvePublicFeedTarget(input);"
+          new = "export async function fetchPublicFeed(input, {\n  etag = null, lastModified = null, redirects = 0, deadlineAt = Date.now() + FETCH_TIMEOUT_MS,\n} = {}) {\n  if (redirects > MAX_REDIRECTS) throw new Error('Demasiados redirects na fonte RSS');\n  remainingDeadlineMs(deadlineAt);\n  const target = await resolvePublicFeedTarget(input, { deadlineAt });"
+          if old not in text:
+              raise SystemExit('fetch signature block not found')
+          text = text.replace(old, new, 1)
+
+          old = "      if (status >= 300 && status < 400 && response.headers.location) {\n        const next = new URL(response.headers.location, target.url).toString();\n        response.resume();\n        fetchPublicFeed(next, { etag, lastModified, redirects: redirects + 1 }).then(resolve, reject);\n        return;\n      }"
+          new = "      if (status >= 300 && status < 400 && response.headers.location) {\n        let next;\n        try { next = resolveRedirectUrl(response.headers.location, target.url); }\n        catch (error) {\n          response.resume();\n          reject(error);\n          return;\n        }\n        response.resume();\n        fetchPublicFeed(next, { etag, lastModified, redirects: redirects + 1, deadlineAt }).then(resolve, reject);\n        return;\n      }"
+          if old not in text:
+              raise SystemExit('redirect block not found')
+          text = text.replace(old, new, 1)
+
+          old = "    const absoluteTimeout = setTimeout(\n      () => request.destroy(new Error('Timeout total ao obter fonte RSS')),\n      FETCH_TIMEOUT_MS,\n    );\n    absoluteTimeout.unref?.();"
+          new = "    const absoluteTimeout = setTimeout(\n      () => request.destroy(new Error('Timeout total ao obter fonte RSS')),\n      remainingDeadlineMs(deadlineAt),\n    );"
+          if old not in text:
+              raise SystemExit('absolute timeout block not found')
+          text = text.replace(old, new, 1)
+          radar.write_text(text)
+
+          tests = Path('api/test/radar-ingestion.test.js')
+          t = tests.read_text()
+          t = t.replace(
+            "import { ingestRssSource, parseSyndicationFeed, resolvePublicFeedTarget } from '../src/jobs/radar.js';",
+            "import { ingestRssSource, parseSyndicationFeed, resolvePublicFeedTarget, resolveRedirectUrl, withDeadline } from '../src/jobs/radar.js';",
+            1,
+          )
+          insert_after = "test('parser rejeita DTD/entidades de XML não confiável', () => {\n  assert.throws(\n    () => parseSyndicationFeed('<!DOCTYPE rss [<!ENTITY x \"boom\">]><rss><channel><item><title>&x;</title></item></channel></rss>'),\n    /DTD\\/entidades/\n  );\n});\n"
+          extra = "\ntest('GUID vazio cai para o link e não colide entre artigos', () => {\n  const xml = `<?xml version=\"1.0\"?><rss><channel>\n    <item><title>Um</title><guid>   </guid><link>https://example.test/um</link></item>\n    <item><title>Dois</title><guid></guid><link>https://example.test/dois</link></item>\n  </channel></rss>`;\n  const entries = parseSyndicationFeed(xml, { now: Date.parse('2026-08-09T19:00:00Z') });\n  assert.equal(entries.length, 2);\n  assert.equal(entries[0].stableId, 'https://example.test/um');\n  assert.equal(entries[1].stableId, 'https://example.test/dois');\n  assert.notEqual(entries[0].stableId, entries[1].stableId);\n});\n\ntest('redirect inválido vira erro controlado', () => {\n  assert.throws(() => resolveRedirectUrl('http://[::1', 'https://example.test/feed'), /Redirect RSS inválido/);\n});\n\ntest('deadline cobre também uma resolução DNS bloqueada', async () => {\n  const deadlineAt = Date.now() + 25;\n  await assert.rejects(\n    () => resolvePublicFeedTarget('https://feed.example.test/rss', {\n      deadlineAt,\n      lookup: () => new Promise(() => {}),\n    }),\n    /Timeout ao resolver DNS/\n  );\n  await assert.rejects(\n    () => withDeadline(new Promise(() => {}), Date.now() + 25, 'deadline teste'),\n    /deadline teste/\n  );\n});\n"
+          if insert_after not in t:
+              raise SystemExit('test insertion anchor not found')
+          t = t.replace(insert_after, insert_after + extra, 1)
+          tests.write_text(t)
+          PY
+      - name: Commit review fixes
+        run: |
+          set -eu
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add api/src/jobs/radar.js api/test/radar-ingestion.test.js
+          git commit -m 'fix: bound Radar DNS and harden feed identities'
+          git push origin HEAD:feature/radar-ingestion

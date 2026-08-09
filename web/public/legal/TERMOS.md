@@ -1,135 +1,85 @@
-# Termos de Utilização
+# Termos de Utilização da Lumina
 
-**Versão 2026-08-01**
+**Versão:** 9 de agosto de 2026
 
-> ⚠️ **Rascunho.** Isto foi escrito para te dar um ponto de partida sério, não
-> para ser publicado como está. Não sou advogado. Antes de aceitares alguém que
-> não conheças, mostra isto a quem perceba de direito digital em Portugal — há
-> obrigações que dependem de como estruturas o negócio e onde alojas os dados.
->
-> Os campos entre `[colchetes]` têm de ser preenchidos por ti.
+> Este texto é uma base técnica de produto e deve ser revisto por aconselhamento jurídico antes de um lançamento público alargado.
 
----
+## 1. O que é a Lumina
 
-## 1. Quem somos
+A Lumina é uma rede social que permite criar um perfil, seguir pessoas, publicar no Feed, partilhar Momentos temporários, participar em Salas e conversar por mensagem ou chamada.
 
-A Lumina é gerida por `[nome legal / empresa]`, com sede em `[morada]` e
-número de identificação fiscal `[NIF]`.
+A navegação principal é Feed, Salas, Novo, Radar e Chat. Alertas e Perfil são áreas pessoais.
 
-Contacto: `[email]`
-Moderação e denúncias: `[email de moderação]`
+## 2. Quem pode usar
 
-## 2. O que é a Lumina
+A política atual da Lumina exige idade mínima de **16 anos** para criar conta. A data de nascimento é pedida no registo para aplicar essa regra.
 
-A Lumina é uma rede de comunidades. Cada comunidade tem um convite diário,
-escolhido por votação entre propostas dos seus membros. Os membros respondem
-com texto e imagens, reagem, comentam e trocam mensagens privadas.
+Não declares uma idade falsa nem cries uma conta em nome de outra pessoa sem autorização.
 
-O serviço é gratuito. Não há publicidade.
+## 3. A tua conta
 
-## 3. Quem pode usar
+És responsável por manter a tua password e os teus meios de autenticação em segurança. Podes ativar autenticação de dois fatores e consultar/fechar sessões ativas.
 
-Tens de ter **16 anos ou mais**. Ao criar conta declaras que cumpres essa
-condição. Se soubermos que alguém não a cumpre, apagamos a conta.
+Não partilhes códigos de recuperação, tokens ou credenciais com terceiros.
 
-Não podes usar a Lumina se te tivermos banido antes, nem criar conta em nome de
-outra pessoa.
+## 4. Conteúdo e funcionamento social
 
-## 4. A tua conta
+Continuas a ser responsável pelo conteúdo que publicas.
 
-És responsável por manter a password em segredo e por tudo o que acontece na tua
-conta. Se suspeitares que alguém entrou nela, troca a password — isso fecha
-todas as outras sessões — e avisa-nos.
+- O **Feed** mostra as tuas publicações e as de pessoas que segues, por ordem cronológica.
+- **Salas** são espaços temáticos públicos ou privados. Salas privadas dependem de convite.
+- **Momentos** ficam disponíveis durante 24 horas, salvo se os apagares antes.
+- **Radar** separa descoberta/campanhas do Feed social.
+- **Chat** permite mensagens privadas e chamadas.
 
-Recomendamos que ligues a autenticação em dois passos.
+Perfis privados exigem aceitação de pedido antes de existir uma relação de follow. Um bloqueio corta a relação e a visibilidade entre as duas contas.
 
-## 5. O que publicas
+## 5. O que não é permitido
 
-**O que é teu continua teu.** Não reclamamos propriedade sobre o que escreves ou
-fotografas.
+Não uses a Lumina para:
 
-Ao publicares, dás-nos autorização para guardar e mostrar esse conteúdo dentro
-da Lumina, às pessoas a quem o destinaste. Essa autorização existe apenas para
-o serviço funcionar e termina quando apagas o conteúdo ou a conta — com a
-ressalva de que cópias em cópias de segurança podem levar até `[30]` dias a
-desaparecer.
+- conteúdo ilegal;
+- ameaças, perseguição ou assédio;
+- exploração sexual de menores;
+- divulgação não autorizada de dados pessoais de terceiros;
+- spam, fraude, malware ou tentativas de acesso indevido;
+- contornar bloqueios, controlos de acesso ou mecanismos de segurança;
+- fazer-te passar por outra pessoa de forma enganosa.
 
-Não usamos o teu conteúdo para publicidade, nem o vendemos, nem o cedemos para
-treinar sistemas de terceiros.
+## 6. Moderação
 
-## 6. O que não é permitido
+As pessoas podem denunciar contas, publicações e comentários. Conteúdo que acumule denúncias pode ser ocultado automaticamente até revisão.
 
-Não é permitido publicar ou enviar:
+As decisões de moderação global são reservadas à equipa Lumina. Podemos repor ou remover conteúdo e suspender contas quando necessário para aplicar estes Termos ou cumprir a lei.
 
-- Conteúdo sexual envolvendo menores. Comunicamos estes casos às autoridades.
-- Ameaças, incitamento à violência ou ao ódio contra pessoas ou grupos.
-- Assédio, perseguição ou divulgação de dados pessoais de outros sem
-  consentimento.
-- Conteúdo que não tens direito a publicar.
-- Publicidade não solicitada, esquemas de angariação ou burla.
-- Imagens íntimas de alguém sem o consentimento dessa pessoa.
-- Tentativas de aceder a contas ou sistemas que não são teus.
+## 7. Media, armazenamento e conteúdo efémero
 
-## 7. Moderação
+Fotografias e vídeos podem ser armazenados num fornecedor externo de objetos. A aplicação valida tipo/tamanho e associa cada upload à conta que o iniciou.
 
-Cada comunidade tem moderadores, escolhidos por quem a fundou.
+Mensagens e Momentos marcados como efémeros são removidos do conteúdo ativo segundo as regras apresentadas no produto. A Lumina não promete impedir capturas de ecrã, gravações ou cópias feitas por outra pessoa antes da expiração.
 
-Quando um conteúdo recebe `[3]` denúncias, deixa de estar visível até um
-moderador o rever. Isto não é uma decisão: é uma pausa. O moderador decide
-depois se volta ou fica removido.
+## 8. Funcionalidades pagas
 
-Se discordares de uma decisão, escreve para `[email de moderação]`. Respondemos
-no prazo de `[15]` dias.
+A infraestrutura pode conter suporte técnico para funcionalidades futuras, mas uma funcionalidade paga só existe para o utilizador quando estiver explicitamente ativada e forem apresentados preço e condições antes da compra.
 
-Podemos suspender ou apagar contas que violem repetidamente estas regras, ou
-imediatamente em casos graves.
+## 9. Disponibilidade
 
-## 8. Mensagens que desaparecem
+A Lumina pode ter interrupções, manutenção, erros ou alterações. Não prometemos disponibilidade contínua nem ausência total de falhas.
 
-Podes enviar mensagens que se apagam depois de lidas e fotos que só abrem uma
-vez. Quando expiram, apagamos mesmo o conteúdo dos nossos servidores.
+## 10. Apagamento de conta
 
-**Isto impede uma segunda leitura, não impede uma captura de ecrã.** Não temos
-forma de impedir que quem recebe fotografe o ecrã ou use outro aparelho. Envia
-como se pudesse ser guardado.
+Podes pedir o apagamento da conta. O produto aplica uma janela de 30 dias durante a qual o pedido pode ser cancelado ao voltares a entrar. Depois da execução, os dados abrangidos são removidos de acordo com a implementação e as obrigações legais aplicáveis.
 
-## 9. Conteúdo de outras pessoas
+## 11. Propriedade intelectual
 
-O que os outros publicam é da responsabilidade deles. Não verificamos tudo
-previamente. Se vires alguma coisa que viole estas regras, usa o botão de
-denúncia.
+A interface, marca, código e elementos próprios da Lumina não te são transferidos por criares uma conta. Manténs os direitos que tenhas sobre o conteúdo que crias, concedendo apenas as permissões necessárias para o serviço o armazenar, processar e mostrar enquanto estiver legitimamente disponível.
 
-## 10. Interrupções e alterações
+## 12. Alterações
 
-Fazemos o possível para manter o serviço disponível, mas não garantimos que
-funcione sem interrupções. Podemos alterar ou descontinuar funcionalidades.
+Podemos atualizar estes Termos quando o produto, a lei ou os fornecedores mudarem. Alterações relevantes devem ser comunicadas de forma adequada.
 
-Se descontinuarmos a Lumina, avisamos com pelo menos `[30]` dias e damos-te
-forma de levar os teus dados.
+## 13. Contacto
 
-## 11. Alterações a estes termos
+**Contacto do responsável:** `[email a preencher antes do lançamento]`
 
-Se mudarmos alguma coisa relevante, avisamos com `[15]` dias de antecedência
-pela app ou por email. Continuar a usar a Lumina depois disso significa que
-aceitas a versão nova.
-
-## 12. Terminar
-
-Podes apagar a conta a qualquer momento nas definições. O apagamento fica
-agendado para `[30]` dias depois — entrar outra vez até lá cancela-o.
-
-## 13. Responsabilidade
-
-Fornecemos o serviço tal como está. Na medida em que a lei o permita, não
-respondemos por danos indiretos ou lucros cessantes.
-
-Nada nestes termos limita direitos que a lei portuguesa te dá enquanto
-consumidor.
-
-## 14. Lei aplicável
-
-Aplica-se a lei portuguesa. Para litígios são competentes os tribunais de
-`[comarca]`, sem prejuízo do direito de recorreres ao tribunal do teu domicílio.
-
-Podes também recorrer à resolução alternativa de litígios de consumo através de
-`[entidade RAL competente]`.
+**Morada/NIF do responsável:** `[a preencher antes do lançamento]`

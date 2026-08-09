@@ -54,6 +54,7 @@ test('navegação final tem 5 itens; publicação edita/apaga; Radar está separ
   await expect(page.locator('article').filter({ hasText: `${text} corrigido` })).toHaveCount(0);
   await expect(page.getByText('Publicação apagada')).toBeVisible();
 
+  // Radar stays a discovery surface: commercial/editorial content never becomes a normal social post.
   await page.getByRole('button', { name: 'Radar' }).click();
   await expect(page.getByRole('heading', { name: /Radar/i })).toBeVisible();
   await expect(page.getByText(/Separado do Feed social/i)).toBeVisible();

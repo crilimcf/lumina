@@ -1,0 +1,50 @@
+name: Railway one-time API deploy
+
+on:
+  push:
+    paths:
+      - '.github/workflows/railway-deploy-once.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    container: ghcr.io/railwayapp/cli:latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authorize Railway and deploy Lumina API
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'RAILWAY_AUTH_START'
+          echo 'Authorize the browserless Railway session shown below.'
+          railway login --browserless
+          echo 'RAILWAY_AUTH_OK'
+
+          linked=0
+          linked_service=''
+          for project in Lumina lumina; do
+            for service in api lumina-api API backend; do
+              echo "Trying project=$project service=$service"
+              if railway link --project "$project" --environment production --service "$service" --json; then
+                linked=1
+                linked_service="$service"
+                break 2
+              fi
+            done
+          done
+
+          if [ "$linked" -ne 1 ]; then
+            echo 'Could not auto-link Lumina. Available Railway projects:'
+            railway list --json || true
+            exit 78
+          fi
+
+          echo "RAILWAY_LINK_OK service=$linked_service"
+          railway status --json || true
+          railway up --service "$linked_service" --environment production --ci --message "Deploy Lumina API from GitHub master ${GITHUB_SHA}"
+          echo 'RAILWAY_DEPLOY_OK'

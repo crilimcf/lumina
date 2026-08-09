@@ -5,7 +5,9 @@ import { auth, h, notFound } from '../middleware/auth.js';
 export const notificationRoutes = Router();
 
 const SELECT_NOTIFICATION = `
-  SELECT n.id, n.type, n.data, n.read_at, n.created_at,
+  SELECT n.id, COALESCE(n.type,n.kind) AS type,
+         CASE WHEN n.type IS NULL THEN COALESCE(n.payload,'{}'::jsonb) ELSE n.data END AS data,
+         n.read_at, n.created_at,
          n.post_id, n.room_id, n.follow_request_id,
          a.id AS actor_id, a.handle AS actor_handle, a.name AS actor_name,
          a.palette AS actor_palette, a.avatar_url AS actor_avatar_url,

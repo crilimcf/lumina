@@ -2,6 +2,20 @@
 -- Usa apenas feeds RSS públicos conhecidos para ingestão automática.
 -- Os meios sem endpoint RSS/API validado ficam no catálogo, inativos, até existir conector oficial.
 
+-- Guarda a política efetiva no momento em que cada item RSS entra. Isto impede que
+-- alterações futuras a `trusted`/`autoPublish` reclassifiquem retroativamente o dedupe.
+ALTER TABLE radar_items ADD COLUMN IF NOT EXISTS ingestion_trusted BOOLEAN;
+ALTER TABLE radar_items ADD COLUMN IF NOT EXISTS ingestion_publishable BOOLEAN;
+
+UPDATE radar_items ri
+SET ingestion_trusted = rs.trusted,
+    ingestion_publishable = rs.trusted
+      AND (rs.config->'autoPublish' IS DISTINCT FROM 'false'::jsonb)
+FROM radar_sources rs
+WHERE ri.source_id = rs.id
+  AND ri.fingerprint LIKE 'rss:%'
+  AND (ri.ingestion_trusted IS NULL OR ri.ingestion_publishable IS NULL);
+
 WITH source_pack(name, kind, url, default_type, active, trusted, config) AS (
   VALUES
     ('RTP Notícias · País', 'rss', 'https://www.rtp.pt/noticias/rss/pais', 'news', true, true,

@@ -15,24 +15,44 @@ export function useComposer({ loadFeed, setComs, setDays, ping }) {
       let mediaUrl = null;
       if (file) mediaUrl = await api.upload(file);
       const answeringInvite = !!comp.inviteId;
-      const payload = {
-        body: body.trim(), mediaUrl, palette, inviteId: comp.inviteId || null,
-      };
-      if (comp.community) payload.communityId = comp.community;
 
-      await api.posts.create(payload);
-      setBody(''); setFile(null); setComp(null);
-      await loadFeed();
+      await api.posts.create({
+        communityId: comp.community,
+        body: body.trim(),
+        mediaUrl,
+        palette,
+        inviteId: comp.inviteId || null,
+      });
 
-      if (answeringInvite) {
-        const [communities, answerDays] = await Promise.all([api.communities.mine(), api.account.days()]);
-        setComs(communities);
-        setDays(answerDays.days || []);
-      }
+      setBody('');
+      setFile(null);
+      setComp(null);
+
+      const [, communities, answerDays] = await Promise.all([
+        loadFeed(),
+        api.communities.mine(),
+        api.account.days(),
+      ]);
+      setComs(communities);
+      setDays(answerDays.days || []);
       ping(answeringInvite ? 'Respondeste. Vê as outras respostas.' : 'Publicado');
-    } catch (e) { ping(e.message); }
-    finally { setBusy(false); }
+    } catch (e) {
+      ping(e.message);
+    } finally {
+      setBusy(false);
+    }
   };
 
-  return { comp,setComp,body,setBody,palette,setPalette,file,setFile,busy,publish };
+  return {
+    comp,
+    setComp,
+    body,
+    setBody,
+    palette,
+    setPalette,
+    file,
+    setFile,
+    busy,
+    publish,
+  };
 }

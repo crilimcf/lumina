@@ -5,11 +5,15 @@ import { claimUpload, removeUploadIfUnreferenced } from '../lib/uploads.js';
 
 export const momentRoutes = Router();
 
-/** Momentos duram 24 horas e desaparecem fisicamente quando expiram. */
+/**
+ * Momentos. Duram 24 horas e desaparecem mesmo — a linha e, para uploads
+ * novos, o objeto físico saem quando expiram.
+ */
+
 const VISIBLE_TO = `
   (m.author_id = $1 OR EXISTS (
-    SELECT 1 FROM follows f
-    WHERE f.follower_id = $1 AND f.following_id = m.author_id
+    SELECT 1 FROM memberships m1 JOIN memberships m2 ON m1.community_id = m2.community_id
+    WHERE m1.user_id = $1 AND m2.user_id = m.author_id
   ))
   AND NOT EXISTS (SELECT 1 FROM blocks b
     WHERE (b.blocker_id = $1 AND b.blocked_id = m.author_id)
@@ -24,9 +28,16 @@ momentRoutes.post('/', auth, h(async (req, res) => {
   const moment = await tx(async (c) => {
     let claimed = null;
     if (mediaUrl) {
-      claimed = await claimUpload(mediaUrl, req.user.id, 'moment', (text, params) => c.query(text, params), { allowVideo: true });
+      claimed = await claimUpload(
+        mediaUrl,
+        req.user.id,
+        'moment',
+        (text, params) => c.query(text, params),
+        { allowVideo: true }
+      );
       if (!claimed) throw bad('Media não verificado ou já utilizado', 'unconfirmed_upload');
     }
+
     const { rows } = await c.query(
       `INSERT INTO moments (author_id, media_url, palette) VALUES ($1, $2, $3)
        RETURNING id, media_url, palette, created_at, expires_at`,
@@ -34,10 +45,11 @@ momentRoutes.post('/', auth, h(async (req, res) => {
     );
     return { ...rows[0], media_mime: claimed?.mime || null };
   });
+
   res.status(201).json(moment);
 }));
 
-/** Momentos vivos da pessoa e de quem ela segue. */
+/** Os momentos ainda vivos de quem partilha comunidade contigo (e o teu). */
 momentRoutes.get('/', auth, h(async (req, res) => {
   const { rows } = await q(
     `SELECT m.id, m.media_url,
@@ -53,6 +65,7 @@ momentRoutes.get('/', auth, h(async (req, res) => {
   res.json(rows);
 }));
 
+/** Substitui o media/paleta de um Momento vivo sem reiniciar as 24 horas. */
 momentRoutes.patch('/:momentId', auth, h(async (req, res) => {
   const hasMedia = Object.prototype.hasOwnProperty.call(req.body || {}, 'mediaUrl');
   const hasPalette = Object.prototype.hasOwnProperty.call(req.body || {}, 'palette');
@@ -68,7 +81,9 @@ momentRoutes.patch('/:momentId', auth, h(async (req, res) => {
   const result = await tx(async (c) => {
     const { rows: own } = await c.query(
       `SELECT id, media_url, palette, created_at, expires_at
-       FROM moments WHERE id = $1 AND author_id = $2 AND expires_at > now() FOR UPDATE`,
+       FROM moments
+       WHERE id = $1 AND author_id = $2 AND expires_at > now()
+       FOR UPDATE`,
       [req.params.momentId, req.user.id]
     );
     const current = own[0];
@@ -76,32 +91,44 @@ momentRoutes.patch('/:momentId', auth, h(async (req, res) => {
 
     let claimed = null;
     if (hasMedia && mediaUrl && mediaUrl !== current.media_url) {
-      claimed = await claimUpload(mediaUrl, req.user.id, 'moment', (text, params) => c.query(text, params), { allowVideo: true });
+      claimed = await claimUpload(
+        mediaUrl,
+        req.user.id,
+        'moment',
+        (text, params) => c.query(text, params),
+        { allowVideo: true }
+      );
       if (!claimed) throw bad('Media não verificado ou já utilizado', 'unconfirmed_upload');
     }
 
     const nextMedia = hasMedia ? mediaUrl : current.media_url;
     const nextPalette = hasPalette ? palette : current.palette;
     const { rows } = await c.query(
-      `UPDATE moments SET media_url = $3, palette = $4
+      `UPDATE moments
+       SET media_url = $3, palette = $4
        WHERE id = $1 AND author_id = $2
        RETURNING id, media_url, palette, created_at, expires_at`,
       [current.id, req.user.id, nextMedia, nextPalette]
     );
+
     return { moment: rows[0], oldMedia: current.media_url, claimed };
   });
 
   if (result.oldMedia && result.oldMedia !== result.moment.media_url) {
-    removeUploadIfUnreferenced(result.oldMedia).catch(err => console.error('[momentos] falhou limpar media substituído:', err.message));
+    removeUploadIfUnreferenced(result.oldMedia)
+      .catch(err => console.error('[momentos] falhou limpar media substituído:', err.message));
   }
+
   let mediaMime = result.claimed?.mime || null;
   if (!mediaMime && result.moment.media_url) {
     const { rows } = await q('SELECT mime FROM uploads WHERE url = $1 LIMIT 1', [result.moment.media_url]);
     mediaMime = rows[0]?.mime || null;
   }
+
   res.json({ ...result.moment, media_mime: mediaMime });
 }));
 
+/** Marca como visto. Não conta a visita de quem é o próprio autor. */
 momentRoutes.post('/:momentId/view', auth, h(async (req, res) => {
   const { rows } = await q(
     `SELECT m.author_id FROM moments m
@@ -110,15 +137,20 @@ momentRoutes.post('/:momentId/view', auth, h(async (req, res) => {
   );
   if (!rows[0]) throw notFound('Momento não encontrado');
   if (rows[0].author_id !== req.user.id) {
-    await q('INSERT INTO moment_views (moment_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [req.params.momentId, req.user.id]);
+    await q(
+      'INSERT INTO moment_views (moment_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [req.params.momentId, req.user.id]
+    );
   }
   res.json({ viewed: true });
 }));
 
+/** Quem viu, só para o autor. */
 momentRoutes.get('/:momentId/viewers', auth, h(async (req, res) => {
   const { rows: own } = await q('SELECT author_id FROM moments WHERE id = $1', [req.params.momentId]);
   if (!own[0]) throw notFound('Momento não encontrado');
   if (own[0].author_id !== req.user.id) throw forbidden('Só o autor vê quem viu');
+
   const { rows } = await q(
     `SELECT u.id, u.handle, u.name, u.palette, u.avatar_url, v.seen_at
      FROM moment_views v JOIN users u ON u.id = v.user_id
@@ -129,8 +161,15 @@ momentRoutes.get('/:momentId/viewers', auth, h(async (req, res) => {
 }));
 
 momentRoutes.delete('/:momentId', auth, h(async (req, res) => {
-  const { rows } = await q('DELETE FROM moments WHERE id = $1 AND author_id = $2 RETURNING media_url', [req.params.momentId, req.user.id]);
+  const { rows } = await q(
+    'DELETE FROM moments WHERE id = $1 AND author_id = $2 RETURNING media_url',
+    [req.params.momentId, req.user.id]
+  );
   if (!rows[0]) throw notFound('Momento não encontrado');
-  if (rows[0].media_url) removeUploadIfUnreferenced(rows[0].media_url).catch(err => console.error('[momentos] falhou limpar media apagado:', err.message));
+
+  if (rows[0].media_url) {
+    removeUploadIfUnreferenced(rows[0].media_url)
+      .catch(err => console.error('[momentos] falhou limpar media apagado:', err.message));
+  }
   res.json({ deleted: true });
 }));

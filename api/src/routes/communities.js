@@ -64,13 +64,11 @@ communityRoutes.post('/', auth, h(async (req, res) => {
   res.status(201).json(community);
 }));
 
-/** Comunidades legadas públicas. A comunidade técnica do Feed nunca é exposta. */
+/** Comunidades públicas para descoberta. */
 communityRoutes.get('/', h(async (_req, res) => {
   const { rows } = await q(
     `SELECT id, slug, name, description, timezone, member_count
-     FROM communities
-     WHERE COALESCE(is_system, false) = false
-     ORDER BY member_count DESC LIMIT 100`
+     FROM communities ORDER BY member_count DESC LIMIT 100`
   );
   res.json(rows);
 }));
@@ -83,18 +81,17 @@ communityRoutes.get('/mine', auth, h(async (req, res) => {
      FROM memberships m
      JOIN communities c ON c.id = m.community_id
      LEFT JOIN invites i ON i.community_id = c.id AND now() BETWEEN i.opens_at AND i.closes_at
-     WHERE m.user_id = $1 AND COALESCE(c.is_system, false) = false
+     WHERE m.user_id = $1
      ORDER BY m.joined_at`,
     [req.user.id]
   );
   res.json(rows);
 }));
 
-/** Aceita UUID ou slug sem expor o espaço técnico do Feed. */
+/** Aceita UUID ou slug sem obrigar o PostgreSQL a inferir $1 como dois tipos. */
 communityRoutes.get('/:communityId', h(async (req, res) => {
   const { rows } = await q(
-    `SELECT * FROM communities
-     WHERE (id::text = $1 OR slug = $1) AND COALESCE(is_system, false) = false`,
+    'SELECT * FROM communities WHERE id::text = $1 OR slug = $1',
     [String(req.params.communityId)]
   );
   if (!rows[0]) throw notFound('Comunidade não encontrada');
@@ -103,10 +100,7 @@ communityRoutes.get('/:communityId', h(async (req, res) => {
 
 communityRoutes.post('/:communityId/join', auth, h(async (req, res) => {
   await tx(async (c) => {
-    const { rows: exists } = await c.query(
-      'SELECT 1 FROM communities WHERE id = $1 AND COALESCE(is_system, false) = false',
-      [req.params.communityId]
-    );
+    const { rows: exists } = await c.query('SELECT 1 FROM communities WHERE id = $1', [req.params.communityId]);
     if (!exists[0]) throw notFound('Comunidade não encontrada');
 
     const ins = await c.query(
@@ -126,7 +120,6 @@ communityRoutes.post('/:communityId/leave', auth, h(async (req, res) => {
   const left = await tx(async (c) => {
     const del = await c.query(
       `DELETE FROM memberships WHERE community_id = $1 AND user_id = $2 AND role <> 'founder'
-       AND community_id IN (SELECT id FROM communities WHERE COALESCE(is_system, false) = false)
        RETURNING user_id`,
       [req.params.communityId, req.user.id]
     );
@@ -137,8 +130,7 @@ communityRoutes.post('/:communityId/leave', auth, h(async (req, res) => {
     }
 
     const { rows: membership } = await c.query(
-      `SELECT m.role FROM memberships m JOIN communities c ON c.id=m.community_id
-       WHERE m.community_id = $1 AND m.user_id = $2 AND COALESCE(c.is_system, false) = false`,
+      'SELECT role FROM memberships WHERE community_id = $1 AND user_id = $2',
       [req.params.communityId, req.user.id]
     );
     if (membership[0]?.role === 'founder') {
@@ -156,9 +148,8 @@ communityRoutes.post('/:communityId/moderators', auth, h(async (req, res) => {
 
   if (!req.user.is_staff) {
     const { rows: founder } = await q(
-      `SELECT 1 FROM memberships m JOIN communities c ON c.id=m.community_id
-       WHERE m.community_id = $1 AND m.user_id = $2 AND m.role = 'founder'
-         AND COALESCE(c.is_system, false) = false`,
+      `SELECT 1 FROM memberships
+       WHERE community_id = $1 AND user_id = $2 AND role = 'founder'`,
       [req.params.communityId, req.user.id]
     );
     if (!founder[0]) throw forbidden('Só quem fundou esta comunidade gere moderadores');
@@ -177,9 +168,7 @@ communityRoutes.get('/:communityId/members', auth, requireMember(), h(async (req
   const { rows } = await q(
     `SELECT u.id, u.handle, u.name, u.palette, m.role, m.joined_at
      FROM memberships m JOIN users u ON u.id = m.user_id
-     JOIN communities c ON c.id=m.community_id
-     WHERE m.community_id = $1 AND COALESCE(c.is_system, false) = false
-     ORDER BY m.joined_at LIMIT 200`,
+     WHERE m.community_id = $1 ORDER BY m.joined_at LIMIT 200`,
     [req.params.communityId]
   );
   res.json(rows);

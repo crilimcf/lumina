@@ -89,3 +89,5 @@ jobs:
           railway status --json || true
           railway up --service "$linked_service" --environment production --ci --message "Final Lumina launch ${GITHUB_SHA}"
           echo 'RAILWAY_DEPLOY_OK'
+
+# Final launch trigger: 2026-08-09

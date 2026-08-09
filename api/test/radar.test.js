@@ -231,3 +231,42 @@ test('Radar valida tipos, URLs, cursores, atribuição comercial e janelas tempo
   assert.equal(promotions.response.status, 200);
   assert.equal(promotions.data.items.some(item => item.id === futurePromotion.data.id), false);
 });
+
+test('aprovação manual de draft RSS atualiza a classe de dedupe para publicada e confiável', async () => {
+  const staff = await register('radar.approver');
+  await q('UPDATE users SET is_staff=true WHERE id=$1', [staff.user.id]);
+
+  const source = (await q(
+    `INSERT INTO radar_sources (name, kind, url, default_type, active, trusted, config)
+     VALUES ('Fonte RSS em revisão','rss','https://review.example.test/rss','news',true,false,
+             '{"autoPublish":false}'::jsonb)
+     RETURNING id`
+  )).rows[0];
+  const item = (await q(
+    `INSERT INTO radar_items (
+       type, title, summary, body, external_url, source_id, source_name, source_url,
+       sponsored, tags, published_at, status, priority, fingerprint,
+       ingestion_trusted, ingestion_publishable
+     ) VALUES (
+       'news','Draft RSS','','','https://review.example.test/story',$1,'Fonte RSS em revisão',
+       'https://review.example.test/rss',false,'{}',now(),'draft',0,'rss:manual-approval-test',false,false
+     ) RETURNING id`,
+    [source.id]
+  )).rows[0];
+
+  const approved = await request(`/radar/${item.id}`, {
+    method: 'PATCH', token: staff.token, body: { status: 'published' },
+  });
+  assert.equal(approved.response.status, 200, JSON.stringify(approved.data));
+  assert.equal(approved.data.status, 'published');
+  assert.equal(approved.data.ingestion_trusted, true);
+  assert.equal(approved.data.ingestion_publishable, true);
+
+  const stored = (await q(
+    'SELECT status, ingestion_trusted, ingestion_publishable FROM radar_items WHERE id=$1',
+    [item.id]
+  )).rows[0];
+  assert.equal(stored.status, 'published');
+  assert.equal(stored.ingestion_trusted, true);
+  assert.equal(stored.ingestion_publishable, true);
+});

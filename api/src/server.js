@@ -93,7 +93,19 @@ const health = async (_req, res) => {
   if (releaseSha) res.setHeader('X-Lumina-Release', releaseSha);
   try {
     const schemaVersion = await getAppliedSchemaVersion();
+    const { rows } = await pool.query(
+      `SELECT
+         (SELECT count(*)::int FROM radar_sources WHERE active=true AND kind='rss') AS active_sources,
+         (SELECT count(*)::int FROM radar_sources WHERE active=true AND kind='rss' AND last_success_at IS NOT NULL) AS synced_sources,
+         (SELECT count(*)::int FROM radar_sources WHERE active=true AND kind='rss' AND last_fetch_error IS NOT NULL) AS failing_sources,
+         (SELECT count(*)::int FROM radar_items WHERE status='published' AND published_at >= now() - interval '24 hours') AS items_24h`
+    );
+    const radar = rows[0] || {};
     res.setHeader('X-Lumina-Schema', String(schemaVersion));
+    res.setHeader('X-Lumina-Radar-Sources', String(radar.active_sources ?? 0));
+    res.setHeader('X-Lumina-Radar-Synced', String(radar.synced_sources ?? 0));
+    res.setHeader('X-Lumina-Radar-Failing', String(radar.failing_sources ?? 0));
+    res.setHeader('X-Lumina-Radar-Items-24h', String(radar.items_24h ?? 0));
     res.json({ ok: true });
   } catch {
     res.status(503).json({ ok: false });

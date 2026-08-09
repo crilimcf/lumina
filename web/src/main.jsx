@@ -4,40 +4,54 @@ import App from './App.jsx';
 import { ErrorBoundary } from './ui.jsx';
 import './index.css';
 
-createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <ErrorBoundary><App /></ErrorBoundary>
-  </React.StrictMode>
-);
+/**
+ * A PWA instalada fica presa à origem (scheme + host + port) onde foi criada.
+ * Por isso a Lumina tem UMA origem canónica para utilizadores. Previews e
+ * aliases de branches nunca devem tornar-se outra "Lumina" no Home Screen.
+ *
+ * QA continua possível em previews acrescentando ?preview=1 ao URL.
+ */
+const CANONICAL_HOST = 'lumina-snowy-ten.vercel.app';
+const host = window.location.hostname;
+const isLocal = host === 'localhost' || host === '127.0.0.1';
+const isVercelAlias = host.endsWith('.vercel.app');
+const previewBypass = new URLSearchParams(window.location.search).get('preview') === '1';
 
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
+if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
+  const canonical = new URL(window.location.href);
+  canonical.protocol = 'https:';
+  canonical.host = CANONICAL_HOST;
+  canonical.searchParams.delete('preview');
+  window.location.replace(canonical.toString());
+} else {
+  createRoot(document.getElementById('root')).render(
+    <React.StrictMode>
+      <ErrorBoundary><App /></ErrorBoundary>
+    </React.StrictMode>
+  );
+
+  /**
+   * Retira o service worker/cache customizado antigo.
+   *
+   * Nesta fase da Lumina, consistência de deploy é mais importante do que um
+   * shell offline. O HTML já é no-store e os assets do Vite têm hash, por isso
+   * o browser pode usar o seu cache HTTP normal sem manter uma segunda versão
+   * da aplicação escondida num CacheStorage controlado por nós.
+   */
+  const retireLegacyPwaState = async () => {
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+    }
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys.filter((key) => key.startsWith('lumina-')).map((key) => caches.delete(key))
+      );
+    }
+  };
+
   window.addEventListener('load', () => {
-    const hadControllerAtStart = !!navigator.serviceWorker.controller;
-    let refreshing = false;
-
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      // Na primeira instalação não há versão antiga para substituir; evitamos
-      // um reload desnecessário. Nas atualizações seguintes, recarregamos uma
-      // única vez assim que o novo worker assume controlo.
-      if (!hadControllerAtStart || refreshing) return;
-      refreshing = true;
-      window.location.reload();
-    });
-
-    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
-      .then((registration) => {
-        const checkForUpdate = () => registration.update().catch(() => {});
-
-        // iOS pode restaurar uma PWA instalada da memória/BFCache sem fazer
-        // uma navegação completa. Verificamos ao regressar ao primeiro plano,
-        // ao recuperar a página e ao receber foco.
-        document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'visible') checkForUpdate();
-        });
-        window.addEventListener('pageshow', checkForUpdate);
-        window.addEventListener('focus', checkForUpdate);
-        checkForUpdate();
-      })
-      .catch(() => {});
-  });
+    retireLegacyPwaState().catch(() => {});
+  }, { once: true });
 }

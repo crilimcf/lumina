@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 const PASSWORD = 'lumina-webkit-1234';
 const PNG = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR42mP8z8AARAwMjDAGjB0AANsBA/0X8GkAAAAASUVORK5CYII=',
+  'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAFElEQVR4nGOsCLjDgA0wYRUdtBIAS4sBtNP0jmcAAAAASUVORK5CYII=',
   'base64'
 );
 
@@ -84,7 +84,9 @@ test('autor substitui media de Momento já publicado em Mobile Safari', async ({
 
   await page.getByRole('button', { name: 'Tu' }).click();
   await page.locator('input[accept="image/jpeg,image/png,image/webp"]').setInputFiles({ name: 'original.png', mimeType: 'image/png', buffer: PNG });
-  await page.getByRole('button', { name: 'Confirmar edição do momento' }).click();
+  const confirmEdit = page.getByRole('button', { name: 'Confirmar edição do momento' });
+  await expect(confirmEdit).toBeEnabled();
+  await confirmEdit.click();
   await page.getByRole('button', { name: 'Publicar momento' }).click();
   await expect(page.getByText(/Momento publicado/)).toBeVisible();
 

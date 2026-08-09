@@ -5,6 +5,7 @@ import {
   purgeMessages, purgeMoments, purgeStaleUploads, purgeOrphanUploads,
   runAccountDeletions, purgeExpiredTokens, purgeOldLoginAttempts,
 } from '../src/jobs/daily.js';
+import { runRadarIngestion } from '../src/jobs/radar.js';
 
 const TASKS = {
   purge: async () =>
@@ -14,6 +15,7 @@ const TASKS = {
     (await purgeOrphanUploads()),
   deletions: runAccountDeletions,
   tokens: async () => (await purgeExpiredTokens()) + (await purgeOldLoginAttempts()),
+  radar: runRadarIngestion,
 };
 
 const args = process.argv.slice(2);
@@ -29,8 +31,9 @@ let failed = false;
 for (const name of names) {
   const t0 = Date.now();
   try {
-    const n = await TASKS[name]();
-    console.log(`[cron] ${name}: ${n ?? 0} · ${Date.now() - t0} ms`);
+    const result = await TASKS[name]();
+    const output = result && typeof result === 'object' ? JSON.stringify(result) : (result ?? 0);
+    console.log(`[cron] ${name}: ${output} · ${Date.now() - t0} ms`);
   } catch (err) {
     failed = true;
     console.error(`[cron] ${name} falhou:`, err.message);

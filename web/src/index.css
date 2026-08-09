@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
 
 :root {
   --paper: #E9E7F8; --paper2: #DFDCF2; --card: #FFFFFF;
@@ -15,16 +15,23 @@ html { overflow-x: hidden; }
 body {
   background: var(--paper2);
   color: var(--ink);
-  font-family: 'Bricolage Grotesque', system-ui, -apple-system, sans-serif;
+  font-family: 'Manrope', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-weight: 500;
+  letter-spacing: -.008em;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   overflow-x: hidden;
   /* iPhone: respeita o entalhe e a barra de gestos */
   padding: env(safe-area-inset-top) 0 0;
 }
 
-.d { font-weight: 800; letter-spacing: -.05em; line-height: .9; }
-.it { font-family: 'Instrument Serif', serif; font-style: italic; font-weight: 400; letter-spacing: -.02em; }
-.m { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--grey); }
+button { font-family: inherit; }
+b, strong { font-weight: 800; }
+h1, h2, h3, h4 { font-weight: 800; letter-spacing: -.03em; }
+
+.d { font-weight: 800; letter-spacing: -.04em; line-height: .94; }
+.it { font-family: inherit; font-style: italic; font-weight: 700; letter-spacing: -.035em; }
+.m { font-family: inherit; font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--grey); }
 .em { font-size: 19px; line-height: 1; }
 
 .scene { perspective: 1100px; }
@@ -45,7 +52,7 @@ body {
 }
 
 .p {
-  font-family: inherit; font-weight: 600; font-size: 13px; letter-spacing: -.01em;
+  font-family: inherit; font-weight: 700; font-size: 13px; letter-spacing: -.01em;
   border: 0; border-radius: 999px; padding: 11px 18px; cursor: pointer;
   color: var(--ink); background: var(--card);
   box-shadow: 0 3px 10px rgba(30,16,90,.12), 0 1px 2px rgba(30,16,90,.16);
@@ -69,7 +76,7 @@ body {
 
 .act {
   display: flex; align-items: center; gap: 7px; border: 0; background: none;
-  cursor: pointer; padding: 6px 2px; font-family: inherit; font-weight: 600;
+  cursor: pointer; padding: 6px 2px; font-family: inherit; font-weight: 700;
   font-size: 14px; color: var(--ink);
   transition: transform .2s cubic-bezier(.3,1.6,.5,1);
 }
@@ -92,7 +99,7 @@ body {
 }
 .st:active { transform: scale(.94); }
 
-.star { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; padding: 6px 11px; border-radius: 999px; display: inline-block; }
+.star { font-family: inherit; font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; padding: 6px 11px; border-radius: 999px; display: inline-block; }
 
 .ghost { border: 1.5px dashed var(--edge); border-radius: 20px; padding: 11px 16px; font-size: 14px; color: var(--grey); background: rgba(255,255,255,.4); display: flex; align-items: center; gap: 8px; }
 .veil { position: relative; border-radius: 20px; overflow: hidden; cursor: pointer; background: linear-gradient(150deg, #CFC8EC, #A79BD6); }
@@ -112,8 +119,8 @@ body {
 .nb {
   display: flex; flex-direction: column; align-items: center; gap: 3px;
   border: 0; background: none; cursor: pointer; position: relative; padding: 6px 12px;
-  color: #9992BB; font-family: 'DM Mono', monospace; font-size: 9px;
-  letter-spacing: .1em; text-transform: uppercase;
+  color: #9992BB; font-family: inherit; font-size: 9px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase;
   transition: color .2s, transform .2s cubic-bezier(.3,1.5,.5,1);
 }
 .nb:active { transform: scale(.9); }
@@ -148,12 +155,12 @@ body {
 .dot { border-radius: 50%; transition: all .5s cubic-bezier(.2,.9,.25,1); }
 
 input, textarea, select {
-  font-family: inherit; font-size: 16px; /* 16px evita o zoom automático no iOS */
+  font-family: inherit; font-size: 16px; font-weight: 500; /* 16px evita o zoom automático no iOS */
   width: 100%; background: var(--card); border: 1.5px solid var(--edge);
   border-radius: 16px; padding: 13px 16px; color: var(--ink); outline: none;
 }
 input:focus, textarea:focus { border-color: var(--cobalt); box-shadow: 0 0 0 4px rgba(43,43,247,.14); }
-input::placeholder, textarea::placeholder { color: #A29CC2; }
+input::placeholder, textarea::placeholder { color: #A29CC2; font-weight: 500; }
 
 .ns::-webkit-scrollbar { display: none; }
 .ns { scrollbar-width: none; }

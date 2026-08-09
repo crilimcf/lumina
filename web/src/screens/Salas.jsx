@@ -4,7 +4,22 @@ import { api } from '../api.js';
 import { Empty, Orb } from '../ui.jsx';
 import { Nav, Toast } from '../components/AppChrome.jsx';
 
+// Mantemos toda a implementação Ultra no código para a podermos reativar
+// mais tarde sem reconstruir pagamentos. Enquanto esta flag estiver false,
+// Ultra não aparece na descoberta, nos filtros nem na criação de salas.
+const ULTRA_ROOMS_ENABLED = false;
 const euro = cents => new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format((cents || 0) / 100);
+const roomTypes = [
+  ['public', 'Pública', 'Qualquer pessoa Lumina pode entrar.', DoorOpen],
+  ['private', 'Privada', 'Só aparece a pessoas convidadas por ti.', LockKeyhole],
+  ...(ULTRA_ROOMS_ENABLED ? [['ultra', 'Ultra', 'Convite + pagamento. €2,99 para criar · €1,49 para entrar.', Crown]] : []),
+];
+const roomFilters = [
+  ['all', 'Todas'],
+  ['public', 'Públicas'],
+  ['private', 'Privadas'],
+  ...(ULTRA_ROOMS_ENABLED ? [['ultra', 'Ultra']] : []),
+];
 
 function AccessPill({ room }) {
   const cfg = room.visibility === 'public'
@@ -107,11 +122,7 @@ function CreateRoom({ onClose, onCreated, ping }) {
       <textarea placeholder="Descrição (opcional)" maxLength={1000} rows={3} value={description} onChange={e => setDescription(e.target.value)} style={{ width: '100%', resize: 'none', marginBottom: 13 }} />
       <div className="m" style={{ marginBottom: 8 }}>Privacidade</div>
       <div style={{ display: 'grid', gap: 8, marginBottom: 15 }}>
-        {[
-          ['public', 'Pública', 'Qualquer pessoa Lumina pode entrar.', DoorOpen],
-          ['private', 'Privada', 'Só aparece a pessoas convidadas por ti.', LockKeyhole],
-          ['ultra', 'Ultra', 'Convite + pagamento. €2,99 para criar · €1,49 para entrar.', Crown],
-        ].map(([key, label, desc, Icon]) => <button key={key} onClick={() => setVisibility(key)} style={{ border: visibility === key ? '2px solid #5B45FF' : '1px solid #DCD6F0', borderRadius: 18, padding: 12, background: '#fff', textAlign: 'left', display: 'flex', gap: 11, alignItems: 'center' }}><span style={{ width: 38, height: 38, borderRadius: 99, display: 'grid', placeItems: 'center', background: visibility === key ? '#ECE9FF' : '#F4F2F8' }}><Icon size={18} /></span><span><b style={{ display: 'block' }}>{label}</b><span style={{ fontSize: 11.5, color: 'var(--grey)' }}>{desc}</span></span></button>)}
+        {roomTypes.map(([key, label, desc, Icon]) => <button key={key} onClick={() => setVisibility(key)} style={{ border: visibility === key ? '2px solid #5B45FF' : '1px solid #DCD6F0', borderRadius: 18, padding: 12, background: '#fff', textAlign: 'left', display: 'flex', gap: 11, alignItems: 'center' }}><span style={{ width: 38, height: 38, borderRadius: 99, display: 'grid', placeItems: 'center', background: visibility === key ? '#ECE9FF' : '#F4F2F8' }}><Icon size={18} /></span><span><b style={{ display: 'block' }}>{label}</b><span style={{ fontSize: 11.5, color: 'var(--grey)' }}>{desc}</span></span></button>)}
       </div>
       <button className="p p-brand" onClick={create} disabled={busy} style={{ width: '100%', padding: 14, justifyContent: 'center' }}>{busy ? 'A criar…' : visibility === 'ultra' ? 'Criar Sala Ultra · €2,99' : 'Criar sala'}</button>
     </div>
@@ -177,15 +188,15 @@ export function Salas({ me, tab, setTab, coms, setComp, threads, setThread, ping
   const load = async () => { try { setRooms(await api.rooms.list()); } catch (e) { ping(e.message); } };
   useEffect(() => { load(); }, []);
 
-  const visible = rooms.filter(r => filter === 'all' || r.visibility === filter);
+  const visible = rooms.filter(r => (ULTRA_ROOMS_ENABLED || r.visibility !== 'ultra') && (filter === 'all' || r.visibility === filter));
   if (active) return <RoomChat room={active} me={me} ping={ping} onBack={() => { setActive(null); load(); }} onRefresh={load} />;
 
   return <div style={{ minHeight: '100dvh', paddingBottom: 100, background: 'linear-gradient(180deg,#EFEDFB,#DFDCF2)' }}>
     <div style={{ maxWidth: 520, margin: '0 auto', padding: '18px 16px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 10px' }}><div style={{ flex: 1 }}><h2 className="d" style={{ fontSize: 40, margin: 0 }}>Sa<span className="it">las</span></h2><div className="m" style={{ marginTop: 4 }}>Tópicos vivos, sem poluir o feed.</div></div><button className="p p-brand" onClick={() => setCreating(true)}><Plus size={16} /> Criar</button></div>
-      <div style={{ display: 'flex', gap: 7, overflowX: 'auto', padding: '9px 0 15px' }}>{[['all','Todas'],['public','Públicas'],['private','Privadas'],['ultra','Ultra']].map(([k,l]) => <button key={k} onClick={() => setFilter(k)} className={`p p-sm${filter===k?' p-ink':''}`} style={{ flexShrink: 0 }}>{l}</button>)}</div>
+      <div style={{ display: 'flex', gap: 7, overflowX: 'auto', padding: '9px 0 15px' }}>{roomFilters.map(([k,l]) => <button key={k} onClick={() => setFilter(k)} className={`p p-sm${filter===k?' p-ink':''}`} style={{ flexShrink: 0 }}>{l}</button>)}</div>
       {visible.length === 0 ? <Empty>Não há salas nesta categoria.<br />Cria a primeira.</Empty> : <div style={{ display: 'grid', gap: 13 }}>{visible.map(room => <RoomCard key={room.id} room={room} me={me} onOpen={setActive} onRefresh={load} ping={ping} />)}</div>}
-      <div className="card" style={{ padding: 14, marginTop: 16, display: 'flex', gap: 10, alignItems: 'center' }}><ShieldCheck size={20} color="var(--cobalt)" /><div style={{ fontSize: 12.5, lineHeight: 1.4 }}><b>Privacidade real.</b> Salas privadas e Ultra não são descobertas por quem não foi convidado.</div></div>
+      <div className="card" style={{ padding: 14, marginTop: 16, display: 'flex', gap: 10, alignItems: 'center' }}><ShieldCheck size={20} color="var(--cobalt)" /><div style={{ fontSize: 12.5, lineHeight: 1.4 }}><b>Privacidade real.</b> Salas privadas só aparecem a pessoas convidadas por quem as criou.</div></div>
     </div>
     <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} coms={coms} threads={threads} ping={ping} />
     <Toast text={toast} />

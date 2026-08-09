@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -25,8 +27,28 @@ import { paymentRoutes } from './routes/payments.js';
 import { notificationRoutes } from './routes/notifications.js';
 
 const app = express();
+const webDir = path.resolve(process.cwd(), 'public');
+const webIndex = path.join(webDir, 'index.html');
+
 app.set('trust proxy', 1);
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+      imgSrc: ["'self'", 'https:', 'data:', 'blob:'],
+      mediaSrc: ["'self'", 'https:', 'blob:'],
+      connectSrc: ["'self'", 'https://4aee2609d2471ffc4def078dcd41d9a7.r2.cloudflarestorage.com'],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+}));
 const origins = env.CORS_ORIGIN?.split(',').map(s => s.trim()).filter(Boolean);
 if (env.NODE_ENV === 'production' && !origins?.length) {
   throw new Error('Em producao e obrigatorio definir CORS_ORIGIN');
@@ -57,8 +79,9 @@ const CSRF_PUBLIC_PATHS = new Set([
   '/account/forgot-password',
   '/account/reset-password',
 ]);
+const withoutApiPrefix = (pathname) => pathname.startsWith('/api/') ? pathname.slice(4) : pathname;
 app.use((req, res, next) => {
-  if (CSRF_PUBLIC_PATHS.has(req.path)) return next();
+  if (CSRF_PUBLIC_PATHS.has(withoutApiPrefix(req.path))) return next();
   return csrfGuard(req, res, next);
 });
 
@@ -73,40 +96,67 @@ const localE2E = (() => {
 })();
 const skipInTests = () => env.NODE_ENV === 'test' || localE2E;
 app.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-7', legacyHeaders: false, skip: skipInTests }));
-app.use('/auth/login', rateLimit({
+app.use(['/auth/login', '/api/auth/login'], rateLimit({
   windowMs: 15 * 60_000, limit: 10,
   keyGenerator: (req) => `${req.ip}:${String(req.body?.email || '').toLowerCase()}`,
   skip: skipInTests,
 }));
-app.use('/auth/register', rateLimit({ windowMs: 60 * 60_000, limit: 5, skip: skipInTests }));
-app.use('/account/forgot-password', rateLimit({ windowMs: 60 * 60_000, limit: 5, skip: skipInTests }));
+app.use(['/auth/register', '/api/auth/register'], rateLimit({ windowMs: 60 * 60_000, limit: 5, skip: skipInTests }));
+app.use(['/account/forgot-password', '/api/account/forgot-password'], rateLimit({ windowMs: 60 * 60_000, limit: 5, skip: skipInTests }));
 
-app.get('/health', async (_req, res) => {
+const health = async (_req, res) => {
   try { await pool.query('SELECT 1'); res.json({ ok: true }); }
   catch { res.status(503).json({ ok: false }); }
-});
+};
+app.get(['/health', '/api/health'], health);
 
-app.use('/auth', authRoutes);
-app.use('/communities', communityRoutes);
-app.use('/invites', inviteRoutes); // legado: deixa de ser uma aba principal no cliente
-app.use('/posts', postRoutes);
-app.use('/messages', messageRoutes);
-app.use('/rooms', roomRoutes);
-app.use('/calls', callRoutes);
-app.use('/payments', paymentRoutes);
-app.use('/notifications', notificationRoutes);
-app.use('/reports', reportRoutes);
-app.use('/account', accountRoutes);
-app.use('/uploads', uploadRoutes);
-app.use('/users', userRoutes);
-app.use('/2fa', twoFactorRoutes);
-app.use('/sessions', sessionRoutes);
-app.use('/moments', momentRoutes);
+const mountApi = (prefix = '') => {
+  app.use(`${prefix}/auth`, authRoutes);
+  app.use(`${prefix}/communities`, communityRoutes);
+  app.use(`${prefix}/invites`, inviteRoutes); // legado: deixa de ser uma aba principal no cliente
+  app.use(`${prefix}/posts`, postRoutes);
+  app.use(`${prefix}/messages`, messageRoutes);
+  app.use(`${prefix}/rooms`, roomRoutes);
+  app.use(`${prefix}/calls`, callRoutes);
+  app.use(`${prefix}/payments`, paymentRoutes);
+  app.use(`${prefix}/notifications`, notificationRoutes);
+  app.use(`${prefix}/reports`, reportRoutes);
+  app.use(`${prefix}/account`, accountRoutes);
+  app.use(`${prefix}/uploads`, uploadRoutes);
+  app.use(`${prefix}/users`, userRoutes);
+  app.use(`${prefix}/2fa`, twoFactorRoutes);
+  app.use(`${prefix}/sessions`, sessionRoutes);
+  app.use(`${prefix}/moments`, momentRoutes);
 
-app.use('/subscriptions', auth, h(async () => {
-  if (!env.FEATURE_SUBSCRIPTIONS) throw new HttpError(403, 'Ainda não disponível', 'feature_off');
-  throw new HttpError(501, 'Por implementar');
-}));
+  app.use(`${prefix}/subscriptions`, auth, h(async () => {
+    if (!env.FEATURE_SUBSCRIPTIONS) throw new HttpError(403, 'Ainda não disponível', 'feature_off');
+    throw new HttpError(501, 'Por implementar');
+  }));
+};
+
+// As rotas sem prefixo mantêm compatibilidade com o proxy atual da Vercel.
+// O alias /api permite servir a app diretamente da Railway na mesma origem,
+// sem cookies third-party e sem depender da quota de deployments da Vercel.
+mountApi('');
+mountApi('/api');
+
+if (fs.existsSync(webIndex)) {
+  app.use(express.static(webDir, {
+    index: false,
+    etag: true,
+    setHeaders: (res, filePath) => {
+      if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      } else if (filePath.endsWith('manifest.webmanifest')) {
+        res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+      }
+    },
+  }));
+  app.get('/', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.sendFile(webIndex);
+  });
+}
 
 app.use((_req, res) => res.status(404).json({ error: 'Rota não encontrada' }));
 app.use(errorHandler);

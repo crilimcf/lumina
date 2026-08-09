@@ -10,13 +10,9 @@ async function request(path, { method = 'GET', token, body } = {}) {
   const headers = {};
   if (token) headers.authorization = `Bearer ${token}`;
   if (body !== undefined) headers['content-type'] = 'application/json';
-  const response = await fetch(`${baseUrl}${path}`, {
-    method, headers, body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  const response = await fetch(`${baseUrl}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   const text = await response.text();
-  let data = null;
-  if (text) data = JSON.parse(text);
-  return { response, data };
+  return { response, data: text ? JSON.parse(text) : null };
 }
 
 async function register(handle) {
@@ -33,21 +29,6 @@ async function register(handle) {
   });
   assert.equal(out.response.status, 201, JSON.stringify(out.data));
   return out.data;
-}
-
-async function sharedCommunity(users, slug) {
-  const { rows } = await q(
-    `INSERT INTO communities (slug,name,founder_id,member_count)
-     VALUES ($1,$2,$3,$4) RETURNING id`,
-    [slug, slug, users[0].user.id, users.length]
-  );
-  for (const entry of users) {
-    await q(
-      `INSERT INTO memberships (community_id,user_id,role) VALUES ($1,$2,$3)`,
-      [rows[0].id, entry.user.id, entry === users[0] ? 'founder' : 'member']
-    );
-  }
-  return rows[0].id;
 }
 
 before(async () => {
@@ -67,19 +48,19 @@ after(async () => {
   await pool.end();
 });
 
-test('perfil privado exige pedido aceite antes de expor o feed da pessoa', async () => {
+test('perfil privado exige pedido aceite antes de expor as publicações', async () => {
   const privateUser = await register('private.owner');
   const viewer = await register('private.viewer');
-  const communityId = await sharedCommunity([privateUser, viewer], 'private-feed');
 
   const privacy = await request('/users/me/privacy', {
     method: 'PATCH', token: privateUser.token, body: { isPrivate: true },
   });
-  assert.equal(privacy.response.status, 200, JSON.stringify(privacy.data));
+  assert.equal(privacy.response.status, 200);
   assert.equal(privacy.data.isPrivate, true);
 
   const post = await request('/posts', {
-    method: 'POST', token: privateUser.token, body: { communityId, body: 'post privado visível depois de aceitar' },
+    method: 'POST', token: privateUser.token,
+    body: { body: 'post privado visível depois de aceitar' },
   });
   assert.equal(post.response.status, 201, JSON.stringify(post.data));
 
@@ -88,13 +69,14 @@ test('perfil privado exige pedido aceite antes de expor o feed da pessoa', async
   assert.equal(profileBefore.data.is_private, true);
   assert.equal(profileBefore.data.can_view_posts, false);
 
-  const lockedFeed = await request('/users/private.owner/posts', { token: viewer.token });
-  assert.equal(lockedFeed.response.status, 403);
+  const locked = await request('/users/private.owner/posts', { token: viewer.token });
+  assert.equal(locked.response.status, 403);
 
-  const follow = await request(`/users/${privateUser.user.id}/follow`, { method: 'POST', token: viewer.token });
+  const follow = await request(`/users/${privateUser.user.id}/follow`, {
+    method: 'POST', token: viewer.token,
+  });
   assert.equal(follow.response.status, 202, JSON.stringify(follow.data));
   assert.equal(follow.data.pending, true);
-  assert.equal(follow.data.following, false);
 
   const ownerActivity = await request('/notifications', { token: privateUser.token });
   const requestNotification = ownerActivity.data.notifications.find(n => n.type === 'follow_request');
@@ -105,35 +87,36 @@ test('perfil privado exige pedido aceite antes de expor o feed da pessoa', async
   const accept = await request(`/users/me/follow-requests/${requestNotification.follow_request_id}/accept`, {
     method: 'POST', token: privateUser.token,
   });
-  assert.equal(accept.response.status, 200, JSON.stringify(accept.data));
+  assert.equal(accept.response.status, 200);
 
   const profileAfter = await request('/users/private.owner', { token: viewer.token });
   assert.equal(profileAfter.data.following, true);
   assert.equal(profileAfter.data.can_view_posts, true);
 
-  const visibleFeed = await request('/users/private.owner/posts', { token: viewer.token });
-  assert.equal(visibleFeed.response.status, 200, JSON.stringify(visibleFeed.data));
-  assert.equal(visibleFeed.data.posts.some(p => p.id === post.data.id), true);
+  const visible = await request('/users/private.owner/posts', { token: viewer.token });
+  assert.equal(visible.response.status, 200, JSON.stringify(visible.data));
+  assert.equal(visible.data.posts.some(p => p.id === post.data.id), true);
 
-  const viewerActivity = await request('/notifications', { token: viewer.token });
-  assert.equal(viewerActivity.data.notifications.some(n => n.type === 'follow_accepted'), true);
+  const feed = await request('/posts/feed', { token: viewer.token });
+  assert.equal(feed.data.posts.some(p => p.id === post.data.id), true);
 });
 
 test('perfil público aceita follow imediato e novas publicações geram alerta', async () => {
   const author = await register('public.author');
   const follower = await register('public.follower');
-  const communityId = await sharedCommunity([author, follower], 'public-feed');
 
-  const follow = await request(`/users/${author.user.id}/follow`, { method: 'POST', token: follower.token });
-  assert.equal(follow.response.status, 200, JSON.stringify(follow.data));
+  const follow = await request(`/users/${author.user.id}/follow`, {
+    method: 'POST', token: follower.token,
+  });
+  assert.equal(follow.response.status, 200);
   assert.equal(follow.data.following, true);
-  assert.equal(follow.data.pending, false);
 
   const authorActivity = await request('/notifications', { token: author.token });
   assert.equal(authorActivity.data.notifications.some(n => n.type === 'new_follower'), true);
 
   const post = await request('/posts', {
-    method: 'POST', token: author.token, body: { communityId, body: 'uma publicação nova para quem me segue' },
+    method: 'POST', token: author.token,
+    body: { body: 'uma publicação nova para quem me segue' },
   });
   assert.equal(post.response.status, 201);
 

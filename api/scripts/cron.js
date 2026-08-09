@@ -1,20 +1,12 @@
 #!/usr/bin/env node
-/**
- * Trabalhos periódicos, para correr como processo separado.
- *
- *   node scripts/cron.js invites    de hora a hora
- *   node scripts/cron.js purge      periodicamente
- *   node scripts/cron.js deletions  uma vez por dia
- *   node scripts/cron.js all        tudo de uma vez
- */
+/** Trabalhos periódicos para correr como processo separado. */
 import { pool } from '../src/db.js';
 import {
-  rotateInvites, purgeMessages, purgeMoments, purgeStaleUploads, purgeOrphanUploads,
+  purgeMessages, purgeMoments, purgeStaleUploads, purgeOrphanUploads,
   runAccountDeletions, purgeExpiredTokens, purgeOldLoginAttempts,
 } from '../src/jobs/daily.js';
 
 const TASKS = {
-  invites: rotateInvites,
   purge: async () =>
     (await purgeMessages()) +
     (await purgeMoments()) +
@@ -26,7 +18,6 @@ const TASKS = {
 
 const args = process.argv.slice(2);
 const names = args.length === 0 || args[0] === 'all' ? Object.keys(TASKS) : args;
-
 const unknown = names.filter(n => !TASKS[n]);
 if (unknown.length) {
   console.error(`Tarefa desconhecida: ${unknown.join(', ')}`);

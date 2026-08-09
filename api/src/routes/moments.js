@@ -42,7 +42,10 @@ momentRoutes.get('/', auth, h(async (req, res) => {
             (SELECT up.mime FROM uploads up WHERE up.url = m.media_url LIMIT 1) AS media_mime,
             m.palette, m.created_at, m.expires_at,
             u.id AS author_id, u.handle, u.name, u.palette AS author_palette, u.avatar_url AS author_avatar_url,
-            EXISTS (SELECT 1 FROM moment_views v WHERE v.moment_id = m.id AND v.user_id = $1) AS viewed
+            EXISTS (SELECT 1 FROM moment_views v WHERE v.moment_id = m.id AND v.user_id = $1) AS viewed,
+            (SELECT count(*) FROM moment_reactions r WHERE r.moment_id=m.id AND r.kind='like')::int AS likes,
+            (SELECT count(*) FROM moment_reactions r WHERE r.moment_id=m.id AND r.kind='fire')::int AS fires,
+            COALESCE((SELECT array_agg(r.kind) FROM moment_reactions r WHERE r.moment_id=m.id AND r.user_id=$1), ARRAY[]::text[]) AS my_reactions
      FROM moments m JOIN users u ON u.id = m.author_id
      WHERE m.expires_at > now() AND ${VISIBLE_TO}
      ORDER BY m.created_at ASC`,
@@ -110,6 +113,46 @@ momentRoutes.post('/:momentId/view', auth, h(async (req, res) => {
     await q('INSERT INTO moment_views (moment_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [req.params.momentId, req.user.id]);
   }
   res.json({ viewed: true });
+}));
+
+momentRoutes.post('/:momentId/reactions/:kind', auth, h(async (req, res) => {
+  const kind = String(req.params.kind || '');
+  if (!['like', 'fire'].includes(kind)) throw bad('Reação inválida');
+
+  const result = await tx(async (c) => {
+    const { rows: visible } = await c.query(
+      `SELECT m.author_id FROM moments m
+       WHERE m.id=$2 AND m.expires_at>now() AND ${VISIBLE_TO}`,
+      [req.user.id, req.params.momentId]
+    );
+    if (!visible[0]) throw notFound('Momento não encontrado');
+    if (visible[0].author_id === req.user.id) throw bad('Não podes reagir ao teu próprio Momento');
+
+    // Serializa toggles concorrentes da mesma reação. Dois toques rápidos ficam
+    // semanticamente iguais a dois toggles sequenciais, em vez de dois INSERTs concorrentes.
+    const lockKey = `moment-reaction:${req.params.momentId}:${req.user.id}:${kind}`;
+    await c.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [lockKey]);
+
+    const removed = await c.query(
+      'DELETE FROM moment_reactions WHERE moment_id=$1 AND user_id=$2 AND kind=$3 RETURNING kind',
+      [req.params.momentId, req.user.id, kind]
+    );
+    if (!removed.rowCount) {
+      await c.query(
+        'INSERT INTO moment_reactions (moment_id,user_id,kind) VALUES ($1,$2,$3)',
+        [req.params.momentId, req.user.id, kind]
+      );
+    }
+    const { rows } = await c.query(
+      `SELECT count(*) FILTER (WHERE kind='like')::int AS likes,
+              count(*) FILTER (WHERE kind='fire')::int AS fires
+       FROM moment_reactions WHERE moment_id=$1`,
+      [req.params.momentId]
+    );
+    return { active: !removed.rowCount, kind, ...rows[0] };
+  });
+
+  res.json(result);
 }));
 
 momentRoutes.get('/:momentId/viewers', auth, h(async (req, res) => {

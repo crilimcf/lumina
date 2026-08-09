@@ -185,6 +185,7 @@ export const api = {
     create: (b) => call('/moments', { method: 'POST', body: b }),
     update: (id, b) => call(`/moments/${id}`, { method: 'PATCH', body: b }),
     view: (id) => call(`/moments/${id}/view`, { method: 'POST' }),
+    react: (id, kind) => call(`/moments/${id}/reactions/${kind}`, { method: 'POST' }),
     viewers: (id) => call(`/moments/${id}/viewers`),
     remove: (id) => call(`/moments/${id}`, { method: 'DELETE' }),
   },

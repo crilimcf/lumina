@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Edit3, Flag, MoreHorizontal, Plus, Repeat2, Search, Send, Trash2, X } from 'lucide-react';
 import { api } from '../api.js';
-import { PAL, Orb, Skeleton, ErrorNote, Empty } from '../ui.jsx';
+import { Orb, Skeleton, ErrorNote, Empty } from '../ui.jsx';
 import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
-import { MomentComposer, MomentRing, MomentViewer } from '../components/Moments.jsx';
+import { MomentComposer, MomentRing } from '../components/Moments.jsx';
+import { MomentViewer } from '../components/MomentViewer.jsx';
 
 function EditPostSheet({ post, onClose, onSave }) {
   const [body, setBody] = useState(post.body || '');
@@ -40,7 +41,7 @@ export function Feed({
   burst, menuFor, setMenuFor, report, setComp,
   threads, setThread, ping, toast, unreadCount,
   momentGroups, myMomentGroup, viewingAuthor, setViewingAuthor,
-  viewMoment, deleteMoment, replyToMoment,
+  viewMoment, deleteMoment, replyToMoment, reactMoment,
   momentComposer, setMomentComposer, momentFile, setMomentFile,
   momentPalette, setMomentPalette, momentBusy, publishMoment,
 }) {
@@ -84,7 +85,7 @@ export function Feed({
                   </div>}
                 </div>
               </div>
-              {p.media_url ? (isVideo ? <video src={p.media_url} controls playsInline preload="metadata" aria-label={`Vídeo de ${p.name}`} style={{ width:'100%', maxHeight:'72dvh', background:'#0B0914', objectFit:'contain', display:'block' }} /> : <img src={p.media_url} alt="" loading="lazy" style={{ width:'100%', aspectRatio:'4/5', objectFit:'cover', display:'block' }} />) : <div className="block" style={{ width:'100%', aspectRatio:'4 / 5', background:PAL[p.palette % 5].bg }}><div className="gloss" /><Orb p={p.palette} s={76} cls="float" st={{ position:'absolute', bottom:26, left:22 }} /></div>}
+              {p.media_url && (isVideo ? <video src={p.media_url} controls playsInline preload="metadata" aria-label={`Vídeo de ${p.name}`} style={{ width:'100%', maxHeight:'72dvh', background:'#0B0914', objectFit:'contain', display:'block' }} /> : <img src={p.media_url} alt="" loading="lazy" style={{ width:'100%', aspectRatio:'4/5', objectFit:'cover', display:'block' }} />)}
               <div style={{ display:'flex', alignItems:'center', gap:20, padding:'13px 16px 4px', position:'relative' }}>
                 <button className={`act${mine.includes('like')?'':' act-off'}`} onClick={() => react(p,'like')}><span className="em" style={{ filter:mine.includes('like')?'none':'grayscale(1) opacity(.55)' }}>👍</span>{p.likes}</button>
                 <button className={`act${mine.includes('fire')?'':' act-off'}`} onClick={() => react(p,'fire')}><span className="em" style={{ filter:mine.includes('fire')?'none':'grayscale(1) opacity(.55)' }}>🔥</span>{p.fires}</button>
@@ -92,7 +93,7 @@ export function Feed({
                 <button className="act act-off" onClick={() => loadComments(p.id)}><span className="em" style={{ filter:'grayscale(1) opacity(.55)' }}>💬</span>{p.comments}</button>
                 {burst?.id === p.id && <span key={burst.n} className="pop" style={{ top:2, left:burst.kind==='like'?4:74, fontSize:26 }}>{burst.kind==='like'?'👍':'🔥'}</span>}
               </div>
-              <p style={{ fontSize:16, lineHeight:1.4, letterSpacing:'-.015em', margin:'6px 16px 16px' }}><b style={{ fontWeight:600 }}>{p.handle}</b> {p.body}</p>
+              <p style={{ fontSize:16, lineHeight:1.4, letterSpacing:'-.015em', margin:'6px 16px 16px' }}><b style={{ fontWeight:600 }}>{p.name}</b> {p.body}</p>
               {open === p.id && <div className="in" style={{ padding:'0 16px 18px' }}><div style={{ borderTop:'1px solid #EAE6F8', paddingTop:15 }}>
                 {cs.length===0 && <div className="m" style={{ marginBottom:14 }}>Sem comentários. Escreve o primeiro.</div>}
                 <div style={{ display:'grid', gap:13, marginBottom:15 }}>{cs.map(c => <CommentRow key={c.id} comment={c} post={p} me={me} editComment={editComment} deleteComment={deleteComment} />)}</div>
@@ -106,7 +107,7 @@ export function Feed({
       <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} threads={threads} />
       <Toast text={toast} />
       {editingPost && <EditPostSheet post={editingPost} onClose={() => setEditingPost(null)} onSave={body => editPost(editingPost, body)} />}
-      {viewingAuthor && (() => { const group = momentGroups.find(g => g.author.id === viewingAuthor); if (!group) return null; const idx=momentGroups.indexOf(group); return <MomentViewer group={group} meId={me.id} onView={viewMoment} onDelete={deleteMoment} onReply={replyToMoment} onClose={() => setViewingAuthor(null)} onNext={() => setViewingAuthor(momentGroups[idx+1]?.author.id || null)} onPrev={() => setViewingAuthor(momentGroups[idx-1]?.author.id || null)} />; })()}
+      {viewingAuthor && (() => { const group = momentGroups.find(g => g.author.id === viewingAuthor); if (!group) return null; const idx=momentGroups.indexOf(group); return <MomentViewer group={group} meId={me.id} onView={viewMoment} onDelete={deleteMoment} onReply={replyToMoment} onReact={reactMoment} onClose={() => setViewingAuthor(null)} onNext={() => setViewingAuthor(momentGroups[idx+1]?.author.id || null)} onPrev={() => setViewingAuthor(momentGroups[idx-1]?.author.id || null)} />; })()}
       {momentComposer && <MomentComposer file={momentFile} setFile={setMomentFile} palette={momentPalette} setPalette={setMomentPalette} busy={momentBusy} onClose={() => { setMomentComposer(false); setMomentFile(null); setMomentPalette(0); }} onPublish={publishMoment} />}
     </div>
   );

@@ -2,13 +2,13 @@ import './adaptiveDock.css';
 
 const TOP_LOCK = 72;
 const MIN_DELTA = 2;
-const DIRECTION_THRESHOLD = 18;
+const DIRECTION_THRESHOLD = 14;
 
-let lastY = Math.max(0, window.scrollY || 0);
-let direction = null;
-let travelled = 0;
 let hidden = false;
 let frame = 0;
+let pending = null;
+let lastNav = null;
+const stateByScroller = new WeakMap();
 
 function currentNav() {
   return document.querySelector('.nav');
@@ -21,67 +21,91 @@ function applyVisibility(nextHidden) {
   nav.classList.toggle('nav-smart-hidden', nextHidden);
 }
 
+function scrollPosition(scroller) {
+  if (scroller === window || scroller === document || scroller === document.documentElement || scroller === document.body) {
+    return Math.max(0, window.scrollY || document.documentElement.scrollTop || 0);
+  }
+  return Math.max(0, scroller?.scrollTop || 0);
+}
+
+function normalizeScroller(target) {
+  if (!target || target === document || target === document.documentElement || target === document.body) return window;
+  return target instanceof Element ? target : window;
+}
+
 function readScroll() {
   frame = 0;
-  const y = Math.max(0, window.scrollY || document.documentElement.scrollTop || 0);
+  const scroller = pending || window;
+  pending = null;
+  const y = scrollPosition(scroller);
+  const previous = stateByScroller.get(scroller) || { lastY: y, direction: null, travelled: 0 };
 
   if (y <= TOP_LOCK) {
-    direction = null;
-    travelled = 0;
-    lastY = y;
+    stateByScroller.set(scroller, { lastY: y, direction: null, travelled: 0 });
     applyVisibility(false);
     return;
   }
 
-  const delta = y - lastY;
-  lastY = y;
-  if (Math.abs(delta) < MIN_DELTA) return;
-
-  const nextDirection = delta > 0 ? 'down' : 'up';
-  if (nextDirection !== direction) {
-    direction = nextDirection;
-    travelled = 0;
+  const delta = y - previous.lastY;
+  if (Math.abs(delta) < MIN_DELTA) {
+    stateByScroller.set(scroller, { ...previous, lastY: y });
+    return;
   }
 
-  travelled += Math.abs(delta);
+  const nextDirection = delta > 0 ? 'down' : 'up';
+  const travelled = nextDirection === previous.direction
+    ? previous.travelled + Math.abs(delta)
+    : Math.abs(delta);
+
+  stateByScroller.set(scroller, { lastY: y, direction: nextDirection, travelled });
   if (travelled < DIRECTION_THRESHOLD) return;
 
-  applyVisibility(direction === 'down');
-  travelled = 0;
+  applyVisibility(nextDirection === 'down');
+  stateByScroller.set(scroller, { lastY: y, direction: nextDirection, travelled: 0 });
 }
 
-function scheduleRead() {
+function scheduleRead(event) {
+  pending = normalizeScroller(event?.target);
   if (!frame) frame = requestAnimationFrame(readScroll);
 }
 
+// `scroll` não faz bubble. Capture permite detetar tanto o scroll da página
+// como os contentores internos usados em chats/salas no Safari e Android.
+document.addEventListener('scroll', scheduleRead, { passive: true, capture: true });
 window.addEventListener('scroll', scheduleRead, { passive: true });
+
 window.addEventListener('pageshow', () => {
-  lastY = Math.max(0, window.scrollY || 0);
+  pending = window;
   applyVisibility(false);
 }, { passive: true });
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    lastY = Math.max(0, window.scrollY || 0);
-    applyVisibility(false);
-  }
+  if (document.visibilityState === 'visible') applyVisibility(false);
 });
 
 /* Navigation itself should never disappear as a side effect of tapping it. */
 document.addEventListener('pointerdown', (event) => {
-  if (event.target instanceof Element && event.target.closest('.nav')) {
-    travelled = 0;
-    applyVisibility(false);
-  }
+  if (event.target instanceof Element && event.target.closest('.nav')) applyVisibility(false);
 }, { passive: true });
 
-/* New screens can remount their own .nav. Reapply the current state without
-   coupling the behavior to individual React screens. */
+/* Um chat/sala em ecrã inteiro não monta `.nav`. Se o utilizador fizer scroll
+   aí, não podemos transportar esse estado escondido para a barra de outro
+   ecrã. Sempre que uma nova instância da navegação aparece, começa visível. */
 const root = document.getElementById('root');
 if (root) {
   const observer = new MutationObserver(() => {
     const nav = currentNav();
-    if (nav) nav.classList.toggle('nav-smart-hidden', hidden && window.scrollY > TOP_LOCK);
+    if (!nav) {
+      lastNav = null;
+      return;
+    }
+    if (nav !== lastNav) {
+      lastNav = nav;
+      hidden = false;
+      nav.classList.remove('nav-smart-hidden');
+      return;
+    }
+    nav.classList.toggle('nav-smart-hidden', hidden);
   });
   observer.observe(root, { childList: true, subtree: true });
 }

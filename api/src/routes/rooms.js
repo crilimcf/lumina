@@ -70,7 +70,28 @@ roomRoutes.post('/',auth,h(async(req,res)=>{
 }));
 
 roomRoutes.get('/:roomId',auth,h(async(req,res)=>res.json(await assertDiscoverable(req.params.roomId,req.user.id))));
-roomRoutes.patch('/:roomId',auth,h(async(req,res)=>{const room=await getRoom(req.params.roomId,req.user.id);if(!room||room.creator_id!==req.user.id)throw forbidden('Só quem criou a sala pode alterá-la');const name=req.body.name===undefined?room.name:String(req.body.name).trim(),topic=req.body.topic===undefined?room.topic:String(req.body.topic).trim(),description=req.body.description===undefined?room.description:String(req.body.description).trim();if(name.length<3||name.length>80)throw bad('Nome inválido');if(topic.length<3||topic.length>180)throw bad('Tópico inválido');if(description.length>1000)throw bad('Descrição demasiado longa');await q('UPDATE rooms SET name=$2,topic=$3,description=$4,updated_at=now() WHERE id=$1',[room.id,name,topic,description]);res.json(await getRoom(room.id,req.user.id));}));
+roomRoutes.patch('/:roomId',auth,h(async(req,res)=>{
+  const room=await getRoom(req.params.roomId,req.user.id);
+  if(!room||room.creator_id!==req.user.id)throw forbidden('Só quem criou a sala pode alterá-la');
+  const name=req.body.name===undefined?room.name:String(req.body.name).trim();
+  const topic=req.body.topic===undefined?room.topic:String(req.body.topic).trim();
+  const description=req.body.description===undefined?room.description:String(req.body.description).trim();
+  const imageProvided=Object.hasOwn(req.body||{},'imageUrl');
+  const imageUrl=imageProvided?(req.body.imageUrl?String(req.body.imageUrl):null):room.image_url;
+  if(name.length<3||name.length>80)throw bad('Nome inválido');
+  if(topic.length<3||topic.length>180)throw bad('Tópico inválido');
+  if(description.length>1000)throw bad('Descrição demasiado longa');
+  const previousImage=room.image_url;
+  await tx(async c=>{
+    if(imageProvided&&imageUrl&&imageUrl!==previousImage){
+      const claimed=await claimUpload(imageUrl,req.user.id,'room',(text,params)=>c.query(text,params));
+      if(!claimed)throw bad('Imagem da sala não verificada ou já utilizada','unconfirmed_upload');
+    }
+    await c.query('UPDATE rooms SET name=$2,topic=$3,description=$4,image_url=$5,updated_at=now() WHERE id=$1',[room.id,name,topic,description,imageUrl]);
+  });
+  if(imageProvided&&previousImage&&previousImage!==imageUrl)removeUploadIfUnreferenced(previousImage).catch(()=>{});
+  res.json(await getRoom(room.id,req.user.id));
+}));
 roomRoutes.delete('/:roomId',auth,h(async(req,res)=>{const {rows}=await q('DELETE FROM rooms WHERE id=$1 AND creator_id=$2 RETURNING image_url',[req.params.roomId,req.user.id]);if(!rows[0])throw notFound('Sala não encontrada');if(rows[0].image_url)removeUploadIfUnreferenced(rows[0].image_url).catch(()=>{});res.json({deleted:true});}));
 
 roomRoutes.post('/:roomId/invite',auth,h(async(req,res)=>{const room=await getRoom(req.params.roomId,req.user.id);if(!room||room.creator_id!==req.user.id)throw forbidden('Só quem criou a sala envia convites');if(room.visibility==='public')throw bad('Salas públicas não precisam de convite');const userId=String(req.body.userId||'');if(!userId||userId===req.user.id)throw bad('Pessoa inválida');const {rows:user}=await q('SELECT id,handle,name FROM users WHERE id=$1 AND suspended_at IS NULL',[userId]);if(!user[0])throw notFound('Pessoa não encontrada');if(await blocked(req.user.id,userId))throw forbidden('Não é possível convidar esta pessoa');await q(`INSERT INTO room_invites (room_id,user_id,invited_by) VALUES ($1,$2,$3) ON CONFLICT (room_id,user_id) DO UPDATE SET invited_by=EXCLUDED.invited_by,created_at=now()`,[room.id,userId,req.user.id]);res.status(201).json(user[0]);}));

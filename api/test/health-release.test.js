@@ -26,12 +26,23 @@ after(async () => {
   await pool.end();
 });
 
-test('health expõe commit Railway e versão ativa do schema sem alterar o body', async () => {
+test('health expõe release, schema e métricas agregadas do Radar sem alterar o body', async () => {
   const response = await fetch(`${baseUrl}/health`);
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { ok: true });
   assert.equal(response.headers.get('x-lumina-release'), 'release-test-sha');
   assert.equal(response.headers.get('x-lumina-schema'), '13');
+
+  for (const header of [
+    'x-lumina-radar-sources',
+    'x-lumina-radar-synced',
+    'x-lumina-radar-failing',
+    'x-lumina-radar-items-24h',
+  ]) {
+    const value = Number(response.headers.get(header));
+    assert.equal(Number.isInteger(value), true, `${header} deve ser inteiro`);
+    assert.equal(value >= 0, true, `${header} não pode ser negativo`);
+  }
 });
 
 test('health ignora versões históricas/sentinela sem migration correspondente no build', async () => {

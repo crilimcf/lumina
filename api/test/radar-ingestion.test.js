@@ -1,7 +1,8 @@
 import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
+import http from 'node:http';
 import { migrate, pool, q } from '../src/db.js';
-import { ingestRssSource, parseSyndicationFeed, resolvePublicFeedTarget, resolveRedirectUrl, withDeadline } from '../src/jobs/radar.js';
+import { fetchPublicFeed, ingestRssSource, parseSyndicationFeed, resolvePublicFeedTarget, resolveRedirectUrl, withDeadline } from '../src/jobs/radar.js';
 
 const RSS = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/">
@@ -85,6 +86,30 @@ test('GUID vazio cai para o link e não colide entre artigos', () => {
 
 test('redirect inválido vira erro controlado', () => {
   assert.throws(() => resolveRedirectUrl('http://[::1', 'https://example.test/feed'), /Redirect RSS inválido/);
+});
+
+test('resposta RSS truncada rejeita sem ficar pendurada', async () => {
+  const server = http.createServer((_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/rss+xml', 'content-length': '500' });
+    res.write('<rss><channel><item>');
+    setTimeout(() => res.destroy(), 10);
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const port = server.address().port;
+  try {
+    await assert.rejects(
+      () => fetchPublicFeed(`http://127.0.0.1:${port}/feed`, {
+        deadlineAt: Date.now() + 500,
+        resolveTargetImpl: async (input) => ({ url: new URL(input), address: '127.0.0.1', family: 4 }),
+      }),
+      /interrompida|truncada/
+    );
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
 });
 
 test('deadline cobre também uma resolução DNS bloqueada', async () => {

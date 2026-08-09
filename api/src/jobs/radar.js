@@ -252,14 +252,34 @@ export async function resolvePublicFeedTarget(input, { deadlineAt = Date.now() +
 }
 
 export async function fetchPublicFeed(input, {
-  etag = null, lastModified = null, redirects = 0, deadlineAt = Date.now() + FETCH_TIMEOUT_MS,
+  etag = null,
+  lastModified = null,
+  redirects = 0,
+  deadlineAt = Date.now() + FETCH_TIMEOUT_MS,
+  resolveTargetImpl = resolvePublicFeedTarget,
 } = {}) {
   if (redirects > MAX_REDIRECTS) throw new Error('Demasiados redirects na fonte RSS');
   remainingDeadlineMs(deadlineAt);
-  const target = await resolvePublicFeedTarget(input, { deadlineAt });
+  const target = await resolveTargetImpl(input, { deadlineAt });
   const transport = target.url.protocol === 'https:' ? https : http;
 
   return new Promise((resolve, reject) => {
+    let settled = false;
+    let absoluteTimeout = null;
+
+    const finishResolve = (value) => {
+      if (settled) return;
+      settled = true;
+      if (absoluteTimeout) clearTimeout(absoluteTimeout);
+      resolve(value);
+    };
+    const finishReject = (error) => {
+      if (settled) return;
+      settled = true;
+      if (absoluteTimeout) clearTimeout(absoluteTimeout);
+      reject(error instanceof Error ? error : new Error(String(error || 'Falha ao obter fonte RSS')));
+    };
+
     const headers = {
       accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, text/plain;q=0.5, */*;q=0.1',
       'accept-encoding': 'identity',
@@ -278,11 +298,10 @@ export async function fetchPublicFeed(input, {
         callback(null, target.address, target.family);
       },
     }, (response) => {
-      response.on('error', reject);
       const status = response.statusCode || 0;
       if (status === 304) {
         response.resume();
-        resolve({ notModified: true, text: '', etag: etag || null, lastModified: lastModified || null });
+        finishResolve({ notModified: true, text: '', etag: etag || null, lastModified: lastModified || null });
         return;
       }
       if (status >= 300 && status < 400 && response.headers.location) {
@@ -290,28 +309,35 @@ export async function fetchPublicFeed(input, {
         try { next = resolveRedirectUrl(response.headers.location, target.url); }
         catch (error) {
           response.resume();
-          reject(error);
+          finishReject(error);
           return;
         }
         response.resume();
-        fetchPublicFeed(next, { etag, lastModified, redirects: redirects + 1, deadlineAt }).then(resolve, reject);
+        fetchPublicFeed(next, {
+          etag,
+          lastModified,
+          redirects: redirects + 1,
+          deadlineAt,
+          resolveTargetImpl,
+        }).then(finishResolve, finishReject);
         return;
       }
       if (status !== 200) {
         response.resume();
-        reject(new Error(`Fonte RSS respondeu HTTP ${status}`));
+        finishReject(new Error(`Fonte RSS respondeu HTTP ${status}`));
         return;
       }
+
       const encoding = String(response.headers['content-encoding'] || 'identity').toLowerCase();
       if (encoding !== 'identity') {
         response.resume();
-        reject(new Error('Compressão inesperada na fonte RSS'));
+        finishReject(new Error('Compressão inesperada na fonte RSS'));
         return;
       }
       const declared = Number(response.headers['content-length'] || 0);
       if (declared > MAX_FEED_BYTES) {
         response.resume();
-        reject(new Error('Feed RSS demasiado grande'));
+        finishReject(new Error('Feed RSS demasiado grande'));
         return;
       }
 
@@ -320,31 +346,39 @@ export async function fetchPublicFeed(input, {
       response.on('data', chunk => {
         bytes += chunk.length;
         if (bytes > MAX_FEED_BYTES) {
-          request.destroy(new Error('Feed RSS demasiado grande'));
+          const error = new Error('Feed RSS demasiado grande');
+          request.destroy(error);
+          finishReject(error);
           return;
         }
         chunks.push(chunk);
       });
       response.on('end', () => {
-        if (!response.complete) {
-          reject(new Error('Resposta RSS incompleta'));
-          return;
-        }
-        resolve({
+        finishResolve({
           notModified: false,
           text: Buffer.concat(chunks).toString('utf8'),
           etag: response.headers.etag || null,
           lastModified: response.headers['last-modified'] || null,
         });
       });
+      response.once('aborted', () => finishReject(new Error('Resposta RSS interrompida antes de terminar')));
+      response.once('error', finishReject);
+      response.once('close', () => {
+        if (!response.complete && !settled) finishReject(new Error('Resposta RSS truncada antes de terminar'));
+      });
     });
-    const absoluteTimeout = setTimeout(
-      () => request.destroy(new Error('Timeout total ao obter fonte RSS')),
-      remainingDeadlineMs(deadlineAt),
-    );
-    request.once('close', () => clearTimeout(absoluteTimeout));
-    request.setTimeout(FETCH_TIMEOUT_MS, () => request.destroy(new Error('Timeout de inatividade ao obter fonte RSS')));
-    request.on('error', reject);
+
+    absoluteTimeout = setTimeout(() => {
+      const error = new Error('Timeout total ao obter fonte RSS');
+      request.destroy(error);
+      finishReject(error);
+    }, remainingDeadlineMs(deadlineAt));
+    request.setTimeout(FETCH_TIMEOUT_MS, () => {
+      const error = new Error('Timeout de inatividade ao obter fonte RSS');
+      request.destroy(error);
+      finishReject(error);
+    });
+    request.on('error', finishReject);
   });
 }
 

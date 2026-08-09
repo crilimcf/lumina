@@ -51,7 +51,68 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
     }
   };
 
+  /**
+   * Assinatura do deployment atualmente carregado.
+   *
+   * A build do Vite coloca hashes nos nomes do JS/CSS. Comparar os assets do
+   * HTML que esta janela carregou com os assets do HTML que a Vercel serve
+   * agora permite detetar um deployment novo sem service worker, versão
+   * manual ou dependência de caches do Safari.
+   */
+  const deploymentSignature = (doc) => Array.from(doc.querySelectorAll(
+    'script[type="module"][src*="/assets/"], link[rel="stylesheet"][href*="/assets/"]'
+  ))
+    .map((node) => node.getAttribute('src') || node.getAttribute('href'))
+    .filter(Boolean)
+    .sort()
+    .join('|');
+
+  const loadedDeployment = deploymentSignature(document);
+  let checkingDeployment = false;
+  let reloadingForDeployment = false;
+
+  const checkForNewDeployment = async () => {
+    if (checkingDeployment || reloadingForDeployment || !loadedDeployment) return;
+    checkingDeployment = true;
+
+    try {
+      const url = new URL('/', window.location.origin);
+      url.searchParams.set('__lumina_update_check', Date.now().toString());
+
+      const response = await fetch(url, {
+        cache: 'no-store',
+        credentials: 'same-origin',
+        headers: { 'cache-control': 'no-cache' },
+      });
+      if (!response.ok) return;
+
+      const html = await response.text();
+      const latestDocument = new DOMParser().parseFromString(html, 'text/html');
+      const latestDeployment = deploymentSignature(latestDocument);
+
+      if (latestDeployment && latestDeployment !== loadedDeployment) {
+        reloadingForDeployment = true;
+        window.location.reload();
+      }
+    } catch {
+      // Uma falha de rede nunca deve impedir a app de continuar a funcionar.
+      // Voltamos a verificar naturalmente no próximo foreground/pageshow.
+    } finally {
+      checkingDeployment = false;
+    }
+  };
+
   window.addEventListener('load', () => {
     retireLegacyPwaState().catch(() => {});
+    checkForNewDeployment();
   }, { once: true });
+
+  // iOS pode recuperar uma PWA instalada da memória em vez de fazer uma nova
+  // navegação. Ao voltar à Lumina, verificamos sempre a produção antes de o
+  // utilizador continuar numa versão antiga.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkForNewDeployment();
+  });
+  window.addEventListener('pageshow', checkForNewDeployment);
+  window.addEventListener('focus', checkForNewDeployment);
 }

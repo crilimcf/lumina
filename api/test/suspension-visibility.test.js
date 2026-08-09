@@ -182,4 +182,19 @@ test('cursores de timestamp inválidos devolvem 400 controlado', async () => {
   const alerts = await request('/notifications?before=definitivamente-nao', { token: user.token });
   assert.equal(alerts.response.status, 400);
   assert.equal(alerts.data.code, 'bad_cursor');
+
+  for (const cursor of ['2024-02-31', '2024-02-30T00:00:00Z']) {
+    const encoded = encodeURIComponent(cursor);
+    const overflowFeed = await request(`/posts/feed?before=${encoded}`, { token: user.token });
+    assert.equal(overflowFeed.response.status, 400, cursor);
+    assert.equal(overflowFeed.data.code, 'bad_cursor');
+
+    const overflowPromotions = await request(`/posts/promotions?before=${encoded}`, { token: user.token });
+    assert.equal(overflowPromotions.response.status, 400, cursor);
+    assert.equal(overflowPromotions.data.code, 'bad_cursor');
+
+    const overflowAlerts = await request(`/notifications?before=${encoded}`, { token: user.token });
+    assert.equal(overflowAlerts.response.status, 400, cursor);
+    assert.equal(overflowAlerts.data.code, 'bad_cursor');
+  }
 });

@@ -82,18 +82,14 @@ test('autor substitui media de Momento já publicado em Mobile Safari', async ({
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(moments[0]) });
   });
 
-  // Sem Momento, tocar em "Tu" abre o composer.
   await page.getByRole('button', { name: 'Tu' }).click();
   await page.locator('input[accept="image/jpeg,image/png,image/webp"]').setInputFiles({ name: 'original.png', mimeType: 'image/png', buffer: PNG });
   await page.getByRole('button', { name: 'Confirmar edição do momento' }).click();
   await page.getByRole('button', { name: 'Publicar momento' }).click();
   await expect(page.getByText(/Momento publicado/)).toBeVisible();
 
-  // Agora "Tu" abre o visualizador do Momento publicado.
   await page.getByRole('button', { name: 'Tu' }).click();
   await expect(page.getByRole('button', { name: 'Editar momento' })).toBeVisible();
-
-  const replacement = page.locator('input[accept*="video/mp4"]').filter({ has: page.locator('') });
   const ownViewerInput = page.locator('input[type="file"][accept*="video/mp4"]');
   await ownViewerInput.setInputFiles({ name: 'replacement.png', mimeType: 'image/png', buffer: PNG });
 

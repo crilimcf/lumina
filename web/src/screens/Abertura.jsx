@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowUpRight, DoorOpen } from 'lucide-react';
+import { ArrowUpRight, DoorOpen, Home, LockKeyhole } from 'lucide-react';
 import { Orb, Skeleton } from '../ui.jsx';
 
-/** Abertura diária sem convites: uma entrada visual curta antes do Feed. */
-export function Abertura({ me, coms, days, onSkip, onRooms, onCreateCommunity }) {
+/** Entrada visual curta depois do login/registo, alinhada com Feed + Salas. */
+export function Abertura({ me, onSkip, onRooms }) {
   const [step, setStep] = useState(0);
   useEffect(() => {
     const a = setTimeout(() => setStep(1), 240);
@@ -11,7 +11,6 @@ export function Abertura({ me, coms, days, onSkip, onRooms, onCreateCommunity })
     return () => { clearTimeout(a); clearTimeout(b); };
   }, []);
 
-  const total = days.filter(d => d.answered).length;
   return (
     <div style={{ minHeight:'100dvh', position:'relative', background:'linear-gradient(180deg,#EFEDFB,#DFDCF2)' }}>
       {step>=1&&<><div className="halo" style={{top:-70,right:-60,width:240,height:240,background:'#B99BFF'}}/><div className="halo" style={{bottom:130,left:-80,width:220,height:220,background:'#8F86F6',animationDelay:'.3s'}}/></>}
@@ -23,24 +22,27 @@ export function Abertura({ me, coms, days, onSkip, onRooms, onCreateCommunity })
         </div>
 
         <div style={{marginBottom:30}}>
-          {step===0?<><Skeleton w="58%" h={15} st={{marginBottom:18}}/><Skeleton w="90%" h={44} st={{marginBottom:12}}/><Skeleton w="62%" h={44}/></> : coms.length===0 ? <>
-            <div className="m up" style={{color:'var(--cobalt)',marginBottom:16}}>Ainda sem comunidade</div>
-            <h1 className="d up" style={{fontSize:'clamp(34px,9vw,46px)'}}>Junta-te ou cria a tua <span className="it">comunidade</span></h1>
-            <p className="up" style={{fontSize:15,lineHeight:1.45,color:'var(--grey)',marginTop:16}}>A comunidade liga-te às pessoas; as Salas dão espaço aos tópicos. Começa por criar ou escolher a tua comunidade.</p>
-          </> : <>
+          {step===0?<><Skeleton w="58%" h={15} st={{marginBottom:18}}/><Skeleton w="90%" h={44} st={{marginBottom:12}}/><Skeleton w="62%" h={44}/></> : <>
             <div className="m up" style={{color:'var(--cobalt)',marginBottom:16}}>O teu espaço está pronto</div>
-            <h1 className="d up" style={{fontSize:'clamp(40px,11vw,56px)',lineHeight:.98}}>Pessoas no <span className="it">Feed</span>.<br/>Tópicos nas <span className="it">Salas</span>.</h1>
-            <p className="up" style={{fontSize:15,lineHeight:1.5,color:'var(--grey)',marginTop:18}}>Sem publicidade misturada nas conversas. Entra no Feed para ver a tua gente ou abre uma Sala para falar sobre um tema.</p>
+            <h1 className="d up" style={{fontSize:'clamp(38px,10.5vw,54px)',lineHeight:.98}}>Pessoas no <span className="it">Feed</span>.<br/>Tópicos nas <span className="it">Salas</span>.</h1>
+            <p className="up" style={{fontSize:15,lineHeight:1.5,color:'var(--grey)',marginTop:18}}>Segue pessoas para construíres o teu Feed cronológico. Nas Salas podes descobrir temas, criar espaços públicos ou privados e conversar com quem quiseres.</p>
           </>}
         </div>
 
-        {step>=2&&<div className="up" style={{animationDelay:'.2s',marginBottom:'auto'}}>
-          <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',marginBottom:13}}><span className="m">A tua jornada</span><span className="m">{total} dias com atividade</span></div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(14,1fr)',gap:7}}>{days.slice(0,27).map((d,i)=><div key={d.date} className="dot" style={{aspectRatio:'1',background:d.answered?'var(--ink)':'rgba(20,18,42,.09)',transform:d.answered?'none':'scale(.62)',transitionDelay:`${i*22}ms`}}/>)}<div className="dot glow" style={{aspectRatio:'1',background:'var(--cobalt)'}}/></div>
+        {step>=2&&<div className="up" style={{animationDelay:'.2s',marginBottom:'auto',display:'grid',gap:10}}>
+          <div className="card" style={{padding:16,display:'flex',gap:12,alignItems:'center'}}>
+            <div style={{width:42,height:42,borderRadius:16,display:'grid',placeItems:'center',background:'#ECE9FF',color:'var(--cobalt)',flexShrink:0}}><Home size={19}/></div>
+            <div><b style={{display:'block',fontSize:14.5}}>Feed</b><span style={{fontSize:12.5,lineHeight:1.4,color:'var(--grey)'}}>Publicações da tua rede por ordem cronológica.</span></div>
+          </div>
+          <div className="card" style={{padding:16,display:'flex',gap:12,alignItems:'center'}}>
+            <div style={{width:42,height:42,borderRadius:16,display:'grid',placeItems:'center',background:'#ECE9FF',color:'var(--cobalt)',flexShrink:0}}><DoorOpen size={19}/></div>
+            <div style={{flex:1}}><b style={{display:'block',fontSize:14.5}}>Salas</b><span style={{fontSize:12.5,lineHeight:1.4,color:'var(--grey)'}}>Espaços para temas, públicos ou privados por convite.</span></div>
+            <LockKeyhole size={15} color="var(--grey)"/>
+          </div>
         </div>}
 
         <div style={{marginTop:34}}>
-          {step===0?<Skeleton w="100%" h={52} r={99}/>:step>=2&&(coms.length===0?<button className="p p-brand up" onClick={onCreateCommunity} style={{width:'100%',padding:15,fontSize:15,display:'flex',alignItems:'center',justifyContent:'center',gap:9}}>Criar ou entrar numa comunidade <ArrowUpRight size={17}/></button>:<><button className="p p-brand up" onClick={onSkip} style={{width:'100%',padding:15,fontSize:15,display:'flex',alignItems:'center',justifyContent:'center',gap:9}}>Ver o feed <ArrowUpRight size={17}/></button><button className="p up" onClick={onRooms} style={{width:'100%',marginTop:10,padding:'13px 16px',fontSize:15,background:'rgba(255,255,255,.45)',color:'var(--ink)',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><DoorOpen size={16}/>Explorar Salas</button></>)}
+          {step===0?<Skeleton w="100%" h={52} r={99}/>:step>=2&&<><button className="p p-brand up" onClick={onRooms} style={{width:'100%',padding:15,fontSize:15,display:'flex',alignItems:'center',justifyContent:'center',gap:9}}><DoorOpen size={17}/>Explorar Salas <ArrowUpRight size={17}/></button><button className="p up" onClick={onSkip} style={{width:'100%',marginTop:10,padding:'13px 16px',fontSize:15,background:'rgba(255,255,255,.45)',color:'var(--ink)',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><Home size={16}/>Ir para o Feed</button></>}
         </div>
       </div>
     </div>

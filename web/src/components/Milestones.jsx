@@ -1,5 +1,5 @@
 import React from 'react';
-import { Camera, Home, Sparkles, Timer } from 'lucide-react';
+import { Camera, DoorOpen, Home, Timer } from 'lucide-react';
 import { Orb } from '../ui.jsx';
 
 // Sem streak que reseta — um marco só soma; nunca é uma sequência que se perde.
@@ -45,10 +45,10 @@ export function Marco({ milestone, onContinue }) {
 }
 
 const WELCOME_ITEMS = [
-  { icon: Sparkles, title: 'Um convite por dia', body: 'Cada dia há uma pergunta ou desafio para a tua comunidade. Quem está lá propõe ideias e vota — o convite do dia é sempre escolhido pela tua gente, nunca por um algoritmo.' },
-  { icon: Home, title: 'Comunidades pequenas', body: 'Junta-te ou cria uma comunidade fechada com amigos de verdade. O feed é só delas, por ordem cronológica — sem posts patrocinados, sem scroll infinito.' },
-  { icon: Camera, title: 'Momentos', body: 'Partilha uma foto ou só uma cor, visível 24 horas para quem partilha uma comunidade contigo. Depois desaparece — como um Story, mas sem ninguém de fora a ver.' },
-  { icon: Timer, title: 'Mensagens efémeras', body: 'Manda uma mensagem com temporizador ou para abrir só uma vez. Passado esse tempo, é apagada a sério do servidor — não só escondida no ecrã.' },
+  { icon: Home, title: 'Feed cronológico', body: 'O Feed mostra primeiro o que foi publicado mais recentemente. Likes e fogos servem para reagir — não para decidir a ordem do que vês.' },
+  { icon: DoorOpen, title: 'Salas públicas ou privadas', body: 'Cria ou entra em Salas para falar de temas específicos. As públicas podem ser descobertas por todos; as privadas funcionam por convite.' },
+  { icon: Camera, title: 'Momentos por 24 horas', body: 'Partilha uma fotografia ou vídeo durante 24 horas. Enquanto estiver ativo, podes substituir o media ou apagar o Momento quando quiseres.' },
+  { icon: Timer, title: 'Conversas à tua maneira', body: 'No Chat podes falar normalmente ou usar mensagens com temporizador e conteúdos para abrir uma só vez.' },
 ];
 
 /** Ecrã de boas-vindas, mostrado uma única vez logo a seguir ao registo. */
@@ -56,12 +56,12 @@ export function Welcome({ onContinue }) {
   return (
     <div style={{ minHeight: '100dvh', background: 'linear-gradient(180deg,#EFEDFB,#DFDCF2)' }}>
       <div style={{ maxWidth: 460, margin: '0 auto', padding: '48px 22px calc(26px + env(safe-area-inset-bottom))' }}>
-        <div className="m" style={{ color: 'var(--coral)', marginBottom: 10 }}>Bem-vindo à Lumina</div>
+        <div className="m" style={{ color: 'var(--cobalt)', marginBottom: 10 }}>Bem-vindo à Lumina</div>
         <h1 className="d" style={{ fontSize: 'clamp(32px,9vw,44px)', lineHeight: 1.08, marginBottom: 14 }}>
           Antes de começares, quatro coisas para saberes
         </h1>
         <p style={{ fontSize: 15, lineHeight: 1.5, color: 'var(--grey)', marginBottom: 30 }}>
-          A Lumina não tem anúncios nem algoritmo — só a tua gente, um convite por dia.
+          Pessoas no Feed, tópicos nas Salas e liberdade para partilhares ao teu ritmo.
         </p>
 
         <div style={{ display: 'grid', gap: 16, marginBottom: 30 }}>

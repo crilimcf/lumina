@@ -13,7 +13,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     container: ghcr.io/railwayapp/cli:latest
-    timeout-minutes: 12
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,7 +44,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: 18,
-              body: `Railway authorization from run ${context.runId}:\n\n\`\`\`text\n${text}\n\`\`\`\n\nAuthorize this session to deploy the Radar platform and migration 011 to production.`
+              body: `Railway authorization from run ${context.runId}:\n\n\`\`\`text\n${text}\n\`\`\`\n\nAuthorize this session to deploy the Radar platform and migration 011 to production. This authorization window stays open for 30 minutes.`
             });
 
       - name: Wait for authorization and deploy current Lumina API
@@ -53,7 +53,7 @@ jobs:
           set -eu
           authorized=0
           i=0
-          while [ "$i" -lt 90 ]; do
+          while [ "$i" -lt 360 ]; do
             if railway whoami >/tmp/railway-whoami.log 2>&1; then
               authorized=1
               break

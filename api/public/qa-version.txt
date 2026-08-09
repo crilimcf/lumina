@@ -1,0 +1,6 @@
+Lumina QA
+
+Canonical production origin: https://lumina-snowy-ten.vercel.app
+PWA icon generation: lumina-orbit-ios-v2.png
+Login stale-session CSRF regression: api/test/csrf-public-auth.test.js
+Installed-app auto-update: compares current Vite asset signature on foreground/pageshow/focus and reloads when production changes

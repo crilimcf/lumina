@@ -1,0 +1,16 @@
+{
+  "id": "/",
+  "name": "Lumina",
+  "short_name": "Lumina",
+  "description": "Uma pergunta por dia, escolhida pela tua gente — nunca por um algoritmo.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#13082D",
+  "theme_color": "#13082D",
+  "orientation": "portrait",
+  "lang": "pt-PT",
+  "icons": [
+    { "src": "/lumina-orbit-ios-v2.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ]
+}

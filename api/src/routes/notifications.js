@@ -21,6 +21,15 @@ const SELECT_NOTIFICATION = `
   LEFT JOIN follow_requests fr ON fr.id = n.follow_request_id
 `;
 
+const BLOCKED_ACTOR_FILTER = `
+  NOT EXISTS (
+    SELECT 1 FROM blocks b
+    WHERE n.actor_id IS NOT NULL
+      AND ((b.blocker_id=$1 AND b.blocked_id=n.actor_id)
+        OR (b.blocked_id=$1 AND b.blocker_id=n.actor_id))
+  )
+`;
+
 notificationRoutes.get('/', auth, h(async (req, res) => {
   const before = req.query.before || null;
   const asked = Number(req.query.limit);
@@ -28,6 +37,7 @@ notificationRoutes.get('/', auth, h(async (req, res) => {
   const { rows } = await q(
     `${SELECT_NOTIFICATION}
      WHERE n.user_id = $1
+       AND ${BLOCKED_ACTOR_FILTER}
        AND ($2::timestamptz IS NULL OR n.created_at < $2)
      ORDER BY n.created_at DESC
      LIMIT $3`,
@@ -41,7 +51,10 @@ notificationRoutes.get('/', auth, h(async (req, res) => {
 
 notificationRoutes.get('/unread-count', auth, h(async (req, res) => {
   const { rows } = await q(
-    'SELECT count(*)::int AS count FROM notifications WHERE user_id = $1 AND read_at IS NULL',
+    `SELECT count(*)::int AS count
+     FROM notifications n
+     WHERE n.user_id = $1 AND n.read_at IS NULL
+       AND ${BLOCKED_ACTOR_FILTER}`,
     [req.user.id]
   );
   res.json({ count: rows[0].count });

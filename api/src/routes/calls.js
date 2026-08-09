@@ -4,6 +4,16 @@ import { auth, h, bad, forbidden, notFound } from '../middleware/auth.js';
 
 export const callRoutes = Router();
 
+async function blocked(a, b) {
+  const { rows } = await q(
+    `SELECT 1 FROM blocks
+     WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)
+     LIMIT 1`,
+    [a, b]
+  );
+  return !!rows[0];
+}
+
 async function threadForUser(threadId, userId) {
   const { rows } = await q(
     `SELECT t.*, CASE WHEN t.user_a=$2 THEN t.user_b ELSE t.user_a END AS other_id
@@ -12,11 +22,7 @@ async function threadForUser(threadId, userId) {
     [threadId, userId]
   );
   if (!rows[0]) throw forbidden('Não fazes parte desta conversa');
-  const { rows: blocks } = await q(
-    `SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)`,
-    [userId, rows[0].other_id]
-  );
-  if (blocks[0]) throw forbidden('Esta conversa já não está disponível');
+  if (await blocked(userId, rows[0].other_id)) throw forbidden('Esta conversa já não está disponível');
   return rows[0];
 }
 
@@ -25,8 +31,11 @@ async function callForUser(callId, userId) {
     `SELECT * FROM call_sessions WHERE id=$1 AND (caller_id=$2 OR callee_id=$2)`,
     [callId, userId]
   );
-  if (!rows[0]) throw notFound('Chamada não encontrada');
-  return rows[0];
+  const call = rows[0];
+  if (!call) throw notFound('Chamada não encontrada');
+  const otherId = call.caller_id === userId ? call.callee_id : call.caller_id;
+  if (await blocked(userId, otherId)) throw forbidden('Esta chamada já não está disponível');
+  return call;
 }
 
 callRoutes.post('/', auth, h(async (req, res) => {
@@ -57,6 +66,11 @@ callRoutes.get('/incoming', auth, h(async (req, res) => {
             u.name,u.handle,u.palette,u.avatar_url
      FROM call_sessions cs JOIN users u ON u.id=cs.caller_id
      WHERE cs.callee_id=$1 AND cs.status='ringing' AND cs.created_at > now()-interval '2 minutes'
+       AND NOT EXISTS (
+         SELECT 1 FROM blocks b
+         WHERE (b.blocker_id=$1 AND b.blocked_id=cs.caller_id)
+            OR (b.blocked_id=$1 AND b.blocker_id=cs.caller_id)
+       )
      ORDER BY cs.created_at DESC LIMIT 1`,
     [req.user.id]
   );
@@ -109,12 +123,13 @@ callRoutes.post('/:callId/signals', auth, h(async (req, res) => {
 
 callRoutes.get('/:callId/signals', auth, h(async (req, res) => {
   const call = await callForUser(req.params.callId, req.user.id);
-  const after = Math.max(0, Number(req.query.after || 0));
+  const rawAfter = req.query.after === undefined ? 0 : Number(req.query.after);
+  if (!Number.isSafeInteger(rawAfter) || rawAfter < 0) throw bad('Cursor de sinal inválido', 'bad_cursor');
   const { rows } = await q(
     `SELECT id,sender_id,kind,payload,created_at
      FROM call_signals WHERE call_id=$1 AND sender_id<>$2 AND id>$3
      ORDER BY id ASC LIMIT 200`,
-    [call.id, req.user.id, after]
+    [call.id, req.user.id, rawAfter]
   );
   res.json(rows);
 }));

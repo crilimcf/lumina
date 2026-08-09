@@ -1,34 +1,34 @@
 /**
  * Service worker da Lumina.
  *
- * Cache mínimo, sem tentar adivinhar nomes de ficheiros com hash do build:
- * guarda o essencial no install, e depois cache-first para `/assets/*`
- * (nomes com hash do Vite — seguros para guardar para sempre) e
- * network-first para a navegação, com o shell como rede de segurança offline.
- *
- * Pedidos para a API (`/api/*`) passam sempre direto à rede: nunca é
- * seguro guardar em cache uma resposta autenticada num dispositivo
- * partilhado. Isto é sobre o caminho, não sobre a origem — `/api/*` é
- * reencaminhado pela Vercel para a Railway, por isso já é a mesma origem
- * do resto da app; um filtro por origem deixava de identificar estes
- * pedidos e passava a confiar só em não haver nenhum outro ramo abaixo
- * que lhes desse `respondWith` — verdade hoje, frágil para sempre.
+ * O placeholder BUILD é substituído pelo Vite em cada build de produção.
+ * Assim cada deployment cria um cache próprio e o iPhone deixa de ficar preso
+ * a um shell antigo da PWA.
  */
-const CACHE = 'lumina-v2';
-const SHELL = ['/', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'];
+const BUILD = '__LUMINA_BUILD__';
+const CACHE = `lumina-${BUILD}`;
+const SHELL = ['/', '/manifest.webmanifest', '/lumina-icon.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())
+    caches.open(CACHE)
+      .then((cache) => cache.addAll(SHELL.map((path) => new Request(path, { cache: 'reload' }))))
+      .then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim())
-  );
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    const legacyV2 = keys.includes('lumina-v2');
+    await Promise.all(keys.filter((key) => key.startsWith('lumina-') && key !== CACHE).map((key) => caches.delete(key)));
+    await self.clients.claim();
+
+    if (legacyV2) {
+      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      await Promise.all(windows.map((client) => client.navigate(client.url).catch(() => null)));
+    }
+  })());
 });
 
 self.addEventListener('fetch', (event) => {
@@ -36,19 +36,29 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return; // API: sempre direto à rede
+  if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return;
 
   if (request.mode === 'navigate') {
-    event.respondWith(fetch(request).catch(() => caches.match('/')));
+    event.respondWith(
+      fetch(request, { cache: 'no-store' })
+        .then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE).then((cache) => cache.put('/', copy));
+          }
+          return response;
+        })
+        .catch(() => caches.match('/'))
+    );
     return;
   }
 
   if (url.pathname.startsWith('/assets/')) {
     event.respondWith(
-      caches.match(request).then((cached) => cached || fetch(request).then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(request, copy));
-        return res;
+      caches.match(request).then((cached) => cached || fetch(request).then((response) => {
+        const copy = response.clone();
+        caches.open(CACHE).then((cache) => cache.put(request, copy));
+        return response;
       }))
     );
   }

@@ -1,0 +1,103 @@
+name: Mobile Safari WebKit
+
+on:
+  pull_request:
+  push:
+    branches:
+      - 'refactor/**'
+      - 'feature/**'
+      - 'fix/**'
+
+jobs:
+  webkit:
+    name: Mobile Safari end-to-end
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: lumina
+          POSTGRES_PASSWORD: lumina
+          POSTGRES_DB: lumina_webkit
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lumina -d lumina_webkit"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      NODE_ENV: development
+      PORT: '3000'
+      DATABASE_URL: postgresql://lumina:lumina@127.0.0.1:5432/lumina_webkit
+      JWT_SECRET: webkit-ci-only-secret-not-used-outside-actions-0123456789
+      PGSSL: 'false'
+      MIN_ACCOUNT_AGE_HOURS: '0'
+      RUN_JOBS_IN_PROCESS: 'false'
+      E2E_BASE_URL: https://localhost:5173
+      VITE_E2E_HTTPS: 'true'
+      VITE_E2E_KEY: .cert/key.pem
+      VITE_E2E_CERT: .cert/cert.pem
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install application dependencies
+        run: |
+          cd api && npm ci
+          cd ../web && npm ci
+          npm install --no-save --package-lock=false @playwright/test@1.55.0
+
+      - name: Install WebKit
+        working-directory: web
+        run: npx playwright install --with-deps webkit
+
+      - name: Create local HTTPS certificate
+        run: |
+          mkdir -p web/.cert
+          openssl req -x509 -newkey rsa:2048 -sha256 -days 1 -nodes \
+            -keyout web/.cert/key.pem \
+            -out web/.cert/cert.pem \
+            -subj '/CN=localhost' \
+            -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1'
+
+      - name: Start isolated Lumina stack
+        run: |
+          (cd api && nohup npm start > ../api-webkit.log 2>&1 &)
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:3000/health && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3000/health
+
+          (cd web && nohup npm run dev -- --host 127.0.0.1 --port 5173 > ../web-webkit.log 2>&1 &)
+          for i in {1..30}; do
+            curl -kfsS https://localhost:5173/ && break
+            sleep 1
+          done
+          curl -kfsS https://localhost:5173/ > /dev/null
+
+      - name: Run Mobile Safari flows
+        working-directory: web
+        run: npx playwright test
+
+      - name: Show server logs on failure
+        if: failure()
+        run: |
+          echo '--- API ---'
+          cat api-webkit.log || true
+          echo '--- WEB ---'
+          cat web-webkit.log || true
+
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-webkit-failure
+          path: |
+            web/test-results
+            web/playwright-report
+          if-no-files-found: ignore
+          retention-days: 7

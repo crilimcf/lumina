@@ -1,11 +1,10 @@
 import { Router } from 'express';
 import { q, tx } from '../db.js';
 import { env } from '../env.js';
-import { auth, h, bad, notFound, requireMember, requireModerator } from '../middleware/auth.js';
+import { auth, h, bad, notFound, forbidden, requireMember } from '../middleware/auth.js';
 
 export const communityRoutes = Router();
 
-// Lista de fusos aceites. Validar contra a Intl evita lixo na base.
 function validTimezone(tz) {
   try {
     new Intl.DateTimeFormat('pt-PT', { timeZone: tz });
@@ -15,28 +14,35 @@ function validTimezone(tz) {
   }
 }
 
-/**
- * Criar comunidade.
- * Exige SEED_PROPOSALS_REQUIRED convites de arranque. Sem eles, uma comunidade
- * nova acorda no primeiro dia sem nada para propor — e morre à nascença.
- */
 communityRoutes.post('/', auth, h(async (req, res) => {
-  const { slug, name, description = '', timezone = 'Europe/Lisbon', seedProposals } = req.body;
+  const cleanSlug = String(req.body.slug || '').trim().toLowerCase();
+  const cleanName = String(req.body.name || '').trim();
+  const description = String(req.body.description || '').trim();
+  const timezone = String(req.body.timezone || 'Europe/Lisbon').trim();
+  const seedProposals = req.body.seedProposals;
 
-  if (!slug || !name) throw bad('Falta o slug ou o nome');
+  if (!/^[a-z0-9-]{2,32}$/.test(cleanSlug)) {
+    throw bad('O identificador tem 2 a 32 caracteres: letras minúsculas, números ou hífen', 'bad_slug');
+  }
+  if (cleanName.length < 2 || cleanName.length > 60) {
+    throw bad('O nome da comunidade tem entre 2 e 60 caracteres', 'bad_name');
+  }
+  if (description.length > 300) throw bad('A descrição tem no máximo 300 caracteres', 'bad_description');
   if (!validTimezone(timezone)) throw bad('Fuso horário inválido (usa formato IANA, ex: Europe/Lisbon)');
 
   const seeds = Array.isArray(seedProposals) ? seedProposals.map(s => String(s).trim()).filter(Boolean) : [];
   if (seeds.length < env.SEED_PROPOSALS_REQUIRED) {
     throw bad(`Escreve ${env.SEED_PROPOSALS_REQUIRED} convites de arranque para a comunidade`, 'seeds_required');
   }
+  if (seeds.length > 20) throw bad('No máximo 20 convites de arranque', 'too_many_seeds');
   if (seeds.some(s => s.length < 3 || s.length > 120)) throw bad('Cada convite tem entre 3 e 120 caracteres');
+  if (seeds.some(s => /https?:\/\/|www\./i.test(s))) throw bad('Sem ligações nos convites');
 
   const community = await tx(async (c) => {
     const { rows } = await c.query(
       `INSERT INTO communities (slug, name, description, timezone, founder_id, member_count)
        VALUES ($1, $2, $3, $4, $5, 1) RETURNING *`,
-      [slug, name, description, timezone, req.user.id]
+      [cleanSlug, cleanName, description, timezone, req.user.id]
     );
     const com = rows[0];
 
@@ -58,6 +64,7 @@ communityRoutes.post('/', auth, h(async (req, res) => {
   res.status(201).json(community);
 }));
 
+/** Comunidades públicas para descoberta. */
 communityRoutes.get('/', h(async (_req, res) => {
   const { rows } = await q(
     `SELECT id, slug, name, description, timezone, member_count
@@ -66,7 +73,6 @@ communityRoutes.get('/', h(async (_req, res) => {
   res.json(rows);
 }));
 
-/** As comunidades a que pertenco, com o convite de hoje ja resolvido. */
 communityRoutes.get('/mine', auth, h(async (req, res) => {
   const { rows } = await q(
     `SELECT c.id, c.slug, c.name, c.timezone, c.member_count, m.role,
@@ -82,14 +88,21 @@ communityRoutes.get('/mine', auth, h(async (req, res) => {
   res.json(rows);
 }));
 
+/** Aceita UUID ou slug sem obrigar o PostgreSQL a inferir $1 como dois tipos. */
 communityRoutes.get('/:communityId', h(async (req, res) => {
-  const { rows } = await q('SELECT * FROM communities WHERE id = $1 OR slug = $1', [req.params.communityId]);
+  const { rows } = await q(
+    'SELECT * FROM communities WHERE id::text = $1 OR slug = $1',
+    [String(req.params.communityId)]
+  );
   if (!rows[0]) throw notFound('Comunidade não encontrada');
   res.json(rows[0]);
 }));
 
 communityRoutes.post('/:communityId/join', auth, h(async (req, res) => {
   await tx(async (c) => {
+    const { rows: exists } = await c.query('SELECT 1 FROM communities WHERE id = $1', [req.params.communityId]);
+    if (!exists[0]) throw notFound('Comunidade não encontrada');
+
     const ins = await c.query(
       `INSERT INTO memberships (community_id, user_id) VALUES ($1, $2)
        ON CONFLICT DO NOTHING RETURNING user_id`,
@@ -104,24 +117,44 @@ communityRoutes.post('/:communityId/join', auth, h(async (req, res) => {
 }));
 
 communityRoutes.post('/:communityId/leave', auth, h(async (req, res) => {
-  await tx(async (c) => {
+  const left = await tx(async (c) => {
     const del = await c.query(
       `DELETE FROM memberships WHERE community_id = $1 AND user_id = $2 AND role <> 'founder'
        RETURNING user_id`,
       [req.params.communityId, req.user.id]
     );
     if (del.rowCount) {
-      await c.query('UPDATE communities SET member_count = member_count - 1 WHERE id = $1',
+      await c.query('UPDATE communities SET member_count = GREATEST(member_count - 1, 0) WHERE id = $1',
         [req.params.communityId]);
+      return true;
     }
+
+    const { rows: membership } = await c.query(
+      'SELECT role FROM memberships WHERE community_id = $1 AND user_id = $2',
+      [req.params.communityId, req.user.id]
+    );
+    if (membership[0]?.role === 'founder') {
+      throw bad('Quem fundou a comunidade não pode sair sem transferir a responsabilidade', 'founder_cannot_leave');
+    }
+    return false;
   });
-  res.json({ left: true });
+  res.json({ left });
 }));
 
-/** Quem funda nomeia moderadores. A moderação vive dentro da comunidade. */
-communityRoutes.post('/:communityId/moderators', auth, requireModerator(), h(async (req, res) => {
+communityRoutes.post('/:communityId/moderators', auth, h(async (req, res) => {
   const { userId, role = 'moderator' } = req.body;
+  if (!userId) throw bad('Falta a pessoa', 'user_required');
   if (!['member', 'moderator'].includes(role)) throw bad('Papel inválido');
+
+  if (!req.user.is_staff) {
+    const { rows: founder } = await q(
+      `SELECT 1 FROM memberships
+       WHERE community_id = $1 AND user_id = $2 AND role = 'founder'`,
+      [req.params.communityId, req.user.id]
+    );
+    if (!founder[0]) throw forbidden('Só quem fundou esta comunidade gere moderadores');
+  }
+
   const { rows } = await q(
     `UPDATE memberships SET role = $3
      WHERE community_id = $1 AND user_id = $2 AND role <> 'founder' RETURNING *`,

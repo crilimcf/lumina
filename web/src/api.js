@@ -1,36 +1,8 @@
-/**
- * Cliente da API.
- *
- * Um sítio só para falar com o servidor. Os ecrãs chamam `api.posts.feed()`
- * e não sabem nada de fetch, cookies ou cabeçalhos.
- *
- * A sessão vive num cookie HttpOnly — o browser envia-o sozinho
- * (`credentials: 'include'`), e o JavaScript nunca lhe consegue tocar. Isso
- * fecha a porta a um roubo de sessão via XSS que o localStorage deixava
- * aberta.
- *
- * Pedidos que mudam estado levam também um valor CSRF num cabeçalho. Não
- * vive num cookie legível: o valor vem embutido (assinado) no próprio
- * token e é devolvido no corpo das respostas de login/registo/etc;
- * guardamo-lo aqui em memória (nunca em localStorage, para não abrir de
- * novo a porta que os cookies HttpOnly fecharam) e repetimo-lo no cabeçalho.
- * (A API vive num domínio à parte — `/api/*` é reencaminhado pela Vercel —
- * mas do ponto de vista do browser é tudo a mesma origem.)
- */
-
+/** Cliente único da API Lumina. */
 const BASE = import.meta.env.VITE_API_URL || '/api';
 const SAFE_METHODS = new Set(['GET', 'HEAD']);
 
 let csrfToken = null;
-
-/**
- * Quando um pedido autenticado leva 401 a meio da sessão (token expirado,
- * password mudada noutro sítio, "fechar tudo em todo o lado"), alguém tem
- * de tirar a pessoa do ecrã em que está — senão fica presa a ver erros
- * silenciosos em cada ação, sem perceber que precisa de entrar outra vez.
- * A App regista aqui o que fazer; sem handler registado, não faz nada
- * (mantém o comportamento antigo até a App arrancar).
- */
 let unauthorizedHandler = () => {};
 export const onUnauthorized = (fn) => { unauthorizedHandler = fn; };
 
@@ -44,24 +16,23 @@ export class ApiError extends Error {
 
 async function call(path, { method = 'GET', body, auth = true } = {}) {
   const headers = {};
-  if (body) headers['content-type'] = 'application/json';
+  if (body !== undefined) headers['content-type'] = 'application/json';
   if (!SAFE_METHODS.has(method) && csrfToken) headers['x-csrf-token'] = csrfToken;
-
   let res;
   try {
-    res = await fetch(BASE + path, { method, headers, credentials: 'include', body: body && JSON.stringify(body) });
+    res = await fetch(BASE + path, {
+      method, headers, credentials: 'include',
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
   } catch {
     throw new ApiError(0, 'Sem ligação. Verifica a internet.', 'offline');
   }
-
   if (res.status === 401 && auth) {
     const data = await res.json().catch(() => ({}));
     unauthorizedHandler();
     throw new ApiError(401, data.error || 'A sessão expirou', data.code || 'unauthorized');
   }
-
   if (res.status === 204) return null;
-
   const data = await res.json().catch(() => ({}));
   if (typeof data?.csrf === 'string') csrfToken = data.csrf;
   if (!res.ok) throw new ApiError(res.status, data.error || 'Alguma coisa correu mal', data.code);
@@ -81,21 +52,12 @@ export const api = {
     forgot: (email) => call('/account/forgot-password', { method: 'POST', body: { email }, auth: false }),
     reset: (b) => call('/account/reset-password', { method: 'POST', body: b, auth: false }),
     days: () => call('/account/days'),
-    /**
-     * Descarrega os dados. Um <a href> nao envia o cookie de sessao a um
-     * pedido cross-origin da mesma forma previsivel, por isso pedimos com
-     * fetch (que leva o cookie automaticamente) e guardamos o ficheiro a
-     * partir da resposta.
-     */
     async download() {
       const res = await fetch(`${BASE}/account/export`, { credentials: 'include' });
       if (!res.ok) throw new ApiError(res.status, 'Nao foi possivel descarregar');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'lumina-os-meus-dados.json';
-      a.click();
+      const a = document.createElement('a'); a.href = url; a.download = 'lumina-os-meus-dados.json'; a.click();
       URL.revokeObjectURL(url);
     },
     remove: () => call('/account/delete', { method: 'POST' }),
@@ -117,11 +79,15 @@ export const api = {
   },
   posts: {
     feed: (cursor) => call(`/posts/feed${cursor ? `?before=${encodeURIComponent(cursor)}` : ''}`),
+    promotions: (cursor) => call(`/posts/promotions${cursor ? `?before=${encodeURIComponent(cursor)}` : ''}`),
     create: (b) => call('/posts', { method: 'POST', body: b }),
+    edit: (id, body) => call(`/posts/${id}`, { method: 'PATCH', body: { body } }),
     react: (id, kind) => call(`/posts/${id}/reactions/${kind}`, { method: 'POST' }),
     repost: (id) => call(`/posts/${id}/repost`, { method: 'POST' }),
     comments: (id) => call(`/posts/${id}/comments`),
     comment: (id, body) => call(`/posts/${id}/comments`, { method: 'POST', body: { body } }),
+    editComment: (postId, commentId, body) => call(`/posts/${postId}/comments/${commentId}`, { method: 'PATCH', body: { body } }),
+    removeComment: (postId, commentId) => call(`/posts/${postId}/comments/${commentId}`, { method: 'DELETE' }),
     remove: (id) => call(`/posts/${id}`, { method: 'DELETE' }),
   },
   messages: {
@@ -131,9 +97,34 @@ export const api = {
     send: (tid, b) => call(`/messages/threads/${tid}/messages`, { method: 'POST', body: b }),
     reveal: (mid) => call(`/messages/${mid}/open`, { method: 'POST' }),
   },
+  rooms: {
+    list: () => call('/rooms'),
+    get: (id) => call(`/rooms/${id}`),
+    create: (b) => call('/rooms', { method: 'POST', body: b }),
+    update: (id, b) => call(`/rooms/${id}`, { method: 'PATCH', body: b }),
+    remove: (id) => call(`/rooms/${id}`, { method: 'DELETE' }),
+    join: (id) => call(`/rooms/${id}/join`, { method: 'POST' }),
+    invite: (id, userId) => call(`/rooms/${id}/invite`, { method: 'POST', body: { userId } }),
+    checkoutCreate: (id) => call(`/rooms/${id}/checkout-create`, { method: 'POST' }),
+    checkoutEntry: (id) => call(`/rooms/${id}/checkout-entry`, { method: 'POST' }),
+    messages: (id) => call(`/rooms/${id}/messages`),
+    send: (id, body) => call(`/rooms/${id}/messages`, { method: 'POST', body: { body } }),
+    editMessage: (roomId, messageId, body) => call(`/rooms/${roomId}/messages/${messageId}`, { method: 'PATCH', body: { body } }),
+    removeMessage: (roomId, messageId) => call(`/rooms/${roomId}/messages/${messageId}`, { method: 'DELETE' }),
+  },
+  calls: {
+    start: (threadId, mode) => call('/calls', { method: 'POST', body: { threadId, mode } }),
+    incoming: () => call('/calls/incoming'),
+    get: (id) => call(`/calls/${id}`),
+    answer: (id) => call(`/calls/${id}/answer`, { method: 'POST' }),
+    decline: (id) => call(`/calls/${id}/decline`, { method: 'POST' }),
+    end: (id) => call(`/calls/${id}/end`, { method: 'POST' }),
+    signal: (id, kind, payload) => call(`/calls/${id}/signals`, { method: 'POST', body: { kind, payload } }),
+    signals: (id, after = 0) => call(`/calls/${id}/signals?after=${after}`),
+  },
   twoFactor: {
     status: () => call('/2fa/status'),
-    setup: () => call('/2fa/setup', { method: 'POST' }),
+    setup: (password) => call('/2fa/setup', { method: 'POST', body: { password } }),
     enable: (code) => call('/2fa/enable', { method: 'POST', body: { code } }),
     disable: (password) => call('/2fa/disable', { method: 'POST', body: { password } }),
   },
@@ -154,12 +145,11 @@ export const api = {
     block: (id) => call(`/users/${id}/block`, { method: 'POST' }),
     unblock: (id) => call(`/users/${id}/block`, { method: 'DELETE' }),
     blocked: () => call('/users/me/blocked'),
+    followers: () => call('/users/me/followers'),
     following: () => call('/users/me/following'),
     suggestions: () => call('/users/me/suggestions'),
   },
-  reports: {
-    create: (b) => call('/reports', { method: 'POST', body: b }),
-  },
+  reports: { create: (b) => call('/reports', { method: 'POST', body: b }) },
   moments: {
     list: () => call('/moments'),
     create: (b) => call('/moments', { method: 'POST', body: b }),
@@ -167,24 +157,10 @@ export const api = {
     viewers: (id) => call(`/moments/${id}/viewers`),
     remove: (id) => call(`/moments/${id}`, { method: 'DELETE' }),
   },
-
-  /**
-   * Envia uma imagem em dois passos: pede um URL assinado e envia o ficheiro
-   * direto para o armazenamento. A API nunca toca no ficheiro.
-   */
   async upload(file) {
-    const { uploadUrl, key } = await call('/uploads/sign', {
-      method: 'POST',
-      body: { mime: file.type, bytes: file.size },
-    });
-    const res = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: { 'content-type': file.type },
-      body: file,
-    });
-    if (!res.ok) throw new ApiError(res.status, 'Não foi possível enviar a imagem');
-    // O servidor lê os primeiros bytes e confirma que é mesmo uma imagem.
-    // Só depois disto o URL pode ser usado num post.
+    const { uploadUrl, key } = await call('/uploads/sign', { method: 'POST', body: { mime: file.type, bytes: file.size } });
+    const res = await fetch(uploadUrl, { method: 'PUT', headers: { 'content-type': file.type }, body: file });
+    if (!res.ok) throw new ApiError(res.status, 'Não foi possível enviar o ficheiro');
     const { url } = await call('/uploads/confirm', { method: 'POST', body: { key } });
     return url;
   },

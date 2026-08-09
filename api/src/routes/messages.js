@@ -2,20 +2,33 @@ import { Router } from 'express';
 import { q, tx } from '../db.js';
 import { env } from '../env.js';
 import { auth, h, bad, notFound, forbidden } from '../middleware/auth.js';
+import { claimUpload } from '../lib/uploads.js';
 
 export const messageRoutes = Router();
 
 /** Threads guardam o par ordenado, por isso não há conversas duplicadas. */
 const pair = (a, b) => (a < b ? [a, b] : [b, a]);
 
-async function findOrCreateThread(userA, userB) {
-  if (userA === userB) throw bad('Não podes falar contigo');
-  const { rows: blk } = await q(
+async function blocked(a, b, query = q) {
+  const { rows } = await query(
     `SELECT 1 FROM blocks
      WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)`,
-    [userA, userB]
+    [a, b]
   );
-  if (blk[0]) throw forbidden('Não é possível iniciar esta conversa');
+  return !!rows[0];
+}
+
+async function findOrCreateThread(userA, userB) {
+  if (!userB) throw bad('Falta a pessoa', 'user_required');
+  if (userA === userB) throw bad('Não podes falar contigo');
+
+  const { rows: target } = await q(
+    'SELECT id FROM users WHERE id = $1 AND suspended_at IS NULL',
+    [userB]
+  );
+  if (!target[0]) throw notFound('Pessoa não encontrada');
+  if (await blocked(userA, userB)) throw forbidden('Não é possível iniciar esta conversa');
+
   const [a, b] = pair(userA, userB);
   const { rows } = await q(
     `INSERT INTO threads (user_a, user_b) VALUES ($1, $2)
@@ -40,6 +53,7 @@ messageRoutes.get('/threads', auth, h(async (req, res) => {
        WHERE m.thread_id = t.id ORDER BY m.created_at DESC LIMIT 1
      ) last ON true
      WHERE (t.user_a = $1 OR t.user_b = $1)
+       AND u.suspended_at IS NULL
        AND NOT EXISTS (SELECT 1 FROM blocks bl
                        WHERE (bl.blocker_id = $1 AND bl.blocked_id = u.id)
                           OR (bl.blocked_id = $1 AND bl.blocker_id = u.id))
@@ -68,6 +82,9 @@ async function assertParticipant(threadId, userId) {
     [threadId, userId]
   );
   if (!rows[0]) throw forbidden('Não fazes parte desta conversa');
+
+  const other = rows[0].user_a === userId ? rows[0].user_b : rows[0].user_a;
+  if (await blocked(userId, other)) throw forbidden('Esta conversa já não está disponível');
   return rows[0];
 }
 
@@ -83,7 +100,6 @@ messageRoutes.get('/threads/:threadId/messages', auth, h(async (req, res) => {
   const { rows } = await q(
     `SELECT id, sender_id, kind, mode, palette, opened_at, expires_at, purged_at, created_at,
             CASE
-              -- conteúdo efémero só sai do servidor depois de o destinatário o abrir
               WHEN purged_at IS NOT NULL THEN NULL
               WHEN mode <> 'normal' AND sender_id <> $2 AND opened_at IS NULL THEN NULL
               ELSE body
@@ -100,35 +116,61 @@ messageRoutes.get('/threads/:threadId/messages', auth, h(async (req, res) => {
 }));
 
 messageRoutes.post('/threads/:threadId/messages', auth, h(async (req, res) => {
-  const { kind = 'text', mode = 'normal', body = null, mediaUrl = null, palette = 0 } = req.body;
+  const { kind = 'text', mode = 'normal', mediaUrl = null } = req.body;
+  const body = bodyOrNull(req.body.body);
+  const palette = Number(req.body.palette ?? 0);
+
+  if (!['text', 'media'].includes(kind)) throw bad('Tipo de mensagem inválido');
   if (!['normal', 'timer', 'once'].includes(mode)) throw bad('Modo inválido');
-  if (kind === 'text' && !String(body || '').trim()) throw bad('Mensagem vazia');
+  if (!Number.isInteger(palette) || palette < 0 || palette > 4) throw bad('Cor inválida', 'bad_palette');
+
+  if (kind === 'text') {
+    if (!body) throw bad('Mensagem vazia');
+    if (body.length > 4000) throw bad('A mensagem tem no máximo 4000 caracteres');
+    if (mediaUrl) throw bad('Mensagem de texto não leva imagem');
+  }
+  if (kind === 'media') {
+    if (!mediaUrl) throw bad('Falta a imagem', 'media_required');
+    if (body) throw bad('Mensagem de imagem não leva texto');
+  }
   if (mode === 'once' && kind !== 'media') throw bad('O modo uma vez é só para fotos');
 
-  const t = await assertParticipant(req.params.threadId, req.user.id);
-  const other = t.user_a === req.user.id ? t.user_b : t.user_a;
-  const { rows: blk } = await q(
-    `SELECT 1 FROM blocks
-     WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)`,
-    [req.user.id, other]
-  );
-  if (blk[0]) throw forbidden('Esta conversa já não está disponível');
+  await assertParticipant(req.params.threadId, req.user.id);
 
-  const { rows } = await q(
-    `INSERT INTO messages (thread_id, sender_id, kind, mode, body, media_url, palette)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING id, kind, mode, created_at`,
-    [req.params.threadId, req.user.id, kind, mode, body, mediaUrl, palette]
-  );
-  res.status(201).json(rows[0]);
+  // Claim + INSERT no mesmo COMMIT: se a mensagem falhar, o upload volta a
+  // ficar disponível; se passar, essa URL deixa de poder ser reutilizada.
+  const message = await tx(async (c) => {
+    if (mediaUrl) {
+      const claimed = await claimUpload(
+        mediaUrl,
+        req.user.id,
+        'message',
+        (text, params) => c.query(text, params)
+      );
+      if (!claimed) throw bad('Imagem não verificada ou já utilizada', 'unconfirmed_upload');
+    }
+
+    const { rows } = await c.query(
+      `INSERT INTO messages (thread_id, sender_id, kind, mode, body, media_url, palette)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, kind, mode, created_at`,
+      [req.params.threadId, req.user.id, kind, mode, body, mediaUrl, palette]
+    );
+    return rows[0];
+  });
+
+  res.status(201).json(message);
 }));
+
+function bodyOrNull(value) {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  return text || null;
+}
 
 /**
  * Abrir uma mensagem efémera. É aqui que o relógio começa: gravamos opened_at
  * e marcamos a hora em que o conteúdo é apagado do servidor.
- *
- * Nota honesta para a interface: isto impede que a mensagem seja lida de novo,
- * não impede uma captura de ecrã. A app diz isso ao utilizador.
  */
 messageRoutes.post('/:messageId/open', auth, h(async (req, res) => {
   const out = await tx(async (c) => {
@@ -141,10 +183,15 @@ messageRoutes.post('/:messageId/open', auth, h(async (req, res) => {
     const m = rows[0];
     if (!m) throw notFound('Mensagem não encontrada');
     if (m.user_a !== req.user.id && m.user_b !== req.user.id) throw forbidden();
+
+    const other = m.user_a === req.user.id ? m.user_b : m.user_a;
+    if (await blocked(req.user.id, other, (text, params) => c.query(text, params))) {
+      throw forbidden('Esta conversa já não está disponível');
+    }
     if (m.sender_id === req.user.id) throw bad('É tua');
+    if (m.mode === 'normal') throw bad('Esta mensagem não é efémera', 'not_ephemeral');
     if (m.purged_at) throw bad('Já não existe', 'purged');
     if (m.opened_at) {
-      // Ver uma vez significa uma vez. Segunda tentativa não devolve nada.
       if (m.mode === 'once') throw bad('Esta foto já foi vista', 'already_seen');
       return { body: m.body, mediaUrl: m.media_url, expiresAt: m.expires_at };
     }

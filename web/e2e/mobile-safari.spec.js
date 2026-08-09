@@ -90,6 +90,9 @@ test('barra flutuante esconde ao descer, regressa ao subir e mantém o Novo func
   await expect(nav).not.toHaveClass(/nav-smart-hidden/);
 
   await page.evaluate(() => {
+    document.documentElement.style.height = 'auto';
+    document.body.style.height = 'auto';
+    document.getElementById('root').style.minHeight = '100vh';
     const spacer = document.createElement('div');
     spacer.dataset.testid = 'dock-scroll-spacer';
     spacer.style.height = '220vh';
@@ -98,10 +101,14 @@ test('barra flutuante esconde ao descer, regressa ao subir e mantém o Novo func
   });
 
   await scrollWindowAndFlush(page, 0);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+
   await scrollWindowAndFlush(page, 520);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
   await expect(nav).toHaveClass(/nav-smart-hidden/);
 
   await scrollWindowAndFlush(page, 240);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(400);
   await expect(nav).not.toHaveClass(/nav-smart-hidden/);
 
   await page.getByRole('button', { name: 'Novo' }).click();

@@ -3,7 +3,8 @@ import { Edit3, Flag, MoreHorizontal, Plus, Repeat2, Search, Send, Trash2, X } f
 import { api } from '../api.js';
 import { Orb, Skeleton, ErrorNote, Empty } from '../ui.jsx';
 import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
-import { MomentComposer, MomentRing, MomentViewer } from '../components/Moments.jsx';
+import { MomentComposer, MomentRing } from '../components/Moments.jsx';
+import { MomentViewer } from '../components/MomentViewer.jsx';
 
 function EditPostSheet({ post, onClose, onSave }) {
   const [body, setBody] = useState(post.body || '');
@@ -40,7 +41,7 @@ export function Feed({
   burst, menuFor, setMenuFor, report, setComp,
   threads, setThread, ping, toast, unreadCount,
   momentGroups, myMomentGroup, viewingAuthor, setViewingAuthor,
-  viewMoment, deleteMoment, replyToMoment,
+  viewMoment, deleteMoment, replyToMoment, reactMoment,
   momentComposer, setMomentComposer, momentFile, setMomentFile,
   momentPalette, setMomentPalette, momentBusy, publishMoment,
 }) {
@@ -106,7 +107,7 @@ export function Feed({
       <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} threads={threads} />
       <Toast text={toast} />
       {editingPost && <EditPostSheet post={editingPost} onClose={() => setEditingPost(null)} onSave={body => editPost(editingPost, body)} />}
-      {viewingAuthor && (() => { const group = momentGroups.find(g => g.author.id === viewingAuthor); if (!group) return null; const idx=momentGroups.indexOf(group); return <MomentViewer group={group} meId={me.id} onView={viewMoment} onDelete={deleteMoment} onReply={replyToMoment} onClose={() => setViewingAuthor(null)} onNext={() => setViewingAuthor(momentGroups[idx+1]?.author.id || null)} onPrev={() => setViewingAuthor(momentGroups[idx-1]?.author.id || null)} />; })()}
+      {viewingAuthor && (() => { const group = momentGroups.find(g => g.author.id === viewingAuthor); if (!group) return null; const idx=momentGroups.indexOf(group); return <MomentViewer group={group} meId={me.id} onView={viewMoment} onDelete={deleteMoment} onReply={replyToMoment} onReact={reactMoment} onClose={() => setViewingAuthor(null)} onNext={() => setViewingAuthor(momentGroups[idx+1]?.author.id || null)} onPrev={() => setViewingAuthor(momentGroups[idx-1]?.author.id || null)} />; })()}
       {momentComposer && <MomentComposer file={momentFile} setFile={setMomentFile} palette={momentPalette} setPalette={setMomentPalette} busy={momentBusy} onClose={() => { setMomentComposer(false); setMomentFile(null); setMomentPalette(0); }} onPublish={publishMoment} />}
     </div>
   );

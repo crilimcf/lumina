@@ -236,7 +236,12 @@ export async function fetchPublicFeed(input, { etag = null, lastModified = null,
     const request = transport.get(target.url, {
       headers,
       servername: target.url.hostname,
-      lookup: (_hostname, _options, callback) => callback(null, target.address, target.family),
+      family: target.family,
+      autoSelectFamily: false,
+      lookup: (_hostname, options, callback) => {
+        if (options?.all) return callback(null, [{ address: target.address, family: target.family }]);
+        callback(null, target.address, target.family);
+      },
     }, (response) => {
       const status = response.statusCode || 0;
       if (status === 304) {

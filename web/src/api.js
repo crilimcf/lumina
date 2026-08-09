@@ -86,6 +86,22 @@ export const api = {
     removeComment: (postId, commentId) => call(`/posts/${postId}/comments/${commentId}`, { method: 'DELETE' }),
     remove: (id) => call(`/posts/${id}`, { method: 'DELETE' }),
   },
+  radar: {
+    list: ({ type, cursor, limit } = {}) => {
+      const params = new URLSearchParams();
+      if (type) params.set('type', type);
+      if (cursor) params.set('before', cursor);
+      if (limit) params.set('limit', String(limit));
+      const suffix = params.size ? `?${params.toString()}` : '';
+      return call(`/radar${suffix}`);
+    },
+    create: (body) => call('/radar', { method: 'POST', body }),
+    edit: (id, body) => call(`/radar/${id}`, { method: 'PATCH', body }),
+    archive: (id) => call(`/radar/${id}`, { method: 'DELETE' }),
+    sources: () => call('/radar/sources'),
+    createSource: (body) => call('/radar/sources', { method: 'POST', body }),
+    editSource: (id, body) => call(`/radar/sources/${id}`, { method: 'PATCH', body }),
+  },
   messages: {
     threads: () => call('/messages/threads'),
     openThread: (userId) => call('/messages/threads', { method: 'POST', body: { userId } }),
@@ -127,7 +143,7 @@ export const api = {
   twoFactor: {
     status: () => call('/2fa/status'),
     setup: (password) => call('/2fa/setup', { method: 'POST', body: { password } }),
-    enable: (code) => call('/2fa/enable', { method: 'POST', body: { code } }),
+    enable: (code) => call('/2fa/enable', { method: 'POST' }),
     disable: (password) => call('/2fa/disable', { method: 'POST', body: { password } }),
   },
   sessions: {

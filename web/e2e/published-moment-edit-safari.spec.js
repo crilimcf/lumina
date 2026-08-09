@@ -5,6 +5,11 @@ const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAFElEQVR4nGOsCLjDgA0wYRUdtBIAS4sBtNP0jmcAAAAASUVORK5CYII=',
   'base64'
 );
+const MP4 = Buffer.from([
+  0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70,
+  0x69, 0x73, 0x6f, 0x6d, 0x00, 0x00, 0x02, 0x00,
+  0x69, 0x73, 0x6f, 0x6d, 0x6d, 0x70, 0x34, 0x32,
+]);
 
 async function openFeed(page) {
   const suffix = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
@@ -33,21 +38,29 @@ test('autor substitui media de Momento já publicado em Mobile Safari', async ({
   let moments = [];
   let uploadNumber = 0;
   let patchBody = null;
+  const uploadMimes = new Map();
 
   await page.route('**/api/uploads/sign', async route => {
     uploadNumber += 1;
+    const body = route.request().postDataJSON();
+    uploadMimes.set(uploadNumber, body.mime);
+    const extension = body.mime?.startsWith('video/') ? 'mp4' : 'png';
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ uploadUrl: `https://upload.example.test/${uploadNumber}`, key: `qa/${uploadNumber}.png` }),
+      body: JSON.stringify({ uploadUrl: `https://upload.example.test/${uploadNumber}`, key: `qa/${uploadNumber}.${extension}` }),
     });
   });
   await page.route('https://upload.example.test/**', route => route.fulfill({ status: 200, body: '' }));
-  await page.route('**/api/uploads/confirm', route => route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({ url: `https://media.example.test/${uploadNumber}.png` }),
-  }));
+  await page.route('**/api/uploads/confirm', route => {
+    const mime = uploadMimes.get(uploadNumber) || 'image/png';
+    const extension = mime.startsWith('video/') ? 'mp4' : 'png';
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ url: `https://media.example.test/${uploadNumber}.${extension}` }),
+    });
+  });
 
   await page.route('**/api/moments', async route => {
     if (route.request().method() === 'GET') {
@@ -58,7 +71,7 @@ test('autor substitui media de Momento já publicado em Mobile Safari', async ({
     const moment = {
       id: '11111111-1111-4111-8111-111111111111',
       media_url: body.mediaUrl,
-      media_mime: 'image/png',
+      media_mime: 'video/mp4',
       palette: body.palette || 0,
       created_at: now.toISOString(),
       expires_at: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
@@ -82,11 +95,16 @@ test('autor substitui media de Momento já publicado em Mobile Safari', async ({
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(moments[0]) });
   });
 
+  // A edição de fotografia antes de publicar já tem um teste Safari dedicado.
+  // Aqui usamos vídeo de origem para isolar a responsabilidade deste teste:
+  // substituir media de um Momento que já foi publicado.
   await page.getByRole('button', { name: 'Tu' }).click();
-  await page.locator('input[accept="image/jpeg,image/png,image/webp"]').setInputFiles({ name: 'original.png', mimeType: 'image/png', buffer: PNG });
-  const confirmEdit = page.getByRole('button', { name: 'Confirmar edição do momento' });
-  await expect(confirmEdit).toBeEnabled();
-  await confirmEdit.click();
+  await page.locator('input[accept="video/mp4,video/quicktime,video/webm"]').setInputFiles({
+    name: 'original.mp4',
+    mimeType: 'video/mp4',
+    buffer: MP4,
+  });
+  await expect(page.getByLabel('Pré-visualização do vídeo do momento')).toBeVisible();
   await page.getByRole('button', { name: 'Publicar momento' }).click();
   await expect(page.getByText(/Momento publicado/)).toBeVisible();
 

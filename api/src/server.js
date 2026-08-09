@@ -98,7 +98,17 @@ const health = async (_req, res) => {
          (SELECT count(*)::int FROM radar_sources WHERE active=true AND kind='rss') AS active_sources,
          (SELECT count(*)::int FROM radar_sources WHERE active=true AND kind='rss' AND last_success_at IS NOT NULL) AS synced_sources,
          (SELECT count(*)::int FROM radar_sources WHERE active=true AND kind='rss' AND last_fetch_error IS NOT NULL) AS failing_sources,
-         (SELECT count(*)::int FROM radar_items WHERE status='published' AND published_at >= now() - interval '24 hours') AS items_24h`
+         (SELECT count(*)::int FROM radar_items WHERE status='published' AND published_at >= now() - interval '24 hours') AS items_24h,
+         (SELECT CASE
+            WHEN bool_or(last_fetch_error ILIKE '%dns%' OR last_fetch_error ILIKE '%resolve%') THEN 'dns'
+            WHEN bool_or(last_fetch_error ILIKE '%timeout%') THEN 'timeout'
+            WHEN bool_or(last_fetch_error ILIKE '%http %') THEN 'http'
+            WHEN bool_or(last_fetch_error ILIKE '%compress%') THEN 'compression'
+            WHEN bool_or(last_fetch_error ILIKE '%xml%' OR last_fetch_error ILIKE '%rss%' OR last_fetch_error ILIKE '%atom%') THEN 'feed'
+            ELSE 'other'
+          END
+          FROM radar_sources
+          WHERE active=true AND kind='rss' AND last_fetch_error IS NOT NULL) AS error_class`
     );
     const radar = rows[0] || {};
     res.setHeader('X-Lumina-Schema', String(schemaVersion));
@@ -106,6 +116,7 @@ const health = async (_req, res) => {
     res.setHeader('X-Lumina-Radar-Synced', String(radar.synced_sources ?? 0));
     res.setHeader('X-Lumina-Radar-Failing', String(radar.failing_sources ?? 0));
     res.setHeader('X-Lumina-Radar-Items-24h', String(radar.items_24h ?? 0));
+    if (radar.error_class) res.setHeader('X-Lumina-Radar-Error-Class', String(radar.error_class));
     res.json({ ok: true });
   } catch {
     res.status(503).json({ ok: false });

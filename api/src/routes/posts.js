@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { q, tx } from '../db.js';
-import { auth, h, bad, notFound, forbidden, requirePostMember } from '../middleware/auth.js';
+import { auth, h, bad, notFound, forbidden, HttpError, requirePostMember } from '../middleware/auth.js';
 import { claimUpload, removeUploadIfUnreferenced } from '../lib/uploads.js';
 
 export const postRoutes = Router();
@@ -21,15 +21,43 @@ const SELECT_POST = `
   JOIN communities c ON c.id = p.community_id
 `;
 
+async function resolvePostCommunity(userId, requestedId) {
+  if (requestedId) {
+    const { rows } = await q(
+      `SELECT c.id FROM communities c
+       JOIN memberships m ON m.community_id=c.id
+       WHERE c.id=$1 AND m.user_id=$2 AND COALESCE(c.is_system,false)=false`,
+      [requestedId, userId]
+    );
+    if (!rows[0]) throw bad('Não tens acesso a esse espaço', 'not_member');
+    return rows[0].id;
+  }
+
+  const { rows } = await q('SELECT id FROM communities WHERE is_system=true ORDER BY created_at LIMIT 1');
+  if (!rows[0]) throw new HttpError(503, 'O Feed está temporariamente indisponível', 'feed_space_missing');
+  const id = rows[0].id;
+  await q(
+    `INSERT INTO memberships (community_id,user_id,role) VALUES ($1,$2,'member')
+     ON CONFLICT DO NOTHING`,
+    [id, userId]
+  );
+  return id;
+}
+
 async function listByKind(req, kind) {
   const before = req.query.before || null;
   const asked = Number(req.query.limit);
   const limit = Number.isInteger(asked) && asked > 0 ? Math.min(asked, 50) : 20;
+  const visibility = kind === 'post'
+    ? `(p.author_id = $1 OR EXISTS (
+         SELECT 1 FROM follows f WHERE f.follower_id=$1 AND f.following_id=p.author_id
+       ))`
+    : `p.community_id IN (SELECT community_id FROM memberships WHERE user_id = $1)`;
   const { rows } = await q(
     `${SELECT_POST}
      WHERE p.hidden_at IS NULL
        AND COALESCE(p.kind,'post') = $4
-       AND p.community_id IN (SELECT community_id FROM memberships WHERE user_id = $1)
+       AND ${visibility}
        AND NOT EXISTS (SELECT 1 FROM blocks b
                        WHERE (b.blocker_id = $1 AND b.blocked_id = p.author_id)
                           OR (b.blocked_id = $1 AND b.blocker_id = p.author_id))
@@ -41,7 +69,7 @@ async function listByKind(req, kind) {
   return { posts: rows, nextCursor: rows.length === limit ? rows.at(-1).created_at : null };
 }
 
-/** Feed social cronológico e sem publicidade. */
+/** Feed social cronológico: publicações próprias e de pessoas seguidas. */
 postRoutes.get('/feed', auth, h(async (req, res) => {
   res.json(await listByKind(req, 'post'));
 }));
@@ -52,18 +80,14 @@ postRoutes.get('/promotions', auth, h(async (req, res) => {
 }));
 
 postRoutes.post('/', auth, h(async (req, res) => {
-  const { communityId, mediaUrl = null, inviteId = null } = req.body;
+  const requestedCommunity = req.body.communityId || null;
+  const communityId = await resolvePostCommunity(req.user.id, requestedCommunity);
+  const { mediaUrl = null, inviteId = null } = req.body;
   const body = String(req.body.body || '').trim();
   const palette = Number(req.body.palette ?? 0);
-  if (!communityId || !body) throw bad('Faltam campos');
+  if (!body) throw bad('A publicação não pode ficar vazia');
   if (body.length > 2000) throw bad('A publicação tem no máximo 2000 caracteres');
   if (!Number.isInteger(palette) || palette < 0 || palette > 4) throw bad('Cor inválida', 'bad_palette');
-
-  const { rows: mem } = await q(
-    'SELECT 1 FROM memberships WHERE community_id = $1 AND user_id = $2',
-    [communityId, req.user.id]
-  );
-  if (!mem[0]) throw bad('Só membros publicam nesta comunidade', 'not_member');
 
   const post = await tx(async (c) => {
     if (inviteId) {
@@ -130,15 +154,13 @@ postRoutes.post('/:postId/reactions/:kind', auth, requirePostMember, h(async (re
   res.json({ active: !del.rowCount, ...rows[0] });
 }));
 
-postRoutes.post('/:postId/repost', auth, h(async (req, res) => {
+postRoutes.post('/:postId/repost', auth, requirePostMember, h(async (req, res) => {
   const { rows: orig } = await q(
     `SELECT community_id, body, media_url, palette FROM posts
      WHERE id=$1 AND hidden_at IS NULL AND COALESCE(kind,'post')='post'`,
     [req.params.postId]
   );
   if (!orig[0]) throw notFound('Publicação não encontrada');
-  const { rows: mem } = await q('SELECT 1 FROM memberships WHERE community_id=$1 AND user_id=$2', [orig[0].community_id, req.user.id]);
-  if (!mem[0]) throw bad('Só membros desta comunidade republicam aqui', 'not_member');
 
   const del = await q('DELETE FROM posts WHERE author_id=$1 AND repost_of=$2 RETURNING id,media_url', [req.user.id, req.params.postId]);
   if (del.rowCount) {

@@ -22,63 +22,182 @@ jobs:
 
           radar = Path('api/src/jobs/radar.js')
           text = radar.read_text()
+          start = text.index('export async function fetchPublicFeed(')
+          end = text.index('\nfunction boundedInteger(', start)
+          replacement = r'''export async function fetchPublicFeed(input, {
+            etag = null,
+            lastModified = null,
+            redirects = 0,
+            deadlineAt = Date.now() + FETCH_TIMEOUT_MS,
+            resolveTargetImpl = resolvePublicFeedTarget,
+          } = {}) {
+            if (redirects > MAX_REDIRECTS) throw new Error('Demasiados redirects na fonte RSS');
+            remainingDeadlineMs(deadlineAt);
+            const target = await resolveTargetImpl(input, { deadlineAt });
+            const transport = target.url.protocol === 'https:' ? https : http;
 
-          text = text.replace(
-            "export async function fetchPublicFeed(input, {\n  etag = null, lastModified = null, redirects = 0, deadlineAt = Date.now() + FETCH_TIMEOUT_MS,\n} = {}) {\n  if (redirects > MAX_REDIRECTS) throw new Error('Demasiados redirects na fonte RSS');\n  remainingDeadlineMs(deadlineAt);\n  const target = await resolvePublicFeedTarget(input, { deadlineAt });",
-            "export async function fetchPublicFeed(input, {\n  etag = null, lastModified = null, redirects = 0, deadlineAt = Date.now() + FETCH_TIMEOUT_MS,\n  resolveTargetImpl = resolvePublicFeedTarget,\n} = {}) {\n  if (redirects > MAX_REDIRECTS) throw new Error('Demasiados redirects na fonte RSS');\n  remainingDeadlineMs(deadlineAt);\n  const target = await resolveTargetImpl(input, { deadlineAt });",
-            1,
-          )
+            return new Promise((resolve, reject) => {
+              let settled = false;
+              let absoluteTimeout = null;
+              const finishResolve = (value) => {
+                if (settled) return;
+                settled = true;
+                if (absoluteTimeout) clearTimeout(absoluteTimeout);
+                resolve(value);
+              };
+              const finishReject = (error) => {
+                if (settled) return;
+                settled = true;
+                if (absoluteTimeout) clearTimeout(absoluteTimeout);
+                reject(error instanceof Error ? error : new Error(String(error || 'Falha ao obter fonte RSS')));
+              };
 
-          old_start = "  return new Promise((resolve, reject) => {\n    const headers = {"
-          new_start = "  return new Promise((resolve, reject) => {\n    let settled = false;\n    let absoluteTimeout = null;\n    const finishResolve = (value) => {\n      if (settled) return;\n      settled = true;\n      if (absoluteTimeout) clearTimeout(absoluteTimeout);\n      resolve(value);\n    };\n    const finishReject = (error) => {\n      if (settled) return;\n      settled = true;\n      if (absoluteTimeout) clearTimeout(absoluteTimeout);\n      reject(error instanceof Error ? error : new Error(String(error || 'Falha ao obter fonte RSS')));\n    };\n\n    const headers = {"
-          if old_start not in text:
-              raise SystemExit('promise start not found')
-          text = text.replace(old_start, new_start, 1)
+              const headers = {
+                accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, text/plain;q=0.5, */*;q=0.1',
+                'accept-encoding': 'identity',
+                'user-agent': 'LuminaRadar/1.0 (+authorized-feed-ingestion)',
+              };
+              if (etag) headers['if-none-match'] = etag;
+              if (lastModified) headers['if-modified-since'] = lastModified;
 
-          text = text.replace(
-            "        resolve({ notModified: true, text: '', etag: etag || null, lastModified: lastModified || null });",
-            "        finishResolve({ notModified: true, text: '', etag: etag || null, lastModified: lastModified || null });",
-            1,
-          )
-          text = text.replace(
-            "        fetchPublicFeed(next, { etag, lastModified, redirects: redirects + 1, deadlineAt }).then(resolve, reject);",
-            "        fetchPublicFeed(next, { etag, lastModified, redirects: redirects + 1, deadlineAt, resolveTargetImpl }).then(finishResolve, finishReject);",
-            1,
-          )
-          text = text.replace("          reject(error);", "          finishReject(error);", 1)
-          text = text.replace("        reject(new Error(`Fonte RSS respondeu HTTP ${status}`));", "        finishReject(new Error(`Fonte RSS respondeu HTTP ${status}`));", 1)
-          text = text.replace("        reject(new Error('Compressão inesperada na fonte RSS'));", "        finishReject(new Error('Compressão inesperada na fonte RSS'));", 1)
-          text = text.replace("        reject(new Error('Feed RSS demasiado grande'));", "        finishReject(new Error('Feed RSS demasiado grande'));", 1)
-          text = text.replace(
-            "        resolve({\n          notModified: false,",
-            "        finishResolve({\n          notModified: false,",
-            1,
-          )
+              const request = transport.get(target.url, {
+                headers,
+                servername: target.url.hostname,
+                family: target.family,
+                autoSelectFamily: false,
+                lookup: (_hostname, options, callback) => {
+                  if (options?.all) return callback(null, [{ address: target.address, family: target.family }]);
+                  callback(null, target.address, target.family);
+                },
+              }, (response) => {
+                const status = response.statusCode || 0;
+                if (status === 304) {
+                  response.resume();
+                  finishResolve({ notModified: true, text: '', etag: etag || null, lastModified: lastModified || null });
+                  return;
+                }
+                if (status >= 300 && status < 400 && response.headers.location) {
+                  let next;
+                  try { next = resolveRedirectUrl(response.headers.location, target.url); }
+                  catch (error) {
+                    response.resume();
+                    finishReject(error);
+                    return;
+                  }
+                  response.resume();
+                  fetchPublicFeed(next, {
+                    etag,
+                    lastModified,
+                    redirects: redirects + 1,
+                    deadlineAt,
+                    resolveTargetImpl,
+                  }).then(finishResolve, finishReject);
+                  return;
+                }
+                if (status !== 200) {
+                  response.resume();
+                  finishReject(new Error(`Fonte RSS respondeu HTTP ${status}`));
+                  return;
+                }
+                const encoding = String(response.headers['content-encoding'] || 'identity').toLowerCase();
+                if (encoding !== 'identity') {
+                  response.resume();
+                  finishReject(new Error('Compressão inesperada na fonte RSS'));
+                  return;
+                }
+                const declared = Number(response.headers['content-length'] || 0);
+                if (declared > MAX_FEED_BYTES) {
+                  response.resume();
+                  finishReject(new Error('Feed RSS demasiado grande'));
+                  return;
+                }
 
-          old_end = "    const absoluteTimeout = setTimeout(\n      () => request.destroy(new Error('Timeout total ao obter fonte RSS')),\n      remainingDeadlineMs(deadlineAt),\n    );\n    request.once('close', () => clearTimeout(absoluteTimeout));\n    request.setTimeout(FETCH_TIMEOUT_MS, () => request.destroy(new Error('Timeout de inatividade ao obter fonte RSS')));\n    request.on('error', reject);"
-          new_end = "      response.once('aborted', () => finishReject(new Error('Resposta RSS interrompida antes de terminar')));\n      response.once('error', finishReject);\n      response.once('close', () => {\n        if (!response.complete && !settled) finishReject(new Error('Resposta RSS truncada antes de terminar'));\n      });\n    });\n    absoluteTimeout = setTimeout(() => {\n      const error = new Error('Timeout total ao obter fonte RSS');\n      request.destroy(error);\n      finishReject(error);\n    }, remainingDeadlineMs(deadlineAt));\n    request.setTimeout(FETCH_TIMEOUT_MS, () => {\n      const error = new Error('Timeout de inatividade ao obter fonte RSS');\n      request.destroy(error);\n      finishReject(error);\n    });\n    request.on('error', finishReject);"
-          # The response handlers must be inserted before the existing callback closes; replace the tail including its `});`.
-          old_tail = "      response.on('end', () => {\n        finishResolve({\n          notModified: false,\n          text: Buffer.concat(chunks).toString('utf8'),\n          etag: response.headers.etag || null,\n          lastModified: response.headers['last-modified'] || null,\n        });\n      });\n    });\n    const absoluteTimeout = setTimeout(\n      () => request.destroy(new Error('Timeout total ao obter fonte RSS')),\n      remainingDeadlineMs(deadlineAt),\n    );\n    request.once('close', () => clearTimeout(absoluteTimeout));\n    request.setTimeout(FETCH_TIMEOUT_MS, () => request.destroy(new Error('Timeout de inatividade ao obter fonte RSS')));\n    request.on('error', reject);"
-          new_tail = "      response.on('end', () => {\n        finishResolve({\n          notModified: false,\n          text: Buffer.concat(chunks).toString('utf8'),\n          etag: response.headers.etag || null,\n          lastModified: response.headers['last-modified'] || null,\n        });\n      });\n      response.once('aborted', () => finishReject(new Error('Resposta RSS interrompida antes de terminar')));\n      response.once('error', finishReject);\n      response.once('close', () => {\n        if (!response.complete && !settled) finishReject(new Error('Resposta RSS truncada antes de terminar'));\n      });\n    });\n    absoluteTimeout = setTimeout(() => {\n      const error = new Error('Timeout total ao obter fonte RSS');\n      request.destroy(error);\n      finishReject(error);\n    }, remainingDeadlineMs(deadlineAt));\n    request.setTimeout(FETCH_TIMEOUT_MS, () => {\n      const error = new Error('Timeout de inatividade ao obter fonte RSS');\n      request.destroy(error);\n      finishReject(error);\n    });\n    request.on('error', finishReject);"
-          if old_tail not in text:
-              raise SystemExit('request tail not found')
-          text = text.replace(old_tail, new_tail, 1)
-          radar.write_text(text)
+                const chunks = [];
+                let bytes = 0;
+                response.on('data', chunk => {
+                  bytes += chunk.length;
+                  if (bytes > MAX_FEED_BYTES) {
+                    const error = new Error('Feed RSS demasiado grande');
+                    request.destroy(error);
+                    finishReject(error);
+                    return;
+                  }
+                  chunks.push(chunk);
+                });
+                response.on('end', () => {
+                  finishResolve({
+                    notModified: false,
+                    text: Buffer.concat(chunks).toString('utf8'),
+                    etag: response.headers.etag || null,
+                    lastModified: response.headers['last-modified'] || null,
+                  });
+                });
+                response.once('aborted', () => finishReject(new Error('Resposta RSS interrompida antes de terminar')));
+                response.once('error', finishReject);
+                response.once('close', () => {
+                  if (!response.complete && !settled) finishReject(new Error('Resposta RSS truncada antes de terminar'));
+                });
+              });
+
+              absoluteTimeout = setTimeout(() => {
+                const error = new Error('Timeout total ao obter fonte RSS');
+                request.destroy(error);
+                finishReject(error);
+              }, remainingDeadlineMs(deadlineAt));
+              request.setTimeout(FETCH_TIMEOUT_MS, () => {
+                const error = new Error('Timeout de inatividade ao obter fonte RSS');
+                request.destroy(error);
+                finishReject(error);
+              });
+              request.on('error', finishReject);
+            });
+          }
+          '''
+          # Normalize indentation introduced by the raw multiline block.
+          lines = replacement.splitlines()
+          nonempty = [len(line) - len(line.lstrip()) for line in lines[1:] if line.strip()]
+          indent = min(nonempty) if nonempty else 0
+          replacement = '\n'.join([lines[0]] + [line[indent:] if line.strip() else '' for line in lines[1:]])
+          radar.write_text(text[:start] + replacement + text[end:])
 
           tests = Path('api/test/radar-ingestion.test.js')
           t = tests.read_text()
           if "import http from 'node:http';" not in t:
-              t = t.replace("import assert from 'node:assert/strict';\n", "import assert from 'node:assert/strict';\nimport http from 'node:http';\n", 1)
-          t = t.replace(
-            "import { ingestRssSource, parseSyndicationFeed, resolvePublicFeedTarget, resolveRedirectUrl, withDeadline } from '../src/jobs/radar.js';",
-            "import { fetchPublicFeed, ingestRssSource, parseSyndicationFeed, resolvePublicFeedTarget, resolveRedirectUrl, withDeadline } from '../src/jobs/radar.js';",
-            1,
-          )
+            t = t.replace("import assert from 'node:assert/strict';\n", "import assert from 'node:assert/strict';\nimport http from 'node:http';\n", 1)
+          old_import = "import { ingestRssSource, parseSyndicationFeed, resolvePublicFeedTarget, resolveRedirectUrl, withDeadline } from '../src/jobs/radar.js';"
+          new_import = "import { fetchPublicFeed, ingestRssSource, parseSyndicationFeed, resolvePublicFeedTarget, resolveRedirectUrl, withDeadline } from '../src/jobs/radar.js';"
+          if old_import in t:
+            t = t.replace(old_import, new_import, 1)
           anchor = "test('deadline cobre também uma resolução DNS bloqueada', async () => {\n"
-          extra = "test('resposta RSS truncada rejeita sem ficar pendurada', async () => {\n  const server = http.createServer((_req, res) => {\n    res.writeHead(200, { 'content-type': 'application/rss+xml', 'content-length': '500' });\n    res.write('<rss><channel><item>');\n    setTimeout(() => res.destroy(), 10);\n  });\n  await new Promise((resolve, reject) => {\n    server.once('error', reject);\n    server.listen(0, '127.0.0.1', resolve);\n  });\n  const port = server.address().port;\n  try {\n    await assert.rejects(\n      () => fetchPublicFeed(`http://127.0.0.1:${port}/feed`, {\n        deadlineAt: Date.now() + 500,\n        resolveTargetImpl: async (input) => ({ url: new URL(input), address: '127.0.0.1', family: 4 }),\n      }),\n      /interrompida|truncada/\n    );\n  } finally {\n    await new Promise(resolve => server.close(resolve));\n  }\n});\n\n"
-          if anchor not in t:
+          if "resposta RSS truncada rejeita sem ficar pendurada" not in t:
+            extra = """test('resposta RSS truncada rejeita sem ficar pendurada', async () => {
+  const server = http.createServer((_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/rss+xml', 'content-length': '500' });
+    res.write('<rss><channel><item>');
+    setTimeout(() => res.destroy(), 10);
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const port = server.address().port;
+  try {
+    await assert.rejects(
+      () => fetchPublicFeed(`http://127.0.0.1:${port}/feed`, {
+        deadlineAt: Date.now() + 500,
+        resolveTargetImpl: async (input) => ({ url: new URL(input), address: '127.0.0.1', family: 4 }),
+      }),
+      /interrompida|truncada/
+    );
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
+"""
+            if anchor not in t:
               raise SystemExit('deadline test anchor not found')
-          t = t.replace(anchor, extra + anchor, 1)
+            t = t.replace(anchor, extra + anchor, 1)
           tests.write_text(t)
           PY
       - name: Syntax check before commit

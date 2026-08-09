@@ -31,7 +31,7 @@ test('health expõe commit Railway e versão ativa do schema sem alterar o body'
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { ok: true });
   assert.equal(response.headers.get('x-lumina-release'), 'release-test-sha');
-  assert.equal(response.headers.get('x-lumina-schema'), '12');
+  assert.equal(response.headers.get('x-lumina-schema'), '13');
 });
 
 test('health ignora versões históricas/sentinela sem migration correspondente no build', async () => {
@@ -43,7 +43,7 @@ test('health ignora versões históricas/sentinela sem migration correspondente 
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { ok: true });
     assert.equal(response.headers.get('x-lumina-release'), 'release-test-sha');
-    assert.equal(response.headers.get('x-lumina-schema'), '12');
+    assert.equal(response.headers.get('x-lumina-schema'), '13');
   } finally {
     if (inserted.rowCount > 0) {
       await q('DELETE FROM schema_migrations WHERE version = 900009');

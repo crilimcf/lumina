@@ -7,14 +7,7 @@
  */
 const BUILD = '__LUMINA_BUILD__';
 const CACHE = `lumina-${BUILD}`;
-const SHELL = [
-  '/',
-  '/manifest.webmanifest',
-  '/lumina-icon.svg',
-  '/lumina-l1-apple-touch-icon.png',
-  '/lumina-l1-icon-192.png',
-  '/lumina-l1-icon-512.png',
-];
+const SHELL = ['/', '/manifest.webmanifest', '/lumina-icon.svg', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

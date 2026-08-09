@@ -39,6 +39,8 @@ async function call(path, { method = 'GET', body, auth = true } = {}) {
   return data;
 }
 
+const followAction = (id) => call(`/users/${id}/follow`, { method: 'POST' });
+
 export const api = {
   auth: {
     register: (b) => call('/auth/register', { method: 'POST', body: b, auth: false }),
@@ -122,6 +124,12 @@ export const api = {
     signal: (id, kind, payload) => call(`/calls/${id}/signals`, { method: 'POST', body: { kind, payload } }),
     signals: (id, after = 0) => call(`/calls/${id}/signals?after=${after}`),
   },
+  notifications: {
+    list: (cursor) => call(`/notifications${cursor ? `?before=${encodeURIComponent(cursor)}` : ''}`),
+    unread: () => call('/notifications/unread-count'),
+    read: (id) => call(`/notifications/${id}/read`, { method: 'POST' }),
+    readAll: () => call('/notifications/read-all', { method: 'POST' }),
+  },
   twoFactor: {
     status: () => call('/2fa/status'),
     setup: (password) => call('/2fa/setup', { method: 'POST', body: { password } }),
@@ -140,7 +148,17 @@ export const api = {
   users: {
     search: (q) => call(`/users/search?q=${encodeURIComponent(q)}`),
     get: (handle) => call(`/users/${handle}`),
-    follow: (id) => call(`/users/${id}/follow`, { method: 'POST' }),
+    posts: (handle) => call(`/users/${handle}/posts`),
+    followAction,
+    follow: async (id) => {
+      const result = await followAction(id);
+      // Os ecrãs legados assumiam que qualquer 2xx significava follow ativo.
+      // Num perfil privado isso seria visualmente falso: o servidor só criou
+      // um pedido. Fazemos esses ecrãs manterem o estado e mostrarem o toast,
+      // enquanto o novo centro Atividade usa followAction e mostra "Pendente".
+      if (result?.pending) throw new ApiError(202, 'Pedido enviado', 'follow_pending');
+      return result;
+    },
     unfollow: (id) => call(`/users/${id}/follow`, { method: 'DELETE' }),
     block: (id) => call(`/users/${id}/block`, { method: 'POST' }),
     unblock: (id) => call(`/users/${id}/block`, { method: 'DELETE' }),
@@ -148,6 +166,11 @@ export const api = {
     followers: () => call('/users/me/followers'),
     following: () => call('/users/me/following'),
     suggestions: () => call('/users/me/suggestions'),
+    privacy: () => call('/users/me/privacy'),
+    setPrivacy: (isPrivate) => call('/users/me/privacy', { method: 'PATCH', body: { isPrivate } }),
+    followRequests: () => call('/users/me/follow-requests'),
+    acceptRequest: (id) => call(`/users/me/follow-requests/${id}/accept`, { method: 'POST' }),
+    declineRequest: (id) => call(`/users/me/follow-requests/${id}/decline`, { method: 'POST' }),
   },
   reports: { create: (b) => call('/reports', { method: 'POST', body: b }) },
   moments: {

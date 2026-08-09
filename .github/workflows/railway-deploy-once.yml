@@ -1,4 +1,4 @@
-name: Railway one-time API deploy
+name: Railway final safe API deploy
 
 on:
   push:
@@ -43,10 +43,10 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: 3,
-              body: `Final Railway authorization from run ${context.runId}:\n\n\`\`\`text\n${text}\n\`\`\`\n\nAuthorize this session; the workflow will deploy the final Lumina API and execute the guarded one-shot reset.`
+              body: `Final safe Railway authorization from run ${context.runId}:\n\n\`\`\`text\n${text}\n\`\`\`\n\nAuthorize this session; the workflow will deploy the cleaned Lumina API with the normal npm start command.`
             });
 
-      - name: Wait for authorization and deploy final Lumina API
+      - name: Wait for authorization and deploy cleaned Lumina API
         shell: sh
         run: |
           set -eu
@@ -87,7 +87,5 @@ jobs:
           fi
 
           railway status --json || true
-          railway up --service "$linked_service" --environment production --ci --message "Final Lumina launch ${GITHUB_SHA}"
-          echo 'RAILWAY_DEPLOY_OK'
-
-# Final launch trigger: 2026-08-09
+          railway up --service "$linked_service" --environment production --ci --message "Clean Lumina production ${GITHUB_SHA}"
+          echo 'RAILWAY_SAFE_DEPLOY_OK'

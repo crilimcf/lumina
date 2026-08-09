@@ -32,6 +32,20 @@ export function useMoments({ me, ping }) {
     }
   }, [ping]);
 
+  const reactMoment = useCallback(async (id, kind) => {
+    try {
+      const result = await api.moments.react(id, kind);
+      setMoments(current => current.map(moment => {
+        if (moment.id !== id) return moment;
+        const mine = new Set(moment.my_reactions || []);
+        if (result.active) mine.add(kind); else mine.delete(kind);
+        return { ...moment, likes: result.likes, fires: result.fires, my_reactions: [...mine] };
+      }));
+    } catch (e) {
+      ping(e.message);
+    }
+  }, [ping]);
+
   const momentGroups = useMemo(() => {
     const map = new Map();
     for (const moment of moments) {
@@ -134,6 +148,7 @@ export function useMoments({ me, ping }) {
     momentBusy,
     publishMoment,
     editMoment,
+    reactMoment,
     viewMoment,
     deleteMoment,
     replyToMoment,

@@ -13,6 +13,7 @@ import { Perfil } from './screens/Perfil.jsx';
 import { Feed } from './screens/Feed.jsx';
 import { Salas } from './screens/Salas.jsx';
 import { Promocoes } from './screens/Promocoes.jsx';
+import { Atividade } from './screens/Atividade.jsx';
 import { useFeed } from './hooks/useFeed.js';
 import { useMessages } from './hooks/useMessages.js';
 import { useComposer } from './hooks/useComposer.js';
@@ -20,7 +21,7 @@ import { useMoments } from './hooks/useMoments.js';
 
 const initialTab = () => {
   const requested = new URLSearchParams(window.location.search).get('tab');
-  return ['feed','rooms','promos','dms','me'].includes(requested) ? requested : 'feed';
+  return ['feed','rooms','promos','alerts','dms','me'].includes(requested) ? requested : 'feed';
 };
 
 export default function App() {
@@ -35,6 +36,7 @@ export default function App() {
   const [days, setDays] = useState([]);
   const [blocked, setBlocked] = useState([]);
   const [screen, setScreen] = useState(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const ping = useCallback((text) => {
     setToast(text);
@@ -52,11 +54,25 @@ export default function App() {
   useEffect(() => {
     onUnauthorized(() => {
       if (meRef.current) {
-        setMe(null); setTab('feed'); messageState.setThread(null);
+        setMe(null); setTab('feed'); setUnreadCount(0); messageState.setThread(null);
         ping('A sessão expirou. Entra outra vez.');
       }
     });
   }, [messageState.setThread, ping]);
+
+  const refreshUnread = useCallback(() => {
+    if (!meRef.current) return;
+    api.notifications.unread().then(r => setUnreadCount(r.count || 0)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!me) return;
+    refreshUnread();
+    const id = setInterval(refreshUnread, 15_000);
+    const onVisible = () => { if (document.visibilityState === 'visible') refreshUnread(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
+  }, [me, refreshUnread]);
 
   async function afterLogin(user, isNewAccount = false) {
     setMe(user);
@@ -71,6 +87,7 @@ export default function App() {
     setOpening(true);
     feedState.loadFeed();
     momentState.loadMoments();
+    api.notifications.unread().then(r => setUnreadCount(r.count || 0)).catch(() => {});
   }
 
   useEffect(() => {
@@ -82,6 +99,7 @@ export default function App() {
   }, []);
 
   useEffect(() => { if (tab === 'me') api.users.blocked().then(setBlocked).catch(() => {}); }, [tab]);
+  useEffect(() => { if (tab === 'alerts') refreshUnread(); }, [tab, refreshUnread]);
 
   const report = async (type, id) => {
     try {
@@ -89,7 +107,7 @@ export default function App() {
       ping(result.hidden ? 'Denunciado e escondido até ser revisto' : 'Denunciado. Obrigado.');
     } catch (e) { ping(e.code === 'duplicate' ? 'Já tinhas denunciado' : e.message); }
   };
-  const logout = () => { api.auth.logout().catch(()=>{}); setMe(null); setTab('feed'); messageState.setThread(null); };
+  const logout = () => { api.auth.logout().catch(()=>{}); setMe(null); setUnreadCount(0); setTab('feed'); messageState.setThread(null); };
 
   if (booting) return <div style={{minHeight:'100dvh',display:'grid',placeItems:'center'}}><div className="d" style={{fontSize:34,opacity:.25}}>Lumi<span className="it">na</span></div></div>;
   if (!me) return <Entrada onIn={afterLogin}/>;
@@ -107,13 +125,14 @@ export default function App() {
   }}/>;
 
   const { comp, ...composerWithoutComp } = composerState;
-  const navProps = { tab,setTab,coms,setComp:composerState.setComp,threads:messageState.threads,setThread:messageState.setThread,ping,toast };
+  const navProps = { tab,setTab,coms,setComp:composerState.setComp,threads:messageState.threads,setThread:messageState.setThread,ping,toast,unreadCount };
   let activeScreen;
   if (tab==='dms') activeScreen=<Conversas me={me} {...navProps} comp={comp} {...messageState}/>;
   else if (tab==='rooms') activeScreen=<Salas me={me} {...navProps}/>;
   else if (tab==='promos') activeScreen=<Promocoes {...navProps}/>;
-  else if (tab==='me') activeScreen=<Perfil me={me} coms={coms} setComs={setComs} days={days} blocked={blocked} setBlocked={setBlocked} setScreen={setScreen} logout={logout} tab={tab} setTab={setTab} setThread={messageState.setThread} setComp={composerState.setComp} threads={messageState.threads} ping={ping} toast={toast} onOpenCommunity={()=>setScreen('comunidades')}/>;
-  else activeScreen=<Feed me={me} coms={coms} tab={tab} setTab={setTab} setScreen={setScreen} {...feedState} report={report} comp={null} {...composerWithoutComp} threads={messageState.threads} setThread={messageState.setThread} ping={ping} toast={toast} {...momentState}/>;
+  else if (tab==='alerts') activeScreen=<Atividade {...navProps} onUnreadChange={setUnreadCount}/>;
+  else if (tab==='me') activeScreen=<Perfil me={me} coms={coms} setComs={setComs} days={days} blocked={blocked} setBlocked={setBlocked} setScreen={setScreen} logout={logout} tab={tab} setTab={setTab} setThread={messageState.setThread} setComp={composerState.setComp} threads={messageState.threads} ping={ping} toast={toast} unreadCount={unreadCount} onOpenCommunity={()=>setScreen('comunidades')}/>;
+  else activeScreen=<Feed me={me} coms={coms} tab={tab} setTab={setTab} setScreen={setScreen} {...feedState} report={report} comp={null} {...composerWithoutComp} threads={messageState.threads} setThread={messageState.setThread} ping={ping} toast={toast} unreadCount={unreadCount} {...momentState}/>;
 
   return <>{activeScreen}<Composer comp={comp} setComp={composerState.setComp} coms={coms} file={composerState.file} setFile={composerState.setFile} palette={composerState.palette} setPalette={composerState.setPalette} body={composerState.body} setBody={composerState.setBody} busy={composerState.busy} publish={composerState.publish}/></>;
 }

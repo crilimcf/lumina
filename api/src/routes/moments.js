@@ -65,6 +65,71 @@ momentRoutes.get('/', auth, h(async (req, res) => {
   res.json(rows);
 }));
 
+/**
+ * Edita um Momento ainda vivo sem reiniciar o relógio das 24 horas.
+ * O autor pode substituir/remover o media e/ou alterar a paleta. Um novo
+ * ficheiro tem de passar pelo mesmo ciclo de upload confirmado dos restantes
+ * conteúdos; o ficheiro anterior é removido quando deixa de ter referências.
+ */
+momentRoutes.patch('/:momentId', auth, h(async (req, res) => {
+  const hasMedia = Object.prototype.hasOwnProperty.call(req.body || {}, 'mediaUrl');
+  const hasPalette = Object.prototype.hasOwnProperty.call(req.body || {}, 'palette');
+  if (!hasMedia && !hasPalette) throw bad('Nada para alterar');
+
+  const mediaUrl = hasMedia && req.body.mediaUrl ? String(req.body.mediaUrl) : null;
+  let palette = null;
+  if (hasPalette) {
+    palette = Number(req.body.palette);
+    if (!Number.isInteger(palette) || palette < 0 || palette > 4) throw bad('Cor inválida');
+  }
+
+  const result = await tx(async (c) => {
+    const { rows: own } = await c.query(
+      `SELECT id, media_url, palette, created_at, expires_at
+       FROM moments
+       WHERE id = $1 AND author_id = $2 AND expires_at > now()
+       FOR UPDATE`,
+      [req.params.momentId, req.user.id]
+    );
+    const current = own[0];
+    if (!current) throw notFound('Momento não encontrado');
+
+    let claimed = null;
+    if (hasMedia && mediaUrl && mediaUrl !== current.media_url) {
+      claimed = await claimUpload(
+        mediaUrl,
+        req.user.id,
+        'moment',
+        (text, params) => c.query(text, params),
+        { allowVideo: true }
+      );
+      if (!claimed) throw bad('Media não verificado ou já utilizado', 'unconfirmed_upload');
+    }
+
+    const nextMedia = hasMedia ? mediaUrl : current.media_url;
+    const nextPalette = hasPalette ? palette : current.palette;
+    const { rows } = await c.query(
+      `UPDATE moments SET media_url = $3, palette = $4
+       WHERE id = $1 AND author_id = $2
+       RETURNING id, media_url, palette, created_at, expires_at`,
+      [current.id, req.user.id, nextMedia, nextPalette]
+    );
+    return { moment: rows[0], oldMedia: current.media_url, claimed };
+  });
+
+  if (result.oldMedia && result.oldMedia !== result.moment.media_url) {
+    removeUploadIfUnreferenced(result.oldMedia)
+      .catch(err => console.error('[momentos] falhou limpar media substituído:', err.message));
+  }
+
+  let mediaMime = result.claimed?.mime || null;
+  if (!mediaMime && result.moment.media_url) {
+    const { rows } = await q('SELECT mime FROM uploads WHERE url = $1 LIMIT 1', [result.moment.media_url]);
+    mediaMime = rows[0]?.mime || null;
+  }
+  res.json({ ...result.moment, media_mime: mediaMime });
+}));
+
 /** Marca como visto. Não conta a visita de quem é o próprio autor. */
 momentRoutes.post('/:momentId/view', auth, h(async (req, res) => {
   const { rows } = await q(

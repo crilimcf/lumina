@@ -1,17 +1,30 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BadgePercent, Bell, DoorOpen, Home, Image, Pencil, Plus, RefreshCw, Send, Trash2, User, Video, X } from 'lucide-react';
+import { api } from '../api.js';
 import { PostImageEditor } from './posts/PostImageEditor.jsx';
 
 export function Toast({ text }) {
   return text ? <div className="in" style={{position:'fixed',bottom:92,left:'50%',transform:'translateX(-50%)',zIndex:70,background:'var(--ink)',color:'#fff',padding:'13px 22px',borderRadius:999,fontSize:14,fontWeight:600,maxWidth:'86%',textAlign:'center',boxShadow:'0 12px 30px rgba(20,18,42,.36)'}}>{text}</div> : null;
 }
 
-export function Nav({ tab,setTab,setThread,setComp,coms,threads,ping,unreadCount=0 }) {
+export function Nav({ tab,setTab,setThread,setComp,coms,threads=[],ping,unreadCount }) {
+  const [localUnread,setLocalUnread]=useState(typeof unreadCount==='number'?unreadCount:0);
+  useEffect(()=>{
+    if(typeof unreadCount==='number') { setLocalUnread(unreadCount); return; }
+    let active=true;
+    const refresh=()=>api.notifications.unread().then(r=>{if(active)setLocalUnread(r.count||0)}).catch(()=>{});
+    refresh();
+    const id=setInterval(refresh,15000);
+    const onVisible=()=>{if(document.visibilityState==='visible')refresh()};
+    document.addEventListener('visibilitychange',onVisible);
+    return()=>{active=false;clearInterval(id);document.removeEventListener('visibilitychange',onVisible)};
+  },[unreadCount]);
+  const shownUnread=typeof unreadCount==='number'?unreadCount:localUnread;
   const items=[['feed',Home,'Feed','Feed'],['rooms',DoorOpen,'Salas','Salas'],['new',Plus,'Novo','Novo'],['promos',BadgePercent,'Promo','Promoções'],['alerts',Bell,'Alertas','Atividade'],['dms',Send,'Chat','Conversas'],['me',User,'Perfil','Perfil']];
   return <div className="nav" style={{display:'grid',gridTemplateColumns:'repeat(7,minmax(0,1fr))',gap:0}}>{items.map(([k,I,label,aria])=><button key={k} aria-label={aria} className={`nb${tab===k?' nb-on':''}`} style={{padding:'5px 2px',minWidth:0,position:'relative'}} onClick={()=>{
     if(k==='new') { if(!coms.length) return ping?.('Junta-te primeiro a uma comunidade no Perfil.'); setThread(null);setTab('feed');setComp({community:coms[0].id,title:'Publicar'});return; }
     setTab(k);setThread(null);
-  }}><I size={19} strokeWidth={tab===k?2.4:1.9}/><span style={{fontSize:8,letterSpacing:'.01em'}}>{label}</span>{k==='dms'&&threads.some(t=>t.unread>0)&&<span className="dot-badge"/>}{k==='alerts'&&unreadCount>0&&<span style={{position:'absolute',top:3,right:'24%',minWidth:16,height:16,padding:'0 4px',borderRadius:99,display:'grid',placeItems:'center',background:'#FF5442',color:'#fff',fontSize:8,fontWeight:850,border:'2px solid var(--paper)'}}>{unreadCount>99?'99+':unreadCount}</span>}</button>)}</div>;
+  }}><I size={19} strokeWidth={tab===k?2.4:1.9}/><span style={{fontSize:8,letterSpacing:'.01em'}}>{label}</span>{k==='dms'&&threads.some(t=>t.unread>0)&&<span className="dot-badge"/>}{k==='alerts'&&shownUnread>0&&<span style={{position:'absolute',top:3,right:'24%',minWidth:16,height:16,padding:'0 4px',borderRadius:99,display:'grid',placeItems:'center',background:'#FF5442',color:'#fff',fontSize:8,fontWeight:850,border:'2px solid var(--paper)'}}>{shownUnread>99?'99+':shownUnread}</span>}</button>)}</div>;
 }
 
 export function Composer({ comp,setComp,coms,file,setFile,body,setBody,busy,publish }) {

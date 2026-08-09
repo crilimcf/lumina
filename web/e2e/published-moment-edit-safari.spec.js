@@ -6,9 +6,9 @@ const PNG = Buffer.from(
   'base64'
 );
 const MP4 = Buffer.from([
-  0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70,
-  0x69, 0x73, 0x6f, 0x6d, 0x00, 0x00, 0x02, 0x00,
-  0x69, 0x73, 0x6f, 0x6d, 0x6d, 0x70, 0x34, 0x32,
+  0x00,0x00,0x00,0x18,0x66,0x74,0x79,0x70,
+  0x69,0x73,0x6f,0x6d,0x00,0x00,0x02,0x00,
+  0x69,0x73,0x6f,0x6d,0x6d,0x70,0x34,0x32,
 ]);
 
 async function openFeed(page) {
@@ -24,11 +24,8 @@ async function openFeed(page) {
   await page.locator('input[type="checkbox"]').check();
   await page.getByRole('button', { name: 'Criar conta' }).click();
   await page.getByRole('button', { name: 'Entendido, vamos lá' }).click();
-  await page.getByRole('button', { name: /Criar ou entrar numa comunidade/ }).click();
-  await page.getByPlaceholder('ex: Amigos da faculdade').fill(`Edit Moment QA ${suffix}`);
-  const seeds = page.locator('input[placeholder^="ideia "]');
-  for (let i = 0; i < 5; i++) await seeds.nth(i).fill(`edição momento ${i + 1}`);
-  await page.getByRole('button', { name: 'Criar comunidade' }).click();
+  await expect(page.getByRole('button', { name: 'Ir para o Feed' })).toBeVisible();
+  await page.getByRole('button', { name: 'Ir para o Feed' }).click();
   await expect(page.getByRole('button', { name: 'Novo' })).toBeVisible();
   return page.evaluate(async () => (await fetch('/api/auth/me')).json());
 }
@@ -95,14 +92,9 @@ test('autor substitui media de Momento já publicado em Mobile Safari', async ({
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(moments[0]) });
   });
 
-  // A edição de fotografia antes de publicar já tem um teste Safari dedicado.
-  // Aqui usamos vídeo de origem para isolar a responsabilidade deste teste:
-  // substituir media de um Momento que já foi publicado.
   await page.getByRole('button', { name: 'Tu' }).click();
   await page.locator('input[accept="video/mp4,video/quicktime,video/webm"]').setInputFiles({
-    name: 'original.mp4',
-    mimeType: 'video/mp4',
-    buffer: MP4,
+    name: 'original.mp4', mimeType: 'video/mp4', buffer: MP4,
   });
   await expect(page.getByLabel('Pré-visualização do vídeo do momento')).toBeVisible();
   await page.getByRole('button', { name: 'Publicar momento' }).click();

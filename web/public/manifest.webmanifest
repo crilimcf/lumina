@@ -11,6 +11,6 @@
   "orientation": "portrait",
   "lang": "pt-PT",
   "icons": [
-    { "src": "/lumina-icon.svg?v=lumina-l1-20260809", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    { "src": "/lumina-orbit-ios-v2.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
   ]
 }

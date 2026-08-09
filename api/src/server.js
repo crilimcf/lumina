@@ -39,7 +39,28 @@ app.use(express.json({
   verify: (req, _res, buf) => { req.rawBody = Buffer.from(buf); },
 }));
 app.use(cookieParser());
-app.use(csrfGuard);
+
+/**
+ * Estas rotas criam/recuperam a sessão e não autorizam nenhuma ação com o
+ * cookie que já possa existir no browser. Exigir o CSRF da sessão anterior
+ * aqui cria um deadlock: um cookie válido mas já revogado/expirado bloqueia o
+ * próprio login antes de este poder substituí-lo.
+ *
+ * Continuam protegidas contra pedidos cross-site pelo contrato JSON + CORS:
+ * um formulário HTML de terceiro não produz application/json e um fetch JSON
+ * cross-origin precisa de preflight aprovado. Todas as rotas autenticadas e
+ * o logout continuam a passar pelo csrfGuard normal.
+ */
+const CSRF_PUBLIC_PATHS = new Set([
+  '/auth/login',
+  '/auth/register',
+  '/account/forgot-password',
+  '/account/reset-password',
+]);
+app.use((req, res, next) => {
+  if (CSRF_PUBLIC_PATHS.has(req.path)) return next();
+  return csrfGuard(req, res, next);
+});
 
 const localE2E = (() => {
   if (env.NODE_ENV !== 'development') return false;

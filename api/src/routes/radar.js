@@ -55,9 +55,15 @@ function validateWindow(type, startsAt, endsAt) {
   }
 }
 
+function validateSponsoredAttribution(sponsored, sponsorLabel, sourceId, sourceName) {
+  if (sponsored && !sponsorLabel && !sourceId && !sourceName) {
+    throw bad('Conteúdo patrocinado precisa de identificar o parceiro', 'missing_sponsor');
+  }
+}
+
 radarRoutes.get('/', auth, h(async (req, res) => {
   const requestedType = req.query.type ? cleanType(req.query.type) : null;
-  const before = req.query.before || null;
+  const before = optionalDate(req.query.before, 'Cursor');
   const asked = Number(req.query.limit);
   const limit = Number.isInteger(asked) && asked > 0 ? Math.min(asked, 50) : 20;
 
@@ -176,6 +182,7 @@ radarRoutes.post('/', auth, requireStaff, h(async (req, res) => {
   const externalUrl = optionalUrl(req.body.externalUrl, 'Link externo');
   const sourceUrl = optionalUrl(req.body.sourceUrl, 'Link da fonte');
   const sourceName = req.body.sourceName ? String(req.body.sourceName).trim().slice(0, 120) : null;
+  const sourceId = req.body.sourceId || null;
   const sponsored = !!req.body.sponsored;
   const sponsorLabel = req.body.sponsorLabel ? String(req.body.sponsorLabel).trim().slice(0, 120) : null;
   const startsAt = optionalDate(req.body.startsAt, 'Data de início');
@@ -190,6 +197,7 @@ radarRoutes.post('/', auth, requireStaff, h(async (req, res) => {
   if (body.length > 10_000) throw bad('Conteúdo demasiado longo', 'bad_body');
   if (!STATUSES.has(status)) throw bad('Estado inválido', 'bad_status');
   validateWindow(type, startsAt, endsAt);
+  validateSponsoredAttribution(sponsored, sponsorLabel, sourceId, sourceName);
 
   const { rows } = await q(
     `INSERT INTO radar_items (
@@ -198,7 +206,7 @@ radarRoutes.post('/', auth, requireStaff, h(async (req, res) => {
      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
      RETURNING *`,
     [
-      type, title, summary, body, imageUrl, externalUrl, req.body.sourceId || null, sourceName, sourceUrl,
+      type, title, summary, body, imageUrl, externalUrl, sourceId, sourceName, sourceUrl,
       sponsored, sponsorLabel, tags, req.body.region ? String(req.body.region).trim().slice(0, 80) : null,
       startsAt, endsAt, publishedAt, status, priority, req.user.id,
     ]
@@ -220,6 +228,7 @@ radarRoutes.patch('/:itemId', auth, requireStaff, h(async (req, res) => {
   const externalUrl = req.body.externalUrl === undefined ? item.external_url : optionalUrl(req.body.externalUrl, 'Link externo');
   const sourceUrl = req.body.sourceUrl === undefined ? item.source_url : optionalUrl(req.body.sourceUrl, 'Link da fonte');
   const sourceName = req.body.sourceName === undefined ? item.source_name : (req.body.sourceName ? String(req.body.sourceName).trim().slice(0, 120) : null);
+  const sourceId = req.body.sourceId === undefined ? item.source_id : (req.body.sourceId || null);
   const sponsored = req.body.sponsored === undefined ? item.sponsored : !!req.body.sponsored;
   const sponsorLabel = req.body.sponsorLabel === undefined ? item.sponsor_label : (req.body.sponsorLabel ? String(req.body.sponsorLabel).trim().slice(0, 120) : null);
   const tags = cleanTags(req.body.tags) ?? item.tags;
@@ -234,6 +243,7 @@ radarRoutes.patch('/:itemId', auth, requireStaff, h(async (req, res) => {
   if (body.length > 10_000) throw bad('Conteúdo demasiado longo', 'bad_body');
   if (!STATUSES.has(status)) throw bad('Estado inválido', 'bad_status');
   validateWindow(type, startsAt, endsAt);
+  validateSponsoredAttribution(sponsored, sponsorLabel, sourceId, sourceName);
 
   const { rows } = await q(
     `UPDATE radar_items SET
@@ -244,8 +254,7 @@ radarRoutes.patch('/:itemId', auth, requireStaff, h(async (req, res) => {
      WHERE id=$1 RETURNING *`,
     [
       req.params.itemId, type, title, summary, body, imageUrl, externalUrl,
-      req.body.sourceId === undefined ? item.source_id : (req.body.sourceId || null), sourceName, sourceUrl,
-      sponsored, sponsorLabel, tags,
+      sourceId, sourceName, sourceUrl, sponsored, sponsorLabel, tags,
       req.body.region === undefined ? item.region : (req.body.region ? String(req.body.region).trim().slice(0, 80) : null),
       startsAt, endsAt, publishedAt, status, priority,
     ]

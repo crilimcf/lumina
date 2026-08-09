@@ -59,8 +59,10 @@ export function useFeed({ me, ping }) {
     setOpen(current => current === id ? null : id);
     setDraft('');
     if (open !== id && !comments[id]) {
-      try { setComments(current => ({ ...current, [id]: await api.posts.comments(id) })); }
-      catch {}
+      try {
+        const loaded = await api.posts.comments(id);
+        setComments(current => ({ ...current, [id]: loaded }));
+      } catch {}
     }
   };
 

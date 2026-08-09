@@ -1,0 +1,38 @@
+import test, { after, before } from 'node:test';
+import assert from 'node:assert/strict';
+
+process.env.RAILWAY_GIT_COMMIT_SHA = 'release-test-sha';
+
+const [{ default: app }, { migrate, pool }] = await Promise.all([
+  import('../src/server.js'),
+  import('../src/db.js'),
+]);
+
+let server;
+let baseUrl;
+
+before(async () => {
+  await migrate();
+  server = app.listen(0, '127.0.0.1');
+  await new Promise((resolve, reject) => {
+    server.once('listening', resolve);
+    server.once('error', reject);
+  });
+  baseUrl = `http://127.0.0.1:${server.address().port}`;
+});
+
+after(async () => {
+  if (server) await new Promise(resolve => server.close(resolve));
+  await pool.end();
+});
+
+test('health expõe commit Railway e versão ativa do schema sem alterar o body', async () => {
+  const response = await fetch(`${baseUrl}/health`);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { ok: true });
+  assert.equal(response.headers.get('x-lumina-release'), 'release-test-sha');
+
+  const schemaVersion = Number(response.headers.get('x-lumina-schema'));
+  assert.equal(Number.isInteger(schemaVersion), true);
+  assert.equal(schemaVersion >= 12, true);
+});

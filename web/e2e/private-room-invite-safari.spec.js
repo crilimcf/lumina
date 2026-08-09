@@ -80,7 +80,7 @@ test('Sala privada fica invisível sem convite e entra pelo convite em Mobile Sa
   const invitee = page.getByRole('button').filter({ hasText: `@${guest.handle}` });
   await expect(invitee).toBeVisible();
   await invitee.click();
-  await expect(page.getByText(/convidado/i)).toBeVisible();
+  await expect(page.getByText('Convidado QA convidado', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'Voltar às salas' }).click();
   await logout(page);

@@ -13,7 +13,8 @@
     "seed": "node scripts/seed.js",
     "cron": "node scripts/cron.js",
     "cron:purge": "node scripts/cron.js purge",
-    "cron:deletions": "node scripts/cron.js deletions"
+    "cron:deletions": "node scripts/cron.js deletions",
+    "cron:radar": "node scripts/cron.js radar"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

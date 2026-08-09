@@ -17,6 +17,7 @@ Os workflows correm em `master`, pull requests e branches `qa/**`, `feature/**`,
 - registo, login, logout, sessões e reset de password;
 - 2FA e códigos de recuperação;
 - perfis, privacidade, follow requests, bloqueios e notificações;
+- avatar: colocar, substituir e remover, incluindo limpeza do upload antigo;
 - comunidades, convites e limites;
 - posts, edição, eliminação, comentários e autorização;
 - 👍, 🔥 e repost/undo;
@@ -29,6 +30,8 @@ Os workflows correm em `master`, pull requests e branches `qa/**`, `feature/**`,
 
 `release-lifecycle.test.js` é o teste de aceitação de release: cria utilizadores reais numa base isolada e atravessa o ciclo social principal do início ao fim.
 
+No fim da suite, o CI executa também o `reset:production` contra a base descartável, com a frase de confirmação correta, para provar que a operação de limpeza total funciona antes de poder ser usada em produção.
+
 ## Cobertura Mobile Safari
 
 `web/e2e/` usa WebKit com viewport/configuração de iPhone.
@@ -36,6 +39,7 @@ Os workflows correm em `master`, pull requests e branches `qa/**`, `feature/**`,
 Fluxos cobertos:
 
 - criar conta e concluir onboarding;
+- logout e novo login real com email/password;
 - persistência de sessão/reload;
 - criar comunidade;
 - navegação final Feed · Salas · Novo · Radar · Conversas;
@@ -47,6 +51,7 @@ Fluxos cobertos:
 - Momento com fotografia/vídeo e editor antes da publicação;
 - perfil e edição/crop do avatar;
 - Sala pública: criar, editar, conversar, apagar mensagem e apagar sala;
+- Sala privada com dois utilizadores: criar, procurar utilizador, convidar, login do convidado, aceitar convite e entrar;
 - Chat com ações de áudio/vídeo;
 - Alertas de pedido de follow e mudança de perfil público/privado.
 

@@ -19,22 +19,22 @@ CREATE INDEX IF NOT EXISTS follow_requests_target_status_idx
 CREATE INDEX IF NOT EXISTS follow_requests_requester_status_idx
   ON follow_requests(requester_id, status, created_at DESC);
 
-CREATE TABLE IF NOT EXISTS notifications (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  type TEXT NOT NULL CHECK (type IN (
-    'follow_request','follow_accepted','new_follower','new_post','new_room','room_invite'
-  )),
-  actor_id UUID REFERENCES users(id) ON DELETE SET NULL,
-  post_id UUID REFERENCES posts(id) ON DELETE SET NULL,
-  room_id UUID REFERENCES rooms(id) ON DELETE SET NULL,
-  follow_request_id UUID REFERENCES follow_requests(id) ON DELETE SET NULL,
-  data JSONB NOT NULL DEFAULT '{}'::jsonb,
-  dedupe_key TEXT UNIQUE,
-  read_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+-- A migração 002 já criou `notifications` com as colunas `kind` e `payload`.
+-- Evoluímos essa tabela em vez de a substituir para preservar notificações que
+-- já existam numa base de produção.
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS type TEXT;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS actor_id UUID REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS post_id UUID REFERENCES posts(id) ON DELETE SET NULL;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS room_id UUID REFERENCES rooms(id) ON DELETE SET NULL;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS follow_request_id UUID REFERENCES follow_requests(id) ON DELETE SET NULL;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS dedupe_key TEXT;
+-- Novas notificações usam `type`; `kind` fica apenas para compatibilidade com
+-- linhas antigas e por isso deixa de ser obrigatório.
+ALTER TABLE notifications ALTER COLUMN kind DROP NOT NULL;
 
+CREATE UNIQUE INDEX IF NOT EXISTS notifications_dedupe_key_idx
+  ON notifications(dedupe_key) WHERE dedupe_key IS NOT NULL;
 CREATE INDEX IF NOT EXISTS notifications_user_created_idx
   ON notifications(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS notifications_user_unread_idx
@@ -58,7 +58,7 @@ BEGIN
     ON m.user_id = f.follower_id AND m.community_id = NEW.community_id
   WHERE f.following_id = NEW.author_id
     AND f.follower_id <> NEW.author_id
-  ON CONFLICT (dedupe_key) DO NOTHING;
+  ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING;
 
   RETURN NEW;
 END $$;
@@ -79,7 +79,7 @@ BEGIN
            'room:new:' || NEW.id::text || ':' || u.id::text
     FROM users u
     WHERE u.id <> NEW.creator_id AND u.suspended_at IS NULL
-    ON CONFLICT (dedupe_key) DO NOTHING;
+    ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING;
   END IF;
   RETURN NEW;
 END $$;
@@ -98,7 +98,7 @@ BEGIN
     'room:invite:' || NEW.room_id::text || ':' || NEW.user_id::text,
     NULL, now()
   )
-  ON CONFLICT (dedupe_key) DO UPDATE
+  ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO UPDATE
     SET actor_id = EXCLUDED.actor_id, read_at = NULL, created_at = now();
   RETURN NEW;
 END $$;

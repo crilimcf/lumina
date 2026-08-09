@@ -29,14 +29,42 @@ export async function tx(fn) {
   }
 }
 
+async function listMigrationFiles() {
+  const { readdir } = await import('node:fs/promises');
+  const { fileURLToPath } = await import('node:url');
+  const dir = fileURLToPath(new URL('../migrations', import.meta.url));
+  const files = (await readdir(dir)).filter(f => f.endsWith('.sql')).sort();
+  return { dir, files };
+}
+
+/**
+ * Devolve a migration mais recente que existe neste build e está registada na BD.
+ * Registos históricos/sentinela que não correspondam a ficheiros reais são ignorados.
+ */
+export async function getAppliedSchemaVersion() {
+  const { files } = await listMigrationFiles();
+  const versions = files
+    .map(file => Number(file.split('_')[0]))
+    .filter(Number.isInteger);
+
+  if (!versions.length) return 0;
+
+  const { rows } = await q(
+    `SELECT COALESCE(MAX(version), 0)::int AS schema_version
+       FROM schema_migrations
+      WHERE version = ANY($1::int[])`,
+    [versions],
+  );
+  return rows[0]?.schema_version ?? 0;
+}
+
 /**
  * Aplica as migrações por ordem e regista quais já correram.
  * Corre no arranque, por isso um deploy novo migra-se a si próprio.
  */
 export async function migrate() {
-  const { readdir, readFile } = await import('node:fs/promises');
-  const { fileURLToPath } = await import('node:url');
-  const dir = fileURLToPath(new URL('../migrations', import.meta.url));
+  const { readFile } = await import('node:fs/promises');
+  const { dir, files } = await listMigrationFiles();
 
   await q(`CREATE TABLE IF NOT EXISTS schema_migrations (
     version INT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
@@ -44,7 +72,6 @@ export async function migrate() {
   const { rows } = await q('SELECT version FROM schema_migrations');
   const done = new Set(rows.map(r => r.version));
 
-  const files = (await readdir(dir)).filter(f => f.endsWith('.sql')).sort();
   for (const file of files) {
     const version = Number(file.split('_')[0]);
     if (done.has(version)) continue;

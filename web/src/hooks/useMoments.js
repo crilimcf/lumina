@@ -13,6 +13,25 @@ export function useMoments({ me, ping }) {
     api.moments.list().then(setMoments).catch(() => {});
   }, []);
 
+  const editMoment = useCallback(async (id, file) => {
+    if (!file) return false;
+    setMomentBusy(true);
+    try {
+      const mediaUrl = await api.upload(file);
+      const edited = await api.moments.update(id, { mediaUrl });
+      setMoments(current => current.map(moment =>
+        moment.id === id ? { ...moment, ...edited } : moment
+      ));
+      ping('Momento atualizado');
+      return true;
+    } catch (e) {
+      ping(e.message);
+      return false;
+    } finally {
+      setMomentBusy(false);
+    }
+  }, [ping]);
+
   const momentGroups = useMemo(() => {
     const map = new Map();
     for (const moment of moments) {
@@ -25,6 +44,7 @@ export function useMoments({ me, ping }) {
             palette: moment.author_palette,
             avatarUrl: moment.author_avatar_url,
           },
+          onEdit: editMoment,
           items: [],
         });
       }
@@ -40,7 +60,7 @@ export function useMoments({ me, ping }) {
       return aUnseen === bUnseen ? 0 : aUnseen ? -1 : 1;
     });
     return groups;
-  }, [moments, me?.id]);
+  }, [moments, me?.id, editMoment]);
 
   const myMomentGroup = momentGroups.find(group => group.author.id === me?.id) || null;
 
@@ -58,25 +78,6 @@ export function useMoments({ me, ping }) {
       ping('Momento publicado. Fica visível 24 horas.');
     } catch (e) {
       ping(e.message);
-    } finally {
-      setMomentBusy(false);
-    }
-  };
-
-  const editMoment = async (id, file) => {
-    if (!file || momentBusy) return false;
-    setMomentBusy(true);
-    try {
-      const mediaUrl = await api.upload(file);
-      const edited = await api.moments.update(id, { mediaUrl });
-      setMoments(current => current.map(moment =>
-        moment.id === id ? { ...moment, ...edited } : moment
-      ));
-      ping('Momento atualizado');
-      return true;
-    } catch (e) {
-      ping(e.message);
-      return false;
     } finally {
       setMomentBusy(false);
     }

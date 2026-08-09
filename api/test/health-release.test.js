@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 process.env.RAILWAY_GIT_COMMIT_SHA = 'release-test-sha';
 
-const [{ default: app }, { migrate, pool }] = await Promise.all([
+const [{ default: app }, { migrate, pool, q }] = await Promise.all([
   import('../src/server.js'),
   import('../src/db.js'),
 ]);
@@ -35,4 +35,17 @@ test('health expõe commit Railway e versão ativa do schema sem alterar o body'
   const schemaVersion = Number(response.headers.get('x-lumina-schema'));
   assert.equal(Number.isInteger(schemaVersion), true);
   assert.equal(schemaVersion >= 12, true);
+});
+
+test('health mantém o commit ativo mesmo quando a base não consegue reportar o schema', async () => {
+  await q('ALTER TABLE schema_migrations RENAME TO schema_migrations_health_test_backup');
+  try {
+    const response = await fetch(`${baseUrl}/health`);
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { ok: false });
+    assert.equal(response.headers.get('x-lumina-release'), 'release-test-sha');
+    assert.equal(response.headers.get('x-lumina-schema'), null);
+  } finally {
+    await q('ALTER TABLE schema_migrations_health_test_backup RENAME TO schema_migrations');
+  }
 });

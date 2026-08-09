@@ -122,6 +122,12 @@ export const api = {
     signal: (id, kind, payload) => call(`/calls/${id}/signals`, { method: 'POST', body: { kind, payload } }),
     signals: (id, after = 0) => call(`/calls/${id}/signals?after=${after}`),
   },
+  notifications: {
+    list: (cursor) => call(`/notifications${cursor ? `?before=${encodeURIComponent(cursor)}` : ''}`),
+    unread: () => call('/notifications/unread-count'),
+    read: (id) => call(`/notifications/${id}/read`, { method: 'POST' }),
+    readAll: () => call('/notifications/read-all', { method: 'POST' }),
+  },
   twoFactor: {
     status: () => call('/2fa/status'),
     setup: (password) => call('/2fa/setup', { method: 'POST', body: { password } }),
@@ -140,6 +146,7 @@ export const api = {
   users: {
     search: (q) => call(`/users/search?q=${encodeURIComponent(q)}`),
     get: (handle) => call(`/users/${handle}`),
+    posts: (handle) => call(`/users/${handle}/posts`),
     follow: (id) => call(`/users/${id}/follow`, { method: 'POST' }),
     unfollow: (id) => call(`/users/${id}/follow`, { method: 'DELETE' }),
     block: (id) => call(`/users/${id}/block`, { method: 'POST' }),
@@ -148,6 +155,11 @@ export const api = {
     followers: () => call('/users/me/followers'),
     following: () => call('/users/me/following'),
     suggestions: () => call('/users/me/suggestions'),
+    privacy: () => call('/users/me/privacy'),
+    setPrivacy: (isPrivate) => call('/users/me/privacy', { method: 'PATCH', body: { isPrivate } }),
+    followRequests: () => call('/users/me/follow-requests'),
+    acceptRequest: (id) => call(`/users/me/follow-requests/${id}/accept`, { method: 'POST' }),
+    declineRequest: (id) => call(`/users/me/follow-requests/${id}/decline`, { method: 'POST' }),
   },
   reports: { create: (b) => call('/reports', { method: 'POST', body: b }) },
   moments: {

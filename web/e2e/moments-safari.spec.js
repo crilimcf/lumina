@@ -28,7 +28,7 @@ async function openFeed(page) {
   await expect(page.getByRole('button', { name: 'Novo' })).toBeVisible();
 }
 
-async function pinchOut(page, locator) {
+async function pinchOut(locator) {
   await locator.evaluate((element) => {
     const rect = element.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
@@ -47,14 +47,14 @@ async function pinchOut(page, locator) {
 
     fire('pointerdown', 41, centerX - 18, centerY, true);
     fire('pointerdown', 42, centerX + 18, centerY);
-    fire('pointermove', 42, centerX + 42, centerY);
-    fire('pointermove', 42, centerX + 68, centerY);
-    fire('pointerup', 42, centerX + 68, centerY);
+    fire('pointermove', 42, centerX + 48, centerY);
+    fire('pointermove', 42, centerX + 78, centerY);
+    fire('pointerup', 42, centerX + 78, centerY);
     fire('pointerup', 41, centerX - 18, centerY, true);
   });
 }
 
-test('Momentos têm editor Story completo com pinch em texto/stickers, cores, desenho e vídeo em Mobile Safari', async ({ page }) => {
+test('Momentos têm editor Story completo com pinch e +/- em texto/stickers, cores, desenho e vídeo em Mobile Safari', async ({ page }) => {
   await openFeed(page);
 
   await page.getByRole('button', { name: 'Tu' }).click();
@@ -105,21 +105,34 @@ test('Momentos têm editor Story completo com pinch em texto/stickers, cores, de
   const textOverlay = page.locator('[data-moment-text-overlay]');
   await expect(textOverlay).toContainText('Noite em Lisboa');
   await expect(textOverlay).toHaveCSS('color', 'rgb(255, 111, 200)');
+
+  const textSizeStart = await textOverlay.evaluate(el => parseFloat(getComputedStyle(el).fontSize));
+  await page.getByRole('button', { name: 'Aumentar texto' }).click();
+  await expect.poll(() => textOverlay.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(textSizeStart);
+  const textSizeAfterPlus = await textOverlay.evaluate(el => parseFloat(getComputedStyle(el).fontSize));
+  await page.getByRole('button', { name: 'Diminuir texto' }).click();
+  await expect.poll(() => textOverlay.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeLessThan(textSizeAfterPlus);
+
   const textSizeBeforePinch = await textOverlay.evaluate(el => parseFloat(getComputedStyle(el).fontSize));
-  await pinchOut(page, textOverlay);
-  await expect.poll(() => textOverlay.evaluate(el => parseFloat(getComputedStyle(el).fontSize)))
-    .toBeGreaterThan(textSizeBeforePinch);
+  await pinchOut(textOverlay);
+  await expect.poll(() => textOverlay.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(textSizeBeforePinch);
 
   await emojiTool.click();
   await expect(page.getByRole('dialog', { name: 'Escolher emoji para o momento' })).toBeVisible();
   await page.getByRole('button', { name: 'Adicionar emoji 😂' }).click();
   const stickerOverlay = page.locator('[data-moment-sticker-overlay]');
   await expect(stickerOverlay).toContainText('😂');
-  await expect(page.getByRole('button', { name: 'Aumentar sticker' })).toBeVisible();
+
+  const stickerSizeStart = await stickerOverlay.evaluate(el => parseFloat(getComputedStyle(el).fontSize));
+  await page.getByRole('button', { name: 'Aumentar sticker' }).click();
+  await expect.poll(() => stickerOverlay.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(stickerSizeStart);
+  const stickerSizeAfterPlus = await stickerOverlay.evaluate(el => parseFloat(getComputedStyle(el).fontSize));
+  await page.getByRole('button', { name: 'Diminuir sticker' }).click();
+  await expect.poll(() => stickerOverlay.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeLessThan(stickerSizeAfterPlus);
+
   const stickerSizeBeforePinch = await stickerOverlay.evaluate(el => parseFloat(getComputedStyle(el).fontSize));
-  await pinchOut(page, stickerOverlay);
-  await expect.poll(() => stickerOverlay.evaluate(el => parseFloat(getComputedStyle(el).fontSize)))
-    .toBeGreaterThan(stickerSizeBeforePinch);
+  await pinchOut(stickerOverlay);
+  await expect.poll(() => stickerOverlay.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(stickerSizeBeforePinch);
 
   await drawTool.click();
   await expect(page.getByRole('button', { name: 'Cor do desenho Azul' })).toBeVisible();

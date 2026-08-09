@@ -1,91 +1,207 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Camera } from 'lucide-react';
+import { ArrowLeft, Camera, Minus, Plus, X } from 'lucide-react';
 import { api } from '../api.js';
-import { PAL, Orb } from '../ui.jsx';
+import { Orb } from '../ui.jsx';
 
-/** Recorte circular interativo do avatar. */
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+
+/** Recorte quadrado com máscara circular para o avatar. */
 function PhotoCropper({ file, onConfirm, onCancel }) {
-  const FRAME = 260;
-  const OUTPUT = 480;
+  const FRAME = 280;
+  const OUTPUT = 640;
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [natural, setNatural] = useState(null);
+  const [saving, setSaving] = useState(false);
   const imgUrl = useMemo(() => URL.createObjectURL(file), [file]);
   const imgRef = useRef(null);
-  const dragRef = useRef(null);
+  const pointersRef = useRef(new Map());
+  const gestureRef = useRef(null);
+  const zoomRef = useRef(1);
+  const offsetRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => () => URL.revokeObjectURL(imgUrl), [imgUrl]);
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+  useEffect(() => { offsetRef.current = offset; }, [offset]);
 
   const baseScale = natural ? Math.max(FRAME / natural.w, FRAME / natural.h) : 1;
   const scale = baseScale * zoom;
   const dispW = natural ? natural.w * scale : FRAME;
   const dispH = natural ? natural.h * scale : FRAME;
-  const maxX = Math.max(0, (dispW - FRAME) / 2);
-  const maxY = Math.max(0, (dispH - FRAME) / 2);
-  const clamp = (v, m) => Math.min(m, Math.max(-m, v));
+
+  const safeOffset = (candidate, nextZoom = zoomRef.current) => {
+    const nextScale = baseScale * nextZoom;
+    const maxX = natural ? Math.max(0, (natural.w * nextScale - FRAME) / 2) : 0;
+    const maxY = natural ? Math.max(0, (natural.h * nextScale - FRAME) / 2) : 0;
+    return {
+      x: clamp(candidate.x, -maxX, maxX),
+      y: clamp(candidate.y, -maxY, maxY),
+    };
+  };
+
+  const applyOffset = (candidate, nextZoom = zoomRef.current) => {
+    const safe = safeOffset(candidate, nextZoom);
+    offsetRef.current = safe;
+    setOffset(safe);
+  };
 
   useEffect(() => {
-    setOffset(o => ({ x: clamp(o.x, maxX), y: clamp(o.y, maxY) }));
+    applyOffset(offsetRef.current, zoomRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoom, natural]);
+  }, [natural]);
 
-  const onPointerDown = (e) => {
-    dragRef.current = { startX: e.clientX, startY: e.clientY, offX: offset.x, offY: offset.y };
-    e.currentTarget.setPointerCapture(e.pointerId);
+  const startGesture = () => {
+    const points = [...pointersRef.current.values()].slice(0, 2);
+    if (!points.length) return;
+    if (points.length === 1) {
+      gestureRef.current = {
+        kind: 'pan',
+        pointerId: points[0].id,
+        startX: points[0].x,
+        startY: points[0].y,
+        startOffset: { ...offsetRef.current },
+      };
+      return;
+    }
+    gestureRef.current = {
+      kind: 'pinch',
+      startDistance: Math.max(1, distance(points[0], points[1])),
+      startZoom: zoomRef.current,
+      startOffset: { ...offsetRef.current },
+      startMid: { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 },
+    };
   };
-  const onPointerMove = (e) => {
-    if (!dragRef.current) return;
-    const dx = e.clientX - dragRef.current.startX;
-    const dy = e.clientY - dragRef.current.startY;
-    setOffset({ x: clamp(dragRef.current.offX + dx, maxX), y: clamp(dragRef.current.offY + dy, maxY) });
+
+  const onPointerDown = (event) => {
+    event.preventDefault();
+    pointersRef.current.set(event.pointerId, { id: event.pointerId, x: event.clientX, y: event.clientY });
+    try { event.currentTarget.setPointerCapture?.(event.pointerId); } catch { /* Safari */ }
+    startGesture();
   };
-  const onPointerUp = () => { dragRef.current = null; };
+
+  const onPointerMove = (event) => {
+    if (!pointersRef.current.has(event.pointerId)) return;
+    event.preventDefault();
+    pointersRef.current.set(event.pointerId, { id: event.pointerId, x: event.clientX, y: event.clientY });
+    const points = [...pointersRef.current.values()].slice(0, 2);
+    const gesture = gestureRef.current;
+    if (!gesture) return;
+
+    if (points.length >= 2) {
+      if (gesture.kind !== 'pinch') startGesture();
+      const pinch = gestureRef.current;
+      if (!pinch || pinch.kind !== 'pinch') return;
+      const nextZoom = clamp(pinch.startZoom * (distance(points[0], points[1]) / pinch.startDistance), 1, 4);
+      const mid = { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 };
+      zoomRef.current = nextZoom;
+      setZoom(nextZoom);
+      applyOffset({
+        x: pinch.startOffset.x + (mid.x - pinch.startMid.x),
+        y: pinch.startOffset.y + (mid.y - pinch.startMid.y),
+      }, nextZoom);
+      return;
+    }
+
+    if (gesture.kind === 'pan' && points.length === 1) {
+      applyOffset({
+        x: gesture.startOffset.x + (points[0].x - gesture.startX),
+        y: gesture.startOffset.y + (points[0].y - gesture.startY),
+      });
+    }
+  };
+
+  const onPointerEnd = (event) => {
+    pointersRef.current.delete(event.pointerId);
+    if (pointersRef.current.size) startGesture();
+    else gestureRef.current = null;
+  };
+
+  const changeZoom = (next) => {
+    const value = clamp(next, 1, 4);
+    zoomRef.current = value;
+    setZoom(value);
+    applyOffset(offsetRef.current, value);
+  };
 
   const confirm = () => {
+    if (!natural || !imgRef.current || saving) return;
+    setSaving(true);
+    const finalScale = baseScale * zoomRef.current;
+    const finalDispW = natural.w * finalScale;
+    const finalDispH = natural.h * finalScale;
+    const finalOffset = safeOffset(offsetRef.current, zoomRef.current);
+    const sx = ((finalDispW - FRAME) / 2 - finalOffset.x) / finalScale;
+    const sy = ((finalDispH - FRAME) / 2 - finalOffset.y) / finalScale;
+    const sourceSize = FRAME / finalScale;
+
     const canvas = document.createElement('canvas');
-    canvas.width = OUTPUT; canvas.height = OUTPUT;
+    canvas.width = OUTPUT;
+    canvas.height = OUTPUT;
     const ctx = canvas.getContext('2d');
-    const sx = ((dispW - FRAME) / 2 - offset.x) / scale;
-    const sy = ((dispH - FRAME) / 2 - offset.y) / scale;
-    const sSize = FRAME / scale;
-    ctx.drawImage(imgRef.current, sx, sy, sSize, sSize, 0, 0, OUTPUT, OUTPUT);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.fillStyle = '#111018';
+    ctx.fillRect(0, 0, OUTPUT, OUTPUT);
+    ctx.drawImage(imgRef.current, sx, sy, sourceSize, sourceSize, 0, 0, OUTPUT, OUTPUT);
     canvas.toBlob((blob) => {
-      if (!blob) return onCancel();
-      onConfirm(new File([blob], 'avatar.png', { type: 'image/png' }));
-    }, 'image/png', 0.92);
+      setSaving(false);
+      if (!blob) return;
+      onConfirm(new File([blob], `lumina-avatar-${Date.now()}.jpg`, { type: 'image/jpeg' }));
+    }, 'image/jpeg', 0.93);
   };
 
   return (
-    <div onClick={onCancel} style={{ position: 'fixed', inset: 0, background: 'rgba(10,8,26,.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 90, padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} className="card in" style={{ padding: 20, maxWidth: 340, width: '100%' }}>
-        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14, textAlign: 'center' }}>Ajusta a foto</div>
-        <div onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp}
-          style={{ width: FRAME, height: FRAME, borderRadius: '50%', overflow: 'hidden', margin: '0 auto 16px', position: 'relative', touchAction: 'none', cursor: 'grab', background: '#EEE' }}>
-          <img
-            ref={el => {
-              imgRef.current = el;
-              if (el?.complete && el.naturalWidth > 0) setNatural(n => n || { w: el.naturalWidth, h: el.naturalHeight });
-            }}
-            src={imgUrl} onLoad={e => setNatural({ w: e.target.naturalWidth, h: e.target.naturalHeight })} alt="" draggable={false}
-            style={{ position: 'absolute', left: '50%', top: '50%', width: dispW, height: dispH, maxWidth: 'none',
-              transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`, userSelect: 'none', pointerEvents: 'none' }} />
+    <div role="dialog" aria-label="Ajustar foto de perfil" onClick={onCancel} style={{
+      position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(8,7,17,.78)', backdropFilter: 'blur(10px)',
+      display: 'grid', placeItems: 'center', padding: 'calc(18px + env(safe-area-inset-top)) 18px calc(18px + env(safe-area-inset-bottom))',
+    }}>
+      <div onClick={event => event.stopPropagation()} style={{ width: '100%', maxWidth: 370, color: '#fff' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <button className="p" onClick={onCancel} aria-label="Cancelar recorte" style={{ padding: 10, background: 'rgba(255,255,255,.1)', color: '#fff' }}><X size={17} /></button>
+          <div style={{ flex: 1 }}>
+            <div className="d" style={{ fontSize: 25, color: '#fff' }}>Ajustar foto</div>
+            <div style={{ fontSize: 11.5, opacity: .62, marginTop: 3 }}>1 dedo move · 2 dedos aproximam</div>
+          </div>
+          <button className="p p-brand" onClick={confirm} disabled={!natural || saving} aria-label="Usar foto de perfil">{saving ? '…' : 'OK'}</button>
         </div>
-        <input type="range" min="1" max="3" step="0.01" value={zoom} onChange={e => setZoom(Number(e.target.value))}
-          style={{ width: '100%', marginBottom: 18, accentColor: 'var(--cobalt)' }} />
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button className="p" style={{ flex: 1 }} onClick={onCancel}>Cancelar</button>
-          <button className="p p-brand" style={{ flex: 1 }} onClick={confirm} disabled={!natural}>Usar foto</button>
+
+        <div data-testid="avatar-crop-frame" onPointerDown={onPointerDown} onPointerMove={onPointerMove}
+          onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd} style={{
+            width: FRAME, height: FRAME, maxWidth: '100%', margin: '0 auto', position: 'relative', overflow: 'hidden',
+            borderRadius: '50%', touchAction: 'none', background: '#100C22', boxShadow: '0 24px 55px rgba(0,0,0,.42)',
+          }}>
+          <img ref={(node) => {
+              imgRef.current = node;
+              if (node?.complete && node.naturalWidth) setNatural(current => current || { w: node.naturalWidth, h: node.naturalHeight });
+            }}
+            src={imgUrl} alt="Foto a recortar" draggable={false}
+            onLoad={event => setNatural({ w: event.currentTarget.naturalWidth, h: event.currentTarget.naturalHeight })}
+            style={{
+              position: 'absolute', left: '50%', top: '50%', width: dispW, height: dispH, maxWidth: 'none',
+              transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
+              pointerEvents: 'none', userSelect: 'none',
+            }} />
+          <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', boxShadow: 'inset 0 0 0 2px rgba(255,255,255,.38)', pointerEvents: 'none' }} />
+        </div>
+
+        <div style={{ marginTop: 14, padding: 10, borderRadius: 20, background: 'rgba(255,255,255,.08)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button type="button" aria-label="Diminuir zoom da foto" onClick={() => changeZoom(zoomRef.current - .12)}
+            style={{ width: 42, height: 42, border: 0, borderRadius: 99, background: 'rgba(255,255,255,.1)', color: '#fff' }}><Minus size={17} /></button>
+          <input aria-label="Zoom da foto de perfil" type="range" min="1" max="4" step="0.01" value={zoom}
+            onChange={event => changeZoom(Number(event.target.value))} style={{ flex: 1, accentColor: '#7160FF' }} />
+          <button type="button" aria-label="Aumentar zoom da foto" onClick={() => changeZoom(zoomRef.current + .12)}
+            style={{ width: 42, height: 42, border: 0, borderRadius: 99, background: 'rgba(255,255,255,.1)', color: '#fff' }}><Plus size={17} /></button>
         </div>
       </div>
     </div>
   );
 }
 
-/** Editar nome, biografia, cor, foto e password. */
+/** Editar nome, biografia, foto e password. */
 export function EditarPerfil({ me, onSave, onBack, ping }) {
   const [name, setName] = useState(me.name);
   const [bio, setBio] = useState(me.bio || '');
-  const [palette, setPalette] = useState(me.palette);
   const [avatarUrl, setAvatarUrl] = useState(me.avatar_url || '');
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
@@ -97,23 +213,43 @@ export function EditarPerfil({ me, onSave, onBack, ping }) {
   const [newPassword, setNewPassword] = useState('');
   const [pwBusy, setPwBusy] = useState(false);
 
+  useEffect(() => () => { if (avatarPreview) URL.revokeObjectURL(avatarPreview); }, [avatarPreview]);
+
   const pickFile = (file) => {
-    setAvatarPreview(prev => { if (prev) URL.revokeObjectURL(prev); return file ? URL.createObjectURL(file) : null; });
+    setAvatarPreview((previous) => {
+      if (previous) URL.revokeObjectURL(previous);
+      return file ? URL.createObjectURL(file) : null;
+    });
     setAvatarFile(file);
+  };
+
+  const removePhoto = () => {
+    pickFile(null);
+    setAvatarUrl('');
   };
 
   const save = async () => {
     if (String(name).trim().length < 2) return ping('O nome precisa de pelo menos 2 letras');
     setBusy(true);
     try {
-      let nextAvatarUrl = avatarUrl;
+      let nextAvatarUrl = avatarUrl || null;
       if (avatarFile) nextAvatarUrl = await api.upload(avatarFile);
-      const user = await api.auth.update({ name: name.trim(), bio, palette, avatarUrl: nextAvatarUrl || null });
+      const user = await api.auth.update({
+        name: name.trim(),
+        bio,
+        avatarUrl: nextAvatarUrl,
+      });
+      setAvatarUrl(user.avatar_url || '');
+      setAvatarFile(null);
+      setAvatarPreview(null);
       onSave(user);
       ping('Perfil atualizado');
       onBack();
-    } catch (e) { ping(e.message); }
-    finally { setBusy(false); }
+    } catch (error) {
+      ping(error.message || 'Não foi possível guardar o perfil');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const changePassword = async () => {
@@ -121,10 +257,14 @@ export function EditarPerfil({ me, onSave, onBack, ping }) {
     setPwBusy(true);
     try {
       await api.auth.changePassword({ current, password: newPassword });
-      setCurrent(''); setNewPassword('');
+      setCurrent('');
+      setNewPassword('');
       ping('Password alterada');
-    } catch (e) { ping(e.message); }
-    finally { setPwBusy(false); }
+    } catch (error) {
+      ping(error.message);
+    } finally {
+      setPwBusy(false);
+    }
   };
 
   const shownAvatar = avatarPreview || avatarUrl || null;
@@ -138,36 +278,35 @@ export function EditarPerfil({ me, onSave, onBack, ping }) {
         </div>
 
         <div className="card" style={{ padding: 18, marginBottom: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 18 }}>
-            <Orb p={palette} avatarUrl={shownAvatar} s={72} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 21 }}>
+            {shownAvatar ? (
+              <img src={shownAvatar} alt="Pré-visualização da foto de perfil" style={{
+                width: 86, height: 86, borderRadius: '50%', objectFit: 'cover', flexShrink: 0,
+                display: 'block', background: '#E8E4F5', boxShadow: '0 9px 24px rgba(30,18,80,.13)',
+              }} />
+            ) : (
+              <Orb p={me.palette} s={86} />
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
-                onChange={e => { const f = e.target.files?.[0]; if (f) setCropFile(f); e.target.value = ''; }} />
-              <button className="p p-sm" onClick={() => fileInput.current?.click()}>
+                onChange={event => {
+                  const picked = event.target.files?.[0];
+                  event.target.value = '';
+                  if (picked) setCropFile(picked);
+                }} />
+              <button className="p p-sm" onClick={() => fileInput.current?.click()} aria-label="Escolher foto de perfil">
                 <Camera size={13} style={{ verticalAlign: -2, marginRight: 6 }} />{shownAvatar ? 'Trocar foto' : 'Escolher foto'}
               </button>
               {shownAvatar && (
-                <button className="p p-sm" style={{ color: 'var(--coral)' }}
-                  onClick={() => { pickFile(null); setAvatarUrl(''); }}>Remover foto</button>
+                <button className="p p-sm" style={{ color: 'var(--coral)' }} onClick={removePhoto}>Remover foto</button>
               )}
             </div>
           </div>
 
-          {!shownAvatar && (
-            <div className="scene" style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
-              {PAL.map((t, i) => (
-                <button key={i} onClick={() => setPalette(i)} className="st"
-                  style={{ width: 44, height: 56, background: t.bg, border: 0, cursor: 'pointer', padding: 0, transform: palette === i ? 'translateY(-6px) scale(1.06)' : 'none' }}>
-                  <div className="gloss" />
-                </button>
-              ))}
-            </div>
-          )}
-
           <label className="m" style={{ display: 'block', marginBottom: 6 }}>Nome</label>
-          <input value={name} onChange={e => setName(e.target.value)} style={{ marginBottom: 14 }} />
+          <input value={name} onChange={event => setName(event.target.value)} style={{ marginBottom: 14 }} />
           <label className="m" style={{ display: 'block', marginBottom: 6 }}>Biografia</label>
-          <textarea value={bio} onChange={e => setBio(e.target.value)} maxLength={300} rows={3}
+          <textarea value={bio} onChange={event => setBio(event.target.value)} maxLength={300} rows={3}
             style={{ width: '100%', resize: 'none', marginBottom: 4 }} />
           <div className="m" style={{ textAlign: 'right', marginBottom: 14 }}>{bio.length}/300</div>
 
@@ -178,9 +317,9 @@ export function EditarPerfil({ me, onSave, onBack, ping }) {
 
         <div className="card" style={{ padding: 18 }}>
           <div className="m" style={{ marginBottom: 10 }}>Mudar password</div>
-          <input type="password" placeholder="Password atual" value={current} onChange={e => setCurrent(e.target.value)}
+          <input type="password" placeholder="Password atual" value={current} onChange={event => setCurrent(event.target.value)}
             autoComplete="current-password" style={{ marginBottom: 10 }} />
-          <input type="password" placeholder="Password nova" value={newPassword} onChange={e => setNewPassword(e.target.value)}
+          <input type="password" placeholder="Password nova" value={newPassword} onChange={event => setNewPassword(event.target.value)}
             autoComplete="new-password" minLength={8} style={{ marginBottom: 12 }} />
           <button className="p" disabled={pwBusy} onClick={changePassword}>
             {pwBusy ? 'A mudar…' : 'Mudar password'}
@@ -189,9 +328,10 @@ export function EditarPerfil({ me, onSave, onBack, ping }) {
       </div>
 
       {cropFile && (
-        <PhotoCropper file={cropFile}
-          onCancel={() => setCropFile(null)}
-          onConfirm={(cropped) => { pickFile(cropped); setCropFile(null); }} />
+        <PhotoCropper file={cropFile} onCancel={() => setCropFile(null)} onConfirm={(cropped) => {
+          pickFile(cropped);
+          setCropFile(null);
+        }} />
       )}
     </div>
   );

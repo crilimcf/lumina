@@ -7,7 +7,7 @@
  */
 const BUILD = '__LUMINA_BUILD__';
 const CACHE = `lumina-${BUILD}`;
-const SHELL = ['/', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'];
+const SHELL = ['/', '/manifest.webmanifest', '/lumina-icon.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -24,9 +24,6 @@ self.addEventListener('activate', (event) => {
     await Promise.all(keys.filter((key) => key.startsWith('lumina-') && key !== CACHE).map((key) => caches.delete(key)));
     await self.clients.claim();
 
-    // Migração única para quem ainda tem o service worker antigo. Esse código
-    // antigo não sabia ouvir `controllerchange`, por isso forçamos uma única
-    // navegação quando encontramos especificamente o cache lumina-v2.
     if (legacyV2) {
       const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       await Promise.all(windows.map((client) => client.navigate(client.url).catch(() => null)));
@@ -56,8 +53,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Assets do Vite têm hash no nome. Cache-first é seguro porque uma alteração
-  // de código gera outro URL e nunca reutiliza bytes antigos pelo mesmo nome.
   if (url.pathname.startsWith('/assets/')) {
     event.respondWith(
       caches.match(request).then((cached) => cached || fetch(request).then((response) => {

@@ -1,0 +1,90 @@
+# QA e testes
+
+## Gates obrigatórios
+
+Cada release da Lumina passa por três gates automáticos:
+
+1. **API integration tests** — Node test runner + PostgreSQL 16 isolado.
+2. **Web build** — instalação limpa + auditoria de dependências de produção + build Vite.
+3. **Mobile Safari end-to-end** — Playwright WebKit com perfil iPhone 13 e stack local HTTPS.
+
+Os workflows correm em `master`, pull requests e branches `qa/**`, `feature/**`, `fix/**` e `refactor/**`.
+
+## Cobertura da API
+
+`api/test/` valida, entre outros:
+
+- registo, login, logout, sessões e reset de password;
+- 2FA e códigos de recuperação;
+- perfis, privacidade, follow requests, bloqueios e notificações;
+- comunidades, convites e limites;
+- posts, edição, eliminação, comentários e autorização;
+- 👍, 🔥 e repost/undo;
+- Salas públicas e privadas, convites, edição, mensagens e eliminação;
+- mensagens privadas, efemeridade e controlo de acesso;
+- Momentos e respetivo ciclo de vida;
+- uploads, vídeos e remoção de media;
+- denúncias, conteúdo escondido e jobs concorrentes;
+- CSRF/autenticação pública e regressões de segurança.
+
+`release-lifecycle.test.js` é o teste de aceitação de release: cria utilizadores reais numa base isolada e atravessa o ciclo social principal do início ao fim.
+
+## Cobertura Mobile Safari
+
+`web/e2e/` usa WebKit com viewport/configuração de iPhone.
+
+Fluxos cobertos:
+
+- criar conta e concluir onboarding;
+- persistência de sessão/reload;
+- criar comunidade;
+- navegação final Feed · Salas · Novo · Radar · Conversas;
+- Alertas e Perfil no topo;
+- criar, editar e apagar publicação;
+- composer de post a partir de vários ecrãs;
+- editor de fotografia: crop/gestos, brilho, rotação, stickers, trocar/remover media;
+- publicação de vídeo;
+- Momento com fotografia/vídeo e editor antes da publicação;
+- perfil e edição/crop do avatar;
+- Sala pública: criar, editar, conversar, apagar mensagem e apagar sala;
+- Chat com ações de áudio/vídeo;
+- Alertas de pedido de follow e mudança de perfil público/privado.
+
+## Momentos: regra de produto
+
+O editor de Momento é um editor **pré-publicação**. Antes de publicar é possível editar a fotografia, trocar ou remover o ficheiro. Depois de publicado, o Momento é imutável durante as 24 horas e o autor pode apagá-lo. Isto é comportamento intencional, não uma falha de cobertura.
+
+## Media e armazenamento
+
+Os testes browser não escrevem no bucket de produção. O ciclo de vida do armazenamento é validado no nível da API através de uploads confirmados de teste e verificações de referência/eliminação.
+
+Produção nunca é usada como base de dados de testes automatizados.
+
+## Comandos locais
+
+```bash
+cd api
+npm ci
+npm audit --omit=dev --audit-level=high
+npm test
+```
+
+```bash
+cd web
+npm ci
+npm audit --omit=dev --audit-level=high
+npm run build
+```
+
+Para WebKit, usar o workflow GitHub Actions ou instalar Playwright localmente de acordo com `web/playwright.config.js`.
+
+## Regra para bugs
+
+Um bug encontrado na auditoria deve resultar, sempre que possível, em:
+
+1. teste que reproduz a falha;
+2. correção mínima;
+3. teste verde;
+4. regressão mantida na suite.
+
+Não remover/afrouxar um teste apenas para tornar o CI verde.

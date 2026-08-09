@@ -161,10 +161,6 @@ export const api = {
     followAction,
     follow: async (id) => {
       const result = await followAction(id);
-      // Os ecrãs legados assumiam que qualquer 2xx significava follow ativo.
-      // Num perfil privado isso seria visualmente falso: o servidor só criou
-      // um pedido. Fazemos esses ecrãs manterem o estado e mostrarem o toast,
-      // enquanto o novo centro Atividade usa followAction e mostra "Pendente".
       if (result?.pending) throw new ApiError(202, 'Pedido enviado', 'follow_pending');
       return result;
     },
@@ -185,6 +181,7 @@ export const api = {
   moments: {
     list: () => call('/moments'),
     create: (b) => call('/moments', { method: 'POST', body: b }),
+    update: (id, b) => call(`/moments/${id}`, { method: 'PATCH', body: b }),
     view: (id) => call(`/moments/${id}/view`, { method: 'POST' }),
     viewers: (id) => call(`/moments/${id}/viewers`),
     remove: (id) => call(`/moments/${id}`, { method: 'DELETE' }),

@@ -50,9 +50,8 @@ export function Entrada({ onIn }) {
         <h1 className="d up" style={{ fontSize: 'clamp(58px,17vw,84px)', animationDelay: '.06s' }}>
           Lumi<span className="it it-brand">na</span>
         </h1>
-        <p className="up" style={{ fontSize: 16.5, lineHeight: 1.42, color: 'var(--grey)', margin: '20px 0 34px', maxWidth: 320, animationDelay: '.12s' }}>
-          Uma pergunta por dia, escolhida pela tua gente — nunca por um algoritmo.
-          Sem anúncios. Sem scroll infinito.
+        <p className="up" style={{ fontSize: 16.5, lineHeight: 1.42, color: 'var(--grey)', margin: '20px 0 34px', maxWidth: 330, animationDelay: '.12s' }}>
+          Feed, Salas, Momentos e conversas num só espaço. Partilha, descobre temas e fala com a tua rede ao teu ritmo.
         </p>
 
         {sent ? (

@@ -2,7 +2,7 @@
   "id": "/",
   "name": "Lumina",
   "short_name": "Lumina",
-  "description": "Uma pergunta por dia, escolhida pela tua gente — nunca por um algoritmo.",
+  "description": "Feed, Salas, Momentos e conversas num só espaço para a tua rede.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

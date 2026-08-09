@@ -18,6 +18,16 @@ async function request(path, { method = 'GET', token, body } = {}) {
   return { response, data };
 }
 
+async function confirmedAvatar(ownerId, suffix) {
+  const url = `https://media.example.test/${ownerId}/${suffix}.jpg`;
+  await q(
+    `INSERT INTO uploads (owner_id, key, url, mime, bytes, confirmed_at)
+     VALUES ($1, $2, $3, 'image/jpeg', 2048, now())`,
+    [ownerId, `${ownerId}/${suffix}.jpg`, url]
+  );
+  return url;
+}
+
 before(async () => {
   await migrate();
   const { rows } = await q(
@@ -51,12 +61,7 @@ test('avatar confirmado fica persistido no perfil e é consumido como avatar', a
   assert.equal(registered.response.status, 201, JSON.stringify(registered.data));
 
   const userId = registered.data.user.id;
-  const avatarUrl = `https://media.example.test/${userId}/avatar.jpg`;
-  await q(
-    `INSERT INTO uploads (owner_id, key, url, mime, bytes, confirmed_at)
-     VALUES ($1, $2, $3, 'image/jpeg', 2048, now())`,
-    [userId, `${userId}/avatar.jpg`, avatarUrl]
-  );
+  const avatarUrl = await confirmedAvatar(userId, 'avatar');
 
   const updated = await request('/auth/me', {
     method: 'PATCH', token: registered.data.token,
@@ -73,4 +78,45 @@ test('avatar confirmado fica persistido no perfil e é consumido como avatar', a
   const { rows } = await q('SELECT consumed_at, purpose FROM uploads WHERE url = $1', [avatarUrl]);
   assert.ok(rows[0].consumed_at);
   assert.equal(rows[0].purpose, 'avatar');
+});
+
+test('trocar e remover avatar limpa as imagens antigas sem deixar uploads órfãos', async () => {
+  const registered = await request('/auth/register', {
+    method: 'POST',
+    body: {
+      handle: 'avatar.replace', email: 'avatar.replace@example.test', password: 'lumina-test-1234',
+      name: 'Avatar Replace', birthDate: '1990-01-01', acceptTerms: true,
+    },
+  });
+  assert.equal(registered.response.status, 201, JSON.stringify(registered.data));
+
+  const userId = registered.data.user.id;
+  const first = await confirmedAvatar(userId, 'avatar-first');
+  const second = await confirmedAvatar(userId, 'avatar-second');
+
+  const firstSet = await request('/auth/me', {
+    method: 'PATCH', token: registered.data.token, body: { avatarUrl: first },
+  });
+  assert.equal(firstSet.response.status, 200, JSON.stringify(firstSet.data));
+  assert.equal(firstSet.data.avatar_url, first);
+
+  const replaced = await request('/auth/me', {
+    method: 'PATCH', token: registered.data.token, body: { avatarUrl: second },
+  });
+  assert.equal(replaced.response.status, 200, JSON.stringify(replaced.data));
+  assert.equal(replaced.data.avatar_url, second);
+
+  await new Promise(resolve => setTimeout(resolve, 40));
+  let oldUpload = await q('SELECT 1 FROM uploads WHERE url = $1', [first]);
+  assert.equal(oldUpload.rowCount, 0, 'avatar substituído deve ser removido');
+
+  const removed = await request('/auth/me', {
+    method: 'PATCH', token: registered.data.token, body: { avatarUrl: null },
+  });
+  assert.equal(removed.response.status, 200, JSON.stringify(removed.data));
+  assert.equal(removed.data.avatar_url, null);
+
+  await new Promise(resolve => setTimeout(resolve, 40));
+  oldUpload = await q('SELECT 1 FROM uploads WHERE url = $1', [second]);
+  assert.equal(oldUpload.rowCount, 0, 'avatar removido deve libertar o upload');
 });

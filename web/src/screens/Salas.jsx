@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Camera, Crown, DoorOpen, LockKeyhole, MessageCircle, Plus, Search, Send, ShieldCheck, Sparkles, Trash2, Users, X } from 'lucide-react';
+import { ArrowLeft, Camera, Crown, DoorOpen, LockKeyhole, MessageCircle, Pencil, Plus, Search, Send, ShieldCheck, Sparkles, Trash2, Users, X } from 'lucide-react';
 import { api } from '../api.js';
 import { Empty, Orb } from '../ui.jsx';
 import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
@@ -129,13 +129,25 @@ function CreateRoom({ onClose, onCreated, ping }) {
   </div>;
 }
 
-function RoomChat({ room, me, onBack, onRefresh, ping }) {
+function RoomChat({ room, me, onBack, onRefresh, onRoomUpdated, onRoomDeleted, ping }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
   const [search, setSearch] = useState('');
   const [people, setPeople] = useState([]);
   const [showInvite, setShowInvite] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [editName, setEditName] = useState(room.name || '');
+  const [editTopic, setEditTopic] = useState(room.topic || '');
+  const [editDescription, setEditDescription] = useState(room.description || '');
+  const [saving, setSaving] = useState(false);
   const owner = room.creator_id === me.id;
+
+  useEffect(() => {
+    setEditName(room.name || '');
+    setEditTopic(room.topic || '');
+    setEditDescription(room.description || '');
+  }, [room.id, room.name, room.topic, room.description]);
 
   useEffect(() => {
     let alive = true;
@@ -163,12 +175,38 @@ function RoomChat({ room, me, onBack, onRefresh, ping }) {
     catch (e) { ping(e.message); }
   };
 
+  const saveRoom = async () => {
+    const name = editName.trim();
+    const topic = editTopic.trim();
+    if (name.length < 3 || topic.length < 3) return ping('Dá um nome e um tópico à sala');
+    setSaving(true);
+    try {
+      const updated = await api.rooms.update(room.id, { name, topic, description: editDescription.trim() });
+      onRoomUpdated(updated);
+      setShowEdit(false);
+      ping('Sala atualizada');
+    } catch (e) { ping(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const deleteRoom = async () => {
+    setSaving(true);
+    try {
+      await api.rooms.remove(room.id);
+      setShowDelete(false);
+      ping('Sala apagada');
+      onRoomDeleted();
+    } catch (e) { ping(e.message); setSaving(false); }
+  };
+
   return <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', background: 'var(--paper)' }}>
-    <header style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #E1DDF0' }}>
+    <header style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid #E1DDF0' }}>
       <button className="p" onClick={onBack} aria-label="Voltar às salas"><ArrowLeft size={16} /></button>
-      <div style={{ width: 42, height: 42, borderRadius: 14, overflow: 'hidden', background: '#25154F' }}>{room.image_url && <img src={room.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}</div>
-      <div style={{ flex: 1, minWidth: 0 }}><b style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{room.name}</b><span className="m">{room.topic}</span></div>
+      <div style={{ width: 42, height: 42, borderRadius: 14, overflow: 'hidden', background: '#25154F', flexShrink: 0 }}>{room.image_url && <img src={room.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}</div>
+      <div style={{ flex: 1, minWidth: 0 }}><b style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{room.name}</b><span className="m" style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{room.topic}</span></div>
+      {owner && <button className="p" onClick={() => setShowEdit(true)} aria-label="Editar sala"><Pencil size={16} /></button>}
       {owner && room.visibility !== 'public' && <button className="p" onClick={() => setShowInvite(v => !v)} aria-label="Convidar pessoas"><Plus size={17} /></button>}
+      {owner && <button className="p" onClick={() => setShowDelete(true)} aria-label="Apagar sala" style={{ color: '#B02C46' }}><Trash2 size={16} /></button>}
     </header>
     {showInvite && owner && <div className="card in" style={{ margin: 12, padding: 12 }}><div style={{ display: 'flex', gap: 8 }}><Search size={16} style={{ marginTop: 12 }} /><input placeholder="Procurar utilizador" value={search} onChange={e => setSearch(e.target.value)} /></div><div style={{ display: 'grid', gap: 7, marginTop: 8 }}>{people.slice(0, 6).map(p => <button key={p.id} className="p" style={{ justifyContent: 'flex-start' }} onClick={async () => { try { await api.rooms.invite(room.id, p.id); ping(`${p.name} convidado`); setSearch(''); setPeople([]); } catch (e) { ping(e.message); } }}><Orb p={p.palette} avatarUrl={p.avatar_url} s={26} /> {p.name} <span className="m">@{p.handle}</span></button>)}</div></div>}
     <div className="ns" style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -176,6 +214,28 @@ function RoomChat({ room, me, onBack, onRefresh, ping }) {
       {messages.map(m => <div key={m.id} style={{ alignSelf: m.sender_id === me.id ? 'flex-end' : 'flex-start', maxWidth: '84%', display: 'flex', gap: 8, alignItems: 'flex-end', flexDirection: m.sender_id === me.id ? 'row-reverse' : 'row' }}><Orb p={m.palette} avatarUrl={m.avatar_url} s={26} /><div style={{ background: m.sender_id === me.id ? '#2E2AF3' : '#fff', color: m.sender_id === me.id ? '#fff' : 'var(--ink)', borderRadius: 18, padding: '9px 12px', boxShadow: '0 5px 16px rgba(25,18,70,.08)' }}><div style={{ fontSize: 10.5, opacity: .66, marginBottom: 3 }}>{m.sender_id === me.id ? 'Tu' : m.name}</div><div style={{ fontSize: 14.5, lineHeight: 1.4 }}>{m.body}</div>{m.edited_at && <div style={{ fontSize: 9.5, opacity: .55, marginTop: 3 }}>editada</div>}</div>{(m.sender_id === me.id || owner) && <button onClick={() => remove(m)} aria-label="Apagar mensagem" style={{ border: 0, background: 'none', color: '#C0B9D8', padding: 3 }}><Trash2 size={13} /></button>}</div>)}
     </div>
     <div style={{ padding: '10px 12px calc(12px + env(safe-area-inset-bottom))', display: 'flex', gap: 8, borderTop: '1px solid #E1DDF0', background: 'rgba(239,237,251,.95)' }}><input placeholder="Mensagem para a sala…" value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} /><button className="p p-brand" onClick={send} disabled={!text.trim()} aria-label="Enviar para a sala"><Send size={17} /></button></div>
+
+    {showEdit && owner && <div onClick={() => !saving && setShowEdit(false)} style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(17,10,46,.55)', backdropFilter: 'blur(7px)', display: 'flex', alignItems: 'flex-end' }}>
+      <div onClick={e => e.stopPropagation()} className="in" style={{ width: '100%', maxWidth: 560, margin: '0 auto', borderRadius: '30px 30px 0 0', background: '#F5F3FF', padding: '20px 18px calc(24px + env(safe-area-inset-bottom))' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}><div className="d" style={{ fontSize: 28, flex: 1 }}>Editar sala</div><button className="p" onClick={() => setShowEdit(false)} aria-label="Fechar edição"><X size={16} /></button></div>
+        <input placeholder="Nome da sala" maxLength={80} value={editName} onChange={e => setEditName(e.target.value)} style={{ marginBottom: 10 }} />
+        <input placeholder="Tópico principal" maxLength={180} value={editTopic} onChange={e => setEditTopic(e.target.value)} style={{ marginBottom: 10 }} />
+        <textarea placeholder="Descrição (opcional)" maxLength={1000} rows={4} value={editDescription} onChange={e => setEditDescription(e.target.value)} style={{ width: '100%', resize: 'none', marginBottom: 13 }} />
+        <div className="m" style={{ marginBottom: 12 }}>A privacidade não muda durante a edição. Para outro tipo de sala, cria uma nova.</div>
+        <button className="p p-brand" onClick={saveRoom} disabled={saving} style={{ width: '100%', padding: 14, justifyContent: 'center' }}>{saving ? 'A guardar…' : 'Guardar alterações'}</button>
+      </div>
+    </div>}
+
+    {showDelete && owner && <div onClick={() => !saving && setShowDelete(false)} style={{ position: 'fixed', inset: 0, zIndex: 91, background: 'rgba(17,10,46,.58)', backdropFilter: 'blur(8px)', display: 'grid', placeItems: 'center', padding: 22 }}>
+      <div onClick={e => e.stopPropagation()} className="card in" role="dialog" aria-label="Confirmar apagar sala" style={{ width: '100%', maxWidth: 420, padding: 20 }}>
+        <div className="d" style={{ fontSize: 27 }}>Apagar sala?</div>
+        <div style={{ marginTop: 8, color: 'var(--grey)', fontSize: 14, lineHeight: 1.5 }}>A sala <b>{room.name}</b> e as respetivas mensagens serão removidas. Esta ação não pode ser anulada.</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginTop: 18 }}>
+          <button className="p" onClick={() => setShowDelete(false)} disabled={saving} style={{ justifyContent: 'center' }}>Cancelar</button>
+          <button className="p" onClick={deleteRoom} disabled={saving} style={{ justifyContent: 'center', background: '#B02C46', color: '#fff', borderColor: '#B02C46' }}>{saving ? 'A apagar…' : 'Apagar sala'}</button>
+        </div>
+      </div>
+    </div>}
   </div>;
 }
 
@@ -189,7 +249,9 @@ export function Salas({ me, tab, setTab, coms, setComp, threads, setThread, ping
   useEffect(() => { load(); }, []);
 
   const visible = rooms.filter(r => (ULTRA_ROOMS_ENABLED || r.visibility !== 'ultra') && (filter === 'all' || r.visibility === filter));
-  if (active) return <RoomChat room={active} me={me} ping={ping} onBack={() => { setActive(null); load(); }} onRefresh={load} />;
+  if (active) return <RoomChat room={active} me={me} ping={ping} onBack={() => { setActive(null); load(); }} onRefresh={load}
+    onRoomUpdated={updated => { setActive(updated); setRooms(current => current.map(r => r.id === updated.id ? updated : r)); }}
+    onRoomDeleted={() => { setRooms(current => current.filter(r => r.id !== active.id)); setActive(null); load(); }} />;
 
   return <div style={{ minHeight: '100dvh', paddingBottom: 100, background: 'linear-gradient(180deg,#EFEDFB,#DFDCF2)' }}>
     <div style={{ maxWidth: 520, margin: '0 auto', padding: '18px 16px' }}>

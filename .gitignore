@@ -1,7 +1,22 @@
-node_modules
+# Dependencies and builds
+node_modules/
+dist/
+coverage/
+
+# Local environment (keep templates)
 .env
-dist
+.env.*
+!.env.example
+
+# Tooling and local runtime artifacts
+.vercel/
+web/.cert/
+web/test-results/
+web/playwright-report/
 *.log
+*.tmp
 *.zip
 
-.vercel
+# Operating systems
+.DS_Store
+Thumbs.db

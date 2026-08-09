@@ -15,9 +15,19 @@ Este documento descreve o estado técnico atual. Questões jurídicas/RGPD devem
 
 ## Autorização
 
-A API valida ownership/membership em cada operação sensível. O frontend não é considerado uma fronteira de segurança.
+A API valida autoria, relações sociais e regras de acesso em cada operação sensível. O frontend não é considerado uma fronteira de segurança.
 
-Cobertura inclui posts, comentários, comunidades, Salas, mensagens, Momentos, perfis privados, pedidos de follow, uploads e moderação.
+Cobertura inclui:
+
+- Feed: a própria pessoa e autores que segue;
+- perfis privados: só ficam ligados depois de um pedido aceite;
+- bloqueios: cortam follows e visibilidade nos dois sentidos;
+- publicações, comentários, reações e reposts;
+- Salas públicas/privadas e respetivos convites;
+- mensagens privadas e chamadas;
+- Momentos segundo o mesmo grafo social do Feed;
+- uploads e ownership de media;
+- fila global de moderação reservada à equipa Lumina.
 
 ## Browser
 
@@ -36,7 +46,7 @@ O HTML e ficheiros de controlo PWA não usam cache imutável. Assets de build t�
 
 Em produção, `CORS_ORIGIN` é obrigatório. O servidor não deve arrancar com um fallback permissivo.
 
-Os fluxos de autenticação pública têm testes de regressão específicos em `api/test/csrf-public-auth.test.js`.
+Os fluxos de autenticação pública têm testes de regressão específicos em `api/test/csrf-public-auth.test.js`. Login, registo e recuperação não ficam bloqueados por um cookie de uma sessão anterior já revogada; operações autenticadas continuam protegidas por CSRF.
 
 ## Uploads
 

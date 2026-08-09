@@ -7,23 +7,64 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     container: ghcr.io/railwayapp/cli:latest
-    timeout-minutes: 20
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
 
-      - name: Authorize Railway and deploy Lumina API
+      - name: Start Railway browserless authorization
         shell: sh
         run: |
           set -eu
-          echo 'RAILWAY_AUTH_START'
-          echo 'Authorize the browserless Railway session shown below.'
-          railway login --browserless
-          echo 'RAILWAY_AUTH_OK'
+          rm -f /tmp/railway-login.log
+          nohup railway login --browserless > /tmp/railway-login.log 2>&1 &
+          echo $! > /tmp/railway-login.pid
+          i=0
+          while [ ! -s /tmp/railway-login.log ] && [ "$i" -lt 20 ]; do
+            i=$((i+1))
+            sleep 1
+          done
+          cat /tmp/railway-login.log || true
+
+      - name: Publish temporary Railway authorization instructions
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = '/tmp/railway-login.log';
+            const text = fs.existsSync(path) ? fs.readFileSync(path, 'utf8') : 'Railway login output was not created.';
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 3,
+              body: `Railway browserless authorization from run ${context.runId}:\n\n\`\`\`text\n${text}\n\`\`\`\n\nAuthorize this session now. The workflow is polling and will deploy the Lumina API automatically after authorization.`
+            });
+
+      - name: Wait for Railway authorization and deploy Lumina API
+        shell: sh
+        run: |
+          set -eu
+          authorized=0
+          i=0
+          while [ "$i" -lt 90 ]; do
+            if railway whoami >/tmp/railway-whoami.log 2>&1; then
+              authorized=1
+              break
+            fi
+            i=$((i+1))
+            sleep 5
+          done
+          if [ "$authorized" -ne 1 ]; then
+            echo 'Railway authorization timed out.'
+            cat /tmp/railway-login.log || true
+            exit 1
+          fi
+          cat /tmp/railway-whoami.log || true
 
           linked=0
           linked_service=''

@@ -100,7 +100,10 @@ const health = async (_req, res) => {
          (SELECT count(*)::int FROM radar_sources WHERE active=true AND kind='rss' AND last_fetch_error IS NOT NULL) AS failing_sources,
          (SELECT count(*)::int FROM radar_items WHERE status='published' AND published_at >= now() - interval '24 hours') AS items_24h,
          (SELECT CASE
-            WHEN bool_or(last_fetch_error ILIKE '%dns%' OR last_fetch_error ILIKE '%resolve%') THEN 'dns'
+            WHEN bool_or(last_fetch_error ILIKE '%Timeout ao resolver DNS%') THEN 'dns_timeout'
+            WHEN bool_or(last_fetch_error ILIKE '%rede privada/reservada%' OR last_fetch_error ILIKE '%Host RSS privado%') THEN 'dns_blocked'
+            WHEN bool_or(last_fetch_error ILIKE '%sem endereço resolvido%') THEN 'dns_empty'
+            WHEN bool_or(last_fetch_error ILIKE '%dns%' OR last_fetch_error ILIKE '%resolve%') THEN 'dns_other'
             WHEN bool_or(last_fetch_error ILIKE '%timeout%') THEN 'timeout'
             WHEN bool_or(last_fetch_error ILIKE '%http %') THEN 'http'
             WHEN bool_or(last_fetch_error ILIKE '%compress%') THEN 'compression'

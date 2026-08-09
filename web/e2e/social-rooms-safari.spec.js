@@ -64,13 +64,14 @@ test('navegação final tem 5 itens; publicação edita/apaga; Radar está separ
   await expect(page.getByText(/O feed social continua limpo/i)).toBeVisible();
 });
 
-test('Sala pública cria, abre, envia e apaga mensagem em Mobile Safari', async ({ page }) => {
+test('Sala pública cria, edita, conversa e apaga em Mobile Safari', async ({ page }) => {
   await openLumina(page);
   await page.getByRole('button', { name: 'Salas' }).click();
   await expect(page.getByRole('heading', { name: /Salas/i })).toBeVisible();
   await page.getByRole('button', { name: /Criar/ }).click();
 
   const roomName = `Sala Futebol QA ${Date.now()}`;
+  const editedRoomName = `${roomName} editada`;
   await page.getByPlaceholder('Nome da sala').fill(roomName);
   await page.getByPlaceholder('Tópico principal').fill('Liga Portugal esta noite');
   await page.getByPlaceholder('Descrição (opcional)').fill('Conversa em tempo real sem poluir o feed.');
@@ -82,12 +83,28 @@ test('Sala pública cria, abre, envia e apaga mensagem em Mobile Safari', async 
   await roomCard.click();
   await expect(page.getByText('Liga Portugal esta noite', { exact: true })).toBeVisible();
 
+  await page.getByRole('button', { name: 'Editar sala' }).click();
+  await expect(page.getByText('Editar sala', { exact: true })).toBeVisible();
+  await page.getByPlaceholder('Nome da sala').fill(editedRoomName);
+  await page.getByPlaceholder('Tópico principal').fill('Liga Portugal — tópico editado');
+  await page.getByPlaceholder('Descrição (opcional)').fill('Descrição final da sala.');
+  await page.getByRole('button', { name: 'Guardar alterações' }).click();
+  await expect(page.getByText(editedRoomName, { exact: true })).toBeVisible();
+  await expect(page.getByText('Liga Portugal — tópico editado', { exact: true })).toBeVisible();
+
   const input = page.getByPlaceholder('Mensagem para a sala…');
   await input.fill('Boa noite sala 👋');
   await page.getByRole('button', { name: 'Enviar para a sala' }).click();
   await expect(page.getByText('Boa noite sala 👋')).toBeVisible();
   await page.getByRole('button', { name: 'Apagar mensagem' }).click();
   await expect(page.getByText('Boa noite sala 👋')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Apagar sala' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Confirmar apagar sala' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Apagar sala' }).click();
+  await expect(page.getByRole('heading', { name: /Salas/i })).toBeVisible();
+  await expect(page.getByText(editedRoomName, { exact: true })).toHaveCount(0);
 });
 
 test('Chat mostra ações de chamada áudio e vídeo sem as confundir com mensagens', async ({ page }) => {

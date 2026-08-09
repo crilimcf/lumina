@@ -292,7 +292,13 @@ export async function fetchPublicFeed(input, { etag = null, lastModified = null,
         });
       });
     });
-    request.setTimeout(FETCH_TIMEOUT_MS, () => request.destroy(new Error('Timeout ao obter fonte RSS')));
+    const absoluteTimeout = setTimeout(
+      () => request.destroy(new Error('Timeout total ao obter fonte RSS')),
+      FETCH_TIMEOUT_MS,
+    );
+    absoluteTimeout.unref?.();
+    request.once('close', () => clearTimeout(absoluteTimeout));
+    request.setTimeout(FETCH_TIMEOUT_MS, () => request.destroy(new Error('Timeout de inatividade ao obter fonte RSS')));
     request.on('error', reject);
   });
 }

@@ -36,6 +36,14 @@ async function syncSource(req, res) {
 
   const result = await syncRadarSources({ sourceId: source.id });
   audit(req.user.id, 'radar_source_sync', `radar_source:${source.id}`, result);
+  if (result.failed) {
+    const { rows: state } = await q('SELECT last_fetch_error FROM radar_sources WHERE id=$1', [source.id]);
+    return res.status(502).json({
+      ...result,
+      error: state[0]?.last_fetch_error || 'A sincronização da fonte falhou',
+      code: 'radar_sync_failed',
+    });
+  }
   res.status(result.skipped ? 202 : 200).json(result);
 }
 

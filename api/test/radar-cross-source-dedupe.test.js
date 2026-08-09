@@ -28,12 +28,13 @@ after(async () => {
 });
 
 function feed({ guid, link, title }) {
+  const recentDate = new Date(Date.now() - 60_000).toUTCString();
   return `<?xml version="1.0" encoding="UTF-8"?>
     <rss version="2.0"><channel><title>Teste</title><item>
       <title>${title}</title>
       <guid>${guid}</guid>
       <link>${link.replaceAll('&', '&amp;')}</link>
-      <pubDate>Sun, 09 Aug 2026 20:00:00 GMT</pubDate>
+      <pubDate>${recentDate}</pubDate>
       <description>Resumo da mesma notícia.</description>
     </item></channel></rss>`;
 }

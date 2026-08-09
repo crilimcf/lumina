@@ -84,6 +84,17 @@ test('GUID vazio cai para o link e não colide entre artigos', () => {
   assert.notEqual(entries[0].stableId, entries[1].stableId);
 });
 
+test('entradas sem data não recebem um relógio novo a cada parse', () => {
+  const xml = `<?xml version="1.0"?><rss><channel>
+    <item><title>Sem data</title><guid>sem-data-1</guid><link>https://example.test/sem-data</link></item>
+    <item><title>Data inválida</title><guid>sem-data-2</guid><link>https://example.test/data-invalida</link><pubDate>isto-nao-e-data</pubDate></item>
+  </channel></rss>`;
+  const entries = parseSyndicationFeed(xml, { now: Date.parse('2026-08-09T19:00:00Z') });
+  assert.equal(entries.length, 2);
+  assert.equal(entries[0].publishedAt, null);
+  assert.equal(entries[1].publishedAt, null);
+});
+
 test('redirect inválido vira erro controlado', () => {
   assert.throws(() => resolveRedirectUrl('http://[::1', 'https://example.test/feed'), /Redirect RSS inválido/);
 });
@@ -132,6 +143,30 @@ test('validação SSRF bloqueia localhost e redes privadas antes do fetch', asyn
   await assert.rejects(() => resolvePublicFeedTarget('http://127.0.0.1/feed.xml'), /privada|reservada/);
   await assert.rejects(() => resolvePublicFeedTarget('https://10.20.30.40/feed.xml'), /privada|reservada/);
   await assert.rejects(() => resolvePublicFeedTarget('http://169.254.169.254/latest/meta-data'), /privada|reservada/);
+});
+
+test('ingestão preserva a data original quando o feed não fornece data', async () => {
+  const sourceRow = await q(
+    `INSERT INTO radar_sources (name, kind, url, default_type, active, trusted)
+     VALUES ('Fonte sem data','rss','https://nodate.example.test/rss','news',true,true)
+     RETURNING *`
+  );
+  const source = sourceRow.rows[0];
+  const xml = `<?xml version="1.0"?><rss><channel>
+    <item><title>Evergreen</title><guid>evergreen-1</guid><link>https://example.test/evergreen</link></item>
+  </channel></rss>`;
+  const fetchFeedImpl = async () => ({ notModified: false, text: xml, etag: null, lastModified: null });
+
+  await ingestRssSource(source, { fetchFeedImpl });
+  const inserted = await q('SELECT id FROM radar_items WHERE source_id=$1', [source.id]);
+  assert.equal(inserted.rowCount, 1);
+
+  await q("UPDATE radar_items SET published_at='2020-01-02T03:04:05Z' WHERE id=$1", [inserted.rows[0].id]);
+  const refreshed = (await q('SELECT * FROM radar_sources WHERE id=$1', [source.id])).rows[0];
+  await ingestRssSource(refreshed, { fetchFeedImpl });
+
+  const afterRefresh = await q('SELECT published_at FROM radar_items WHERE id=$1', [inserted.rows[0].id]);
+  assert.equal(new Date(afterRefresh.rows[0].published_at).toISOString(), '2020-01-02T03:04:05.000Z');
 });
 
 test('ingestão deduplica, auto-publica só fonte verificada e respeita arquivo', async () => {

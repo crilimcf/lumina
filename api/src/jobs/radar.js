@@ -141,9 +141,10 @@ function categoriesOf(item) {
 
 function dateOf(item, nowMs) {
   const raw = item?.published ?? item?.pubDate ?? item?.updated ?? item?.['dc:date'] ?? pickLocal(item, 'date');
-  const parsed = raw ? new Date(cleanText(raw, 100)) : new Date(nowMs);
-  if (Number.isNaN(parsed.getTime())) return new Date(nowMs).toISOString();
-  if (parsed.getTime() > nowMs + 10 * 60_000) return new Date(nowMs).toISOString();
+  if (!raw) return null;
+  const parsed = new Date(cleanText(raw, 100));
+  if (Number.isNaN(parsed.getTime())) return null;
+  if (parsed.getTime() > nowMs + 10 * 60_000) return null;
   return parsed.toISOString();
 }
 
@@ -354,6 +355,10 @@ export async function fetchPublicFeed(input, {
         chunks.push(chunk);
       });
       response.on('end', () => {
+        if (!response.complete) {
+          finishReject(new Error('Resposta RSS truncada antes de terminar'));
+          return;
+        }
         finishResolve({
           notModified: false,
           text: Buffer.concat(chunks).toString('utf8'),
@@ -433,8 +438,8 @@ export async function ingestRssSource(source, { fetchFeedImpl = fetchPublicFeed 
 
     const cutoff = Date.now() - config.maxAgeDays * 86_400_000;
     const entries = parseSyndicationFeed(fetched.text)
-      .filter(entry => Date.parse(entry.publishedAt) >= cutoff)
-      .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))
+      .filter(entry => !entry.publishedAt || Date.parse(entry.publishedAt) >= cutoff)
+      .sort((a, b) => (Date.parse(b.publishedAt || '') || 0) - (Date.parse(a.publishedAt || '') || 0))
       .slice(0, config.maxItems);
     const initialStatus = source.trusted && config.autoPublish ? 'published' : 'draft';
     let touched = 0;
@@ -445,7 +450,7 @@ export async function ingestRssSource(source, { fetchFeedImpl = fetchPublicFeed 
         `INSERT INTO radar_items (
            type, title, summary, body, image_url, external_url, source_id, source_name, source_url,
            sponsored, tags, region, published_at, status, priority, fingerprint
-         ) VALUES ($1,$2,$3,'',$4,$5,$6,$7,$8,false,$9,$10,$11,$12,$13,$14)
+         ) VALUES ($1,$2,$3,'',$4,$5,$6,$7,$8,false,$9,$10,COALESCE($11::timestamptz, now()),$12,$13,$14)
          ON CONFLICT (fingerprint) DO UPDATE SET
            type=EXCLUDED.type,
            title=EXCLUDED.title,
@@ -457,7 +462,7 @@ export async function ingestRssSource(source, { fetchFeedImpl = fetchPublicFeed 
            source_url=EXCLUDED.source_url,
            tags=EXCLUDED.tags,
            region=EXCLUDED.region,
-           published_at=EXCLUDED.published_at,
+           published_at=COALESCE($11::timestamptz, radar_items.published_at),
            priority=EXCLUDED.priority,
            updated_at=now()
          WHERE radar_items.status <> 'archived'`,

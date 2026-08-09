@@ -92,6 +92,25 @@ radarRoutes.get('/', auth, h(async (req, res) => {
   res.json({ items: rows, nextCursor: rows.length === limit ? rows.at(-1).published_at : null });
 }));
 
+radarRoutes.get('/manage', auth, requireStaff, h(async (req, res) => {
+  const status = req.query.status ? String(req.query.status).trim().toLowerCase() : null;
+  if (status && !STATUSES.has(status)) throw bad('Estado inválido', 'bad_status');
+  const { rows } = await q(
+    `SELECT ri.id, ri.type, ri.title, ri.summary, ri.body, ri.image_url, ri.external_url,
+            ri.source_id, COALESCE(ri.source_name, rs.name) AS source_name,
+            COALESCE(ri.source_url, rs.url) AS source_url,
+            ri.sponsored, ri.sponsor_label, ri.tags, ri.region, ri.starts_at, ri.ends_at,
+            ri.published_at, ri.status, ri.priority, ri.created_at, ri.updated_at
+     FROM radar_items ri
+     LEFT JOIN radar_sources rs ON rs.id = ri.source_id
+     WHERE ($1::text IS NULL OR ri.status = $1)
+     ORDER BY ri.created_at DESC
+     LIMIT 100`,
+    [status]
+  );
+  res.json({ items: rows });
+}));
+
 radarRoutes.get('/sources', auth, requireStaff, h(async (_req, res) => {
   const { rows } = await q(
     `SELECT id, name, kind, url, default_type, active, trusted, config, last_fetched_at, created_at, updated_at

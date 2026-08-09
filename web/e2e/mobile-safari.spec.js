@@ -34,6 +34,14 @@ async function registerAndEnterFeed(page) {
   return account;
 }
 
+async function scrollWindowAndFlush(page, y) {
+  await page.evaluate(async (nextY) => {
+    window.scrollTo(0, nextY);
+    window.dispatchEvent(new Event('scroll'));
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  }, y);
+}
+
 test('registo, reload e publicação direta funcionam em Mobile Safari', async ({ page }) => {
   await registerAndEnterFeed(page);
 
@@ -89,10 +97,11 @@ test('barra flutuante esconde ao descer, regressa ao subir e mantém o Novo func
     document.body.appendChild(spacer);
   });
 
-  await page.evaluate(() => window.scrollTo(0, 520));
+  await scrollWindowAndFlush(page, 0);
+  await scrollWindowAndFlush(page, 520);
   await expect(nav).toHaveClass(/nav-smart-hidden/);
 
-  await page.evaluate(() => window.scrollTo(0, 240));
+  await scrollWindowAndFlush(page, 240);
   await expect(nav).not.toHaveClass(/nav-smart-hidden/);
 
   await page.getByRole('button', { name: 'Novo' }).click();

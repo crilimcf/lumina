@@ -1,8 +1,24 @@
 import { Router } from 'express';
 import { q } from '../db.js';
-import { auth, h, notFound } from '../middleware/auth.js';
+import { auth, h, bad, notFound } from '../middleware/auth.js';
 
 export const notificationRoutes = Router();
+
+function optionalTimestamp(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const text = String(value).trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?Z$/.exec(text);
+  if (!match) throw bad('Cursor inválido', 'bad_cursor');
+
+  const [, year, month, day, hour, minute, second, fraction = ''] = match;
+  const millis = fraction.padEnd(3, '0');
+  const canonical = `${year}-${month}-${day}T${hour}:${minute}:${second}.${millis}Z`;
+  const date = new Date(canonical);
+  if (Number.isNaN(date.getTime()) || date.toISOString() !== canonical) {
+    throw bad('Cursor inválido', 'bad_cursor');
+  }
+  return canonical;
+}
 
 const SELECT_NOTIFICATION = `
   SELECT n.id, COALESCE(n.type,n.kind) AS type,
@@ -30,14 +46,22 @@ const BLOCKED_ACTOR_FILTER = `
   )
 `;
 
+const ACTIVE_ACTOR_FILTER = `
+  NOT EXISTS (
+    SELECT 1 FROM users suspended_actor
+    WHERE suspended_actor.id=n.actor_id AND suspended_actor.suspended_at IS NOT NULL
+  )
+`;
+
 notificationRoutes.get('/', auth, h(async (req, res) => {
-  const before = req.query.before || null;
+  const before = optionalTimestamp(req.query.before);
   const asked = Number(req.query.limit);
   const limit = Number.isInteger(asked) && asked > 0 ? Math.min(asked, 100) : 40;
   const { rows } = await q(
     `${SELECT_NOTIFICATION}
      WHERE n.user_id = $1
        AND ${BLOCKED_ACTOR_FILTER}
+       AND ${ACTIVE_ACTOR_FILTER}
        AND ($2::timestamptz IS NULL OR n.created_at < $2)
      ORDER BY n.created_at DESC
      LIMIT $3`,
@@ -54,7 +78,8 @@ notificationRoutes.get('/unread-count', auth, h(async (req, res) => {
     `SELECT count(*)::int AS count
      FROM notifications n
      WHERE n.user_id = $1 AND n.read_at IS NULL
-       AND ${BLOCKED_ACTOR_FILTER}`,
+       AND ${BLOCKED_ACTOR_FILTER}
+       AND ${ACTIVE_ACTOR_FILTER}`,
     [req.user.id]
   );
   res.json({ count: rows[0].count });

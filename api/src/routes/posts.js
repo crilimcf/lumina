@@ -5,6 +5,22 @@ import { claimUpload, removeUploadIfUnreferenced } from '../lib/uploads.js';
 
 export const postRoutes = Router();
 
+function optionalTimestamp(value, field = 'Cursor') {
+  if (value === undefined || value === null || value === '') return null;
+  const text = String(value).trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?Z$/.exec(text);
+  if (!match) throw bad(`${field} inválido`, 'bad_cursor');
+
+  const [, year, month, day, hour, minute, second, fraction = ''] = match;
+  const millis = fraction.padEnd(3, '0');
+  const canonical = `${year}-${month}-${day}T${hour}:${minute}:${second}.${millis}Z`;
+  const date = new Date(canonical);
+  if (Number.isNaN(date.getTime()) || date.toISOString() !== canonical) {
+    throw bad(`${field} inválido`, 'bad_cursor');
+  }
+  return canonical;
+}
+
 const SELECT_POST = `
   SELECT p.id, p.body, p.media_url,
          (SELECT up.mime FROM uploads up WHERE up.url = p.media_url LIMIT 1) AS media_mime,
@@ -13,14 +29,14 @@ const SELECT_POST = `
          (SELECT count(*) FROM reactions r WHERE r.post_id = p.id AND r.kind = 'like')::int AS likes,
          (SELECT count(*) FROM reactions r WHERE r.post_id = p.id AND r.kind = 'fire')::int AS fires,
          (SELECT count(*) FROM posts rp WHERE rp.repost_of = p.id)::int AS reposts,
-         (SELECT count(*) FROM comments cm WHERE cm.post_id = p.id AND cm.hidden_at IS NULL)::int AS comments,
+         (SELECT count(*) FROM comments cm JOIN users cu ON cu.id=cm.author_id AND cu.suspended_at IS NULL WHERE cm.post_id = p.id AND cm.hidden_at IS NULL)::int AS comments,
          (SELECT array_agg(r.kind) FROM reactions r WHERE r.post_id = p.id AND r.user_id = $1) AS my_reactions
   FROM posts p
   JOIN users u ON u.id = p.author_id
 `;
 
 async function listByKind(req, kind) {
-  const before = req.query.before || null;
+  const before = optionalTimestamp(req.query.before);
   const asked = Number(req.query.limit);
   const limit = Number.isInteger(asked) && asked > 0 ? Math.min(asked, 50) : 20;
   const socialFilter = kind === 'post'
@@ -31,6 +47,7 @@ async function listByKind(req, kind) {
   const { rows } = await q(
     `${SELECT_POST}
      WHERE p.hidden_at IS NULL
+       AND u.suspended_at IS NULL
        AND COALESCE(p.kind,'post') = $4
        ${socialFilter}
        AND NOT EXISTS (SELECT 1 FROM blocks b
@@ -108,8 +125,9 @@ postRoutes.post('/:postId/reactions/:kind', auth, requireVisiblePost, h(async (r
 
 postRoutes.post('/:postId/repost', auth, requireVisiblePost, h(async (req, res) => {
   const { rows: orig } = await q(
-    `SELECT body, media_url, palette FROM posts
-     WHERE id=$1 AND hidden_at IS NULL AND COALESCE(kind,'post')='post'`,
+    `SELECT p.body, p.media_url, p.palette FROM posts p
+     JOIN users u ON u.id=p.author_id AND u.suspended_at IS NULL
+     WHERE p.id=$1 AND p.hidden_at IS NULL AND COALESCE(p.kind,'post')='post'`,
     [req.params.postId]
   );
   if (!orig[0]) throw notFound('Publicação não encontrada');
@@ -133,7 +151,7 @@ postRoutes.get('/:postId/comments', auth, requireVisiblePost, h(async (req, res)
             p.author_id AS post_author_id,
             u.handle, u.name, u.palette, u.avatar_url
      FROM comments cm
-     JOIN users u ON u.id=cm.author_id
+     JOIN users u ON u.id=cm.author_id AND u.suspended_at IS NULL
      JOIN posts p ON p.id=cm.post_id
      WHERE cm.post_id=$1 AND cm.hidden_at IS NULL
        AND NOT EXISTS (

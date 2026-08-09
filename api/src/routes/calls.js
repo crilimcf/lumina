@@ -18,6 +18,9 @@ async function threadForUser(threadId, userId) {
   const { rows } = await q(
     `SELECT t.*, CASE WHEN t.user_a=$2 THEN t.user_b ELSE t.user_a END AS other_id
      FROM threads t
+     JOIN users other
+       ON other.id = CASE WHEN t.user_a=$2 THEN t.user_b ELSE t.user_a END
+      AND other.suspended_at IS NULL
      WHERE t.id=$1 AND (t.user_a=$2 OR t.user_b=$2)`,
     [threadId, userId]
   );
@@ -28,7 +31,12 @@ async function threadForUser(threadId, userId) {
 
 async function callForUser(callId, userId) {
   const { rows } = await q(
-    `SELECT * FROM call_sessions WHERE id=$1 AND (caller_id=$2 OR callee_id=$2)`,
+    `SELECT cs.*
+     FROM call_sessions cs
+     JOIN users other
+       ON other.id = CASE WHEN cs.caller_id=$2 THEN cs.callee_id ELSE cs.caller_id END
+      AND other.suspended_at IS NULL
+     WHERE cs.id=$1 AND (cs.caller_id=$2 OR cs.callee_id=$2)`,
     [callId, userId]
   );
   const call = rows[0];
@@ -64,7 +72,8 @@ callRoutes.get('/incoming', auth, h(async (req, res) => {
   const { rows } = await q(
     `SELECT cs.id,cs.thread_id,cs.caller_id,cs.callee_id,cs.mode,cs.status,cs.created_at,
             u.name,u.handle,u.palette,u.avatar_url
-     FROM call_sessions cs JOIN users u ON u.id=cs.caller_id
+     FROM call_sessions cs
+     JOIN users u ON u.id=cs.caller_id AND u.suspended_at IS NULL
      WHERE cs.callee_id=$1 AND cs.status='ringing' AND cs.created_at > now()-interval '2 minutes'
        AND NOT EXISTS (
          SELECT 1 FROM blocks b

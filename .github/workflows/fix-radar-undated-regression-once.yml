@@ -1,0 +1,57 @@
+name: Fix Radar undated regression once
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-radar-undated-regression-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/radar-ingestion
+      - name: Correct regression test
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('api/test/radar-ingestion.test.js')
+          text = p.read_text()
+          old = '''  await ingestRssSource(source, { fetchFeedImpl });
+            const inserted = await q('SELECT id FROM radar_items WHERE source_id=$1', [source.id]);
+            assert.equal(inserted.rowCount, 1);
+
+            await q("UPDATE radar_items SET published_at='2020-01-02T03:04:05Z' WHERE id=$1", [inserted.rows[0].id]);
+            const refreshed = (await q('SELECT * FROM radar_sources WHERE id=$1', [source.id])).rows[0];
+            await ingestRssSource(refreshed, { fetchFeedImpl });
+
+            const afterRefresh = await q('SELECT published_at FROM radar_items WHERE id=$1', [inserted.rows[0].id]);
+            assert.equal(new Date(afterRefresh.rows[0].published_at).toISOString(), '2020-01-02T03:04:05.000Z');'''
+          old = '\n'.join(line[12:] if line.startswith('            ') else line for line in old.splitlines())
+          new = '''  await ingestRssSource(source, { fetchFeedImpl });
+          const inserted = await q('SELECT id, published_at FROM radar_items WHERE source_id=$1', [source.id]);
+          assert.equal(inserted.rowCount, 1);
+          const firstPublishedAt = new Date(inserted.rows[0].published_at).toISOString();
+
+          await new Promise(resolve => setTimeout(resolve, 10));
+          const refreshed = (await q('SELECT * FROM radar_sources WHERE id=$1', [source.id])).rows[0];
+          await ingestRssSource(refreshed, { fetchFeedImpl });
+
+          const afterRefresh = await q('SELECT published_at FROM radar_items WHERE id=$1', [inserted.rows[0].id]);
+          assert.equal(new Date(afterRefresh.rows[0].published_at).toISOString(), firstPublishedAt);'''
+          if old not in text:
+              raise SystemExit('undated regression block not found')
+          p.write_text(text.replace(old, new, 1))
+          PY
+      - name: Commit test correction
+        run: |
+          set -eu
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add api/test/radar-ingestion.test.js
+          git commit -m 'test: verify undated Radar timestamp stability correctly'
+          git push origin HEAD:feature/radar-ingestion

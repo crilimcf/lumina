@@ -26,7 +26,12 @@ const TYPE_LABEL = {
 function formatDate(value) {
   if (!value) return '';
   try {
-    return new Intl.DateTimeFormat('pt-PT', { day: 'numeric', month: 'short' }).format(new Date(value));
+    const date = new Date(value);
+    const now = new Date();
+    const sameYear = date.getFullYear() === now.getFullYear();
+    return new Intl.DateTimeFormat('pt-PT', {
+      day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }),
+    }).format(date);
   } catch { return ''; }
 }
 
@@ -75,27 +80,30 @@ export function Promocoes({ tab, setTab, setComp, threads, setThread, ping, toas
       </div>
 
       {loading ? <div className="m" style={{ padding: 34, textAlign: 'center' }}>A sintonizar o Radar…</div> : !items.length ? <Empty>Sem sinais nesta categoria.<br />Quando houver algo relevante, aparece aqui.</Empty> : <div style={{ display: 'grid', gap: 13 }}>
-        {items.map(item => <article key={item.id} className="card in" style={{ overflow: 'hidden', padding: 0 }}>
-          {item.image_url && <img src={item.image_url} alt="" loading="lazy" style={{ width: '100%', aspectRatio: item.type === 'news' ? '16/10' : '4/3', objectFit: 'cover', display: 'block', background: '#DDD8F2' }} />}
-          <div style={{ padding: 15 }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, padding: '6px 9px', background: '#F0ECFF', color: '#4F36C9', fontSize: 10.5, fontWeight: 800, letterSpacing: '.02em' }}><ItemIcon type={item.type} />{TYPE_LABEL[item.type] || 'Radar'}</span>
-              {item.sponsored && <span style={{ borderRadius: 999, padding: '6px 9px', background: '#FFF2C7', color: '#6B4D00', fontSize: 10.5, fontWeight: 800 }}>Patrocinado</span>}
-              <span className="m" style={{ marginLeft: 'auto', fontSize: 10.5 }}>{formatDate(item.published_at)}</span>
-            </div>
-
-            <h3 className="d" style={{ fontSize: 24, lineHeight: 1.04, margin: '0 0 8px' }}>{item.title}</h3>
-            {(item.summary || item.body) && <div style={{ fontSize: 14.5, lineHeight: 1.48, whiteSpace: 'pre-wrap' }}>{item.summary || item.body}</div>}
-
-            {(item.source_name || item.sponsor_label || item.external_url) && <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 13, paddingTop: 12, borderTop: '1px solid var(--edge)' }}>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div className="m" style={{ fontSize: 9.5 }}>{item.sponsored ? 'Parceiro' : 'Fonte'}</div>
-                <div style={{ fontSize: 12.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.sponsor_label || item.source_name || 'Fonte externa'}</div>
+        {items.map(item => {
+          const displayDate = item.type === 'event' ? item.starts_at : item.published_at;
+          return <article key={item.id} className="card in" style={{ overflow: 'hidden', padding: 0 }}>
+            {item.image_url && <img src={item.image_url} alt="" loading="lazy" referrerPolicy="no-referrer" style={{ width: '100%', aspectRatio: item.type === 'news' ? '16/10' : '4/3', objectFit: 'cover', display: 'block', background: '#DDD8F2' }} />}
+            <div style={{ padding: 15 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, padding: '6px 9px', background: '#F0ECFF', color: '#4F36C9', fontSize: 10.5, fontWeight: 800, letterSpacing: '.02em' }}><ItemIcon type={item.type} />{TYPE_LABEL[item.type] || 'Radar'}</span>
+                {item.sponsored && <span style={{ borderRadius: 999, padding: '6px 9px', background: '#FFF2C7', color: '#6B4D00', fontSize: 10.5, fontWeight: 800 }}>Patrocinado</span>}
+                <span className="m" style={{ marginLeft: 'auto', fontSize: 10.5 }}>{item.type === 'event' ? 'Evento · ' : ''}{formatDate(displayDate)}</span>
               </div>
-              {item.external_url && <a href={item.external_url} target="_blank" rel="noopener noreferrer" className="p" style={{ textDecoration: 'none', padding: '9px 11px', flexShrink: 0 }}>Abrir <ExternalLink size={13} /></a>}
-            </div>}
-          </div>
-        </article>)}
+
+              <h3 className="d" style={{ fontSize: 24, lineHeight: 1.04, margin: '0 0 8px' }}>{item.title}</h3>
+              {(item.summary || item.body) && <div style={{ fontSize: 14.5, lineHeight: 1.48, whiteSpace: 'pre-wrap' }}>{item.summary || item.body}</div>}
+
+              {(item.source_name || item.sponsor_label || item.external_url) && <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 13, paddingTop: 12, borderTop: '1px solid var(--edge)' }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div className="m" style={{ fontSize: 9.5 }}>{item.sponsored ? 'Parceiro' : 'Fonte'}</div>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.sponsor_label || item.source_name || 'Fonte externa'}</div>
+                </div>
+                {item.external_url && <a href={item.external_url} target="_blank" rel="noopener noreferrer" className="p" style={{ textDecoration: 'none', padding: '9px 11px', flexShrink: 0 }}>Abrir <ExternalLink size={13} /></a>}
+              </div>}
+            </div>
+          </article>;
+        })}
       </div>}
     </div>
     <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} threads={threads} />

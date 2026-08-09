@@ -4,7 +4,8 @@ const PASSWORD = 'lumina-webkit-1234';
 
 async function registerAndCreateCommunity(page, label) {
   const suffix = `${Date.now()}${Math.floor(Math.random() * 10000)}`;
-  const handle = `${label.toLowerCase()}${suffix}`.slice(0, 22);
+  const safeLabel = label.toLowerCase().replace(/[^a-z0-9._]/g, '');
+  const handle = `${safeLabel}${suffix}`.slice(0, 22);
   const email = `${handle}@example.test`;
 
   await page.goto('/');

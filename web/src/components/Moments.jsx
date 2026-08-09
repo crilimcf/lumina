@@ -15,7 +15,7 @@ export function MomentRing({ palette, avatarUrl, allSeen, size = 52, children })
 }
 
 /** Visualizador em ecrã inteiro dos Momentos. */
-export function MomentViewer({ group, onClose, onNext, onPrev, onView, onEdit, onDelete, onReply, meId }) {
+export function MomentViewer({ group, onClose, onNext, onPrev, onView, onEdit = group.onEdit, onDelete, onReply, meId }) {
   const [i, setI] = useState(0);
   const [reply, setReply] = useState('');
   const [sent, setSent] = useState(false);

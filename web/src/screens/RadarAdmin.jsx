@@ -23,6 +23,12 @@ function toIso(value) {
   return Number.isNaN(date.getTime()) ? value : date.toISOString();
 }
 
+function shortDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toLocaleString('pt-PT', { dateStyle:'short', timeStyle:'short' });
+}
+
 function Field({ label, children }) {
   return <label style={{ display:'grid', gap:6 }}><span className="m" style={{ fontSize:10.5 }}>{label}</span>{children}</label>;
 }
@@ -35,6 +41,7 @@ export function RadarAdmin({ onBack, ping }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [sourceSaving, setSourceSaving] = useState(false);
+  const [syncingSource, setSyncingSource] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -88,6 +95,16 @@ export function RadarAdmin({ onBack, ping }) {
       await load();
     } catch (e) { ping(e.message); }
     finally { setSourceSaving(false); }
+  };
+
+  const syncSource = async (row) => {
+    setSyncingSource(row.id);
+    try {
+      const result = await api.radar.editSource(row.id, { syncNow: true });
+      ping(result.skipped ? 'Já existe uma sincronização do Radar em curso' : `Radar sincronizado · ${result.items || 0} itens lidos`);
+      await load();
+    } catch (e) { ping(e.message); }
+    finally { setSyncingSource(null); }
   };
 
   const setStatus = async (row, status) => {
@@ -151,7 +168,18 @@ export function RadarAdmin({ onBack, ping }) {
           <label style={{ display:'flex',alignItems:'center',gap:9,fontSize:13,fontWeight:700 }}><input type="checkbox" checked={source.trusted} onChange={e=>setSource(v=>({...v,trusted:e.target.checked}))} style={{ width:18,height:18 }}/><span>Fonte verificada</span></label>
           <button className="p" type="submit" disabled={sourceSaving||!source.name.trim()} style={{ justifyContent:'center' }}><Plus size={15}/>{sourceSaving?'A adicionar…':'Adicionar fonte'}</button>
 
-          <div style={{ borderTop:'1px solid var(--edge)',paddingTop:12,display:'grid',gap:7 }}><div className="m">FONTES REGISTADAS · {sources.length}</div>{sources.length===0?<div className="m">Ainda não há fontes.</div>:sources.slice(0,12).map(s=><div key={s.id} style={{ display:'flex',gap:8,alignItems:'center',fontSize:12.5 }}><span style={{ width:8,height:8,borderRadius:99,background:s.active?'#35A853':'#AAA' }}/><div style={{ flex:1,minWidth:0 }}><b>{s.name}</b><div className="m">{s.kind.toUpperCase()} · {s.default_type}{s.trusted?' · verificada':''}</div></div></div>)}</div>
+          <div style={{ borderTop:'1px solid var(--edge)',paddingTop:12,display:'grid',gap:8 }}>
+            <div className="m">FONTES REGISTADAS · {sources.length}</div>
+            {sources.length===0?<div className="m">Ainda não há fontes.</div>:sources.slice(0,12).map(s=><div key={s.id} style={{ display:'flex',gap:8,alignItems:'center',fontSize:12.5 }}>
+              <span style={{ width:8,height:8,borderRadius:99,background:s.active?'#35A853':'#AAA',flex:'0 0 auto' }}/>
+              <div style={{ flex:1,minWidth:0 }}>
+                <b>{s.name}</b>
+                <div className="m">{s.kind.toUpperCase()} · {s.default_type}{s.trusted?' · verificada':''}</div>
+                {s.last_fetch_error?<div style={{ color:'var(--coral)',fontSize:10.5,marginTop:2 }}>Erro: {s.last_fetch_error}</div>:s.last_success_at?<div className="m" style={{ fontSize:10.5,marginTop:2 }}>Sync {shortDate(s.last_success_at)} · {s.last_item_count || 0} itens</div>:null}
+              </div>
+              {s.kind==='rss'&&<button type="button" className="p p-sm" onClick={()=>syncSource(s)} disabled={syncingSource===s.id} title="Sincronizar agora"><RefreshCw size={12}/>{syncingSource===s.id?'…':'Sync'}</button>}
+            </div>)}
+          </div>
         </form>
       </div>
 

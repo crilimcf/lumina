@@ -458,14 +458,13 @@ export async function ingestRssSource(source, { fetchFeedImpl = fetchPublicFeed 
     const initialStatus = source.trusted && config.autoPublish ? 'published' : 'draft';
     const publishable = initialStatus === 'published';
     const { rows: existingRssItems } = await q(
-      `SELECT ri.fingerprint, ri.external_url
-         FROM radar_items ri
-         JOIN radar_sources rs ON rs.id = ri.source_id
-        WHERE ri.fingerprint LIKE 'rss:%'
-          AND ri.external_url IS NOT NULL
-          AND ri.published_at >= now() - ($1::int * interval '1 day')
-          AND rs.trusted = $2
-          AND (rs.trusted AND (rs.config->'autoPublish' IS DISTINCT FROM 'false'::jsonb)) = $3`,
+      `SELECT fingerprint, external_url
+         FROM radar_items
+        WHERE fingerprint LIKE 'rss:%'
+          AND external_url IS NOT NULL
+          AND published_at >= now() - ($1::int * interval '1 day')
+          AND ingestion_trusted = $2
+          AND ingestion_publishable = $3`,
       [config.maxAgeDays, !!source.trusted, publishable]
     );
     const canonicalExisting = new Map();
@@ -485,8 +484,9 @@ export async function ingestRssSource(source, { fetchFeedImpl = fetchPublicFeed 
       const { rowCount } = await q(
         `INSERT INTO radar_items (
            type, title, summary, body, image_url, external_url, source_id, source_name, source_url,
-           sponsored, tags, region, published_at, status, priority, fingerprint
-         ) VALUES ($1,$2,$3,'',$4,$5,$6,$7,$8,false,$9,$10,COALESCE($11::timestamptz, now()),$12,$13,$14)
+           sponsored, tags, region, published_at, status, priority, fingerprint,
+           ingestion_trusted, ingestion_publishable
+         ) VALUES ($1,$2,$3,'',$4,$5,$6,$7,$8,false,$9,$10,COALESCE($11::timestamptz, now()),$12,$13,$14,$15,$16)
          ON CONFLICT (fingerprint) DO UPDATE SET
            type=EXCLUDED.type,
            title=EXCLUDED.title,
@@ -505,7 +505,7 @@ export async function ingestRssSource(source, { fetchFeedImpl = fetchPublicFeed 
         [
           source.default_type, entry.title, entry.summary, entry.imageUrl, entry.externalUrl,
           source.id, source.name, source.url, tags, config.region, entry.publishedAt,
-          initialStatus, config.priority, itemFingerprint,
+          initialStatus, config.priority, itemFingerprint, !!source.trusted, publishable,
         ]
       );
       touched += rowCount;

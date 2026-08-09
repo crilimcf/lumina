@@ -6,10 +6,12 @@ import { canonicalArticleUrl, ingestRssSource } from '../src/jobs/radar.js';
 const SOURCE_PREFIX = 'Radar Dedupe Test';
 const ARTICLE_BASE = 'https://news.example.test/shared-story?id=42';
 const TRUST_BASE = 'https://news.example.test/trust-story?id=9';
+const POLICY_BASE = 'https://news.example.test/policy-story?id=7';
 
 async function cleanFixtures() {
   await q(`DELETE FROM radar_items WHERE external_url LIKE 'https://news.example.test/shared-story%'`);
   await q(`DELETE FROM radar_items WHERE external_url LIKE 'https://news.example.test/trust-story%'`);
+  await q(`DELETE FROM radar_items WHERE external_url LIKE 'https://news.example.test/policy-story%'`);
   await q(`DELETE FROM radar_sources WHERE name LIKE $1`, [`${SOURCE_PREFIX}%`]);
 }
 
@@ -34,12 +36,12 @@ function feed({ guid, link, title }) {
     </item></channel></rss>`;
 }
 
-async function createSource(name, url, trusted = true) {
+async function createSource(name, url, { trusted = true, autoPublish = true } = {}) {
   const { rows } = await q(
     `INSERT INTO radar_sources (name, kind, url, default_type, active, trusted, config)
-     VALUES ($1, 'rss', $2, 'news', true, $3, '{"autoPublish":true,"maxAgeDays":3}'::jsonb)
+     VALUES ($1, 'rss', $2, 'news', true, $3, $4)
      RETURNING *`,
-    [name, url, trusted]
+    [name, url, trusted, { autoPublish, maxAgeDays: 3 }]
   );
   return rows[0];
 }
@@ -100,8 +102,8 @@ test('duas fontes RSS verificadas com GUIDs diferentes publicam uma só linha pa
 });
 
 test('fonte não verificada não bloqueia nem altera a versão verificada da mesma URL', async () => {
-  const untrusted = await createSource(`${SOURCE_PREFIX} Untrusted`, 'https://feed-untrusted.example.test/rss', false);
-  const trusted = await createSource(`${SOURCE_PREFIX} Trusted`, 'https://feed-trusted.example.test/rss', true);
+  const untrusted = await createSource(`${SOURCE_PREFIX} Untrusted`, 'https://feed-untrusted.example.test/rss', { trusted: false });
+  const trusted = await createSource(`${SOURCE_PREFIX} Trusted`, 'https://feed-trusted.example.test/rss', { trusted: true });
 
   await ingestRssSource(untrusted, {
     fetchFeedImpl: fetchFor({
@@ -132,4 +134,45 @@ test('fonte não verificada não bloqueia nem altera a versão verificada da mes
   assert.equal(draft?.title, 'Versão por rever');
   assert.equal(published?.source_id, trusted.id);
   assert.equal(published?.title, 'Versão verificada');
+});
+
+test('fonte trusted em revisão manual não bloqueia sibling trusted com autoPublish ativo', async () => {
+  const manualReview = await createSource(`${SOURCE_PREFIX} Manual Review`, 'https://feed-review.example.test/rss', {
+    trusted: true,
+    autoPublish: false,
+  });
+  const autoPublish = await createSource(`${SOURCE_PREFIX} Auto Publish`, 'https://feed-auto.example.test/rss', {
+    trusted: true,
+    autoPublish: true,
+  });
+
+  await ingestRssSource(manualReview, {
+    fetchFeedImpl: fetchFor({
+      guid: 'manual-review-guid',
+      link: `${POLICY_BASE}&utm_source=manual`,
+      title: 'Versão em revisão manual',
+    }),
+  });
+  await ingestRssSource(autoPublish, {
+    fetchFeedImpl: fetchFor({
+      guid: 'auto-publish-guid',
+      link: `${POLICY_BASE}&fbclid=auto`,
+      title: 'Versão publicável',
+    }),
+  });
+
+  const { rows } = await q(
+    `SELECT source_id, title, status
+       FROM radar_items
+      WHERE external_url LIKE 'https://news.example.test/policy-story%'
+      ORDER BY status`
+  );
+
+  assert.equal(rows.length, 2, 'políticas de publicação diferentes devem manter linhas independentes');
+  const draft = rows.find(row => row.status === 'draft');
+  const published = rows.find(row => row.status === 'published');
+  assert.equal(draft?.source_id, manualReview.id);
+  assert.equal(draft?.title, 'Versão em revisão manual');
+  assert.equal(published?.source_id, autoPublish.id);
+  assert.equal(published?.title, 'Versão publicável');
 });

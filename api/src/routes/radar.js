@@ -48,6 +48,13 @@ function cleanPriority(value) {
   return priority;
 }
 
+function validateWindow(type, startsAt, endsAt) {
+  if (type === 'event' && !startsAt) throw bad('Um evento precisa de data de início', 'missing_event_start');
+  if (endsAt && startsAt && new Date(endsAt) < new Date(startsAt)) {
+    throw bad('A data de fim não pode ser anterior ao início', 'bad_date_range');
+  }
+}
+
 radarRoutes.get('/', auth, h(async (req, res) => {
   const requestedType = req.query.type ? cleanType(req.query.type) : null;
   const before = req.query.before || null;
@@ -63,8 +70,18 @@ radarRoutes.get('/', auth, h(async (req, res) => {
      FROM radar_items ri
      LEFT JOIN radar_sources rs ON rs.id = ri.source_id
      WHERE ri.status = 'published'
-       AND (ri.starts_at IS NULL OR ri.starts_at <= now())
-       AND (ri.ends_at IS NULL OR ri.ends_at > now())
+       AND ri.published_at <= now()
+       AND (
+         (ri.type = 'promotion'
+           AND (ri.starts_at IS NULL OR ri.starts_at <= now())
+           AND (ri.ends_at IS NULL OR ri.ends_at > now()))
+         OR
+         (ri.type = 'event'
+           AND COALESCE(ri.ends_at, ri.starts_at + interval '12 hours') > now())
+         OR
+         (ri.type NOT IN ('promotion','event')
+           AND (ri.ends_at IS NULL OR ri.ends_at > now()))
+       )
        AND ($1::text IS NULL OR ri.type = $1)
        AND ($2::timestamptz IS NULL OR ri.published_at < $2)
      ORDER BY ri.published_at DESC, ri.priority DESC, ri.id DESC
@@ -153,7 +170,7 @@ radarRoutes.post('/', auth, requireStaff, h(async (req, res) => {
   if (summary.length > 1200) throw bad('Resumo demasiado longo', 'bad_summary');
   if (body.length > 10_000) throw bad('Conteúdo demasiado longo', 'bad_body');
   if (!STATUSES.has(status)) throw bad('Estado inválido', 'bad_status');
-  if (endsAt && startsAt && new Date(endsAt) < new Date(startsAt)) throw bad('A data de fim não pode ser anterior ao início', 'bad_date_range');
+  validateWindow(type, startsAt, endsAt);
 
   const { rows } = await q(
     `INSERT INTO radar_items (
@@ -197,7 +214,7 @@ radarRoutes.patch('/:itemId', auth, requireStaff, h(async (req, res) => {
   if (summary.length > 1200) throw bad('Resumo demasiado longo', 'bad_summary');
   if (body.length > 10_000) throw bad('Conteúdo demasiado longo', 'bad_body');
   if (!STATUSES.has(status)) throw bad('Estado inválido', 'bad_status');
-  if (endsAt && startsAt && new Date(endsAt) < new Date(startsAt)) throw bad('A data de fim não pode ser anterior ao início', 'bad_date_range');
+  validateWindow(type, startsAt, endsAt);
 
   const { rows } = await q(
     `UPDATE radar_items SET

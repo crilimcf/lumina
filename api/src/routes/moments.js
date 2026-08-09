@@ -118,31 +118,41 @@ momentRoutes.post('/:momentId/view', auth, h(async (req, res) => {
 momentRoutes.post('/:momentId/reactions/:kind', auth, h(async (req, res) => {
   const kind = String(req.params.kind || '');
   if (!['like', 'fire'].includes(kind)) throw bad('Reação inválida');
-  const { rows: visible } = await q(
-    `SELECT m.author_id FROM moments m
-     WHERE m.id=$2 AND m.expires_at>now() AND ${VISIBLE_TO}`,
-    [req.user.id, req.params.momentId]
-  );
-  if (!visible[0]) throw notFound('Momento não encontrado');
-  if (visible[0].author_id === req.user.id) throw bad('Não podes reagir ao teu próprio Momento');
 
-  const removed = await q(
-    'DELETE FROM moment_reactions WHERE moment_id=$1 AND user_id=$2 AND kind=$3 RETURNING kind',
-    [req.params.momentId, req.user.id, kind]
-  );
-  if (!removed.rowCount) {
-    await q(
-      'INSERT INTO moment_reactions (moment_id,user_id,kind) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
+  const result = await tx(async (c) => {
+    const { rows: visible } = await c.query(
+      `SELECT m.author_id FROM moments m
+       WHERE m.id=$2 AND m.expires_at>now() AND ${VISIBLE_TO}`,
+      [req.user.id, req.params.momentId]
+    );
+    if (!visible[0]) throw notFound('Momento não encontrado');
+    if (visible[0].author_id === req.user.id) throw bad('Não podes reagir ao teu próprio Momento');
+
+    // Serializa toggles concorrentes da mesma reação. Dois toques rápidos ficam
+    // semanticamente iguais a dois toggles sequenciais, em vez de dois INSERTs concorrentes.
+    const lockKey = `moment-reaction:${req.params.momentId}:${req.user.id}:${kind}`;
+    await c.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [lockKey]);
+
+    const removed = await c.query(
+      'DELETE FROM moment_reactions WHERE moment_id=$1 AND user_id=$2 AND kind=$3 RETURNING kind',
       [req.params.momentId, req.user.id, kind]
     );
-  }
-  const { rows } = await q(
-    `SELECT count(*) FILTER (WHERE kind='like')::int AS likes,
-            count(*) FILTER (WHERE kind='fire')::int AS fires
-     FROM moment_reactions WHERE moment_id=$1`,
-    [req.params.momentId]
-  );
-  res.json({ active: !removed.rowCount, kind, ...rows[0] });
+    if (!removed.rowCount) {
+      await c.query(
+        'INSERT INTO moment_reactions (moment_id,user_id,kind) VALUES ($1,$2,$3)',
+        [req.params.momentId, req.user.id, kind]
+      );
+    }
+    const { rows } = await c.query(
+      `SELECT count(*) FILTER (WHERE kind='like')::int AS likes,
+              count(*) FILTER (WHERE kind='fire')::int AS fires
+       FROM moment_reactions WHERE moment_id=$1`,
+      [req.params.momentId]
+    );
+    return { active: !removed.rowCount, kind, ...rows[0] };
+  });
+
+  res.json(result);
 }));
 
 momentRoutes.get('/:momentId/viewers', auth, h(async (req, res) => {

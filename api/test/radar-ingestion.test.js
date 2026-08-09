@@ -158,16 +158,16 @@ test('ingestão preserva a data original quando o feed não fornece data', async
   const fetchFeedImpl = async () => ({ notModified: false, text: xml, etag: null, lastModified: null });
 
   await ingestRssSource(source, { fetchFeedImpl });
-const inserted = await q('SELECT id, published_at FROM radar_items WHERE source_id=$1', [source.id]);
-assert.equal(inserted.rowCount, 1);
-const firstPublishedAt = new Date(inserted.rows[0].published_at).toISOString();
+  const inserted = await q('SELECT id, published_at FROM radar_items WHERE source_id=$1', [source.id]);
+  assert.equal(inserted.rowCount, 1);
+  const firstPublishedAt = new Date(inserted.rows[0].published_at).toISOString();
 
-await new Promise(resolve => setTimeout(resolve, 10));
-const refreshed = (await q('SELECT * FROM radar_sources WHERE id=$1', [source.id])).rows[0];
-await ingestRssSource(refreshed, { fetchFeedImpl });
+  await new Promise(resolve => setTimeout(resolve, 10));
+  const refreshed = (await q('SELECT * FROM radar_sources WHERE id=$1', [source.id])).rows[0];
+  await ingestRssSource(refreshed, { fetchFeedImpl });
 
-const afterRefresh = await q('SELECT published_at FROM radar_items WHERE id=$1', [inserted.rows[0].id]);
-assert.equal(new Date(afterRefresh.rows[0].published_at).toISOString(), firstPublishedAt);
+  const afterRefresh = await q('SELECT published_at FROM radar_items WHERE id=$1', [inserted.rows[0].id]);
+  assert.equal(new Date(afterRefresh.rows[0].published_at).toISOString(), firstPublishedAt);
 });
 
 test('ingestão deduplica, auto-publica só fonte verificada e respeita arquivo', async () => {
@@ -204,7 +204,16 @@ test('ingestão deduplica, auto-publica só fonte verificada e respeita arquivo'
      VALUES ('Fonte por rever','rss','https://other.example.test/rss','news',true,false)
      RETURNING *`
   );
-  await ingestRssSource(untrusted.rows[0], { fetchFeedImpl });
+  const untrustedRss = RSS
+    .replace('https://news.example.test/story-1', 'https://news.example.test/story-untrusted')
+    .replace('<guid>story-1</guid>', '<guid>story-untrusted</guid>');
+  const untrustedFetchFeedImpl = async () => ({
+    notModified: false,
+    text: untrustedRss,
+    etag: null,
+    lastModified: null,
+  });
+  await ingestRssSource(untrusted.rows[0], { fetchFeedImpl: untrustedFetchFeedImpl });
   const draft = await q('SELECT status FROM radar_items WHERE source_id=$1', [untrusted.rows[0].id]);
   assert.equal(draft.rows[0].status, 'draft');
 

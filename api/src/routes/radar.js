@@ -245,18 +245,33 @@ radarRoutes.patch('/:itemId', auth, requireStaff, h(async (req, res) => {
   validateWindow(type, startsAt, endsAt);
   validateSponsoredAttribution(sponsored, sponsorLabel, sourceId, sourceName);
 
+  let ingestionTrusted = item.ingestion_trusted;
+  let ingestionPublishable = item.ingestion_publishable;
+  const isRssItem = String(item.fingerprint || '').startsWith('rss:');
+  if (isRssItem && req.body.status !== undefined && status !== item.status) {
+    if (status === 'published') {
+      // Publicação manual é uma aprovação explícita da equipa Lumina.
+      ingestionTrusted = true;
+      ingestionPublishable = true;
+    } else if (status === 'draft') {
+      // Um item devolvido a revisão deixa de bloquear conteúdo publicável equivalente.
+      ingestionPublishable = false;
+    }
+    // Ao arquivar preservamos a classe anterior para impedir reaparecimento por sibling feeds.
+  }
+
   const { rows } = await q(
     `UPDATE radar_items SET
        type=$2, title=$3, summary=$4, body=$5, image_url=$6, external_url=$7,
        source_id=$8, source_name=$9, source_url=$10, sponsored=$11, sponsor_label=$12,
        tags=$13, region=$14, starts_at=$15, ends_at=$16, published_at=$17,
-       status=$18, priority=$19, updated_at=now()
+       status=$18, priority=$19, ingestion_trusted=$20, ingestion_publishable=$21, updated_at=now()
      WHERE id=$1 RETURNING *`,
     [
       req.params.itemId, type, title, summary, body, imageUrl, externalUrl,
       sourceId, sourceName, sourceUrl, sponsored, sponsorLabel, tags,
       req.body.region === undefined ? item.region : (req.body.region ? String(req.body.region).trim().slice(0, 80) : null),
-      startsAt, endsAt, publishedAt, status, priority,
+      startsAt, endsAt, publishedAt, status, priority, ingestionTrusted, ingestionPublishable,
     ]
   );
   audit(req.user.id, 'radar_item_update', `radar_item:${req.params.itemId}`, { status });

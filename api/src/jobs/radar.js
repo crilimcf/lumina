@@ -11,6 +11,7 @@ const FETCH_TIMEOUT_MS = 10_000;
 const MAX_REDIRECTS = 3;
 const INGEST_LOCK = 4_817_337;
 const AUTO_RSS_TYPES = new Set(['news', 'trend', 'editorial']);
+const TRACKING_QUERY_PARAMS = new Set(['fbclid', 'gclid', 'mc_cid', 'mc_eid']);
 
 const blocked = new net.BlockList();
 for (const [network, prefix] of [
@@ -406,6 +407,19 @@ function sourceConfig(source) {
   };
 }
 
+export function canonicalArticleUrl(value) {
+  try {
+    const url = new URL(String(value || ''));
+    if (!['http:', 'https:'].includes(url.protocol)) return null;
+    url.hash = '';
+    for (const key of [...url.searchParams.keys()]) {
+      const lower = key.toLowerCase();
+      if (lower.startsWith('utm_') || TRACKING_QUERY_PARAMS.has(lower)) url.searchParams.delete(key);
+    }
+    return url.toString();
+  } catch { return null; }
+}
+
 function fingerprint(sourceId, entry) {
   return `rss:${crypto.createHash('sha256').update(`${sourceId}\n${entry.stableId}`).digest('hex')}`;
 }
@@ -442,15 +456,37 @@ export async function ingestRssSource(source, { fetchFeedImpl = fetchPublicFeed 
       .sort((a, b) => (Date.parse(b.publishedAt || '') || 0) - (Date.parse(a.publishedAt || '') || 0))
       .slice(0, config.maxItems);
     const initialStatus = source.trusted && config.autoPublish ? 'published' : 'draft';
+    const publishable = initialStatus === 'published';
+    const { rows: existingRssItems } = await q(
+      `SELECT fingerprint, external_url
+         FROM radar_items
+        WHERE fingerprint LIKE 'rss:%'
+          AND external_url IS NOT NULL
+          AND published_at >= now() - ($1::int * interval '1 day')
+          AND ingestion_trusted = $2
+          AND ingestion_publishable = $3`,
+      [config.maxAgeDays, !!source.trusted, publishable]
+    );
+    const canonicalExisting = new Map();
+    for (const existing of existingRssItems) {
+      const canonical = canonicalArticleUrl(existing.external_url);
+      if (canonical && !canonicalExisting.has(canonical)) canonicalExisting.set(canonical, existing.fingerprint);
+    }
     let touched = 0;
 
     for (const entry of entries) {
+      const itemFingerprint = fingerprint(source.id, entry);
+      const canonical = canonicalArticleUrl(entry.externalUrl);
+      const duplicateFingerprint = canonical ? canonicalExisting.get(canonical) : null;
+      if (duplicateFingerprint && duplicateFingerprint !== itemFingerprint) continue;
+
       const tags = [...new Set([...config.tags, ...entry.tags])].slice(0, 12);
       const { rowCount } = await q(
         `INSERT INTO radar_items (
            type, title, summary, body, image_url, external_url, source_id, source_name, source_url,
-           sponsored, tags, region, published_at, status, priority, fingerprint
-         ) VALUES ($1,$2,$3,'',$4,$5,$6,$7,$8,false,$9,$10,COALESCE($11::timestamptz, now()),$12,$13,$14)
+           sponsored, tags, region, published_at, status, priority, fingerprint,
+           ingestion_trusted, ingestion_publishable
+         ) VALUES ($1,$2,$3,'',$4,$5,$6,$7,$8,false,$9,$10,COALESCE($11::timestamptz, now()),$12,$13,$14,$15,$16)
          ON CONFLICT (fingerprint) DO UPDATE SET
            type=EXCLUDED.type,
            title=EXCLUDED.title,
@@ -464,15 +500,18 @@ export async function ingestRssSource(source, { fetchFeedImpl = fetchPublicFeed 
            region=EXCLUDED.region,
            published_at=COALESCE($11::timestamptz, radar_items.published_at),
            priority=EXCLUDED.priority,
+           ingestion_trusted=COALESCE(radar_items.ingestion_trusted, EXCLUDED.ingestion_trusted),
+           ingestion_publishable=COALESCE(radar_items.ingestion_publishable, EXCLUDED.ingestion_publishable),
            updated_at=now()
          WHERE radar_items.status <> 'archived'`,
         [
           source.default_type, entry.title, entry.summary, entry.imageUrl, entry.externalUrl,
           source.id, source.name, source.url, tags, config.region, entry.publishedAt,
-          initialStatus, config.priority, fingerprint(source.id, entry),
+          initialStatus, config.priority, itemFingerprint, !!source.trusted, publishable,
         ]
       );
       touched += rowCount;
+      if (canonical) canonicalExisting.set(canonical, itemFingerprint);
     }
 
     await q(

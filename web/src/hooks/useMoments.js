@@ -19,7 +19,9 @@ export function useMoments({ me, ping }) {
     try {
       const mediaUrl = await api.upload(file);
       const edited = await api.moments.update(id, { mediaUrl });
-      setMoments(current => current.map(moment => moment.id === id ? { ...moment, ...edited } : moment));
+      setMoments(current => current.map(moment =>
+        moment.id === id ? { ...moment, ...edited } : moment
+      ));
       ping('Momento atualizado');
       return true;
     } catch (e) {
@@ -83,7 +85,9 @@ export function useMoments({ me, ping }) {
 
   const viewMoment = (id) => {
     api.moments.view(id).catch(() => {});
-    setMoments(current => current.map(moment => moment.id === id ? { ...moment, viewed: true } : moment));
+    setMoments(current => current.map(moment =>
+      moment.id === id ? { ...moment, viewed: true } : moment
+    ));
   };
 
   const deleteMoment = async (id) => {
@@ -91,7 +95,9 @@ export function useMoments({ me, ping }) {
       await api.moments.remove(id);
       setMoments(current => {
         const remaining = current.filter(moment => moment.id !== id);
-        setViewingAuthor(authorId => authorId && !remaining.some(moment => moment.author_id === authorId) ? null : authorId);
+        setViewingAuthor(authorId =>
+          authorId && !remaining.some(moment => moment.author_id === authorId) ? null : authorId
+        );
         return remaining;
       });
       ping('Momento apagado');
@@ -113,12 +119,23 @@ export function useMoments({ me, ping }) {
   };
 
   return {
-    moments, loadMoments, momentGroups, myMomentGroup,
-    viewingAuthor, setViewingAuthor,
-    momentComposer, setMomentComposer,
-    momentFile, setMomentFile,
-    momentPalette, setMomentPalette,
-    momentBusy, publishMoment, editMoment,
-    viewMoment, deleteMoment, replyToMoment,
+    moments,
+    loadMoments,
+    momentGroups,
+    myMomentGroup,
+    viewingAuthor,
+    setViewingAuthor,
+    momentComposer,
+    setMomentComposer,
+    momentFile,
+    setMomentFile,
+    momentPalette,
+    setMomentPalette,
+    momentBusy,
+    publishMoment,
+    editMoment,
+    viewMoment,
+    deleteMoment,
+    replyToMoment,
   };
 }

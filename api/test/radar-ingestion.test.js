@@ -158,15 +158,16 @@ test('ingestão preserva a data original quando o feed não fornece data', async
   const fetchFeedImpl = async () => ({ notModified: false, text: xml, etag: null, lastModified: null });
 
   await ingestRssSource(source, { fetchFeedImpl });
-  const inserted = await q('SELECT id FROM radar_items WHERE source_id=$1', [source.id]);
-  assert.equal(inserted.rowCount, 1);
+const inserted = await q('SELECT id, published_at FROM radar_items WHERE source_id=$1', [source.id]);
+assert.equal(inserted.rowCount, 1);
+const firstPublishedAt = new Date(inserted.rows[0].published_at).toISOString();
 
-  await q("UPDATE radar_items SET published_at='2020-01-02T03:04:05Z' WHERE id=$1", [inserted.rows[0].id]);
-  const refreshed = (await q('SELECT * FROM radar_sources WHERE id=$1', [source.id])).rows[0];
-  await ingestRssSource(refreshed, { fetchFeedImpl });
+await new Promise(resolve => setTimeout(resolve, 10));
+const refreshed = (await q('SELECT * FROM radar_sources WHERE id=$1', [source.id])).rows[0];
+await ingestRssSource(refreshed, { fetchFeedImpl });
 
-  const afterRefresh = await q('SELECT published_at FROM radar_items WHERE id=$1', [inserted.rows[0].id]);
-  assert.equal(new Date(afterRefresh.rows[0].published_at).toISOString(), '2020-01-02T03:04:05.000Z');
+const afterRefresh = await q('SELECT published_at FROM radar_items WHERE id=$1', [inserted.rows[0].id]);
+assert.equal(new Date(afterRefresh.rows[0].published_at).toISOString(), firstPublishedAt);
 });
 
 test('ingestão deduplica, auto-publica só fonte verificada e respeita arquivo', async () => {

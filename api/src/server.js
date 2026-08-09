@@ -23,6 +23,7 @@ import { roomRoutes } from './routes/rooms.js';
 import { callRoutes } from './routes/calls.js';
 import { paymentRoutes } from './routes/payments.js';
 import { notificationRoutes } from './routes/notifications.js';
+import { radarRoutes } from './routes/radar.js';
 
 const app = express();
 const webDir = path.resolve(process.cwd(), 'public');
@@ -94,6 +95,7 @@ app.get(['/health', '/api/health'], health);
 const mountApi = (prefix = '') => {
   app.use(`${prefix}/auth`, authRoutes);
   app.use(`${prefix}/posts`, postRoutes);
+  app.use(`${prefix}/radar`, radarRoutes);
   app.use(`${prefix}/messages`, messageRoutes);
   app.use(`${prefix}/rooms`, roomRoutes);
   app.use(`${prefix}/calls`, callRoutes);

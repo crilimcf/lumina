@@ -33,8 +33,10 @@ ALTER TABLE notifications ADD COLUMN IF NOT EXISTS dedupe_key TEXT;
 -- linhas antigas e por isso deixa de ser obrigatório.
 ALTER TABLE notifications ALTER COLUMN kind DROP NOT NULL;
 
+-- UNIQUE permite vários NULL em PostgreSQL, por isso podemos ter linhas antigas
+-- sem dedupe_key e continuar a usar ON CONFLICT(dedupe_key) nas novas.
 CREATE UNIQUE INDEX IF NOT EXISTS notifications_dedupe_key_idx
-  ON notifications(dedupe_key) WHERE dedupe_key IS NOT NULL;
+  ON notifications(dedupe_key);
 CREATE INDEX IF NOT EXISTS notifications_user_created_idx
   ON notifications(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS notifications_user_unread_idx
@@ -58,7 +60,7 @@ BEGIN
     ON m.user_id = f.follower_id AND m.community_id = NEW.community_id
   WHERE f.following_id = NEW.author_id
     AND f.follower_id <> NEW.author_id
-  ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING;
+  ON CONFLICT (dedupe_key) DO NOTHING;
 
   RETURN NEW;
 END $$;
@@ -79,7 +81,7 @@ BEGIN
            'room:new:' || NEW.id::text || ':' || u.id::text
     FROM users u
     WHERE u.id <> NEW.creator_id AND u.suspended_at IS NULL
-    ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING;
+    ON CONFLICT (dedupe_key) DO NOTHING;
   END IF;
   RETURN NEW;
 END $$;
@@ -98,7 +100,7 @@ BEGIN
     'room:invite:' || NEW.room_id::text || ':' || NEW.user_id::text,
     NULL, now()
   )
-  ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO UPDATE
+  ON CONFLICT (dedupe_key) DO UPDATE
     SET actor_id = EXCLUDED.actor_id, read_at = NULL, created_at = now();
   RETURN NEW;
 END $$;

@@ -64,7 +64,7 @@ test('Momentos têm editor Story completo com pinch e +/- em texto/stickers, cor
   await expect(page.getByRole('button', { name: /^Cor \d/ })).toHaveCount(0);
 
   const png = Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR42mP8z8AARAwMjDAGjB0AANsBA/0X8GkAAAAASUVORK5CYII=',
+    'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAFElEQVR4nGOsCLjDgA0wYRUdtBIAS4sBtNP0jmcAAAAASUVORK5CYII=',
     'base64'
   );
   await page.locator('input[accept="image/jpeg,image/png,image/webp"]').setInputFiles({
@@ -79,6 +79,7 @@ test('Momentos têm editor Story completo com pinch e +/- em texto/stickers, cor
 
   const confirmButton = page.getByRole('button', { name: 'Confirmar edição do momento' });
   await expect(confirmButton).toBeVisible();
+  await expect(confirmButton).toBeEnabled();
   await expect(page.getByRole('button', { name: 'Usar no momento' })).toBeVisible();
   const box = await confirmButton.boundingBox();
   const viewport = page.viewportSize();

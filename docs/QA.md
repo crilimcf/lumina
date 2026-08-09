@@ -23,7 +23,10 @@ Os workflows correm em `master`, pull requests e branches `qa/**`, `feature/**`,
 - 👍, 🔥 e repost/undo;
 - Salas públicas e privadas, convites, edição, mensagens e eliminação;
 - mensagens privadas, efemeridade e controlo de acesso;
-- Momentos e respetivo ciclo de vida;
+- Momentos: criar, listar, ver, substituir media depois de publicar e apagar;
+- edição de Momento sem reiniciar a validade das 24 horas;
+- substituição de media sem deixar o upload anterior órfão;
+- rejeição de edição de Momento por outro utilizador;
 - uploads, vídeos e remoção de media;
 - denúncias, conteúdo escondido e jobs concorrentes;
 - CSRF/autenticação pública e regressões de segurança.
@@ -49,6 +52,7 @@ Fluxos cobertos:
 - editor de fotografia: crop/gestos, brilho, rotação, stickers, trocar/remover media;
 - publicação de vídeo;
 - Momento com fotografia/vídeo e editor antes da publicação;
+- substituir o media de um Momento já publicado, através do visualizador do autor;
 - perfil e edição/crop do avatar;
 - Sala pública: criar, editar, conversar, apagar mensagem e apagar sala;
 - Sala privada com dois utilizadores: criar, procurar utilizador, convidar, login do convidado, aceitar convite e entrar;
@@ -57,7 +61,9 @@ Fluxos cobertos:
 
 ## Momentos: regra de produto
 
-O editor de Momento é um editor **pré-publicação**. Antes de publicar é possível editar a fotografia, trocar ou remover o ficheiro. Depois de publicado, o Momento é imutável durante as 24 horas e o autor pode apagá-lo. Isto é comportamento intencional, não uma falha de cobertura.
+Antes de publicar, uma fotografia de Momento pode passar pelo editor completo e o ficheiro pode ser trocado ou removido. Depois de publicado, o autor pode **substituir a fotografia/vídeo** ou apagar o Momento. A substituição mantém o mesmo Momento e a mesma hora de expiração; não oferece mais 24 horas ao conteúdo.
+
+O WebKit valida a ação de edição no visualizador e o pedido de substituição. A autorização real e o ciclo de vida do upload são validados nos testes de integração da API.
 
 ## Media e armazenamento
 

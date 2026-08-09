@@ -175,6 +175,40 @@ test('foto de uma vez é purgada da mensagem e da tabela de uploads quando expir
   }
 });
 
+test('Momento publicado pode substituir media sem reiniciar 24h e sem deixar upload antigo', async () => {
+  const alice = await register('moment.edit.alice');
+  const bob = await register('moment.edit.bob');
+  const originalUrl = await confirmedUpload(alice.user.id, 'moment-edit-original');
+  const replacementUrl = await confirmedUpload(alice.user.id, 'moment-edit-replacement');
+
+  const created = await request('/moments', {
+    method: 'POST', token: alice.token, body: { mediaUrl: originalUrl, palette: 1 },
+  });
+  assert.equal(created.response.status, 201, JSON.stringify(created.data));
+  const originalExpiry = new Date(created.data.expires_at).getTime();
+
+  const forbiddenEdit = await request(`/moments/${created.data.id}`, {
+    method: 'PATCH', token: bob.token, body: { palette: 4 },
+  });
+  assert.equal(forbiddenEdit.response.status, 404);
+
+  const edited = await request(`/moments/${created.data.id}`, {
+    method: 'PATCH', token: alice.token,
+    body: { mediaUrl: replacementUrl, palette: 3 },
+  });
+  assert.equal(edited.response.status, 200, JSON.stringify(edited.data));
+  assert.equal(edited.data.media_url, replacementUrl);
+  assert.equal(edited.data.palette, 3);
+  assert.equal(new Date(edited.data.expires_at).getTime(), originalExpiry);
+
+  await new Promise(resolve => setTimeout(resolve, 50));
+  const oldUpload = await q('SELECT 1 FROM uploads WHERE url = $1', [originalUrl]);
+  assert.equal(oldUpload.rows.length, 0);
+  const replacement = await q('SELECT consumed_at, purpose FROM uploads WHERE url = $1', [replacementUrl]);
+  assert.ok(replacement.rows[0].consumed_at);
+  assert.equal(replacement.rows[0].purpose, 'moment');
+});
+
 test('Momento expirado remove a linha e o upload associado', async () => {
   const alice = await register('moment.alice');
   const url = await confirmedUpload(alice.user.id, 'moment-photo');

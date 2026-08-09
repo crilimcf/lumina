@@ -15,11 +15,13 @@ export function MomentRing({ palette, avatarUrl, allSeen, size = 52, children })
 }
 
 /** Visualizador em ecrã inteiro dos Momentos. */
-export function MomentViewer({ group, onClose, onNext, onPrev, onView, onDelete, onReply, meId }) {
+export function MomentViewer({ group, onClose, onNext, onPrev, onView, onEdit = group.onEdit, onDelete, onReply, meId }) {
   const [i, setI] = useState(0);
   const [reply, setReply] = useState('');
   const [sent, setSent] = useState(false);
   const [videoProgress, setVideoProgress] = useState(0);
+  const [replacing, setReplacing] = useState(false);
+  const replacementInput = useRef(null);
   const safeI = Math.min(i, group.items.length - 1);
   const item = group.items[safeI];
   const isMine = group.author.id === meId;
@@ -32,13 +34,13 @@ export function MomentViewer({ group, onClose, onNext, onPrev, onView, onDelete,
   useEffect(() => { if (item && !isMine) onView(item.id); }, [item?.id]);
 
   useEffect(() => {
-    if (!item || reply || isVideo) return;
+    if (!item || reply || isVideo || replacing) return;
     const t = setTimeout(() => {
       if (safeI < group.items.length - 1) setI(safeI + 1);
       else onNext();
     }, 5000);
     return () => clearTimeout(t);
-  }, [safeI, group.author.id, group.items.length, reply, isVideo]);
+  }, [safeI, group.author.id, group.items.length, reply, isVideo, replacing]);
 
   if (!item) return null;
 
@@ -57,6 +59,18 @@ export function MomentViewer({ group, onClose, onNext, onPrev, onView, onDelete,
     setTimeout(() => setSent(false), 2200);
   };
 
+  const replaceMedia = async (event) => {
+    const file = event.target.files?.[0] || null;
+    event.target.value = '';
+    if (!file || !onEdit) return;
+    setReplacing(true);
+    try {
+      await onEdit(item.id, file);
+    } finally {
+      setReplacing(false);
+    }
+  };
+
   return (
     <div className="reveal" style={{ position: 'fixed', inset: 0, zIndex: 80, background: '#0B0A17' }}>
       <div style={{ display: 'flex', gap: 4, padding: '12px 12px 0', position: 'relative', zIndex: 4 }}>
@@ -73,19 +87,34 @@ export function MomentViewer({ group, onClose, onNext, onPrev, onView, onDelete,
           );
         })}
       </div>
-      <div style={{ position: 'relative', zIndex: 4, display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px' }}>
+      <div style={{ position: 'relative', zIndex: 4, display: 'flex', alignItems: 'center', gap: 6, padding: '12px 16px' }}>
         <Orb p={group.author.palette} avatarUrl={group.author.avatarUrl} s={30} />
         <span style={{ color: '#fff', fontWeight: 600, fontSize: 14 }}>{isMine ? 'Tu' : group.author.name}</span>
         <span style={{ color: 'rgba(255,255,255,.6)', fontFamily: 'DM Mono, monospace', fontSize: 11 }}>
           {new Date(item.created_at).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
         </span>
         {isMine && (
-          <button onClick={() => onDelete(item.id)} aria-label="Apagar momento"
+          <input
+            ref={replacementInput}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
+            hidden
+            onChange={replaceMedia}
+          />
+        )}
+        {isMine && (
+          <button onClick={() => replacementInput.current?.click()} disabled={replacing} aria-label="Editar momento"
             style={{ marginLeft: 'auto', background: 'none', border: 0, color: 'rgba(255,255,255,.8)', padding: 8 }}>
+            {replacing ? <RefreshCw size={17} /> : <Pencil size={17} />}
+          </button>
+        )}
+        {isMine && (
+          <button onClick={() => onDelete(item.id)} aria-label="Apagar momento"
+            style={{ background: 'none', border: 0, color: 'rgba(255,255,255,.8)', padding: 8 }}>
             <Trash2 size={17} />
           </button>
         )}
-        <button onClick={onClose} aria-label="Fechar" style={{ marginLeft: isMine ? 6 : 'auto', background: 'none', border: 0, color: '#fff', padding: 8 }}>
+        <button onClick={onClose} aria-label="Fechar" style={{ marginLeft: isMine ? 0 : 'auto', background: 'none', border: 0, color: '#fff', padding: 8 }}>
           <X size={20} />
         </button>
       </div>

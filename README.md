@@ -38,7 +38,7 @@ lumina/
 └── arrancar.sh             preparação do ambiente local
 ```
 
-> `api/public/` é intencional. O workflow `Build Railway web fallback` recompila `web/` e publica o resultado nesse diretório para manter uma segunda via de entrega da interface.
+> `api/public/` é intencional. O workflow `Build Railway web fallback` recompila `web/` e publica o resultado nesse diretório para manter uma segunda via de entrega da interface. Não deve ser editado manualmente.
 
 ## Desenvolvimento local
 
@@ -115,7 +115,7 @@ Consultar [docs/OPERATIONS.md](docs/OPERATIONS.md) para deploy, fallback, reset 
 - 👍 e 🔥 são expressão social, não mecanismo de ordenação.
 - Perfis podem ser públicos ou privados; pedidos privados exigem aceitação.
 - Salas podem ser públicas ou privadas; Salas Ultra permanecem atrás de feature/UX desativada.
-- Momentos duram 24 horas. Foto/vídeo pode ser editado, trocado ou removido **antes de publicar**; um Momento já publicado é imutável e pode ser apagado.
+- Momentos duram 24 horas. Foto/vídeo pode ser editado, trocado ou removido antes de publicar; depois de publicado, o autor pode substituir o media sem reiniciar as 24 horas ou apagar o Momento.
 - Conteúdo efémero é limpo por jobs da API.
 - Produção não usa dados de demonstração.
 

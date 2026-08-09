@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   BadgePercent, CalendarDays, ExternalLink, Newspaper, Radar as RadarIcon,
-  ShieldCheck, Sparkles, TrendingUp,
+  Settings2, ShieldCheck, Sparkles, TrendingUp,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { Empty } from '../ui.jsx';
@@ -44,7 +44,7 @@ function ItemIcon({ type, size = 16 }) {
   return <Icon size={size} />;
 }
 
-export function Promocoes({ tab, setTab, setComp, threads, setThread, ping, toast, unreadCount }) {
+export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThread, ping, toast, unreadCount }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
@@ -67,10 +67,12 @@ export function Promocoes({ tab, setTab, setComp, threads, setThread, ping, toas
         <TopActions tab={tab} setTab={setTab} setThread={setThread} unreadCount={unreadCount} />
       </div>
 
-      <div className="card" style={{ padding: 15, margin: '14px 0 14px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+      <div className="card" style={{ padding: 15, margin: '14px 0 10px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
         <ShieldCheck size={20} color="var(--cobalt)" style={{ marginTop: 1, flexShrink: 0 }} />
         <div style={{ fontSize: 13, lineHeight: 1.45 }}><b>Separado do Feed social.</b> Notícias, eventos, tendências e campanhas vivem no Radar. Conteúdo comercial aparece sempre identificado.</div>
       </div>
+
+      {me?.is_staff && <button type="button" className="p" onClick={()=>setScreen?.('radar-admin')} style={{ width:'100%',justifyContent:'center',marginBottom:12 }}><Settings2 size={15}/>Gerir Radar</button>}
 
       <div aria-label="Filtros do Radar" style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '2px 1px 11px', scrollbarWidth: 'none' }}>
         {FILTERS.map(([value, Icon, label]) => {

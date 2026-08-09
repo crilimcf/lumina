@@ -28,9 +28,16 @@ momentRoutes.post('/', auth, h(async (req, res) => {
   const moment = await tx(async (c) => {
     let claimed = null;
     if (mediaUrl) {
-      claimed = await claimUpload(mediaUrl, req.user.id, 'moment', (text, params) => c.query(text, params), { allowVideo: true });
+      claimed = await claimUpload(
+        mediaUrl,
+        req.user.id,
+        'moment',
+        (text, params) => c.query(text, params),
+        { allowVideo: true }
+      );
       if (!claimed) throw bad('Media não verificado ou já utilizado', 'unconfirmed_upload');
     }
+
     const { rows } = await c.query(
       `INSERT INTO moments (author_id, media_url, palette) VALUES ($1, $2, $3)
        RETURNING id, media_url, palette, created_at, expires_at`,
@@ -38,9 +45,11 @@ momentRoutes.post('/', auth, h(async (req, res) => {
     );
     return { ...rows[0], media_mime: claimed?.mime || null };
   });
+
   res.status(201).json(moment);
 }));
 
+/** Os momentos ainda vivos de quem partilha comunidade contigo (e o teu). */
 momentRoutes.get('/', auth, h(async (req, res) => {
   const { rows } = await q(
     `SELECT m.id, m.media_url,
@@ -72,7 +81,9 @@ momentRoutes.patch('/:momentId', auth, h(async (req, res) => {
   const result = await tx(async (c) => {
     const { rows: own } = await c.query(
       `SELECT id, media_url, palette, created_at, expires_at
-       FROM moments WHERE id=$1 AND author_id=$2 AND expires_at > now() FOR UPDATE`,
+       FROM moments
+       WHERE id = $1 AND author_id = $2 AND expires_at > now()
+       FOR UPDATE`,
       [req.params.momentId, req.user.id]
     );
     const current = own[0];
@@ -80,60 +91,85 @@ momentRoutes.patch('/:momentId', auth, h(async (req, res) => {
 
     let claimed = null;
     if (hasMedia && mediaUrl && mediaUrl !== current.media_url) {
-      claimed = await claimUpload(mediaUrl, req.user.id, 'moment', (text, params) => c.query(text, params), { allowVideo: true });
+      claimed = await claimUpload(
+        mediaUrl,
+        req.user.id,
+        'moment',
+        (text, params) => c.query(text, params),
+        { allowVideo: true }
+      );
       if (!claimed) throw bad('Media não verificado ou já utilizado', 'unconfirmed_upload');
     }
 
     const nextMedia = hasMedia ? mediaUrl : current.media_url;
     const nextPalette = hasPalette ? palette : current.palette;
     const { rows } = await c.query(
-      `UPDATE moments SET media_url=$3, palette=$4
-       WHERE id=$1 AND author_id=$2 RETURNING id,media_url,palette,created_at,expires_at`,
+      `UPDATE moments
+       SET media_url = $3, palette = $4
+       WHERE id = $1 AND author_id = $2
+       RETURNING id, media_url, palette, created_at, expires_at`,
       [current.id, req.user.id, nextMedia, nextPalette]
     );
+
     return { moment: rows[0], oldMedia: current.media_url, claimed };
   });
 
   if (result.oldMedia && result.oldMedia !== result.moment.media_url) {
-    removeUploadIfUnreferenced(result.oldMedia).catch(err => console.error('[momentos] falhou limpar media substituído:', err.message));
+    removeUploadIfUnreferenced(result.oldMedia)
+      .catch(err => console.error('[momentos] falhou limpar media substituído:', err.message));
   }
 
   let mediaMime = result.claimed?.mime || null;
   if (!mediaMime && result.moment.media_url) {
-    const { rows } = await q('SELECT mime FROM uploads WHERE url=$1 LIMIT 1', [result.moment.media_url]);
+    const { rows } = await q('SELECT mime FROM uploads WHERE url = $1 LIMIT 1', [result.moment.media_url]);
     mediaMime = rows[0]?.mime || null;
   }
+
   res.json({ ...result.moment, media_mime: mediaMime });
 }));
 
+/** Marca como visto. Não conta a visita de quem é o próprio autor. */
 momentRoutes.post('/:momentId/view', auth, h(async (req, res) => {
   const { rows } = await q(
-    `SELECT m.author_id FROM moments m WHERE m.id=$2 AND m.expires_at > now() AND ${VISIBLE_TO}`,
+    `SELECT m.author_id FROM moments m
+     WHERE m.id = $2 AND m.expires_at > now() AND ${VISIBLE_TO}`,
     [req.user.id, req.params.momentId]
   );
   if (!rows[0]) throw notFound('Momento não encontrado');
   if (rows[0].author_id !== req.user.id) {
-    await q('INSERT INTO moment_views (moment_id,user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [req.params.momentId, req.user.id]);
+    await q(
+      'INSERT INTO moment_views (moment_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [req.params.momentId, req.user.id]
+    );
   }
   res.json({ viewed: true });
 }));
 
+/** Quem viu, só para o autor. */
 momentRoutes.get('/:momentId/viewers', auth, h(async (req, res) => {
-  const { rows: own } = await q('SELECT author_id FROM moments WHERE id=$1', [req.params.momentId]);
+  const { rows: own } = await q('SELECT author_id FROM moments WHERE id = $1', [req.params.momentId]);
   if (!own[0]) throw notFound('Momento não encontrado');
   if (own[0].author_id !== req.user.id) throw forbidden('Só o autor vê quem viu');
+
   const { rows } = await q(
-    `SELECT u.id,u.handle,u.name,u.palette,u.avatar_url,v.seen_at
-     FROM moment_views v JOIN users u ON u.id=v.user_id
-     WHERE v.moment_id=$1 ORDER BY v.seen_at DESC`,
+    `SELECT u.id, u.handle, u.name, u.palette, u.avatar_url, v.seen_at
+     FROM moment_views v JOIN users u ON u.id = v.user_id
+     WHERE v.moment_id = $1 ORDER BY v.seen_at DESC`,
     [req.params.momentId]
   );
   res.json(rows);
 }));
 
 momentRoutes.delete('/:momentId', auth, h(async (req, res) => {
-  const { rows } = await q('DELETE FROM moments WHERE id=$1 AND author_id=$2 RETURNING media_url', [req.params.momentId, req.user.id]);
+  const { rows } = await q(
+    'DELETE FROM moments WHERE id = $1 AND author_id = $2 RETURNING media_url',
+    [req.params.momentId, req.user.id]
+  );
   if (!rows[0]) throw notFound('Momento não encontrado');
-  if (rows[0].media_url) removeUploadIfUnreferenced(rows[0].media_url).catch(err => console.error('[momentos] falhou limpar media apagado:', err.message));
+
+  if (rows[0].media_url) {
+    removeUploadIfUnreferenced(rows[0].media_url)
+      .catch(err => console.error('[momentos] falhou limpar media apagado:', err.message));
+  }
   res.json({ deleted: true });
 }));

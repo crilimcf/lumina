@@ -23,6 +23,7 @@ after(async () => {
 test('migration 013 classifica item RSS já publicado pelo estado efetivo, não pela configuração atual da fonte', async () => {
   await q('DELETE FROM schema_migrations WHERE version=13');
   await q('DROP TRIGGER IF EXISTS radar_fill_ingestion_policy_before_insert ON radar_items');
+  await q('DROP TRIGGER IF EXISTS radar_reconcile_ingestion_policy_before_status_update ON radar_items');
   await q('DROP FUNCTION IF EXISTS radar_fill_ingestion_policy()');
   await q('ALTER TABLE radar_items DROP COLUMN IF EXISTS ingestion_trusted');
   await q('ALTER TABLE radar_items DROP COLUMN IF EXISTS ingestion_publishable');
@@ -73,7 +74,6 @@ test('insert de instância antiga recebe policy antes de um sibling novo constru
     [`${PREFIX} Rolling Sibling`]
   )).rows[0];
 
-  // Simula SQL de uma instância antiga: não fornece as novas colunas de policy.
   const oldItem = (await q(
     `INSERT INTO radar_items (
        type, title, summary, body, external_url, source_id, source_name, source_url,
@@ -103,8 +103,42 @@ test('insert de instância antiga recebe policy antes de um sibling novo constru
        FROM radar_items
       WHERE external_url LIKE 'https://policy.example.test/rolling-item%'`
   );
-  assert.equal(rows.length, 1, 'o sibling novo deve encontrar o item da instância antiga antes de inserir');
+  assert.equal(rows.length, 1);
   assert.equal(rows[0].source_id, oldSource.id);
   assert.equal(rows[0].ingestion_trusted, true);
   assert.equal(rows[0].ingestion_publishable, true);
+});
+
+test('PATCH legado que publica um draft RSS é reconciliado pelo trigger de status', async () => {
+  const source = (await q(
+    `INSERT INTO radar_sources (name, kind, url, default_type, active, trusted, config)
+     VALUES ($1, 'rss', 'https://policy.example.test/legacy-status-feed', 'news', true, true,
+             '{"autoPublish":false}'::jsonb)
+     RETURNING *`,
+    [`${PREFIX} Legacy Status`]
+  )).rows[0];
+
+  const draft = (await q(
+    `INSERT INTO radar_items (
+       type, title, summary, body, external_url, source_id, source_name, source_url,
+       sponsored, tags, published_at, status, priority, fingerprint
+     ) VALUES (
+       'news', 'Draft legado', '', '', 'https://policy.example.test/legacy-status-item',
+       $1, $2, $3, false, '{}', now(), 'draft', 0, 'rss:legacy-status-update'
+     ) RETURNING id, ingestion_trusted, ingestion_publishable`,
+    [source.id, source.name, source.url]
+  )).rows[0];
+  assert.equal(draft.ingestion_trusted, true);
+  assert.equal(draft.ingestion_publishable, false);
+
+  // Simula o UPDATE antigo: muda apenas `status`, sem conhecer as colunas novas.
+  const approved = (await q(
+    `UPDATE radar_items SET status='published', updated_at=now()
+      WHERE id=$1
+      RETURNING status, ingestion_trusted, ingestion_publishable`,
+    [draft.id]
+  )).rows[0];
+  assert.equal(approved.status, 'published');
+  assert.equal(approved.ingestion_trusted, true);
+  assert.equal(approved.ingestion_publishable, true);
 });

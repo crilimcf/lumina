@@ -9,6 +9,7 @@ import { env } from './env.js';
 import { pool } from './db.js';
 import { errorHandler, auth, h, HttpError, csrfGuard } from './middleware/auth.js';
 import { startJobs } from './jobs/daily.js';
+import { startRadarJobs } from './jobs/radar-scheduler.js';
 
 import { authRoutes } from './routes/auth.js';
 import { postRoutes } from './routes/posts.js';
@@ -24,6 +25,7 @@ import { callRoutes } from './routes/calls.js';
 import { paymentRoutes } from './routes/payments.js';
 import { notificationRoutes } from './routes/notifications.js';
 import { radarRoutes } from './routes/radar.js';
+import { radarSyncRoutes } from './routes/radar-sync.js';
 
 const app = express();
 const webDir = path.resolve(process.cwd(), 'public');
@@ -95,6 +97,7 @@ app.get(['/health', '/api/health'], health);
 const mountApi = (prefix = '') => {
   app.use(`${prefix}/auth`, authRoutes);
   app.use(`${prefix}/posts`, postRoutes);
+  app.use(`${prefix}/radar`, radarSyncRoutes);
   app.use(`${prefix}/radar`, radarRoutes);
   app.use(`${prefix}/messages`, messageRoutes);
   app.use(`${prefix}/rooms`, roomRoutes);
@@ -143,6 +146,7 @@ if (process.env.NODE_ENV !== 'test') {
   const server = app.listen(env.PORT, '0.0.0.0', () => {
     console.log(`Lumina API na porta ${env.PORT}`);
     startJobs();
+    startRadarJobs();
   });
   const shutdown = () => {
     console.log('[servidor] a fechar');

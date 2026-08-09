@@ -5,6 +5,7 @@ import {
   purgeMessages, purgeMoments, purgeStaleUploads, purgeOrphanUploads,
   runAccountDeletions, purgeExpiredTokens, purgeOldLoginAttempts,
 } from '../src/jobs/daily.js';
+import { syncRadarSources } from '../src/jobs/radar.js';
 
 const TASKS = {
   purge: async () =>
@@ -14,6 +15,14 @@ const TASKS = {
     (await purgeOrphanUploads()),
   deletions: runAccountDeletions,
   tokens: async () => (await purgeExpiredTokens()) + (await purgeOldLoginAttempts()),
+  radar: async () => {
+    const result = await syncRadarSources();
+    if (result.skipped) return 0;
+    if (result.failed) {
+      throw new Error(`${result.failed}/${result.attempted} fontes Radar falharam`);
+    }
+    return result.items;
+  },
 };
 
 const args = process.argv.slice(2);

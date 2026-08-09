@@ -13,7 +13,8 @@
     "seed": "node scripts/seed.js",
     "cron": "node scripts/cron.js",
     "cron:purge": "node scripts/cron.js purge",
-    "cron:deletions": "node scripts/cron.js deletions"
+    "cron:deletions": "node scripts/cron.js deletions",
+    "cron:radar": "node scripts/cron.js radar"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -22,6 +23,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "express-rate-limit": "^7.4.0",
+    "fast-xml-parser": "^5.10.1",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "node-cron": "^4.6.0",

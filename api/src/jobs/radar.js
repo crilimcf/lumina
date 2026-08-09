@@ -500,6 +500,8 @@ export async function ingestRssSource(source, { fetchFeedImpl = fetchPublicFeed 
            region=EXCLUDED.region,
            published_at=COALESCE($11::timestamptz, radar_items.published_at),
            priority=EXCLUDED.priority,
+           ingestion_trusted=COALESCE(radar_items.ingestion_trusted, EXCLUDED.ingestion_trusted),
+           ingestion_publishable=COALESCE(radar_items.ingestion_publishable, EXCLUDED.ingestion_publishable),
            updated_at=now()
          WHERE radar_items.status <> 'archived'`,
         [

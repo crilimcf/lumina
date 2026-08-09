@@ -12,6 +12,7 @@ import { Perfil } from './screens/Perfil.jsx';
 import { Feed } from './screens/Feed.jsx';
 import { Salas } from './screens/Salas.jsx';
 import { Promocoes } from './screens/Promocoes.jsx';
+import { RadarAdmin } from './screens/RadarAdmin.jsx';
 import { Atividade } from './screens/Atividade.jsx';
 import { useFeed } from './hooks/useFeed.js';
 import { useMessages } from './hooks/useMessages.js';
@@ -115,6 +116,7 @@ export default function App() {
 
   if (screen==='seguranca') return <Seguranca onBack={()=>setScreen(null)} ping={ping}/>;
   if (screen==='moderacao') return <Moderacao onBack={()=>setScreen(null)} ping={ping}/>;
+  if (screen==='radar-admin' && me.is_staff) return <RadarAdmin onBack={()=>setScreen(null)} ping={ping}/>;
   if (screen==='TERMOS'||screen==='PRIVACIDADE') return <Legal page={screen} onBack={()=>setScreen(null)}/>;
   if (screen==='editar-perfil') return <EditarPerfil me={me} onSave={setMe} onBack={()=>setScreen(null)} ping={ping}/>;
   if (screen==='amigos') return <Amigos onBack={()=>setScreen(null)} ping={ping}/>;

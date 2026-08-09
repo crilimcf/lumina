@@ -23,7 +23,7 @@ for (const [network, prefix] of [
 blocked.addAddress('::', 'ipv6');
 blocked.addAddress('::1', 'ipv6');
 for (const [network, prefix] of [
-  ['::ffff:0:0', 96], ['fc00::', 7], ['fe80::', 10], ['ff00::', 8], ['2001:db8::', 32],
+  ['fc00::', 7], ['fe80::', 10], ['ff00::', 8], ['2001:db8::', 32],
 ]) blocked.addSubnet(network, prefix, 'ipv6');
 
 const xmlParser = new XMLParser({

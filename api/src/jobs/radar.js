@@ -462,7 +462,7 @@ export async function ingestRssSource(source, { fetchFeedImpl = fetchPublicFeed 
          FROM radar_items
         WHERE fingerprint LIKE 'rss:%'
           AND external_url IS NOT NULL
-          AND published_at >= now() - ($1::int * interval '1 day')
+          AND (status = 'archived' OR published_at >= now() - ($1::int * interval '1 day'))
           AND ingestion_trusted = $2
           AND ingestion_publishable = $3`,
       [config.maxAgeDays, !!source.trusted, publishable]

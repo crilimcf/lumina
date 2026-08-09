@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { Empty, Orb } from '../ui.jsx';
 import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
 
-export function Promocoes({ tab, setTab, coms, setComp, threads, setThread, ping, toast, unreadCount }) {
+export function Promocoes({ tab, setTab, setComp, threads, setThread, ping, toast, unreadCount }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
@@ -24,10 +24,10 @@ export function Promocoes({ tab, setTab, coms, setComp, threads, setThread, ping
       </div>
       {loading ? <div className="m" style={{ padding: 30, textAlign: 'center' }}>A carregar Radar…</div> : !items.length ? <Empty>O Radar ainda está tranquilo.<br />Quando houver campanhas e destaques, aparecem aqui.</Empty> : <div style={{ display: 'grid', gap: 13 }}>{items.map(p => <article key={p.id} className="card in" style={{ overflow: 'hidden', padding: 0 }}>
         {p.media_url && (p.media_mime?.startsWith('video/') ? <video src={p.media_url} controls playsInline style={{ width: '100%', maxHeight: '64dvh', background: '#080711' }} /> : <img src={p.media_url} alt="" style={{ width: '100%', aspectRatio: '4/5', objectFit: 'cover', display: 'block' }} />)}
-        <div style={{ padding: 15 }}><div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}><Orb p={p.author_palette} avatarUrl={p.author_avatar_url} s={34} /><div style={{ flex: 1 }}><b style={{ fontSize: 14 }}>{p.name}</b><div className="m">Patrocinado · {p.community_name}</div></div><RadarIcon size={17} color="var(--cobalt)" /></div><div style={{ fontSize: 15.5, lineHeight: 1.45 }}>{p.body}</div></div>
+        <div style={{ padding: 15 }}><div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}><Orb p={p.author_palette} avatarUrl={p.author_avatar_url} s={34} /><div style={{ flex: 1 }}><b style={{ fontSize: 14 }}>{p.name}</b><div className="m">Patrocinado</div></div><RadarIcon size={17} color="var(--cobalt)" /></div><div style={{ fontSize: 15.5, lineHeight: 1.45 }}>{p.body}</div></div>
       </article>)}</div>}
     </div>
-    <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} coms={coms} threads={threads} ping={ping} />
+    <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} threads={threads} />
     <Toast text={toast} />
   </div>;
 }

@@ -2,15 +2,21 @@
 -- Usa apenas feeds RSS públicos conhecidos para ingestão automática.
 -- Os meios sem endpoint RSS/API validado ficam no catálogo, inativos, até existir conector oficial.
 
--- Guarda a política efetiva no momento em que cada item RSS entra. Isto impede que
--- alterações futuras a `trusted`/`autoPublish` reclassifiquem retroativamente o dedupe.
+-- Guarda a classe de confiança/publicação usada pelo dedupe. Para itens antigos,
+-- o estado efetivo do próprio item tem precedência sobre configurações atuais da fonte.
 ALTER TABLE radar_items ADD COLUMN IF NOT EXISTS ingestion_trusted BOOLEAN;
 ALTER TABLE radar_items ADD COLUMN IF NOT EXISTS ingestion_publishable BOOLEAN;
 
 UPDATE radar_items ri
-SET ingestion_trusted = rs.trusted,
-    ingestion_publishable = rs.trusted
-      AND (rs.config->'autoPublish' IS DISTINCT FROM 'false'::jsonb)
+SET ingestion_trusted = CASE
+      WHEN ri.status = 'published' THEN true
+      ELSE rs.trusted
+    END,
+    ingestion_publishable = CASE
+      WHEN ri.status = 'published' THEN true
+      WHEN ri.status = 'draft' THEN false
+      ELSE rs.trusted AND (rs.config->'autoPublish' IS DISTINCT FROM 'false'::jsonb)
+    END
 FROM radar_sources rs
 WHERE ri.source_id = rs.id
   AND ri.fingerprint LIKE 'rss:%'

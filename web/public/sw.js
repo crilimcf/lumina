@@ -7,7 +7,14 @@
  */
 const BUILD = '__LUMINA_BUILD__';
 const CACHE = `lumina-${BUILD}`;
-const SHELL = ['/', '/manifest.webmanifest', '/lumina-icon.svg'];
+const SHELL = [
+  '/',
+  '/manifest.webmanifest',
+  '/lumina-icon.svg',
+  '/lumina-l1-apple-touch-icon.png',
+  '/lumina-l1-icon-192.png',
+  '/lumina-l1-icon-512.png',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -20,11 +27,19 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    const legacyV2 = keys.includes('lumina-v2');
-    await Promise.all(keys.filter((key) => key.startsWith('lumina-') && key !== CACHE).map((key) => caches.delete(key)));
+    // As primeiras PWAs em produção usavam caches fixos v1/v2 e não tinham
+    // todo o ciclo atual de atualização. Quando encontramos um deles, esta
+    // ativação é a ponte única que tira a instalação antiga da memória/cache.
+    const legacyCache = keys.includes('lumina-v1') || keys.includes('lumina-v2');
+
+    await Promise.all(
+      keys
+        .filter((key) => key.startsWith('lumina-') && key !== CACHE)
+        .map((key) => caches.delete(key))
+    );
     await self.clients.claim();
 
-    if (legacyV2) {
+    if (legacyCache) {
       const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       await Promise.all(windows.map((client) => client.navigate(client.url).catch(() => null)));
     }

@@ -28,11 +28,13 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
       .then((registration) => {
         const checkForUpdate = () => registration.update().catch(() => {});
 
-        // iOS pode restaurar uma PWA instalada da memória sem uma navegação
-        // completa. Verificamos de novo quando a app volta ao primeiro plano.
+        // iOS pode restaurar uma PWA instalada da memória/BFCache sem fazer
+        // uma navegação completa. Verificamos ao regressar ao primeiro plano,
+        // ao recuperar a página e ao receber foco.
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') checkForUpdate();
         });
+        window.addEventListener('pageshow', checkForUpdate);
         window.addEventListener('focus', checkForUpdate);
         checkForUpdate();
       })

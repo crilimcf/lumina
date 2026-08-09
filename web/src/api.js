@@ -62,7 +62,6 @@ export const api = {
   account: {
     forgot: (email) => call('/account/forgot-password', { method: 'POST', body: { email }, auth: false }),
     reset: (b) => call('/account/reset-password', { method: 'POST', body: b, auth: false }),
-    days: () => call('/account/days'),
     async download() {
       const res = await fetch(`${BASE}/account/export`, { credentials: 'include' });
       if (!res.ok) throw new ApiError(res.status, 'Nao foi possivel descarregar');
@@ -73,20 +72,6 @@ export const api = {
     },
     remove: () => call('/account/delete', { method: 'POST' }),
     cancelRemoval: () => call('/account/delete/cancel', { method: 'POST' }),
-  },
-  communities: {
-    list: () => call('/communities', { auth: false }),
-    mine: () => call('/communities/mine'),
-    create: (b) => call('/communities', { method: 'POST', body: b }),
-    join: (id) => call(`/communities/${id}/join`, { method: 'POST' }),
-    leave: (id) => call(`/communities/${id}/leave`, { method: 'POST' }),
-  },
-  invites: {
-    today: (cid) => call(`/invites/${cid}/today`),
-    proposals: (cid) => call(`/invites/${cid}/proposals`),
-    propose: (cid, text) => call(`/invites/${cid}/proposals`, { method: 'POST', body: { text } }),
-    vote: (pid) => call(`/invites/proposals/${pid}/vote`, { method: 'POST' }),
-    replies: (iid) => call(`/invites/${iid}/replies`),
   },
   posts: {
     feed: (cursor) => call(`/posts/feed${cursor ? `?before=${encodeURIComponent(cursor)}` : ''}`),
@@ -150,10 +135,6 @@ export const api = {
     revoke: (id) => call(`/sessions/${id}`, { method: 'DELETE' }),
     revokeAll: () => call('/sessions/revoke-all', { method: 'POST' }),
   },
-  moderation: {
-    queue: (cid) => call(`/reports/community/${cid}`),
-    resolve: (id, resolution) => call(`/reports/${id}/resolve`, { method: 'POST', body: { resolution } }),
-  },
   users: {
     search: (q) => call(`/users/search?q=${encodeURIComponent(q)}`),
     get: (handle) => call(`/users/${handle}`),
@@ -161,10 +142,6 @@ export const api = {
     followAction,
     follow: async (id) => {
       const result = await followAction(id);
-      // Os ecrãs legados assumiam que qualquer 2xx significava follow ativo.
-      // Num perfil privado isso seria visualmente falso: o servidor só criou
-      // um pedido. Fazemos esses ecrãs manterem o estado e mostrarem o toast,
-      // enquanto o novo centro Atividade usa followAction e mostra "Pendente".
       if (result?.pending) throw new ApiError(202, 'Pedido enviado', 'follow_pending');
       return result;
     },

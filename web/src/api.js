@@ -95,6 +95,7 @@ export const api = {
       const suffix = params.size ? `?${params.toString()}` : '';
       return call(`/radar${suffix}`);
     },
+    manage: (status) => call(`/radar/manage${status ? `?status=${encodeURIComponent(status)}` : ''}`),
     create: (body) => call('/radar', { method: 'POST', body }),
     edit: (id, body) => call(`/radar/${id}`, { method: 'PATCH', body }),
     archive: (id) => call(`/radar/${id}`, { method: 'DELETE' }),
@@ -143,7 +144,7 @@ export const api = {
   twoFactor: {
     status: () => call('/2fa/status'),
     setup: (password) => call('/2fa/setup', { method: 'POST', body: { password } }),
-    enable: (code) => call('/2fa/enable', { method: 'POST' }),
+    enable: (code) => call('/2fa/enable', { method: 'POST', body: { code } }),
     disable: (password) => call('/2fa/disable', { method: 'POST', body: { password } }),
   },
   sessions: {

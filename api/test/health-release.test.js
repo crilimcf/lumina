@@ -31,10 +31,20 @@ test('health expõe commit Railway e versão ativa do schema sem alterar o body'
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { ok: true });
   assert.equal(response.headers.get('x-lumina-release'), 'release-test-sha');
+  assert.equal(response.headers.get('x-lumina-schema'), '12');
+});
 
-  const schemaVersion = Number(response.headers.get('x-lumina-schema'));
-  assert.equal(Number.isInteger(schemaVersion), true);
-  assert.equal(schemaVersion >= 12, true);
+test('health ignora versões históricas/sentinela sem migration correspondente no build', async () => {
+  await q('INSERT INTO schema_migrations (version) VALUES (900009) ON CONFLICT DO NOTHING');
+  try {
+    const response = await fetch(`${baseUrl}/health`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { ok: true });
+    assert.equal(response.headers.get('x-lumina-release'), 'release-test-sha');
+    assert.equal(response.headers.get('x-lumina-schema'), '12');
+  } finally {
+    await q('DELETE FROM schema_migrations WHERE version = 900009');
+  }
 });
 
 test('health mantém o commit ativo mesmo quando a base não consegue reportar o schema', async () => {

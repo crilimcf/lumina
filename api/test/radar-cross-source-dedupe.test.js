@@ -7,11 +7,13 @@ const SOURCE_PREFIX = 'Radar Dedupe Test';
 const ARTICLE_BASE = 'https://news.example.test/shared-story?id=42';
 const TRUST_BASE = 'https://news.example.test/trust-story?id=9';
 const POLICY_BASE = 'https://news.example.test/policy-story?id=7';
+const MUTATION_BASE = 'https://news.example.test/mutation-story?id=5';
 
 async function cleanFixtures() {
   await q(`DELETE FROM radar_items WHERE external_url LIKE 'https://news.example.test/shared-story%'`);
   await q(`DELETE FROM radar_items WHERE external_url LIKE 'https://news.example.test/trust-story%'`);
   await q(`DELETE FROM radar_items WHERE external_url LIKE 'https://news.example.test/policy-story%'`);
+  await q(`DELETE FROM radar_items WHERE external_url LIKE 'https://news.example.test/mutation-story%'`);
   await q(`DELETE FROM radar_sources WHERE name LIKE $1`, [`${SOURCE_PREFIX}%`]);
 }
 
@@ -86,7 +88,7 @@ test('duas fontes RSS verificadas com GUIDs diferentes publicam uma só linha pa
   });
 
   const { rows } = await q(
-    `SELECT id, title, external_url, source_id, status
+    `SELECT id, title, external_url, source_id, status, ingestion_trusted, ingestion_publishable
        FROM radar_items
       WHERE external_url LIKE 'https://news.example.test/shared-story%'`
   );
@@ -95,6 +97,8 @@ test('duas fontes RSS verificadas com GUIDs diferentes publicam uma só linha pa
   assert.equal(rows[0].source_id, sourceA.id);
   assert.equal(rows[0].title, 'Notícia partilhada A');
   assert.equal(rows[0].status, 'published');
+  assert.equal(rows[0].ingestion_trusted, true);
+  assert.equal(rows[0].ingestion_publishable, true);
 
   const secondSource = await q('SELECT last_success_at, last_fetch_error FROM radar_sources WHERE id=$1', [sourceB.id]);
   assert.ok(secondSource.rows[0].last_success_at, 'a fonte duplicada continua marcada como sincronizada');
@@ -121,7 +125,7 @@ test('fonte não verificada não bloqueia nem altera a versão verificada da mes
   });
 
   const { rows } = await q(
-    `SELECT source_id, title, status
+    `SELECT source_id, title, status, ingestion_trusted, ingestion_publishable
        FROM radar_items
       WHERE external_url LIKE 'https://news.example.test/trust-story%'
       ORDER BY status`
@@ -132,8 +136,12 @@ test('fonte não verificada não bloqueia nem altera a versão verificada da mes
   const published = rows.find(row => row.status === 'published');
   assert.equal(draft?.source_id, untrusted.id);
   assert.equal(draft?.title, 'Versão por rever');
+  assert.equal(draft?.ingestion_trusted, false);
+  assert.equal(draft?.ingestion_publishable, false);
   assert.equal(published?.source_id, trusted.id);
   assert.equal(published?.title, 'Versão verificada');
+  assert.equal(published?.ingestion_trusted, true);
+  assert.equal(published?.ingestion_publishable, true);
 });
 
 test('fonte trusted em revisão manual não bloqueia sibling trusted com autoPublish ativo', async () => {
@@ -162,7 +170,7 @@ test('fonte trusted em revisão manual não bloqueia sibling trusted com autoPub
   });
 
   const { rows } = await q(
-    `SELECT source_id, title, status
+    `SELECT source_id, title, status, ingestion_trusted, ingestion_publishable
        FROM radar_items
       WHERE external_url LIKE 'https://news.example.test/policy-story%'
       ORDER BY status`
@@ -173,6 +181,57 @@ test('fonte trusted em revisão manual não bloqueia sibling trusted com autoPub
   const published = rows.find(row => row.status === 'published');
   assert.equal(draft?.source_id, manualReview.id);
   assert.equal(draft?.title, 'Versão em revisão manual');
+  assert.equal(draft?.ingestion_trusted, true);
+  assert.equal(draft?.ingestion_publishable, false);
   assert.equal(published?.source_id, autoPublish.id);
   assert.equal(published?.title, 'Versão publicável');
+  assert.equal(published?.ingestion_trusted, true);
+  assert.equal(published?.ingestion_publishable, true);
+});
+
+test('alterar a política da fonte depois da ingestão não reclassifica o dedupe do item antigo', async () => {
+  const original = await createSource(`${SOURCE_PREFIX} Mutable Original`, 'https://feed-mutable.example.test/rss', {
+    trusted: true,
+    autoPublish: true,
+  });
+  const sibling = await createSource(`${SOURCE_PREFIX} Mutable Sibling`, 'https://feed-mutable-sibling.example.test/rss', {
+    trusted: true,
+    autoPublish: true,
+  });
+
+  await ingestRssSource(original, {
+    fetchFeedImpl: fetchFor({
+      guid: 'immutable-original-guid',
+      link: `${MUTATION_BASE}&utm_source=original`,
+      title: 'Versão original publicada',
+    }),
+  });
+
+  await q(
+    `UPDATE radar_sources
+        SET config=jsonb_set(config, '{autoPublish}', 'false'::jsonb), updated_at=now()
+      WHERE id=$1`,
+    [original.id]
+  );
+
+  await ingestRssSource(sibling, {
+    fetchFeedImpl: fetchFor({
+      guid: 'immutable-sibling-guid',
+      link: `${MUTATION_BASE}&fbclid=sibling`,
+      title: 'Duplicado depois da mudança',
+    }),
+  });
+
+  const { rows } = await q(
+    `SELECT source_id, title, status, ingestion_trusted, ingestion_publishable
+       FROM radar_items
+      WHERE external_url LIKE 'https://news.example.test/mutation-story%'`
+  );
+
+  assert.equal(rows.length, 1, 'mudar a fonte não deve permitir duplicar um item já classificado como publicável');
+  assert.equal(rows[0].source_id, original.id);
+  assert.equal(rows[0].title, 'Versão original publicada');
+  assert.equal(rows[0].status, 'published');
+  assert.equal(rows[0].ingestion_trusted, true);
+  assert.equal(rows[0].ingestion_publishable, true);
 });

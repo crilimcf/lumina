@@ -7,9 +7,18 @@ export const postRoutes = Router();
 
 function optionalTimestamp(value, field = 'Cursor') {
   if (value === undefined || value === null || value === '') return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) throw bad(`${field} inválido`, 'bad_cursor');
-  return date.toISOString();
+  const text = String(value).trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?Z$/.exec(text);
+  if (!match) throw bad(`${field} inválido`, 'bad_cursor');
+
+  const [, year, month, day, hour, minute, second, fraction = ''] = match;
+  const millis = fraction.padEnd(3, '0');
+  const canonical = `${year}-${month}-${day}T${hour}:${minute}:${second}.${millis}Z`;
+  const date = new Date(canonical);
+  if (Number.isNaN(date.getTime()) || date.toISOString() !== canonical) {
+    throw bad(`${field} inválido`, 'bad_cursor');
+  }
+  return canonical;
 }
 
 const SELECT_POST = `

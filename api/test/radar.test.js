@@ -129,6 +129,13 @@ test('Radar é legível por utilizadores mas só a equipa Lumina o pode gerir', 
 
   const sourcesAsMember = await request('/radar/sources', { token: member.token });
   assert.equal(sourcesAsMember.response.status, 403);
+  const manageAsMember = await request('/radar/manage', { token: member.token });
+  assert.equal(manageAsMember.response.status, 403);
+
+  const managed = await request('/radar/manage', { token: staff.token });
+  assert.equal(managed.response.status, 200, JSON.stringify(managed.data));
+  assert.equal(managed.data.items.some(item => item.id === news.data.id), true);
+  assert.equal(managed.data.items.some(item => item.id === promotion.data.id), true);
 
   const archived = await request(`/radar/${news.data.id}`, { method: 'DELETE', token: staff.token });
   assert.equal(archived.response.status, 200);
@@ -137,6 +144,10 @@ test('Radar é legível por utilizadores mas só a equipa Lumina o pode gerir', 
   const afterArchive = await request('/radar?type=news', { token: member.token });
   assert.equal(afterArchive.response.status, 200);
   assert.equal(afterArchive.data.items.length, 0);
+
+  const managedArchived = await request('/radar/manage?status=archived', { token: staff.token });
+  assert.equal(managedArchived.response.status, 200);
+  assert.equal(managedArchived.data.items.some(item => item.id === news.data.id), true);
 });
 
 test('Radar valida tipos, URLs e aplica janelas diferentes a eventos e promoções', async () => {

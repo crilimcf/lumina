@@ -457,12 +457,14 @@ export async function ingestRssSource(source, { fetchFeedImpl = fetchPublicFeed 
       .slice(0, config.maxItems);
     const initialStatus = source.trusted && config.autoPublish ? 'published' : 'draft';
     const { rows: existingRssItems } = await q(
-      `SELECT fingerprint, external_url
-         FROM radar_items
-        WHERE fingerprint LIKE 'rss:%'
-          AND external_url IS NOT NULL
-          AND published_at >= now() - ($1::int * interval '1 day')`,
-      [config.maxAgeDays]
+      `SELECT ri.fingerprint, ri.external_url
+         FROM radar_items ri
+         JOIN radar_sources rs ON rs.id = ri.source_id
+        WHERE ri.fingerprint LIKE 'rss:%'
+          AND ri.external_url IS NOT NULL
+          AND ri.published_at >= now() - ($1::int * interval '1 day')
+          AND rs.trusted = $2`,
+      [config.maxAgeDays, !!source.trusted]
     );
     const canonicalExisting = new Map();
     for (const existing of existingRssItems) {

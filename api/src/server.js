@@ -90,9 +90,9 @@ app.use(['/account/forgot-password', '/api/account/forgot-password'], rateLimit(
 
 const releaseSha = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GITHUB_SHA || '';
 const health = async (_req, res) => {
+  if (releaseSha) res.setHeader('X-Lumina-Release', releaseSha);
   try {
     const { rows } = await pool.query('SELECT COALESCE(MAX(version), 0)::int AS schema_version FROM schema_migrations');
-    if (releaseSha) res.setHeader('X-Lumina-Release', releaseSha);
     res.setHeader('X-Lumina-Schema', String(rows[0]?.schema_version ?? 0));
     res.json({ ok: true });
   } catch {

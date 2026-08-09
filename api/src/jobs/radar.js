@@ -154,7 +154,9 @@ function normalizeEntry(item, nowMs) {
 
   const summaryValue = item?.summary ?? item?.description ?? item?.['content:encoded'] ?? item?.content;
   const publishedAt = dateOf(item, nowMs);
-  const stableId = cleanText(item?.guid ?? item?.id ?? externalUrl ?? `${title}:${publishedAt}`, 2_000);
+  const stableId = [item?.guid, item?.id, externalUrl, `${title}:${publishedAt}`]
+    .map(value => cleanText(value, 2_000))
+    .find(Boolean);
 
   return {
     stableId,
@@ -186,13 +188,39 @@ export function parseSyndicationFeed(xml, { now = Date.now() } = {}) {
   return entries;
 }
 
+function remainingDeadlineMs(deadlineAt) {
+  const remaining = Number(deadlineAt) - Date.now();
+  if (!Number.isFinite(remaining) || remaining <= 0) throw new Error('Timeout total ao obter fonte RSS');
+  return remaining;
+}
+
+export async function withDeadline(promise, deadlineAt, message = 'Timeout total ao obter fonte RSS') {
+  const remaining = remainingDeadlineMs(deadlineAt);
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), remaining);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+export function resolveRedirectUrl(location, base) {
+  try { return new URL(String(location || ''), base).toString(); }
+  catch { throw new Error('Redirect RSS inválido'); }
+}
+
 function isBlockedAddress(address, family) {
   if (family === 4) return blocked.check(address, 'ipv4');
   if (family === 6) return blocked.check(address, 'ipv6');
   return true;
 }
 
-export async function resolvePublicFeedTarget(input) {
+export async function resolvePublicFeedTarget(input, { deadlineAt = Date.now() + FETCH_TIMEOUT_MS, lookup = dns.lookup } = {}) {
   let url;
   try { url = new URL(String(input || '')); }
   catch { throw new Error('URL RSS inválida'); }
@@ -210,7 +238,11 @@ export async function resolvePublicFeedTarget(input) {
   const literalFamily = net.isIP(hostname);
   const addresses = literalFamily
     ? [{ address: hostname, family: literalFamily }]
-    : await dns.lookup(hostname, { all: true, verbatim: true });
+    : await withDeadline(
+        lookup(hostname, { all: true, verbatim: true }),
+        deadlineAt,
+        'Timeout ao resolver DNS da fonte RSS',
+      );
   if (!addresses.length) throw new Error('Host RSS sem endereço resolvido');
   if (addresses.some(({ address, family }) => isBlockedAddress(address, family))) {
     throw new Error('Host RSS resolve para uma rede privada/reservada');
@@ -219,9 +251,12 @@ export async function resolvePublicFeedTarget(input) {
   return { url, address: addresses[0].address, family: addresses[0].family };
 }
 
-export async function fetchPublicFeed(input, { etag = null, lastModified = null, redirects = 0 } = {}) {
+export async function fetchPublicFeed(input, {
+  etag = null, lastModified = null, redirects = 0, deadlineAt = Date.now() + FETCH_TIMEOUT_MS,
+} = {}) {
   if (redirects > MAX_REDIRECTS) throw new Error('Demasiados redirects na fonte RSS');
-  const target = await resolvePublicFeedTarget(input);
+  remainingDeadlineMs(deadlineAt);
+  const target = await resolvePublicFeedTarget(input, { deadlineAt });
   const transport = target.url.protocol === 'https:' ? https : http;
 
   return new Promise((resolve, reject) => {
@@ -250,9 +285,15 @@ export async function fetchPublicFeed(input, { etag = null, lastModified = null,
         return;
       }
       if (status >= 300 && status < 400 && response.headers.location) {
-        const next = new URL(response.headers.location, target.url).toString();
+        let next;
+        try { next = resolveRedirectUrl(response.headers.location, target.url); }
+        catch (error) {
+          response.resume();
+          reject(error);
+          return;
+        }
         response.resume();
-        fetchPublicFeed(next, { etag, lastModified, redirects: redirects + 1 }).then(resolve, reject);
+        fetchPublicFeed(next, { etag, lastModified, redirects: redirects + 1, deadlineAt }).then(resolve, reject);
         return;
       }
       if (status !== 200) {
@@ -294,9 +335,8 @@ export async function fetchPublicFeed(input, { etag = null, lastModified = null,
     });
     const absoluteTimeout = setTimeout(
       () => request.destroy(new Error('Timeout total ao obter fonte RSS')),
-      FETCH_TIMEOUT_MS,
+      remainingDeadlineMs(deadlineAt),
     );
-    absoluteTimeout.unref?.();
     request.once('close', () => clearTimeout(absoluteTimeout));
     request.setTimeout(FETCH_TIMEOUT_MS, () => request.destroy(new Error('Timeout de inatividade ao obter fonte RSS')));
     request.on('error', reject);

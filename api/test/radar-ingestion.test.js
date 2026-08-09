@@ -1,7 +1,7 @@
 import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { migrate, pool, q } from '../src/db.js';
-import { ingestRssSource, parseSyndicationFeed, resolvePublicFeedTarget } from '../src/jobs/radar.js';
+import { ingestRssSource, parseSyndicationFeed, resolvePublicFeedTarget, resolveRedirectUrl, withDeadline } from '../src/jobs/radar.js';
 
 const RSS = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/">
@@ -68,6 +68,37 @@ test('parser rejeita DTD/entidades de XML não confiável', () => {
   assert.throws(
     () => parseSyndicationFeed('<!DOCTYPE rss [<!ENTITY x "boom">]><rss><channel><item><title>&x;</title></item></channel></rss>'),
     /DTD\/entidades/
+  );
+});
+
+test('GUID vazio cai para o link e não colide entre artigos', () => {
+  const xml = `<?xml version="1.0"?><rss><channel>
+    <item><title>Um</title><guid>   </guid><link>https://example.test/um</link></item>
+    <item><title>Dois</title><guid></guid><link>https://example.test/dois</link></item>
+  </channel></rss>`;
+  const entries = parseSyndicationFeed(xml, { now: Date.parse('2026-08-09T19:00:00Z') });
+  assert.equal(entries.length, 2);
+  assert.equal(entries[0].stableId, 'https://example.test/um');
+  assert.equal(entries[1].stableId, 'https://example.test/dois');
+  assert.notEqual(entries[0].stableId, entries[1].stableId);
+});
+
+test('redirect inválido vira erro controlado', () => {
+  assert.throws(() => resolveRedirectUrl('http://[::1', 'https://example.test/feed'), /Redirect RSS inválido/);
+});
+
+test('deadline cobre também uma resolução DNS bloqueada', async () => {
+  const deadlineAt = Date.now() + 25;
+  await assert.rejects(
+    () => resolvePublicFeedTarget('https://feed.example.test/rss', {
+      deadlineAt,
+      lookup: () => new Promise(() => {}),
+    }),
+    /Timeout ao resolver DNS/
+  );
+  await assert.rejects(
+    () => withDeadline(new Promise(() => {}), Date.now() + 25, 'deadline teste'),
+    /deadline teste/
   );
 });
 

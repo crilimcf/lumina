@@ -74,6 +74,32 @@ test('botão Novo abre o composer a partir de Perfil e Chat', async ({ page }) =
   await expect(page.getByPlaceholder('O que estás a ver?')).toBeVisible();
 });
 
+test('barra flutuante esconde ao descer, regressa ao subir e mantém o Novo funcional', async ({ page }) => {
+  await registerAndEnterFeed(page);
+
+  const nav = page.locator('.nav');
+  await expect(nav).toBeVisible();
+  await expect(nav).not.toHaveClass(/nav-smart-hidden/);
+
+  await page.evaluate(() => {
+    const spacer = document.createElement('div');
+    spacer.dataset.testid = 'dock-scroll-spacer';
+    spacer.style.height = '220vh';
+    spacer.style.pointerEvents = 'none';
+    document.body.appendChild(spacer);
+  });
+
+  await page.evaluate(() => window.scrollTo(0, 520));
+  await expect(nav).toHaveClass(/nav-smart-hidden/);
+
+  await page.evaluate(() => window.scrollTo(0, 240));
+  await expect(nav).not.toHaveClass(/nav-smart-hidden/);
+
+  await page.getByRole('button', { name: 'Novo' }).click();
+  await expect(page.getByPlaceholder('O que estás a ver?')).toBeVisible();
+  await expect(nav).not.toHaveClass(/nav-smart-hidden/);
+});
+
 test('Perfil funciona como hub social sem dependências antigas', async ({ page }) => {
   await registerAndEnterFeed(page);
   await page.getByRole('button', { name: 'Perfil' }).click();

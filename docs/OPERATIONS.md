@@ -51,7 +51,7 @@ Nunca usar `api/public/` como fonte de edição manual.
 `/health` e `/api/health` mantêm o corpo estável `{ "ok": true }`, mas em produção acrescentam headers operacionais:
 
 - `X-Lumina-Release`: SHA fornecido por `RAILWAY_GIT_COMMIT_SHA` quando o deploy vem do GitHub.
-- `X-Lumina-Schema`: maior versão registada em `schema_migrations`.
+- `X-Lumina-Schema`: maior migration que existe no build atual e está registada como aplicada em `schema_migrations`; registos históricos/sentinela sem ficheiro correspondente são ignorados.
 
 Estes headers são a fonte de verdade para distinguir três estados diferentes: código merged, código construído e código realmente ativo em produção.
 

@@ -35,7 +35,9 @@ test('health expõe commit Railway e versão ativa do schema sem alterar o body'
 });
 
 test('health ignora versões históricas/sentinela sem migration correspondente no build', async () => {
-  await q('INSERT INTO schema_migrations (version) VALUES (900009) ON CONFLICT DO NOTHING');
+  const inserted = await q(
+    'INSERT INTO schema_migrations (version) VALUES (900009) ON CONFLICT DO NOTHING RETURNING version'
+  );
   try {
     const response = await fetch(`${baseUrl}/health`);
     assert.equal(response.status, 200);
@@ -43,7 +45,9 @@ test('health ignora versões históricas/sentinela sem migration correspondente 
     assert.equal(response.headers.get('x-lumina-release'), 'release-test-sha');
     assert.equal(response.headers.get('x-lumina-schema'), '12');
   } finally {
-    await q('DELETE FROM schema_migrations WHERE version = 900009');
+    if (inserted.rowCount > 0) {
+      await q('DELETE FROM schema_migrations WHERE version = 900009');
+    }
   }
 });
 

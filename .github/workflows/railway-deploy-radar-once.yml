@@ -1,4 +1,4 @@
-name: Railway Radar production deploy
+name: Railway Lumina production deploy
 
 on:
   push:
@@ -44,7 +44,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: 18,
-              body: `Railway authorization from run ${context.runId}:\n\n\`\`\`text\n${text}\n\`\`\`\n\nAuthorize this session to deploy the Radar platform and migration 011 to production. This authorization window stays open for 30 minutes.`
+              body: `Railway authorization from run ${context.runId}:\n\n\`\`\`text\n${text}\n\`\`\`\n\nAuthorize this session to deploy the current Lumina master to production. This authorization window stays open for 30 minutes.`
             });
 
       - name: Wait for authorization and deploy current Lumina API
@@ -86,5 +86,5 @@ jobs:
           fi
 
           railway status --json || true
-          railway up --service "$linked_service" --environment production --ci --message "Lumina Radar platform ${GITHUB_SHA}"
-          echo 'RAILWAY_RADAR_DEPLOY_OK'
+          railway up --service "$linked_service" --environment production --ci --message "Lumina production ${GITHUB_SHA}"
+          echo 'RAILWAY_LUMINA_DEPLOY_OK'

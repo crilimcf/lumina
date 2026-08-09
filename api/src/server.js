@@ -88,9 +88,16 @@ app.use(['/auth/login', '/api/auth/login'], rateLimit({
 app.use(['/auth/register', '/api/auth/register'], rateLimit({ windowMs: 60 * 60_000, limit: 5, skip: skipInTests }));
 app.use(['/account/forgot-password', '/api/account/forgot-password'], rateLimit({ windowMs: 60 * 60_000, limit: 5, skip: skipInTests }));
 
+const releaseSha = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GITHUB_SHA || '';
 const health = async (_req, res) => {
-  try { await pool.query('SELECT 1'); res.json({ ok: true }); }
-  catch { res.status(503).json({ ok: false }); }
+  if (releaseSha) res.setHeader('X-Lumina-Release', releaseSha);
+  try {
+    const { rows } = await pool.query('SELECT COALESCE(MAX(version), 0)::int AS schema_version FROM schema_migrations');
+    res.setHeader('X-Lumina-Schema', String(rows[0]?.schema_version ?? 0));
+    res.json({ ok: true });
+  } catch {
+    res.status(503).json({ ok: false });
+  }
 };
 app.get(['/health', '/api/health'], health);
 

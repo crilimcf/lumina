@@ -3,22 +3,57 @@
 ## Ambientes
 
 - Web canónica: `https://lumina-snowy-ten.vercel.app`
-- API: Railway, root directory `api/`
+- API: Railway, projeto `lumina`, ambiente `production`, serviço `api`
+- Railway project ID: `ea3ad6aa-658d-4fb4-9659-8c3edc06cc77`
+- Railway service ID: `3d051e84-e985-48c1-9f31-b16a555f8075`
+- Railway root directory: `/api`
+- Railway config file: `/api/railway.json`
+- Railway domain: `https://api-production-f9e9.up.railway.app`
 - Web principal: Vercel, root directory `web/`
 - Web fallback: build Vite copiado automaticamente para `api/public/`
+
+## Ligação Railway ↔ GitHub obrigatória
+
+O serviço Railway `api` deve ter uma fonte GitHub persistente. Não usar `railway up` browserless como mecanismo normal de release.
+
+Configuração esperada em **Railway → lumina → production → api → Settings**:
+
+- Source repository: `crilimcf/lumina`
+- Branch: `master`
+- Root Directory: `/api`
+- Config File: `/api/railway.json`
+- Autodeploy: **Enabled**
+- Wait for CI: **Enabled**
+- Watch Paths: manter vazio ou usar `/api/**`; se forem usadas watch paths, garantir que alterações do fallback em `api/public/**` continuam a disparar deploy quando necessário.
+
+Com `Wait for CI` ativo, um push para `master` fica em espera enquanto os GitHub Actions correm. Se algum workflow obrigatório falhar, o deploy não deve avançar.
 
 ## Release normal
 
 1. Trabalhar numa branch.
 2. Esperar `CI` e `Mobile Safari WebKit` verdes.
 3. Rever o diff contra `master`.
-4. Fazer fast-forward/merge para `master`.
+4. Fazer merge para `master`.
 5. Esperar novamente os gates do `master`.
-6. Confirmar Vercel `READY`.
-7. Confirmar `/api/health`/health da API.
-8. Confirmar que o workflow Railway fallback terminou quando houve alterações em `web/`.
+6. Confirmar que Railway criou o deploy do mesmo commit de `master` e terminou com sucesso.
+7. Confirmar Vercel `READY` para o mesmo release web quando existirem alterações em `web/`.
+8. Consultar `/api/health` e verificar:
+   - HTTP `200`;
+   - `X-Lumina-Release` igual ao commit Railway esperado;
+   - `X-Lumina-Schema` igual à migration mais recente esperada.
+9. Confirmar `/api/radar` protegido (`401` sem sessão) e executar os smoke tests relevantes da release.
+10. Confirmar que o workflow Railway fallback terminou quando houve alterações em `web/`.
 
 Nunca usar `api/public/` como fonte de edição manual.
+
+## Identidade de release
+
+`/health` e `/api/health` mantêm o corpo estável `{ "ok": true }`, mas em produção acrescentam headers operacionais:
+
+- `X-Lumina-Release`: SHA fornecido por `RAILWAY_GIT_COMMIT_SHA` quando o deploy vem do GitHub.
+- `X-Lumina-Schema`: maior versão registada em `schema_migrations`.
+
+Estes headers são a fonte de verdade para distinguir três estados diferentes: código merged, código construído e código realmente ativo em produção.
 
 ## Migrações
 
@@ -33,7 +68,7 @@ Nunca usar `api/public/` como fonte de edição manual.
 
 Os jobs podem correr dentro do processo da API ou através dos scripts de cron, consoante a configuração do ambiente. Não manter duas implementações SQL diferentes para a mesma tarefa.
 
-Atualmente os jobs tratam expiração de mensagens e Momentos, uploads abandonados/órfãos, apagamentos RGPD e limpeza de tokens/tentativas de login.
+Atualmente os jobs tratam expiração de mensagens e Momentos, uploads abandonados/órfãos, apagamentos RGPD, limpeza de tokens/tentativas de login e ingestão automática do Radar.
 
 ## Operações destrutivas
 
@@ -62,7 +97,8 @@ Se a API falhar após migration:
 
 - consultar primeiro logs Railway e erro PostgreSQL;
 - não apagar/recriar a base de dados como primeira resposta;
-- verificar `DATABASE_URL`, `PGSSL` e variáveis de ambiente antes de qualquer operação destrutiva.
+- verificar `DATABASE_URL`, `PGSSL` e variáveis de ambiente antes de qualquer operação destrutiva;
+- comparar `X-Lumina-Release` e `X-Lumina-Schema` com o release esperado antes de assumir que o deploy novo ficou ativo.
 
 ## Variáveis críticas
 

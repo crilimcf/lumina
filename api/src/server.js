@@ -9,6 +9,7 @@ import { env } from './env.js';
 import { pool } from './db.js';
 import { errorHandler, auth, h, HttpError, csrfGuard } from './middleware/auth.js';
 import { startJobs } from './jobs/daily.js';
+import { startRadarJobs } from './jobs/radar-scheduler.js';
 
 import { authRoutes } from './routes/auth.js';
 import { postRoutes } from './routes/posts.js';
@@ -143,6 +144,7 @@ if (process.env.NODE_ENV !== 'test') {
   const server = app.listen(env.PORT, '0.0.0.0', () => {
     console.log(`Lumina API na porta ${env.PORT}`);
     startJobs();
+    startRadarJobs();
   });
   const shutdown = () => {
     console.log('[servidor] a fechar');

@@ -278,6 +278,7 @@ export async function fetchPublicFeed(input, {
         callback(null, target.address, target.family);
       },
     }, (response) => {
+      response.on('error', reject);
       const status = response.statusCode || 0;
       if (status === 304) {
         response.resume();
@@ -325,6 +326,10 @@ export async function fetchPublicFeed(input, {
         chunks.push(chunk);
       });
       response.on('end', () => {
+        if (!response.complete) {
+          reject(new Error('Resposta RSS incompleta'));
+          return;
+        }
         resolve({
           notModified: false,
           text: Buffer.concat(chunks).toString('utf8'),

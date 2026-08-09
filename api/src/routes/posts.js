@@ -136,8 +136,13 @@ postRoutes.get('/:postId/comments', auth, requireVisiblePost, h(async (req, res)
      JOIN users u ON u.id=cm.author_id
      JOIN posts p ON p.id=cm.post_id
      WHERE cm.post_id=$1 AND cm.hidden_at IS NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM blocks b
+         WHERE (b.blocker_id=$2 AND b.blocked_id=cm.author_id)
+            OR (b.blocked_id=$2 AND b.blocker_id=cm.author_id)
+       )
      ORDER BY cm.created_at LIMIT 200`,
-    [req.params.postId]
+    [req.params.postId, req.user.id]
   );
   res.json(rows);
 }));

@@ -15,7 +15,7 @@ export function MomentViewer({ group, onClose, onNext, onPrev, onView, onEdit = 
   const item = group.items[safeI];
   const isMine = group.author.id === meId;
   const isVideo = !!item && (item.media_mime?.startsWith('video/') || /\.(mp4|mov|webm)(?:$|\?)/i.test(item.media_url || ''));
-  const paused = replyFocused || replacing;
+  const paused = replyFocused || !!reply.trim() || replacing;
 
   useEffect(() => { setI(0); setReply(''); setSent(false); setReplyFocused(false); }, [group.author.id]);
   useEffect(() => { setVideoProgress(0); setReplyFocused(false); }, [item?.id]);

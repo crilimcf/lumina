@@ -36,7 +36,6 @@ async function call(path, { method = 'GET', body, auth = true } = {}) {
   } finally {
     clearTimeout(timeout);
   }
-
   if (res.status === 401 && auth) {
     const data = await res.json().catch(() => ({}));
     unauthorizedHandler();
@@ -131,32 +130,70 @@ export const api = {
     answer: (id) => call(`/calls/${id}/answer`, { method: 'POST' }),
     decline: (id) => call(`/calls/${id}/decline`, { method: 'POST' }),
     end: (id) => call(`/calls/${id}/end`, { method: 'POST' }),
-  },
-  moments: {
-    list: () => call('/moments'),
-    create: (b) => call('/moments', { method: 'POST', body: b }),
-    remove: (id) => call(`/moments/${id}`, { method: 'DELETE' }),
-  },
-  uploads: {
-    sign: (b) => call('/uploads/sign', { method: 'POST', body: b }),
-    confirm: (b) => call('/uploads/confirm', { method: 'POST', body: b }),
-  },
-  users: {
-    search: (query) => call(`/users/search?q=${encodeURIComponent(query)}`),
-    profile: (id) => call(`/users/${id}`),
-    follow: followAction,
-    unfollow: followAction,
-    followers: (id) => call(`/users/${id}/followers`),
-    following: (id) => call(`/users/${id}/following`),
-    block: (id) => call(`/users/${id}/block`, { method: 'POST' }),
-    unblock: (id) => call(`/users/${id}/block`, { method: 'DELETE' }),
-    blocked: () => call('/users/blocked'),
+    signal: (id, kind, payload) => call(`/calls/${id}/signals`, { method: 'POST', body: { kind, payload } }),
+    signals: (id, after = 0) => call(`/calls/${id}/signals?after=${after}`),
   },
   notifications: {
     list: (cursor) => call(`/notifications${cursor ? `?before=${encodeURIComponent(cursor)}` : ''}`),
-    unread: () => call('/notifications/unread'),
-    markRead: (id) => call(`/notifications/${id}/read`, { method: 'POST' }),
-    markAllRead: () => call('/notifications/read-all', { method: 'POST' }),
+    unread: () => call('/notifications/unread-count'),
+    read: (id) => call(`/notifications/${id}/read`, { method: 'POST' }),
+    readAll: () => call('/notifications/read-all', { method: 'POST' }),
+  },
+  twoFactor: {
+    status: () => call('/2fa/status'),
+    setup: (password) => call('/2fa/setup', { method: 'POST', body: { password } }),
+    enable: (code) => call('/2fa/enable', { method: 'POST', body: { code } }),
+    disable: (password) => call('/2fa/disable', { method: 'POST', body: { password } }),
+  },
+  sessions: {
+    list: () => call('/sessions'),
+    revoke: (id) => call(`/sessions/${id}`, { method: 'DELETE' }),
+    revokeAll: () => call('/sessions/revoke-all', { method: 'POST' }),
+  },
+  moderation: {
+    queue: (cid) => call(`/reports/community/${cid}`),
+    resolve: (id, resolution) => call(`/reports/${id}/resolve`, { method: 'POST', body: { resolution } }),
+  },
+  users: {
+    search: (q) => call(`/users/search?q=${encodeURIComponent(q)}`),
+    get: (handle) => call(`/users/${handle}`),
+    posts: (handle) => call(`/users/${handle}/posts`),
+    followAction,
+    follow: async (id) => {
+      const result = await followAction(id);
+      // Os ecrãs legados assumiam que qualquer 2xx significava follow ativo.
+      // Num perfil privado isso seria visualmente falso: o servidor só criou
+      // um pedido. Fazemos esses ecrãs manterem o estado e mostrarem o toast,
+      // enquanto o novo centro Atividade usa followAction e mostra "Pendente".
+      if (result?.pending) throw new ApiError(202, 'Pedido enviado', 'follow_pending');
+      return result;
+    },
+    unfollow: (id) => call(`/users/${id}/follow`, { method: 'DELETE' }),
+    block: (id) => call(`/users/${id}/block`, { method: 'POST' }),
+    unblock: (id) => call(`/users/${id}/block`, { method: 'DELETE' }),
+    blocked: () => call('/users/me/blocked'),
+    followers: () => call('/users/me/followers'),
+    following: () => call('/users/me/following'),
+    suggestions: () => call('/users/me/suggestions'),
+    privacy: () => call('/users/me/privacy'),
+    setPrivacy: (isPrivate) => call('/users/me/privacy', { method: 'PATCH', body: { isPrivate } }),
+    followRequests: () => call('/users/me/follow-requests'),
+    acceptRequest: (id) => call(`/users/me/follow-requests/${id}/accept`, { method: 'POST' }),
+    declineRequest: (id) => call(`/users/me/follow-requests/${id}/decline`, { method: 'POST' }),
   },
   reports: { create: (b) => call('/reports', { method: 'POST', body: b }) },
+  moments: {
+    list: () => call('/moments'),
+    create: (b) => call('/moments', { method: 'POST', body: b }),
+    view: (id) => call(`/moments/${id}/view`, { method: 'POST' }),
+    viewers: (id) => call(`/moments/${id}/viewers`),
+    remove: (id) => call(`/moments/${id}`, { method: 'DELETE' }),
+  },
+  async upload(file) {
+    const { uploadUrl, key } = await call('/uploads/sign', { method: 'POST', body: { mime: file.type, bytes: file.size } });
+    const res = await fetch(uploadUrl, { method: 'PUT', headers: { 'content-type': file.type }, body: file });
+    if (!res.ok) throw new ApiError(res.status, 'Não foi possível enviar o ficheiro');
+    const { url } = await call('/uploads/confirm', { method: 'POST', body: { key } });
+    return url;
+  },
 };

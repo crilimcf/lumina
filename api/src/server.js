@@ -29,8 +29,6 @@ import { notificationRoutes } from './routes/notifications.js';
 const app = express();
 const webDir = path.resolve(process.cwd(), 'public');
 const webIndex = path.join(webDir, 'index.html');
-const resetTriggerPath = path.resolve(process.cwd(), 'ops-reset-trigger.json');
-const RESET_PROOF_VERSION = 900009;
 
 app.set('trust proxy', 1);
 app.use(helmet({
@@ -112,27 +110,6 @@ const health = async (_req, res) => {
 };
 app.get(['/health', '/api/health'], health);
 
-// Endpoint operacional temporário usado apenas para provar externamente que
-// o reset de lançamento chegou à Railway e deixou os dados sociais a zero.
-app.get(['/ops/reset-status-20260809', '/api/ops/reset-status-20260809'], h(async (_req, res) => {
-  const [marker, counts] = await Promise.all([
-    pool.query('SELECT 1 FROM schema_migrations WHERE version = $1', [RESET_PROOF_VERSION]),
-    pool.query(`SELECT
-      (SELECT count(*) FROM users)::int AS users,
-      (SELECT count(*) FROM posts)::int AS posts,
-      (SELECT count(*) FROM moments)::int AS moments,
-      (SELECT count(*) FROM rooms)::int AS rooms,
-      (SELECT count(*) FROM uploads)::int AS uploads`),
-  ]);
-  const data = counts.rows[0];
-  res.json({
-    version: RESET_PROOF_VERSION,
-    reset: marker.rowCount === 1,
-    empty: Object.values(data).every(value => Number(value) === 0),
-    counts: data,
-  });
-}));
-
 const mountApi = (prefix = '') => {
   app.use(`${prefix}/auth`, authRoutes);
   app.use(`${prefix}/communities`, communityRoutes);
@@ -187,18 +164,6 @@ app.use(errorHandler);
 if (process.env.NODE_ENV !== 'test') {
   const { migrate } = await import('./db.js');
   await migrate();
-
-  // Segundo mecanismo one-shot: se a plataforma ignorar o startCommand do
-  // railway.json, este trigger versionado executa exatamente o mesmo reset.
-  // O marcador 900009 torna a operação idempotente em ambos os caminhos.
-  if (fs.existsSync(resetTriggerPath)) {
-    const trigger = JSON.parse(fs.readFileSync(resetTriggerPath, 'utf8'));
-    if (trigger.confirmation !== 'RESET_LUMINA_PRODUCTION' || Number(trigger.version) !== RESET_PROOF_VERSION) {
-      throw new Error('Trigger de reset de produção inválido');
-    }
-    const { resetProduction } = await import('../scripts/reset-production.js');
-    await resetProduction({ confirmation: trigger.confirmation });
-  }
 
   const server = app.listen(env.PORT, '0.0.0.0', () => {
     console.log(`Lumina API na porta ${env.PORT}`);

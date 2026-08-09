@@ -6,7 +6,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import { env } from './env.js';
-import { pool } from './db.js';
+import { pool, getAppliedSchemaVersion } from './db.js';
 import { errorHandler, auth, h, HttpError, csrfGuard } from './middleware/auth.js';
 import { startJobs } from './jobs/daily.js';
 import { startRadarJobs } from './jobs/radar-scheduler.js';
@@ -92,8 +92,8 @@ const releaseSha = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GITHUB_SHA 
 const health = async (_req, res) => {
   if (releaseSha) res.setHeader('X-Lumina-Release', releaseSha);
   try {
-    const { rows } = await pool.query('SELECT COALESCE(MAX(version), 0)::int AS schema_version FROM schema_migrations');
-    res.setHeader('X-Lumina-Schema', String(rows[0]?.schema_version ?? 0));
+    const schemaVersion = await getAppliedSchemaVersion();
+    res.setHeader('X-Lumina-Schema', String(schemaVersion));
     res.json({ ok: true });
   } catch {
     res.status(503).json({ ok: false });

@@ -150,7 +150,7 @@ test('Radar é legível por utilizadores mas só a equipa Lumina o pode gerir', 
   assert.equal(managedArchived.data.items.some(item => item.id === news.data.id), true);
 });
 
-test('Radar valida tipos, URLs e aplica janelas diferentes a eventos e promoções', async () => {
+test('Radar valida tipos, URLs, cursores, atribuição comercial e janelas temporais', async () => {
   const staff = await register('radar.editor');
   const member = await register('radar.reader');
   await q('UPDATE users SET is_staff=true WHERE id=$1', [staff.user.id]);
@@ -168,6 +168,17 @@ test('Radar valida tipos, URLs e aplica janelas diferentes a eventos e promoçõ
   });
   assert.equal(badUrl.response.status, 400);
   assert.equal(badUrl.data.code, 'bad_url');
+
+  const badCursor = await request('/radar?before=isto-nao-e-data', { token: member.token });
+  assert.equal(badCursor.response.status, 400);
+  assert.equal(badCursor.data.code, 'bad_date');
+
+  const anonymousSponsor = await request('/radar', {
+    method: 'POST', token: staff.token,
+    body: { type: 'promotion', title: 'Campanha sem parceiro', sponsored: true },
+  });
+  assert.equal(anonymousSponsor.response.status, 400);
+  assert.equal(anonymousSponsor.data.code, 'missing_sponsor');
 
   const missingEventStart = await request('/radar', {
     method: 'POST', token: staff.token,
@@ -206,6 +217,7 @@ test('Radar valida tipos, URLs e aplica janelas diferentes a eventos e promoçõ
       startsAt: '2099-01-01T10:00:00Z',
       endsAt: '2099-01-02T10:00:00Z',
       sponsored: true,
+      sponsorLabel: 'Parceiro Futuro',
     },
   });
   assert.equal(futurePromotion.response.status, 201, JSON.stringify(futurePromotion.data));

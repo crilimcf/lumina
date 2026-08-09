@@ -4,6 +4,8 @@ on:
   pull_request:
   push:
     branches:
+      - master
+      - 'qa/**'
       - 'refactor/**'
       - 'feature/**'
       - 'fix/**'

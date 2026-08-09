@@ -135,6 +135,10 @@ export const api = {
     revoke: (id) => call(`/sessions/${id}`, { method: 'DELETE' }),
     revokeAll: () => call('/sessions/revoke-all', { method: 'POST' }),
   },
+  moderation: {
+    queue: () => call('/reports/queue'),
+    resolve: (id, resolution) => call(`/reports/${id}/resolve`, { method: 'POST', body: { resolution } }),
+  },
   users: {
     search: (q) => call(`/users/search?q=${encodeURIComponent(q)}`),
     get: (handle) => call(`/users/${handle}`),

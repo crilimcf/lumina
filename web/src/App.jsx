@@ -12,6 +12,7 @@ import { Perfil } from './screens/Perfil.jsx';
 import { Feed } from './screens/Feed.jsx';
 import { Salas } from './screens/Salas.jsx';
 import { Promocoes } from './screens/Promocoes.jsx';
+import { RadarAdmin } from './screens/RadarAdmin.jsx';
 import { Atividade } from './screens/Atividade.jsx';
 import { useFeed } from './hooks/useFeed.js';
 import { useMessages } from './hooks/useMessages.js';
@@ -115,6 +116,7 @@ export default function App() {
 
   if (screen==='seguranca') return <Seguranca onBack={()=>setScreen(null)} ping={ping}/>;
   if (screen==='moderacao') return <Moderacao onBack={()=>setScreen(null)} ping={ping}/>;
+  if (screen==='radar-admin' && me.is_staff) return <RadarAdmin onBack={()=>setScreen(null)} ping={ping}/>;
   if (screen==='TERMOS'||screen==='PRIVACIDADE') return <Legal page={screen} onBack={()=>setScreen(null)}/>;
   if (screen==='editar-perfil') return <EditarPerfil me={me} onSave={setMe} onBack={()=>setScreen(null)} ping={ping}/>;
   if (screen==='amigos') return <Amigos onBack={()=>setScreen(null)} ping={ping}/>;
@@ -134,7 +136,7 @@ export default function App() {
   let activeScreen;
   if (tab==='dms') activeScreen=<Conversas me={me} {...navProps} comp={comp} {...messageState}/>;
   else if (tab==='rooms') activeScreen=<Salas me={me} {...navProps}/>;
-  else if (tab==='promos') activeScreen=<Promocoes {...navProps}/>;
+  else if (tab==='promos') activeScreen=<Promocoes me={me} setScreen={setScreen} {...navProps}/>;
   else if (tab==='alerts') activeScreen=<Atividade {...navProps} onUnreadChange={setUnreadCount}/>;
   else if (tab==='me') activeScreen=<Perfil me={me} blocked={blocked} setBlocked={setBlocked} setScreen={setScreen} logout={logout} tab={tab} setTab={setTab} setThread={messageState.setThread} setComp={composerState.setComp} threads={messageState.threads} ping={ping} toast={toast} unreadCount={unreadCount}/>;
   else activeScreen=<Feed me={me} tab={tab} setTab={setTab} setScreen={setScreen} {...feedState} report={report} comp={null} {...composerWithoutComp} threads={messageState.threads} setThread={messageState.setThread} ping={ping} toast={toast} unreadCount={unreadCount} {...momentState}/>;

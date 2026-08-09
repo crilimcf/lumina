@@ -82,12 +82,17 @@ test('duas fontes RSS com GUIDs diferentes publicam uma só linha para a mesma n
   });
 
   const { rows } = await q(
-    `SELECT id, external_url, source_id, status
+    `SELECT id, title, external_url, source_id, status
        FROM radar_items
       WHERE external_url LIKE 'https://news.example.test/shared-story%'`
   );
 
   assert.equal(rows.length, 1);
-  assert.equal(rows[0].source_id, sourceB.id);
+  assert.equal(rows[0].source_id, sourceA.id);
+  assert.equal(rows[0].title, 'Notícia partilhada A');
   assert.equal(rows[0].status, 'published');
+
+  const secondSource = await q('SELECT last_success_at, last_fetch_error FROM radar_sources WHERE id=$1', [sourceB.id]);
+  assert.ok(secondSource.rows[0].last_success_at, 'a fonte duplicada continua marcada como sincronizada');
+  assert.equal(secondSource.rows[0].last_fetch_error, null);
 });

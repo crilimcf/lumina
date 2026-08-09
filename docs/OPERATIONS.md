@@ -31,34 +31,20 @@ Nunca usar `api/public/` como fonte de edição manual.
 
 Os jobs podem correr dentro do processo da API ou através dos scripts de cron, consoante a configuração do ambiente. Não manter duas implementações SQL diferentes para a mesma tarefa.
 
-## Reset total de produção
+## Operações destrutivas
 
-O reset existe apenas para situações deliberadas como a passagem de ambiente de desenvolvimento/teste para uma instância pública vazia.
+A aplicação de produção **não mantém um comando permanente de reset total** e o arranque normal da Railway é apenas `npm start`.
 
-Comando protegido:
+Se no futuro for necessária uma limpeza integral de ambiente, tratar como operação excepcional de release:
 
-```bash
-cd api
-LUMINA_RESET_CONFIRM=RESET_LUMINA_PRODUCTION npm run reset:production
-```
+1. criar implementação temporária numa branch dedicada;
+2. exigir confirmação explícita e proteção contra repetição;
+3. testar primeiro numa base PostgreSQL descartável;
+4. garantir limpeza coordenada de dados e media rastreado;
+5. validar contadores/estado depois da execução;
+6. remover o mecanismo destrutivo e voltar ao arranque normal antes de encerrar a release.
 
-O script `api/scripts/reset-production.js`:
-
-1. recusa correr sem a frase de confirmação exata;
-2. garante migrations atuais;
-3. impede execução repetida da mesma operação;
-4. elimina objetos de media rastreados no armazenamento;
-5. trunca dinamicamente as tabelas de dados, preservando metadata de schema/operação;
-6. reinicia sequências;
-7. verifica que utilizadores, posts, Momentos, Salas e uploads ficaram a zero.
-
-### Regras do reset
-
-- executar apenas depois de backup/decisão explícita;
-- nunca executar como parte do `npm start` normal;
-- nunca usar `seed` depois do reset de lançamento;
-- o reset apaga media **rastreado pela base de dados**. Objetos órfãos antigos sem linha em `uploads` exigem inspeção do bucket pelo fornecedor de armazenamento;
-- depois da limpeza, confirmar contadores a zero e criar a primeira conta apenas pela interface pública.
+Nunca executar `seed` em produção pública nem introduzir comandos destrutivos no `npm start` normal.
 
 ## Recuperação
 

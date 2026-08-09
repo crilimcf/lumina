@@ -456,6 +456,7 @@ export async function ingestRssSource(source, { fetchFeedImpl = fetchPublicFeed 
       .sort((a, b) => (Date.parse(b.publishedAt || '') || 0) - (Date.parse(a.publishedAt || '') || 0))
       .slice(0, config.maxItems);
     const initialStatus = source.trusted && config.autoPublish ? 'published' : 'draft';
+    const publishable = initialStatus === 'published';
     const { rows: existingRssItems } = await q(
       `SELECT ri.fingerprint, ri.external_url
          FROM radar_items ri
@@ -463,8 +464,9 @@ export async function ingestRssSource(source, { fetchFeedImpl = fetchPublicFeed 
         WHERE ri.fingerprint LIKE 'rss:%'
           AND ri.external_url IS NOT NULL
           AND ri.published_at >= now() - ($1::int * interval '1 day')
-          AND rs.trusted = $2`,
-      [config.maxAgeDays, !!source.trusted]
+          AND rs.trusted = $2
+          AND (rs.trusted AND (rs.config->'autoPublish' IS DISTINCT FROM 'false'::jsonb)) = $3`,
+      [config.maxAgeDays, !!source.trusted, publishable]
     );
     const canonicalExisting = new Map();
     for (const existing of existingRssItems) {

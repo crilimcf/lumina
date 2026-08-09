@@ -13,6 +13,23 @@ export function useMoments({ me, ping }) {
     api.moments.list().then(setMoments).catch(() => {});
   }, []);
 
+  const editMoment = useCallback(async (id, file) => {
+    if (!file) return false;
+    setMomentBusy(true);
+    try {
+      const mediaUrl = await api.upload(file);
+      const edited = await api.moments.update(id, { mediaUrl });
+      setMoments(current => current.map(moment => moment.id === id ? { ...moment, ...edited } : moment));
+      ping('Momento atualizado');
+      return true;
+    } catch (e) {
+      ping(e.message);
+      return false;
+    } finally {
+      setMomentBusy(false);
+    }
+  }, [ping]);
+
   const momentGroups = useMemo(() => {
     const map = new Map();
     for (const moment of moments) {
@@ -25,6 +42,7 @@ export function useMoments({ me, ping }) {
             palette: moment.author_palette,
             avatarUrl: moment.author_avatar_url,
           },
+          onEdit: editMoment,
           items: [],
         });
       }
@@ -40,7 +58,7 @@ export function useMoments({ me, ping }) {
       return aUnseen === bUnseen ? 0 : aUnseen ? -1 : 1;
     });
     return groups;
-  }, [moments, me?.id]);
+  }, [moments, me?.id, editMoment]);
 
   const myMomentGroup = momentGroups.find(group => group.author.id === me?.id) || null;
 
@@ -65,9 +83,7 @@ export function useMoments({ me, ping }) {
 
   const viewMoment = (id) => {
     api.moments.view(id).catch(() => {});
-    setMoments(current => current.map(moment =>
-      moment.id === id ? { ...moment, viewed: true } : moment
-    ));
+    setMoments(current => current.map(moment => moment.id === id ? { ...moment, viewed: true } : moment));
   };
 
   const deleteMoment = async (id) => {
@@ -75,9 +91,7 @@ export function useMoments({ me, ping }) {
       await api.moments.remove(id);
       setMoments(current => {
         const remaining = current.filter(moment => moment.id !== id);
-        setViewingAuthor(authorId =>
-          authorId && !remaining.some(moment => moment.author_id === authorId) ? null : authorId
-        );
+        setViewingAuthor(authorId => authorId && !remaining.some(moment => moment.author_id === authorId) ? null : authorId);
         return remaining;
       });
       ping('Momento apagado');
@@ -99,22 +113,12 @@ export function useMoments({ me, ping }) {
   };
 
   return {
-    moments,
-    loadMoments,
-    momentGroups,
-    myMomentGroup,
-    viewingAuthor,
-    setViewingAuthor,
-    momentComposer,
-    setMomentComposer,
-    momentFile,
-    setMomentFile,
-    momentPalette,
-    setMomentPalette,
-    momentBusy,
-    publishMoment,
-    viewMoment,
-    deleteMoment,
-    replyToMoment,
+    moments, loadMoments, momentGroups, myMomentGroup,
+    viewingAuthor, setViewingAuthor,
+    momentComposer, setMomentComposer,
+    momentFile, setMomentFile,
+    momentPalette, setMomentPalette,
+    momentBusy, publishMoment, editMoment,
+    viewMoment, deleteMoment, replyToMoment,
   };
 }

@@ -97,7 +97,7 @@ Nenhuma alteração deve chegar ao `master` sem:
 4. Auditoria de dependências de produção sem vulnerabilidades `high` ou `critical` conhecidas.
 5. Verificação da produção depois do deploy.
 
-Consultar [docs/OPERATIONS.md](docs/OPERATIONS.md) para deploy, fallback, reset e recuperação.
+Consultar [docs/OPERATIONS.md](docs/OPERATIONS.md) para deploy, fallback e recuperação.
 
 ## Documentação
 

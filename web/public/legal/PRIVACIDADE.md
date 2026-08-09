@@ -1,183 +1,114 @@
-# Política de Privacidade
+# Política de Privacidade da Lumina
 
-**Versão 2026-08-08**
+**Versão:** 9 de agosto de 2026
 
-> ⚠️ **Rascunho.** Descreve com rigor o que o código faz, mas a conformidade
-> legal depende de coisas que estão fora do código: onde alojas, que contratos
-> assinaste, se transferes dados para fora da UE. Confirma com quem perceba de
-> proteção de dados antes de publicar.
->
-> Os campos entre `[colchetes]` têm de ser preenchidos por ti.
+> Este texto é uma base técnica de produto e deve ser revisto por aconselhamento jurídico antes de um lançamento público alargado.
 
----
+## 1. Responsável pelo tratamento
 
-## Quem trata os teus dados
+**Responsável:** `[nome/empresa a preencher]`
 
-`[Nome legal]`, com sede em `[morada]`, NIF `[NIF]`.
-Contacto para privacidade: `[email]`.
+**Email:** `[email a preencher]`
 
-`[Se tiveres encarregado de proteção de dados, indica-o aqui. À tua escala
-provavelmente não é obrigatório, mas confirma.]`
+**Morada/NIF:** `[a preencher]`
 
----
+Estes campos têm de ser preenchidos antes do lançamento público.
 
-## O que recolhemos e porquê
+## 2. Dados tratados
 
-### Para teres conta
+Consoante as funcionalidades usadas, a Lumina pode tratar:
 
-| Dado | Porquê | Base legal |
-|---|---|---|
-| Nome e nome de utilizador | Identificar-te na app | Execução do contrato |
-| Email | Entrar, recuperar password, avisos importantes | Execução do contrato |
-| Password | Guardada em hash bcrypt. **Não a conseguimos ler.** | Execução do contrato |
-| Data de nascimento | Aplicar a política 16+ da Lumina | Execução do contrato |
-| Data em que aceitaste os termos | Registar a versão dos termos que aceitaste | Execução do contrato |
+- identificador interno da conta;
+- nome, nome de utilizador, email e data de nascimento;
+- bio, avatar e interesses adicionados ao perfil;
+- configuração de perfil público/privado;
+- relações de follow, pedidos de follow e bloqueios;
+- publicações, comentários, reações e reposts;
+- Momentos e respetivas visualizações;
+- Salas criadas/aderidas, convites e mensagens de Sala;
+- mensagens privadas, estado de leitura/abertura e chamadas;
+- fotografias e vídeos carregados;
+- denúncias e decisões de moderação;
+- dados técnicos de segurança, como sessões, user-agent, IP e tentativas de login;
+- pedidos de recuperação de password, 2FA e códigos de recuperação em formato protegido;
+- dados necessários a pagamentos quando uma funcionalidade paga estiver efetivamente ativada.
 
-A Lumina escolheu ser um serviço **16+ como política do produto**. Este limite
-não é apresentado como a idade mínima legal de consentimento digital em
-Portugal.
+## 3. Para que usamos os dados
 
-### Quando usas a app
+Os dados são tratados para:
 
-| Dado | Porquê | Base legal |
-|---|---|---|
-| Publicações, comentários, reações | É o serviço | Execução do contrato |
-| Imagens que envias | É o serviço | Execução do contrato |
-| Mensagens privadas | É o serviço | Execução do contrato |
-| Comunidades a que pertences | Mostrar-te o feed certo | Execução do contrato |
-| Convites que propões e votos | Escolher o convite do dia | Execução do contrato |
-| Dias em que respondeste | Mostrar-te o teu registo | Execução do contrato |
-| Momentos (foto ou só cor, 24h) e quem os viu | É o serviço | Execução do contrato |
+- criar e proteger a conta;
+- mostrar o Feed, perfis e ligações sociais;
+- gerir perfis privados e pedidos de follow;
+- permitir Salas, Chat, chamadas, Momentos e Radar;
+- guardar e servir media;
+- prevenir abuso, spam e acessos indevidos;
+- moderar conteúdo denunciado;
+- executar pedidos de exportação, correção e apagamento;
+- operar, diagnosticar e melhorar o serviço.
 
-### Para segurança
+A base jurídica aplicável depende da finalidade concreta e deve ser confirmada no texto jurídico final antes do lançamento público.
 
-| Dado | Porquê | Base legal |
-|---|---|---|
-| Tentativas de entrada (email, IP, êxito) | Travar ataques a contas | Interesse legítimo |
-| Sessões ativas (dispositivo, IP) | Deixares-te ver e fechar sessões | Interesse legítimo |
-| Denúncias que fazes | Moderação | Interesse legítimo |
-| Registo de decisões de moderação | Responder a queixas sobre decisões | Interesse legítimo |
+## 4. Visibilidade
 
-**O que não recolhemos:** localização, contactos do telemóvel, histórico de
-navegação fora da Lumina, dados de outras apps. Não há rastreadores de terceiros
-nem publicidade.
+- Um perfil público pode ser consultado por outras pessoas autenticadas na Lumina.
+- Um perfil privado só expõe as suas publicações depois de um pedido de follow ser aceite.
+- O Feed social mostra a própria pessoa e autores que ela segue.
+- Salas públicas podem ser descobertas por pessoas Lumina; Salas privadas dependem de convite.
+- Um bloqueio corta relações e visibilidade entre as duas contas.
+- Momentos seguem a mesma relação social do Feed e expiram após 24 horas.
 
----
+## 5. Mensagens e conteúdo efémero
 
-## Cookies
+Mensagens privadas e mensagens de Sala são armazenadas para fornecer o serviço.
 
-Não usamos cookies de publicidade nem de análise.
+Mensagens com temporizador ou de abertura única e Momentos são removidos do conteúdo ativo segundo as regras apresentadas no produto. A Lumina não consegue impedir que outra pessoa faça uma captura de ecrã, gravação ou cópia antes da expiração.
 
-Para manter a sessão iniciada usamos um **cookie estritamente necessário** de
-sessão, com `Secure`, `HttpOnly`, `SameSite=Lax` e âmbito do próprio site. O
-JavaScript da página não consegue ler esse cookie. Ele serve apenas para
-identificar a sessão perante a Lumina e não para te seguir entre sites.
+## 6. Sessão e armazenamento local
 
-Para pedidos que alteram dados usamos também uma proteção CSRF associada à
-sessão. O valor necessário é mantido apenas em memória pela aplicação e não é
-um identificador publicitário.
+A sessão browser principal usa um cookie `HttpOnly`, `Secure`, `SameSite=Lax` e `Path=/`. O JavaScript da aplicação não lê esse cookie.
 
----
+O valor CSRF necessário para pedidos que alteram estado é devolvido pela API e mantido em memória pela aplicação. O PWA pode também usar armazenamento local do browser para preferências técnicas não sensíveis.
 
-## Quem mais toca nos teus dados
+## 7. Fornecedores
 
-Trabalhamos com estes prestadores, cada um com contrato de subcontratação:
+A arquitetura atual pode envolver:
 
-| Prestador | Para quê | Onde |
-|---|---|---|
-| Railway | Servidor e base de dados | UE (europe-west4) |
-| Vercel | Servir a aplicação | `[região]` |
-| Resend | Enviar emails de recuperação | `[região]` — ainda não configurado |
-| Cloudflare R2 | Guardar as imagens | `[região]` — ainda não configurado |
+- **Railway** — API;
+- **PostgreSQL** — base de dados;
+- **Vercel** — aplicação web;
+- **Cloudflare R2 / serviço S3-compatível** — fotografias e vídeos;
+- **Resend** — emails transacionais;
+- **Stripe** — apenas quando funcionalidades pagas forem ativadas.
 
-`[Para os restantes prestadores, se algum tratar dados fora do Espaço
-Económico Europeu, indica aqui as garantias aplicáveis. Escolher regiões
-europeias evita a questão — é o que já foi feito para o alojamento.]`
+Antes de lançamento público devem ser confirmados contratos, regiões de tratamento, subcontratantes e mecanismos de transferência aplicáveis.
 
-Não vendemos dados a ninguém. Não os cedemos para publicidade. Só os
-entregamos a autoridades quando a lei nos obrigar.
+## 8. Retenção
 
----
+- Momentos expiram após 24 horas.
+- Mensagens temporárias são limpas depois de abertas/expirarem conforme o modo escolhido.
+- Tokens de recuperação expirados e tentativas antigas de login são limpos periodicamente.
+- Pedidos de apagamento de conta têm uma janela de 30 dias antes da execução, salvo obrigações legais em contrário.
+- Uploads abandonados/órfãos são limpos por jobs da API.
 
-## Quanto tempo guardamos
+## 9. Direitos
 
-| Dado | Quanto tempo |
-|---|---|
-| Conta e conteúdo | Enquanto tiveres conta ou até apagares esse conteúdo |
-| Depois de pedires o apagamento | 30 dias, para poderes mudar de ideias |
-| Mensagens efémeras | O conteúdo é purgado quando expira; a limpeza corre continuamente e fica apenas o registo de que a mensagem existiu |
-| Fotos “uma vez” | Depois de abertas, expiram no prazo configurado e o conteúdo é purgado; não prometemos impedir capturas de ecrã |
-| Momentos | Deixam de ser visíveis às 24 horas; o job de limpeza remove depois a linha e o ficheiro associado |
-| Uploads abandonados | Ficheiros que não chegam a ser usados são eliminados pelos jobs de limpeza |
-| Tentativas de entrada | `[90]` dias |
-| Registo de moderação | `[2]` anos, para poder responder a queixas |
-| Pedidos de recuperação de password | 1 hora até expirarem; apagados ao fim de 7 dias |
+A aplicação contém mecanismos técnicos para:
 
-Quando uma imagem pertence a conteúdo efémero ou a um Momento, a Lumina remove
-também o objeto do armazenamento assim que o job de expiração consegue
-concluir. Se o fornecedor de armazenamento estiver temporariamente indisponível,
-o conteúdo já expirado deixa de ser servido pela aplicação e a remoção física
-fica pendente para nova tentativa.
+- corrigir dados de perfil;
+- exportar dados da conta;
+- pedir apagamento;
+- cancelar o pedido durante a janela prevista;
+- gerir privacidade, follows, bloqueios e sessões.
 
----
+Para exercer outros direitos previstos pela legislação aplicável, deve existir um canal de contacto preenchido na secção 1.
 
-## Os teus direitos
+## 10. Segurança
 
-O RGPD dá-te estes direitos, e todos funcionam na app:
+A Lumina aplica medidas técnicas como hashing de passwords, sessões revogáveis, 2FA opcional, proteção CSRF, rate limiting, validação de uploads, Content-Security-Policy e controlo de acesso no servidor.
 
-**Aceder e levar os teus dados.** Perfil → *Descarregar tudo*. Recebes um
-ficheiro JSON com tudo o que temos sobre ti.
+Nenhum sistema é invulnerável; incidentes relevantes devem ser avaliados e tratados de acordo com as obrigações legais aplicáveis.
 
-**Corrigir.** Perfil → editar. Se houver algo que não consegues corrigir
-sozinho, escreve-nos.
+## 11. Alterações
 
-**Apagar.** Perfil → *Apagar conta*. Fica agendado para 30 dias depois; entrar
-outra vez cancela. O processo remove também os ficheiros que pertencem à conta e
-retira referências derivadas, como imagens copiadas por uma republicação.
-
-**Opor-te e limitar o tratamento.** Escreve para `[email]` a explicar o que
-pretendes.
-
-**Reclamar.** Se achares que tratámos mal os teus dados, podes apresentar
-reclamação à Comissão Nacional de Proteção de Dados — [cnpd.pt](https://www.cnpd.pt).
-
-Respondemos a qualquer pedido no prazo de **30 dias**.
-
----
-
-## Segurança
-
-- Passwords guardadas com bcrypt, fator de custo 12. Ninguém as consegue ler.
-- Toda a comunicação é cifrada em trânsito (HTTPS).
-- Sessão em cookie `HttpOnly`, em vez de token legível em `localStorage`.
-- Autenticação em dois passos disponível.
-- Bloqueio progressivo após tentativas falhadas.
-- Imagens verificadas pela assinatura do ficheiro, tamanho real e ownership antes de serem usadas.
-- Um upload confirmado é consumido por um único conteúdo criado pelo utilizador, reduzindo reutilização indevida de URLs.
-
-**O que não te podemos prometer:** as mensagens privadas **não** têm cifragem
-ponto a ponto. Estão cifradas em trânsito e o acesso está restringido, mas
-tecnicamente conseguiríamos lê-las. Preferimos dizer-te isto a deixar-te
-assumir o contrário.
-
----
-
-## Se houver uma falha de segurança
-
-Se acontecer uma falha que ponha os teus dados em risco, notificamos a CNPD nas
-72 horas seguintes quando a lei assim o exigir e avisamos-te diretamente se o
-risco for elevado.
-
----
-
-## Menores
-
-A Lumina é para maiores de 16 anos por decisão do produto. Se souberes de uma
-conta de alguém com menos de 16 anos, escreve para `[email]` e tratamos do caso.
-
----
-
-## Alterações
-
-Se mudarmos alguma coisa relevante, avisamos com `[15]` dias de antecedência
-pela app ou por email.
+Esta Política pode ser atualizada quando o produto, os fornecedores ou os requisitos legais mudarem. Alterações relevantes devem ser comunicadas de forma adequada.

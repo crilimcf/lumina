@@ -216,9 +216,28 @@ export function resolveRedirectUrl(location, base) {
   catch { throw new Error('Redirect RSS inválido'); }
 }
 
+function mappedIpv4(address) {
+  const value = String(address || '').trim().toLowerCase();
+  const dotted = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(value);
+  if (dotted && net.isIP(dotted[1]) === 4) return dotted[1];
+
+  const hex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(value);
+  if (!hex) return null;
+  const high = Number.parseInt(hex[1], 16);
+  const low = Number.parseInt(hex[2], 16);
+  if (!Number.isInteger(high) || !Number.isInteger(low)) return null;
+  return `${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`;
+}
+
+export function normalizeResolvedAddress(address, family) {
+  const mapped = Number(family) === 6 ? mappedIpv4(address) : null;
+  return mapped ? { address: mapped, family: 4 } : { address: String(address), family: Number(family) };
+}
+
 function isBlockedAddress(address, family) {
-  if (family === 4) return blocked.check(address, 'ipv4');
-  if (family === 6) return blocked.check(address, 'ipv6');
+  const normalized = normalizeResolvedAddress(address, family);
+  if (normalized.family === 4) return blocked.check(normalized.address, 'ipv4');
+  if (normalized.family === 6) return blocked.check(normalized.address, 'ipv6');
   return true;
 }
 
@@ -246,11 +265,13 @@ export async function resolvePublicFeedTarget(input, { deadlineAt = Date.now() +
         'Timeout ao resolver DNS da fonte RSS',
       );
   if (!addresses.length) throw new Error('Host RSS sem endereço resolvido');
-  if (addresses.some(({ address, family }) => isBlockedAddress(address, family))) {
+
+  const normalizedAddresses = addresses.map(({ address, family }) => normalizeResolvedAddress(address, family));
+  if (normalizedAddresses.some(({ address, family }) => isBlockedAddress(address, family))) {
     throw new Error('Host RSS resolve para uma rede privada/reservada');
   }
 
-  return { url, address: addresses[0].address, family: addresses[0].family };
+  return { url, address: normalizedAddresses[0].address, family: normalizedAddresses[0].family };
 }
 
 export async function fetchPublicFeed(input, {

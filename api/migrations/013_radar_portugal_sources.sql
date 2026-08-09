@@ -22,6 +22,50 @@ WHERE ri.source_id = rs.id
   AND ri.fingerprint LIKE 'rss:%'
   AND (ri.ingestion_trusted IS NULL OR ri.ingestion_publishable IS NULL);
 
+-- Durante um rolling deploy, uma instância antiga pode ainda inserir RSS sem conhecer
+-- as colunas acima. O trigger garante que esses inserts já nascem classificados antes
+-- de qualquer feed irmão construir o mapa de dedupe.
+CREATE OR REPLACE FUNCTION radar_fill_ingestion_policy()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  source_trusted boolean := false;
+  source_auto_publish boolean := false;
+BEGIN
+  IF NEW.fingerprint LIKE 'rss:%'
+     AND (NEW.ingestion_trusted IS NULL OR NEW.ingestion_publishable IS NULL) THEN
+    SELECT rs.trusted,
+           (rs.config->'autoPublish' IS DISTINCT FROM 'false'::jsonb)
+      INTO source_trusted, source_auto_publish
+      FROM radar_sources rs
+     WHERE rs.id = NEW.source_id;
+
+    IF NEW.ingestion_trusted IS NULL THEN
+      NEW.ingestion_trusted := CASE
+        WHEN NEW.status = 'published' THEN true
+        ELSE COALESCE(source_trusted, false)
+      END;
+    END IF;
+
+    IF NEW.ingestion_publishable IS NULL THEN
+      NEW.ingestion_publishable := CASE
+        WHEN NEW.status = 'published' THEN true
+        WHEN NEW.status = 'draft' THEN false
+        ELSE COALESCE(source_trusted, false) AND COALESCE(source_auto_publish, false)
+      END;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS radar_fill_ingestion_policy_before_insert ON radar_items;
+CREATE TRIGGER radar_fill_ingestion_policy_before_insert
+BEFORE INSERT ON radar_items
+FOR EACH ROW
+EXECUTE FUNCTION radar_fill_ingestion_policy();
+
 WITH source_pack(name, kind, url, default_type, active, trusted, config) AS (
   VALUES
     ('RTP Notícias · País', 'rss', 'https://www.rtp.pt/noticias/rss/pais', 'news', true, true,

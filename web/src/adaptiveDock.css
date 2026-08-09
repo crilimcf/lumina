@@ -1,6 +1,11 @@
 /* Adaptive mobile dock: floats above the safe area, yields space while reading,
    and returns as soon as the user scrolls back up. */
 .nav {
+  left: 50% !important;
+  right: auto !important;
+  width: min(calc(100vw - 24px), 420px) !important;
+  max-width: none !important;
+  margin: 0 !important;
   bottom: calc(12px + env(safe-area-inset-bottom)) !important;
   border-radius: 28px !important;
   padding: 7px 8px 8px !important;
@@ -20,10 +25,15 @@
   pointer-events: none;
 }
 
-/* Make the main action feel like part of a dock instead of another flat tab. */
+/* The central create action is deliberately elevated so the dock has a clear
+   primary action without becoming visually heavy. */
 .nav > .nb:nth-child(3) {
   transform: translateY(-8px);
   overflow: visible;
+}
+
+.nav > .nb:nth-child(3):active {
+  transform: translateY(-8px) scale(.92);
 }
 
 .nav > .nb:nth-child(3) > svg {
@@ -41,20 +51,14 @@
   font-weight: 760;
 }
 
-/* Legacy activity-days metric belonged to the old community/challenge model.
-   Keep only social metrics in the profile. */
+/* The old activity-days metric belonged to the former community/challenge
+   model. The profile now keeps the two social metrics that still matter. */
 div:has(> button[aria-label="Ver seguidores"]):has(> button[aria-label="Ver a seguir"]) {
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
 }
 
 div:has(> button[aria-label="Ver seguidores"]):has(> button[aria-label="Ver a seguir"]) > div:last-child {
   display: none !important;
-}
-
-@media (max-width: 520px) {
-  .nav {
-    width: min(94vw, 480px) !important;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

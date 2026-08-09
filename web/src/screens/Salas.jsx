@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Camera, Crown, DoorOpen, LockKeyhole, MessageCircle, Plus, Search, Send, ShieldCheck, Sparkles, Trash2, Users, X } from 'lucide-react';
 import { api } from '../api.js';
 import { Empty, Orb } from '../ui.jsx';
-import { Nav, Toast } from '../components/AppChrome.jsx';
+import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
 
 // Mantemos toda a implementação Ultra no código para a podermos reativar
 // mais tarde sem reconstruir pagamentos. Enquanto esta flag estiver false,
@@ -63,7 +63,7 @@ function RoomCard({ room, me, onOpen, onRefresh, ping }) {
   return (
     <article className="card in" style={{ overflow: 'hidden', padding: 0, border: 0 }}>
       <button onClick={act} style={{ width: '100%', border: 0, background: 'transparent', padding: 0, textAlign: 'left', cursor: 'pointer' }}>
-        <div style={{ height: 174, position: 'relative', background: 'linear-gradient(135deg,#1B1038,#6D52FF 55%,#FF6A61)', overflow: 'hidden' }}>
+        <div style={{ height: 174, position: 'relative', background: 'linear-gradient(135deg,#1B1038,#674CFF 55%,#A446FF)', overflow: 'hidden' }}>
           {room.image_url && <img src={room.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg,rgba(7,4,20,.05),rgba(7,4,20,.68))' }} />
           <div style={{ position: 'absolute', top: 12, left: 12 }}><AccessPill room={room} /></div>
@@ -166,7 +166,7 @@ function RoomChat({ room, me, onBack, onRefresh, ping }) {
   return <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', background: 'var(--paper)' }}>
     <header style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #E1DDF0' }}>
       <button className="p" onClick={onBack} aria-label="Voltar às salas"><ArrowLeft size={16} /></button>
-      <div style={{ width: 42, height: 42, borderRadius: 14, overflow: 'hidden', background: '#25154F' }}>{room.image_url && <img src={room.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}</div>
+      <div style={{ width: 42, height: 42, borderRadius: 14, overflow: 'hidden', background: '#25154F' }}>{room.image_url && <img src={room.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}</div>
       <div style={{ flex: 1, minWidth: 0 }}><b style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{room.name}</b><span className="m">{room.topic}</span></div>
       {owner && room.visibility !== 'public' && <button className="p" onClick={() => setShowInvite(v => !v)} aria-label="Convidar pessoas"><Plus size={17} /></button>}
     </header>
@@ -179,7 +179,7 @@ function RoomChat({ room, me, onBack, onRefresh, ping }) {
   </div>;
 }
 
-export function Salas({ me, tab, setTab, coms, setComp, threads, setThread, ping, toast }) {
+export function Salas({ me, tab, setTab, coms, setComp, threads, setThread, ping, toast, unreadCount }) {
   const [rooms, setRooms] = useState([]);
   const [active, setActive] = useState(null);
   const [creating, setCreating] = useState(false);
@@ -193,7 +193,7 @@ export function Salas({ me, tab, setTab, coms, setComp, threads, setThread, ping
 
   return <div style={{ minHeight: '100dvh', paddingBottom: 100, background: 'linear-gradient(180deg,#EFEDFB,#DFDCF2)' }}>
     <div style={{ maxWidth: 520, margin: '0 auto', padding: '18px 16px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 10px' }}><div style={{ flex: 1 }}><h2 className="d" style={{ fontSize: 40, margin: 0 }}>Sa<span className="it">las</span></h2><div className="m" style={{ marginTop: 4 }}>Tópicos vivos, sem poluir o feed.</div></div><button className="p p-brand" onClick={() => setCreating(true)}><Plus size={16} /> Criar</button></div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 10px' }}><div style={{ flex: 1 }}><h2 className="d" style={{ fontSize: 40, margin: 0 }}>Sa<span className="it">las</span></h2><div className="m" style={{ marginTop: 4 }}>Tópicos vivos, sem poluir o feed.</div></div><button className="p p-brand p-sm" onClick={() => setCreating(true)}><Plus size={15} /> Criar</button><TopActions tab={tab} setTab={setTab} setThread={setThread} unreadCount={unreadCount} /></div>
       <div style={{ display: 'flex', gap: 7, overflowX: 'auto', padding: '9px 0 15px' }}>{roomFilters.map(([k,l]) => <button key={k} onClick={() => setFilter(k)} className={`p p-sm${filter===k?' p-ink':''}`} style={{ flexShrink: 0 }}>{l}</button>)}</div>
       {visible.length === 0 ? <Empty>Não há salas nesta categoria.<br />Cria a primeira.</Empty> : <div style={{ display: 'grid', gap: 13 }}>{visible.map(room => <RoomCard key={room.id} room={room} me={me} onOpen={setActive} onRefresh={load} ping={ping} />)}</div>}
       <div className="card" style={{ padding: 14, marginTop: 16, display: 'flex', gap: 10, alignItems: 'center' }}><ShieldCheck size={20} color="var(--cobalt)" /><div style={{ fontSize: 12.5, lineHeight: 1.4 }}><b>Privacidade real.</b> Salas privadas só aparecem a pessoas convidadas por quem as criou.</div></div>

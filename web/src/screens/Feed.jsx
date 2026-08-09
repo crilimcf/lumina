@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Edit3, Flag, MoreHorizontal, Plus, Repeat2, Search, Send, Trash2, X } from 'lucide-react';
 import { api } from '../api.js';
 import { PAL, Orb, Skeleton, ErrorNote, Empty } from '../ui.jsx';
-import { Composer, Nav, Toast } from '../components/AppChrome.jsx';
+import { Composer, Nav, Toast, TopActions } from '../components/AppChrome.jsx';
 import { MomentComposer, MomentRing, MomentViewer } from '../components/Moments.jsx';
 
 function EditPostSheet({ post, onClose, onSave }) {
@@ -39,7 +39,7 @@ export function Feed({
   react, repost, editPost, deletePost, loadComments, comment, editComment, deleteComment,
   burst, menuFor, setMenuFor, report,
   comp, setComp, file, setFile, palette, setPalette, body, setBody, busy, publish,
-  threads, setThread, ping, toast,
+  threads, setThread, ping, toast, unreadCount,
   momentGroups, myMomentGroup, viewingAuthor, setViewingAuthor,
   viewMoment, deleteMoment, replyToMoment,
   momentComposer, setMomentComposer, momentFile, setMomentFile,
@@ -53,6 +53,7 @@ export function Feed({
         <div style={{ padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
           <h1 className="d" style={{ fontSize: 25, flex: 1 }}>Lumi<span className="it">na</span></h1>
           <button className="p" onClick={() => setScreen('amigos')} aria-label="Pesquisar pessoas" style={{ padding: 10 }}><Search size={16} /></button>
+          <TopActions tab={tab} setTab={setTab} setThread={setThread} unreadCount={unreadCount} />
         </div>
       </header>
 

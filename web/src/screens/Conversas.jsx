@@ -3,7 +3,7 @@ import { ArrowLeft, Camera, Eye, MessageSquare, Phone, Send, Timer, Video } from
 import { api } from '../api.js';
 import { Orb, Empty } from '../ui.jsx';
 import { Bubble } from '../components/messages/Bubble.jsx';
-import { Nav } from '../components/AppChrome.jsx';
+import { Nav, TopActions } from '../components/AppChrome.jsx';
 import { CallOverlay } from '../components/calls/CallOverlay.jsx';
 
 function IncomingCall({ call, onAccept, onDecline }) {
@@ -13,7 +13,7 @@ function IncomingCall({ call, onAccept, onDecline }) {
       <div className="d" style={{ fontSize: 31, marginTop: 15, color: '#fff' }}>{call.name}</div>
       <div style={{ marginTop: 7, opacity: .68 }}>{call.mode === 'video' ? 'Videochamada recebida' : 'Chamada áudio recebida'}</div>
       <div style={{ display: 'flex', justifyContent: 'center', gap: 26, marginTop: 34 }}>
-        <button onClick={onDecline} aria-label="Recusar chamada" style={{ width: 66, height: 66, borderRadius: 99, border: 0, background: '#FF5149', color: '#fff', display: 'grid', placeItems: 'center', transform: 'rotate(135deg)' }}><Phone size={28} /></button>
+        <button onClick={onDecline} aria-label="Recusar chamada" style={{ width: 66, height: 66, borderRadius: 99, border: 0, background: '#D94F62', color: '#fff', display: 'grid', placeItems: 'center', transform: 'rotate(135deg)' }}><Phone size={28} /></button>
         <button onClick={onAccept} aria-label="Atender chamada" style={{ width: 66, height: 66, borderRadius: 99, border: 0, background: '#35C979', color: '#fff', display: 'grid', placeItems: 'center' }}>{call.mode === 'video' ? <Video size={27} /> : <Phone size={27} />}</button>
       </div>
     </div>
@@ -21,7 +21,7 @@ function IncomingCall({ call, onAccept, onDecline }) {
 }
 
 export function Conversas({
-  me, tab, setTab, coms, comp, setComp, ping,
+  me, tab, setTab, coms, comp, setComp, ping, unreadCount,
   threads, thread, setThread, msgs, text, setText, mode, setMode,
   onceFile, setOnceFile, sending, send, end,
 }) {
@@ -104,13 +104,13 @@ export function Conversas({
 
         <div style={{ padding: '0 14px calc(16px + env(safe-area-inset-bottom))' }}>
           <div className="ns" style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 9 }}>
-            {modes.map(([key, Icon, label]) => <button key={key} onClick={() => setMode(key)} className={`p p-sm${mode === key ? (key === 'once' ? ' p-cr' : key === 'timer' ? ' p-co' : ' p-ink') : ''}`} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}><Icon size={13} />{label}</button>)}
+            {modes.map(([key, Icon, label]) => <button key={key} onClick={() => setMode(key)} className={`p p-sm${mode === key ? (key === 'normal' ? ' p-ink' : ' p-brand') : ''}`} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}><Icon size={13} />{label}</button>)}
           </div>
           {mode !== 'normal' && <p style={{ fontSize: 11.5, lineHeight: 1.4, color: 'var(--grey)', marginBottom: 9 }}>{mode === 'timer' ? 'Apaga-se pouco depois de ser aberta. Não impedimos capturas de ecrã.' : 'Abre uma vez e não volta. Não impedimos capturas de ecrã.'}</p>}
           {mode === 'once' ? <div style={{ display: 'grid', gap: 9 }}>
             <label className="p" style={{ cursor: 'pointer', padding: 12, display: 'flex', alignItems: 'center', gap: 9, justifyContent: 'center' }}><Camera size={16} /><span>{onceFile ? onceFile.name : 'Escolher fotografia'}</span><input type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={e => setOnceFile(e.target.files?.[0] || null)} /></label>
-            <button className="p p-cr" onClick={send} disabled={!onceFile || sending} aria-label="Enviar foto uma vez" style={{ padding: '12px 15px' }}>{sending ? 'A enviar…' : 'Enviar foto · uma vez'}</button>
-          </div> : <div style={{ display: 'flex', gap: 9 }}><input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} placeholder={mode === 'timer' ? 'Mensagem efémera…' : 'Escrever…'} /><button className={mode === 'timer' ? 'p p-co' : 'p p-ink'} onClick={send} disabled={sending} aria-label="Enviar mensagem" style={{ padding: '12px 15px' }}><Send size={16} /></button></div>}
+            <button className="p p-brand" onClick={send} disabled={!onceFile || sending} aria-label="Enviar foto uma vez" style={{ padding: '12px 15px' }}>{sending ? 'A enviar…' : 'Enviar foto · uma vez'}</button>
+          </div> : <div style={{ display: 'flex', gap: 9 }}><input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} placeholder={mode === 'timer' ? 'Mensagem efémera…' : 'Escrever…'} /><button className={mode === 'timer' ? 'p p-brand' : 'p p-ink'} onClick={send} disabled={sending} aria-label="Enviar mensagem" style={{ padding: '12px 15px' }}><Send size={16} /></button></div>}
         </div>
 
         {incoming && !activeCall && <IncomingCall call={incoming} onAccept={acceptIncoming} onDecline={declineIncoming} />}
@@ -122,10 +122,10 @@ export function Conversas({
   return (
     <div style={{ minHeight: '100dvh', paddingBottom: 100, background: 'linear-gradient(180deg,#EFEDFB,#DFDCF2)' }}>
       <div style={{ maxWidth: 460, margin: '0 auto', padding: 20 }}>
-        <h2 className="d" style={{ fontSize: 42, margin: '10px 0 26px' }}>Conver<span className="it">sas</span></h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '10px 0 26px' }}><h2 className="d" style={{ fontSize: 42, flex: 1 }}>Conver<span className="it">sas</span></h2><TopActions tab={tab} setTab={setTab} setThread={setThread} unreadCount={unreadCount} /></div>
         {threads.length === 0 && <Empty>Ainda sem conversas.<br />Abre o perfil de alguém para falar.</Empty>}
         <div style={{ display: 'grid', gap: 11 }}>
-          {threads.map((t, i) => <button key={t.id} onClick={() => setThread({ id: t.id, name: t.name, handle: t.handle, palette: t.palette, avatar_url: t.avatar_url })} className="card in" style={{ border: 0, cursor: 'pointer', padding: 15, display: 'flex', gap: 13, alignItems: 'center', textAlign: 'left', animationDelay: `${i * 60}ms` }}><Orb p={t.palette} avatarUrl={t.avatar_url} s={44} /><span style={{ flex: 1, minWidth: 0 }}><span style={{ display: 'block', fontSize: 15, fontWeight: 600 }}>{t.name}</span><span style={{ display: 'block', fontSize: 14, color: 'var(--grey)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.body || 'Sem mensagens'}</span></span>{t.unread > 0 && <span style={{ width: 9, height: 9, borderRadius: 9, background: 'var(--coral)', boxShadow: '0 0 0 4px rgba(255,84,66,.2)' }} />}</button>)}
+          {threads.map((t, i) => <button key={t.id} onClick={() => setThread({ id: t.id, name: t.name, handle: t.handle, palette: t.palette, avatar_url: t.avatar_url })} className="card in" style={{ border: 0, cursor: 'pointer', padding: 15, display: 'flex', gap: 13, alignItems: 'center', textAlign: 'left', animationDelay: `${i * 60}ms` }}><Orb p={t.palette} avatarUrl={t.avatar_url} s={44} /><span style={{ flex: 1, minWidth: 0 }}><span style={{ display: 'block', fontSize: 15, fontWeight: 600 }}>{t.name}</span><span style={{ display: 'block', fontSize: 14, color: 'var(--grey)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.body || 'Sem mensagens'}</span></span>{t.unread > 0 && <span style={{ width: 9, height: 9, borderRadius: 9, background: 'var(--cobalt)', boxShadow: '0 0 0 4px rgba(91,61,245,.16)' }} />}</button>)}
         </div>
       </div>
       <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} coms={coms} threads={threads} ping={ping} />

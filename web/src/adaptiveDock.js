@@ -7,6 +7,7 @@ const DIRECTION_THRESHOLD = 14;
 let hidden = false;
 let frame = 0;
 let pending = null;
+let lastNav = null;
 const stateByScroller = new WeakMap();
 
 function currentNav() {
@@ -87,13 +88,24 @@ document.addEventListener('pointerdown', (event) => {
   if (event.target instanceof Element && event.target.closest('.nav')) applyVisibility(false);
 }, { passive: true });
 
-/* New screens can remount their own .nav. Reapply the current state without
-   coupling the behavior to individual React screens. */
+/* Um chat/sala em ecrã inteiro não monta `.nav`. Se o utilizador fizer scroll
+   aí, não podemos transportar esse estado escondido para a barra de outro
+   ecrã. Sempre que uma nova instância da navegação aparece, começa visível. */
 const root = document.getElementById('root');
 if (root) {
   const observer = new MutationObserver(() => {
     const nav = currentNav();
-    if (nav) nav.classList.toggle('nav-smart-hidden', hidden);
+    if (!nav) {
+      lastNav = null;
+      return;
+    }
+    if (nav !== lastNav) {
+      lastNav = nav;
+      hidden = false;
+      nav.classList.remove('nav-smart-hidden');
+      return;
+    }
+    nav.classList.toggle('nav-smart-hidden', hidden);
   });
   observer.observe(root, { childList: true, subtree: true });
 }

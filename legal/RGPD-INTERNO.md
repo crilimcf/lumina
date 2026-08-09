@@ -1,139 +1,169 @@
-# Registo de atividades de tratamento e resposta a incidentes
+# Registo interno de tratamento e resposta a incidentes
 
-Dois documentos internos que o RGPD exige e que nunca são publicados: ficam
-guardados e mostram-se à CNPD se ela pedir.
+Documento operacional interno. Deve ser completado e validado juridicamente antes de um lançamento público alargado.
 
-> Campos entre `[colchetes]` a preencher.
+> Campos entre `[colchetes]` ficam por preencher pelo responsável pelo tratamento.
 
----
+## Parte 1 · Registo de atividades
 
-# Parte 1 · Registo de atividades (artigo 30)
+**Responsável pelo tratamento:** `[nome legal]`, `[morada]`, NIF `[NIF]`  
+**Contacto:** `[email]`  
+**Última atualização:** `9 de agosto de 2026`
 
-**Responsável pelo tratamento:** `[nome legal]`, `[morada]`, NIF `[NIF]`
-**Contacto:** `[email]`
-**Última atualização:** `[data]`
+### A · Contas e perfis
 
-## A · Contas de utilizador
-
-| | |
+| Campo | Informação |
 |---|---|
-| **Finalidade** | Permitir criar conta, entrar e usar o serviço |
-| **Categorias de titulares** | Utilizadores registados, todos com 16+ anos |
-| **Categorias de dados** | Nome, nome de utilizador, email, password em hash, data de nascimento, data de aceitação dos termos |
-| **Fundamento** | Execução do contrato (art. 6.º/1/b); verificação de idade por obrigação legal (art. 6.º/1/c) |
-| **Destinatários** | Railway (alojamento), Resend (ainda não configurado) |
-| **Transferências fora do EEE** | Nenhuma — Railway aloja em `europe-west4` (Países Baixos) |
-| **Prazo de conservação** | Enquanto durar a conta, mais 30 dias após pedido de apagamento |
-| **Medidas de segurança** | bcrypt fator 12, HTTPS, 2FA opcional, bloqueio progressivo |
+| Finalidade | Criar conta, autenticar e apresentar o perfil |
+| Titulares | Utilizadores registados, segundo a política de idade do produto |
+| Dados | Nome, nome de utilizador, email, data de nascimento, bio, avatar, interesses, configuração público/privado, datas de conta/termos |
+| Fundamento | `[validar juridicamente]` |
+| Destinatários | Railway/PostgreSQL, Vercel; armazenamento de media quando aplicável |
+| Retenção | Enquanto durar a conta, sem prejuízo de obrigações legais e da janela de apagamento |
+| Segurança | Password com bcrypt, HTTPS, sessões revogáveis, CSRF, 2FA opcional, rate limiting |
 
-## B · Conteúdo publicado
+### B · Feed e relações sociais
 
-| | |
+| Campo | Informação |
 |---|---|
-| **Finalidade** | Prestar o serviço: feed, comunidades, convites |
-| **Categorias de dados** | Texto, imagens, reações, comentários, votos, adesões, dias respondidos |
-| **Fundamento** | Execução do contrato |
-| **Destinatários** | Railway (alojamento), Cloudflare R2 (imagens, ainda não configurado) |
-| **Prazo** | Enquanto durar a conta |
-| **Notas** | Imagens verificadas pela assinatura do ficheiro antes de serem publicáveis |
+| Finalidade | Mostrar o Feed e permitir interação entre pessoas |
+| Dados | Follows, pedidos de follow, bloqueios, publicações, comentários, reações e reposts |
+| Visibilidade | Feed cronológico com a própria pessoa e autores seguidos; perfis privados exigem follow aceite; bloqueios cortam visibilidade |
+| Retenção | Enquanto existir a conta/conteúdo, salvo eliminação ou moderação |
 
-## C · Mensagens privadas
+### C · Momentos
 
-| | |
+| Campo | Informação |
 |---|---|
-| **Finalidade** | Comunicação entre utilizadores |
-| **Categorias de dados** | Texto, imagens, metadados (remetente, hora, estado de leitura) |
-| **Fundamento** | Execução do contrato |
-| **Prazo** | Normais: enquanto durar a conta. Efémeras: conteúdo apagado do servidor quando expira; fica só o registo de que existiram |
-| **Notas** | **Sem cifragem ponto a ponto.** Está declarado na política de privacidade |
+| Finalidade | Partilha temporária de fotografia/vídeo |
+| Dados | Media, autor, paleta, data de criação/expiração e visualizações |
+| Visibilidade | Mesmo grafo social do Feed |
+| Retenção | Conteúdo ativo durante 24 horas; limpeza automática depois da expiração |
 
-## D · Segurança e prevenção de abuso
+### D · Salas
 
-| | |
+| Campo | Informação |
 |---|---|
-| **Finalidade** | Travar ataques a contas e permitir gerir sessões |
-| **Categorias de dados** | Email, endereço IP, agente do navegador, êxito ou falha, data |
-| **Fundamento** | Interesse legítimo (art. 6.º/1/f) — proteger contas contra acesso indevido |
-| **Ponderação** | O tratamento é mínimo e diretamente ligado à proteção dos próprios titulares. Sem ele, um ataque por força bruta passaria despercebido |
-| **Prazo** | `[90]` dias |
+| Finalidade | Conversa temática em espaços públicos ou privados |
+| Dados | Sala criada/aderida, imagem, tópico, descrição, membros, convites, mensagens e, quando aplicável, dados de pagamento |
+| Visibilidade | Salas públicas são descobertas na aplicação; Salas privadas dependem de convite |
+| Retenção | Enquanto a Sala/conteúdo existirem, salvo pedidos de apagamento e obrigações legais |
 
-## E · Moderação de conteúdo
+### E · Chat e chamadas
 
-| | |
+| Campo | Informação |
 |---|---|
-| **Finalidade** | Tratar denúncias e aplicar as regras da comunidade |
-| **Categorias de dados** | Denúncias, conteúdo denunciado, decisões e quem as tomou |
-| **Fundamento** | Interesse legítimo; obrigação legal quando envolver conteúdo ilegal |
-| **Destinatários** | Moderadores da comunidade em causa; autoridades quando a lei obrigar |
-| **Prazo** | `[2]` anos, para poder responder a queixas sobre decisões |
+| Finalidade | Comunicação privada entre utilizadores |
+| Dados | Conversas, mensagens, media, remetente, leitura/abertura, modo efémero, chamadas e signaling técnico |
+| Retenção | Mensagens normais enquanto forem necessárias ao serviço; conteúdo efémero segundo o modo escolhido; chamadas/signaling conforme política operacional |
+| Nota | Não existe promessa de cifragem ponta-a-ponta nem de impedir capturas/gravações feitas pelo destinatário |
 
-## F · Comunicações por email
+### F · Segurança e prevenção de abuso
 
-| | |
+| Campo | Informação |
 |---|---|
-| **Finalidade** | Recuperar password e enviar avisos essenciais |
-| **Categorias de dados** | Email, token em hash |
-| **Fundamento** | Execução do contrato |
-| **Destinatário** | `[Resend]` |
-| **Prazo** | Tokens expiram em 1 hora; apagados ao fim de 7 dias |
+| Finalidade | Proteger contas, limitar ataques e permitir revogar sessões |
+| Dados | Email, IP, user-agent, tentativas de login, sessões, 2FA, códigos de recuperação protegidos |
+| Fundamento | `[validar juridicamente]` |
+| Retenção | Tentativas antigas e tokens são limpos por jobs; restantes dados enquanto necessários para segurança/conta |
 
----
+### G · Moderação
 
-# Parte 2 · Resposta a violações de dados
+| Campo | Informação |
+|---|---|
+| Finalidade | Receber denúncias, ocultar conteúdo de risco e tomar decisões de moderação |
+| Dados | Denunciante, tipo/alvo, motivo, nota, decisão, responsável pela decisão e datas |
+| Acesso | Fila global reservada à equipa Lumina |
+| Retenção | `[prazo a definir juridicamente]` |
 
-O RGPD dá **72 horas** para notificar a CNPD a contar do momento em que tomas
-conhecimento. Sem um plano escrito, essas 72 horas gastam-se a decidir o que
-fazer.
+### H · Email transacional
 
-## Hora 0 a 1 · Conter
+| Campo | Informação |
+|---|---|
+| Finalidade | Recuperação de password e comunicações essenciais |
+| Dados | Email e tokens de recuperação armazenados em hash |
+| Destinatário | Resend quando configurado |
+| Retenção | Token expira em 1 hora; limpeza posterior automatizada |
 
-- [ ] Isolar o que está a ser explorado — desligar o serviço se for preciso
-- [ ] Trocar segredos: `JWT_SECRET`, credenciais da base de dados, chaves do armazenamento
-- [ ] Forçar o fecho de todas as sessões: `UPDATE users SET session_version = session_version + 1`
-- [ ] Guardar registos **antes** de reiniciar seja o que for. Um reinício apaga provas.
+### I · Media
 
-## Hora 1 a 24 · Perceber
+| Campo | Informação |
+|---|---|
+| Finalidade | Guardar fotografias/vídeos usados no perfil, Feed, Momentos, Chat e Salas |
+| Dados | Objeto, MIME, tamanho, proprietário, finalidade e estado de consumo |
+| Destinatário | Cloudflare R2 / fornecedor S3 compatível configurado |
+| Segurança | Upload assinado, validação de tipo/tamanho/assinatura binária, ownership e consumo único |
+| Retenção | Ligada ao conteúdo; uploads abandonados/órfãos são limpos automaticamente |
 
-- [ ] Que dados foram atingidos? Contas, conteúdo, mensagens, imagens?
-- [ ] Quantas pessoas?
-- [ ] Como entraram? Por onde?
-- [ ] Ainda está a acontecer?
-- [ ] Escrever uma cronologia com horas concretas
+## Parte 2 · Exportação e apagamento
 
-## Hora 24 a 72 · Notificar
+`GET /account/export` exporta o modelo de dados atual da conta, incluindo:
 
-**À CNPD** — obrigatório salvo se for improvável haver risco para as pessoas.
-Formulário em [cnpd.pt](https://www.cnpd.pt). Incluir:
-- natureza da violação e categorias de dados
-- número aproximado de pessoas afetadas
-- consequências prováveis
-- medidas tomadas e a tomar
-- contacto para mais informação
+- perfil;
+- publicações, comentários e reações;
+- Momentos;
+- seguidores, pessoas seguidas e bloqueios;
+- mensagens privadas;
+- Salas criadas/aderidas, convites e mensagens de Sala;
+- pagamentos de Sala quando existirem;
+- chamadas.
 
-**Às pessoas** — obrigatório se o risco for elevado. Por email, em linguagem
-simples: o que aconteceu, que dados, o que devem fazer (trocar password, ligar
-dois passos), e como falar contigo.
+O pedido de apagamento é agendado com uma janela de 30 dias. A execução remove a conta e conteúdo/referências abrangidos pelo modelo técnico, incluindo uploads pertencentes à conta. Qualquer exceção legal deve ser definida na política jurídica final.
 
-Não obrigatório se os dados estivessem cifrados de forma que ninguém os consiga
-ler — o que não é o caso do conteúdo da Lumina.
+## Parte 3 · Estado técnico de privacidade
 
-## Depois
+- [x] Perfil público/privado implementado.
+- [x] Pedidos de follow para perfis privados implementados.
+- [x] Bloqueio bilateral de visibilidade implementado.
+- [x] Exportação de dados implementada.
+- [x] Pedido/cancelamento/execução de apagamento implementados.
+- [x] Sessões revogáveis implementadas.
+- [x] Conteúdo efémero e Momentos com limpeza automática.
+- [x] Salas privadas protegidas por convite.
+- [x] Moderação global reservada à equipa Lumina.
+- [ ] Preencher identidade/contactos do responsável.
+- [ ] Confirmar bases jurídicas, prazos de retenção e contratos/subcontratantes.
+- [ ] Confirmar regiões de alojamento e mecanismos de transferências internacionais antes do lançamento público.
 
-- [ ] Corrigir a causa, não o sintoma
-- [ ] Registar o incidente no registo interno (obrigatório mesmo que não notifiques)
-- [ ] Rever o que falhou na deteção: quanto tempo passou até dares conta?
+## Parte 4 · Resposta a violações de dados
 
-## Contactos
+### Hora 0–1 · Conter
 
-| | |
+- [ ] Isolar o componente afetado; desligar tráfego se necessário.
+- [ ] Rodar segredos potencialmente comprometidos (`JWT_SECRET`, base de dados, armazenamento, email, pagamentos).
+- [ ] Se necessário, invalidar sessões através de `session_version`/revogação.
+- [ ] Preservar logs e evidência antes de reiniciar componentes.
+
+### Hora 1–24 · Avaliar
+
+- [ ] Determinar que sistemas e dados foram afetados.
+- [ ] Estimar número de titulares e registos envolvidos.
+- [ ] Identificar vetor de entrada e confirmar se continua ativo.
+- [ ] Criar cronologia com horas concretas e ações tomadas.
+- [ ] Avaliar risco para os titulares com apoio jurídico/segurança.
+
+### Hora 24–72 · Decidir e notificar
+
+Avaliar as obrigações de notificação à autoridade de controlo e aos titulares nos prazos legais aplicáveis. Não assumir automaticamente que todos os incidentes têm o mesmo dever de notificação; documentar a decisão e respetivo fundamento.
+
+### Depois
+
+- [ ] Corrigir a causa estrutural.
+- [ ] Criar teste de regressão quando possível.
+- [ ] Registar formalmente o incidente e a decisão de notificação.
+- [ ] Rever deteção, logs, retenção e resposta.
+
+## Contactos de incidente
+
+| Função | Contacto |
 |---|---|
 | Responsável interno | `[nome, telefone]` |
-| CNPD | geral@cnpd.pt · +351 213 928 400 |
-| Advogado | `[nome, telefone]` |
-| Alojamento (suporte) | `[contacto]` |
+| Jurídico/DPO, se aplicável | `[nome, contacto]` |
+| Autoridade de controlo | `[confirmar contacto oficial no momento do incidente]` |
+| Alojamento | `[contacto]` |
 
 ## Registo de incidentes
 
-| Data | O que aconteceu | Pessoas afetadas | Notificada CNPD? | Notificados titulares? | Resolução |
+| Data | Incidente | Dados/titulares afetados | Medidas | Notificação | Encerramento |
 |---|---|---|---|---|---|
 | | | | | | |

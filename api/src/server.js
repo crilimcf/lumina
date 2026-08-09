@@ -11,8 +11,6 @@ import { errorHandler, auth, h, HttpError, csrfGuard } from './middleware/auth.j
 import { startJobs } from './jobs/daily.js';
 
 import { authRoutes } from './routes/auth.js';
-import { communityRoutes } from './routes/communities.js';
-import { inviteRoutes } from './routes/invites.js';
 import { postRoutes } from './routes/posts.js';
 import { messageRoutes } from './routes/messages.js';
 import { reportRoutes } from './routes/reports.js';
@@ -50,29 +48,14 @@ app.use(helmet({
   },
 }));
 const origins = env.CORS_ORIGIN?.split(',').map(s => s.trim()).filter(Boolean);
-if (env.NODE_ENV === 'production' && !origins?.length) {
-  throw new Error('Em producao e obrigatorio definir CORS_ORIGIN');
-}
+if (env.NODE_ENV === 'production' && !origins?.length) throw new Error('Em producao e obrigatorio definir CORS_ORIGIN');
 app.use(cors({ origin: origins?.length ? origins : true, credentials: true, maxAge: 86400 }));
-// Guardamos os bytes exatos para validar webhooks Stripe sem enfraquecer o
-// parser JSON usado no resto da API.
 app.use(express.json({
   limit: '256kb',
   verify: (req, _res, buf) => { req.rawBody = Buffer.from(buf); },
 }));
 app.use(cookieParser());
 
-/**
- * Estas rotas criam/recuperam a sessão e não autorizam nenhuma ação com o
- * cookie que já possa existir no browser. Exigir o CSRF da sessão anterior
- * aqui cria um deadlock: um cookie válido mas já revogado/expirado bloqueia o
- * próprio login antes de este poder substituí-lo.
- *
- * Continuam protegidas contra pedidos cross-site pelo contrato JSON + CORS:
- * um formulário HTML de terceiro não produz application/json e um fetch JSON
- * cross-origin precisa de preflight aprovado. Todas as rotas autenticadas e
- * o logout continuam a passar pelo csrfGuard normal.
- */
 const CSRF_PUBLIC_PATHS = new Set([
   '/auth/login',
   '/auth/register',
@@ -90,9 +73,7 @@ const localE2E = (() => {
   try {
     const url = new URL(process.env.E2E_BASE_URL || '');
     return ['localhost', '127.0.0.1'].includes(url.hostname);
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 })();
 const skipInTests = () => env.NODE_ENV === 'test' || localE2E;
 app.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-7', legacyHeaders: false, skip: skipInTests }));
@@ -112,8 +93,6 @@ app.get(['/health', '/api/health'], health);
 
 const mountApi = (prefix = '') => {
   app.use(`${prefix}/auth`, authRoutes);
-  app.use(`${prefix}/communities`, communityRoutes);
-  app.use(`${prefix}/invites`, inviteRoutes); // legado: deixa de ser uma aba principal no cliente
   app.use(`${prefix}/posts`, postRoutes);
   app.use(`${prefix}/messages`, messageRoutes);
   app.use(`${prefix}/rooms`, roomRoutes);
@@ -134,9 +113,6 @@ const mountApi = (prefix = '') => {
   }));
 };
 
-// As rotas sem prefixo mantêm compatibilidade com o proxy atual da Vercel.
-// O alias /api permite servir a app diretamente da Railway na mesma origem,
-// sem cookies third-party e sem depender da quota de deployments da Vercel.
 mountApi('');
 mountApi('/api');
 
@@ -145,11 +121,8 @@ if (fs.existsSync(webIndex)) {
     index: false,
     etag: true,
     setHeaders: (res, filePath) => {
-      if (filePath.includes(`${path.sep}assets${path.sep}`)) {
-        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-      } else if (filePath.endsWith('manifest.webmanifest')) {
-        res.setHeader('Cache-Control', 'no-cache, must-revalidate');
-      }
+      if (filePath.includes(`${path.sep}assets${path.sep}`)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      else if (filePath.endsWith('manifest.webmanifest')) res.setHeader('Cache-Control', 'no-cache, must-revalidate');
     },
   }));
   app.get('/', (_req, res) => {

@@ -4,7 +4,6 @@ import { auth, h, bad, notFound, forbidden } from '../middleware/auth.js';
 
 export const userRoutes = Router();
 
-/** Ha bloqueio entre estas duas pessoas, em qualquer sentido? */
 async function blocked(a, b) {
   const { rows } = await q(
     `SELECT 1 FROM blocks
@@ -57,7 +56,6 @@ userRoutes.get('/search', auth, h(async (req, res) => {
   res.json(rows);
 }));
 
-/** Rotas /me antes de /:handle: "me" nunca deve ser interpretado como handle. */
 userRoutes.get('/me/privacy', auth, h(async (req, res) => {
   const { rows } = await q('SELECT is_private FROM users WHERE id=$1', [req.user.id]);
   res.json({ isPrivate: !!rows[0]?.is_private });
@@ -77,17 +75,10 @@ userRoutes.patch('/me/privacy', auth, h(async (req, res) => {
       [req.user.id]
     );
     for (const request of pending) {
+      await c.query(`UPDATE follow_requests SET status='accepted',responded_at=now() WHERE id=$1`, [request.id]);
+      await c.query(`INSERT INTO follows (follower_id,following_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [request.requester_id, req.user.id]);
       await c.query(
-        `UPDATE follow_requests SET status='accepted',responded_at=now() WHERE id=$1`,
-        [request.id]
-      );
-      await c.query(
-        `INSERT INTO follows (follower_id,following_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
-        [request.requester_id, req.user.id]
-      );
-      await c.query(
-        `INSERT INTO notifications
-           (user_id,type,actor_id,follow_request_id,dedupe_key)
+        `INSERT INTO notifications (user_id,type,actor_id,follow_request_id,dedupe_key)
          VALUES ($1,'follow_accepted',$2,$3,$4)
          ON CONFLICT (dedupe_key) DO UPDATE SET read_at=NULL,created_at=now(),actor_id=EXCLUDED.actor_id`,
         [request.requester_id, req.user.id, request.id, `follow:accepted:${request.id}`]
@@ -128,17 +119,10 @@ userRoutes.post('/me/follow-requests/:requestId/accept', auth, h(async (req, res
     );
     if (!rows[0]) throw notFound('Pedido não encontrado');
     const request = rows[0];
+    await c.query(`UPDATE follow_requests SET status='accepted',responded_at=now() WHERE id=$1`, [request.id]);
+    await c.query(`INSERT INTO follows (follower_id,following_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [request.requester_id, req.user.id]);
     await c.query(
-      `UPDATE follow_requests SET status='accepted',responded_at=now() WHERE id=$1`,
-      [request.id]
-    );
-    await c.query(
-      `INSERT INTO follows (follower_id,following_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
-      [request.requester_id, req.user.id]
-    );
-    await c.query(
-      `INSERT INTO notifications
-         (user_id,type,actor_id,follow_request_id,dedupe_key)
+      `INSERT INTO notifications (user_id,type,actor_id,follow_request_id,dedupe_key)
        VALUES ($1,'follow_accepted',$2,$3,$4)
        ON CONFLICT (dedupe_key) DO UPDATE SET read_at=NULL,created_at=now(),actor_id=EXCLUDED.actor_id`,
       [request.requester_id, req.user.id, request.id, `follow:accepted:${request.id}`]
@@ -204,22 +188,20 @@ userRoutes.get('/me/following', auth, h(async (req, res) => {
   res.json(rows);
 }));
 
+/** Sugestões simples e previsíveis: popularidade + recência, sem depender de grupos. */
 userRoutes.get('/me/suggestions', auth, h(async (req, res) => {
   const { rows } = await q(
     `SELECT u.id, u.handle, u.name, u.bio, u.palette, u.avatar_url, u.is_private,
             (SELECT count(*) FROM follows WHERE following_id = u.id)::int AS followers,
             false AS following,
             EXISTS (SELECT 1 FROM follow_requests fr WHERE fr.requester_id=$1 AND fr.target_id=u.id AND fr.status='pending') AS requested
-     FROM memberships m
-     JOIN memberships mine ON mine.community_id = m.community_id AND mine.user_id = $1
-     JOIN users u ON u.id = m.user_id
+     FROM users u
      WHERE u.id <> $1 AND u.suspended_at IS NULL
        AND NOT EXISTS (SELECT 1 FROM follows WHERE follower_id = $1 AND following_id = u.id)
        AND NOT EXISTS (SELECT 1 FROM blocks b
                        WHERE (b.blocker_id = $1 AND b.blocked_id = u.id)
                           OR (b.blocked_id = $1 AND b.blocker_id = u.id))
-     GROUP BY u.id
-     ORDER BY count(*) DESC, followers DESC
+     ORDER BY followers DESC, u.created_at DESC
      LIMIT 20`,
     [req.user.id]
   );
@@ -252,15 +234,13 @@ userRoutes.get('/:handle/posts', auth, h(async (req, res) => {
   const { rows } = await q(
     `SELECT p.id,p.body,p.media_url,p.palette,p.created_at,p.edited_at,
             (SELECT up.mime FROM uploads up WHERE up.url=p.media_url LIMIT 1) AS media_mime,
-            c.id AS community_id,c.slug AS community_slug,c.name AS community_name,
             (SELECT count(*) FROM reactions r WHERE r.post_id=p.id AND r.kind='like')::int AS likes,
             (SELECT count(*) FROM reactions r WHERE r.post_id=p.id AND r.kind='fire')::int AS fires,
             (SELECT count(*) FROM comments cm WHERE cm.post_id=p.id AND cm.hidden_at IS NULL)::int AS comments
-     FROM posts p JOIN communities c ON c.id=p.community_id
-     WHERE p.author_id=$2 AND p.hidden_at IS NULL AND COALESCE(p.kind,'post')='post'
-       AND ($1=$2 OR p.community_id IN (SELECT community_id FROM memberships WHERE user_id=$1))
+     FROM posts p
+     WHERE p.author_id=$1 AND p.hidden_at IS NULL AND COALESCE(p.kind,'post')='post'
      ORDER BY p.created_at DESC LIMIT 100`,
-    [req.user.id, person.id]
+    [person.id]
   );
   res.json({ person, posts: rows, canView: true });
 }));
@@ -300,31 +280,17 @@ userRoutes.post('/:userId/follow', auth, h(async (req, res) => {
       [req.user.id, target.id]
     );
     const requestId = rows[0].id;
-    await notify({
-      userId: target.id,
-      type: 'follow_request',
-      actorId: req.user.id,
-      followRequestId: requestId,
-      dedupeKey: `follow:request:${requestId}`,
-    });
+    await notify({ userId: target.id, type: 'follow_request', actorId: req.user.id, followRequestId: requestId, dedupeKey: `follow:request:${requestId}` });
     return res.status(202).json({ following: false, pending: true, requestId });
   }
 
-  await q(
-    'INSERT INTO follows (follower_id, following_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-    [req.user.id, target.id]
-  );
+  await q('INSERT INTO follows (follower_id, following_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [req.user.id, target.id]);
   await q(
     `UPDATE follow_requests SET status='accepted',responded_at=now()
      WHERE requester_id=$1 AND target_id=$2 AND status='pending'`,
     [req.user.id, target.id]
   );
-  await notify({
-    userId: target.id,
-    type: 'new_follower',
-    actorId: req.user.id,
-    dedupeKey: `follow:direct:${req.user.id}:${target.id}`,
-  });
+  await notify({ userId: target.id, type: 'new_follower', actorId: req.user.id, dedupeKey: `follow:direct:${req.user.id}:${target.id}` });
   res.json({ following: true, pending: false });
 }));
 
@@ -335,24 +301,15 @@ userRoutes.delete('/:userId/follow', auth, h(async (req, res) => {
      RETURNING id`,
     [req.user.id, req.params.userId]
   );
-  if (pending.length) {
-    await q(
-      `DELETE FROM notifications WHERE follow_request_id = ANY($1::uuid[]) AND type='follow_request'`,
-      [pending.map(r => r.id)]
-    );
-  }
-  await q('DELETE FROM follows WHERE follower_id = $1 AND following_id = $2',
-    [req.user.id, req.params.userId]);
+  if (pending.length) await q(`DELETE FROM notifications WHERE follow_request_id = ANY($1::uuid[]) AND type='follow_request'`, [pending.map(r => r.id)]);
+  await q('DELETE FROM follows WHERE follower_id = $1 AND following_id = $2', [req.user.id, req.params.userId]);
   res.json({ following: false, pending: false });
 }));
 
 userRoutes.post('/:userId/block', auth, h(async (req, res) => {
   if (req.params.userId === req.user.id) throw bad('Nao te podes bloquear');
   if (!await activeUser(req.params.userId)) throw notFound('Pessoa nao encontrada');
-  await q(
-    'INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-    [req.user.id, req.params.userId]
-  );
+  await q('INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [req.user.id, req.params.userId]);
   await q(
     `DELETE FROM follows
      WHERE (follower_id = $1 AND following_id = $2) OR (follower_id = $2 AND following_id = $1)`,
@@ -367,7 +324,6 @@ userRoutes.post('/:userId/block', auth, h(async (req, res) => {
 }));
 
 userRoutes.delete('/:userId/block', auth, h(async (req, res) => {
-  await q('DELETE FROM blocks WHERE blocker_id = $1 AND blocked_id = $2',
-    [req.user.id, req.params.userId]);
+  await q('DELETE FROM blocks WHERE blocker_id = $1 AND blocked_id = $2', [req.user.id, req.params.userId]);
   res.json({ blocked: false });
 }));

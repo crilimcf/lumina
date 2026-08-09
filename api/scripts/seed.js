@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { q, tx, pool } from '../src/db.js';
+import { q, pool } from '../src/db.js';
 
 const PEOPLE = [
   ['sofia', 'Sofia Marques', 'Luz natural, sempre. Faro → Lisboa.', 0, ['nascer do sol', 'analógico', '35 mm']],
@@ -8,69 +8,43 @@ const PEOPLE = [
   ['nuno', 'Nuno Vieira', 'Construo coisas pequenas que funcionam.', 2, ['madeira', 'reparar']],
 ];
 
-const COMMUNITIES = [
-  ['fotografia', 'Fotografia', 'Europe/Lisbon', 'sofia', [
-    'Algo azul', 'A primeira coisa que viste hoje', 'Uma sombra que te fez parar',
-    'O céu, sem cortar nada', 'A janela mais próxima de ti']],
-  ['desenho', 'Desenho', 'Europe/Lisbon', 'joao', [
-    'Uma grelha que não resultou', 'O teu tipo de letra preferido, em papel',
-    'Um erro que ficou melhor que o plano', 'O que tens no caderno agora',
-    'A cor que usas demasiado']],
-  ['oficina', 'Oficina', 'Europe/Lisbon', 'nuno', [
-    'A ferramenta mais usada da bancada', 'Uma coisa que arranjaste em vez de deitar fora',
-    'O que estás a meio de fazer', 'O teu maior falhanço em madeira',
-    'A bancada como está agora, sem arrumar']],
-];
-
 async function main() {
-  console.log('A limpar…');
-  await q('TRUNCATE users, communities, memberships, posts, proposals, invites, threads, messages, reports RESTART IDENTITY CASCADE');
+  console.log('A limpar dados de demonstração…');
+  const { rows } = await q(`SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename<>'schema_migrations'`);
+  if (rows.length) {
+    const tables = rows.map(({ tablename }) => `"${String(tablename).replaceAll('"','""')}"`).join(', ');
+    await q(`TRUNCATE ${tables} RESTART IDENTITY CASCADE`);
+  }
 
   const hash = await bcrypt.hash('lumina1234', 12);
   const ids = {};
-
   for (const [handle, name, bio, palette, stars] of PEOPLE) {
-    const { rows } = await q(
+    const { rows: inserted } = await q(
       `INSERT INTO users (handle, email, password_hash, name, bio, palette, stars,
                           birth_date, terms_accepted_at, terms_version, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, '1994-05-12', now(), '2026-08-01',
                now() - interval '30 days') RETURNING id`,
       [handle, `${handle}@exemplo.pt`, hash, name, bio, palette, stars]
     );
-    ids[handle] = rows[0].id;
+    ids[handle] = inserted[0].id;
   }
-  console.log(`${PEOPLE.length} pessoas · password: lumina1234`);
 
-  for (const [slug, name, tz, founder, seeds] of COMMUNITIES) {
-    await tx(async (c) => {
-      const { rows } = await c.query(
-        `INSERT INTO communities (slug, name, timezone, founder_id, member_count)
-         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-        [slug, name, tz, ids[founder], PEOPLE.length]
-      );
-      const cid = rows[0].id;
-
-      for (const [handle] of PEOPLE) {
-        await c.query(
-          `INSERT INTO memberships (community_id, user_id, role) VALUES ($1, $2, $3)`,
-          [cid, ids[handle], handle === founder ? 'founder' : 'member']
-        );
-      }
-      for (const [i, text] of seeds.entries()) {
-        await c.query(
-          `INSERT INTO proposals (community_id, author_id, text, is_seed, vote_count)
-           VALUES ($1, $2, $3, true, $4)`,
-          [cid, ids[founder], text, Math.max(0, 20 - i * 4)]
-        );
-      }
-    });
+  for (const follower of PEOPLE) {
+    for (const followed of PEOPLE) {
+      if (follower[0] === followed[0]) continue;
+      await q('INSERT INTO follows (follower_id,following_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [ids[follower[0]], ids[followed[0]]]);
+    }
   }
-  console.log(`${COMMUNITIES.length} comunidades com propostas de arranque`);
 
-  const { rotateInvites } = await import('../src/jobs/daily.js');
-  const n = await rotateInvites();
-  console.log(`${n} convites abertos para hoje`);
+  await q(`INSERT INTO posts (author_id,body,palette) VALUES
+    ($1,'Primeira luz da manhã. Sem filtro.',0),
+    ($2,'A trabalhar numa interface que desaparece quando já não é necessária.',1),
+    ($3,'Viagem lenta, janela aberta e um caderno.',4),
+    ($4,'Hoje reparei uma peça em vez de a substituir.',2)`,
+    [ids.sofia, ids.joao, ids.ana, ids.nuno]
+  );
 
+  console.log(`${PEOPLE.length} pessoas de demonstração · password: lumina1234`);
   await pool.end();
 }
 

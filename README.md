@@ -1,6 +1,6 @@
 # Lumina
 
-Lumina é uma rede social mobile-first centrada em comunidades pequenas, feed cronológico, Momentos de 24 horas, Salas e conversas privadas.
+Lumina é uma rede social mobile-first centrada em pessoas: Feed social cronológico, Momentos de 24 horas, Salas temáticas, Radar e conversas privadas.
 
 ## Estado
 
@@ -23,7 +23,7 @@ lumina/
 │   ├── dependabot.yml
 │   └── workflows/          CI, Mobile Safari e fallback Railway
 ├── api/
-│   ├── migrations/         schema PostgreSQL versionado
+│   ├── migrations/         schema PostgreSQL e migrações de produção
 │   ├── scripts/            jobs e operações administrativas
 │   ├── src/                API Express
 │   ├── test/               testes de integração
@@ -39,6 +39,17 @@ lumina/
 ```
 
 > `api/public/` é intencional. O workflow `Build Railway web fallback` recompila `web/` e publica o resultado nesse diretório para manter uma segunda via de entrega da interface. Não deve ser editado manualmente.
+
+## Produto
+
+A navegação principal é **Feed · Salas · Novo · Radar · Chat**. Alertas e Perfil ficam no topo.
+
+- **Feed:** mostra as publicações da própria pessoa e de quem ela segue, por ordem cronológica. Bloqueios e perfis privados são validados pela API.
+- **Salas:** espaços públicos ou privados para conversas temáticas. Uma Sala privada só é descoberta por quem recebeu convite.
+- **Novo:** abre diretamente o composer do Feed; publicar não depende de qualquer outro espaço da aplicação.
+- **Radar:** descoberta, campanhas e conteúdos patrocinados, separados do Feed social.
+- **Chat:** mensagens privadas, conteúdos efémeros e chamadas.
+- **Momentos:** fotografia/vídeo durante 24 horas, visível segundo o mesmo grafo social do Feed.
 
 ## Desenvolvimento local
 
@@ -115,7 +126,7 @@ Consultar [docs/OPERATIONS.md](docs/OPERATIONS.md) para deploy, fallback e recup
 - 👍 e 🔥 são expressão social, não mecanismo de ordenação.
 - Perfis podem ser públicos ou privados; pedidos privados exigem aceitação.
 - Salas podem ser públicas ou privadas; Salas Ultra permanecem atrás de feature/UX desativada.
-- Momentos duram 24 horas. Foto/vídeo pode ser editado, trocado ou removido antes de publicar; depois de publicado, o autor pode substituir o media sem reiniciar as 24 horas ou apagar o Momento.
+- Momentos duram 24 horas. Depois de publicado, o autor pode substituir o media sem reiniciar as 24 horas ou apagar o Momento.
 - Conteúdo efémero é limpo por jobs da API.
 - Produção não usa dados de demonstração.
 

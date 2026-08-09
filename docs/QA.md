@@ -16,24 +16,21 @@ Os workflows correm em `master`, pull requests e branches `qa/**`, `feature/**`,
 
 - registo, login, logout, sessões e reset de password;
 - 2FA e códigos de recuperação;
-- perfis, privacidade, follow requests, bloqueios e notificações;
+- perfis públicos/privados, follow requests, bloqueios e notificações;
+- Feed baseado em follows: antes do follow o conteúdo não entra; depois do follow entra; um bloqueio volta a cortá-lo;
+- criação, edição e eliminação de publicações;
+- 👍, 🔥, comentários e repost/undo com autorização social;
 - avatar: colocar, substituir e remover, incluindo limpeza do upload antigo;
-- comunidades, convites e limites;
-- posts, edição, eliminação, comentários e autorização;
-- 👍, 🔥 e repost/undo;
 - Salas públicas e privadas, convites, edição, mensagens e eliminação;
 - mensagens privadas, efemeridade e controlo de acesso;
-- Momentos: criar, listar, ver, substituir media depois de publicar e apagar;
+- Momentos: criar, listar segundo follows, ver, substituir media depois de publicar e apagar;
 - edição de Momento sem reiniciar a validade das 24 horas;
-- substituição de media sem deixar o upload anterior órfão;
-- rejeição de edição de Momento por outro utilizador;
-- uploads, vídeos e remoção de media;
-- denúncias, conteúdo escondido e jobs concorrentes;
+- uploads de fotografia/vídeo, consumo único e remoção de media órfão;
+- denúncias, auto-ocultação e fila global reservada à equipa Lumina;
+- apagamento RGPD e remoção de conteúdo derivado;
 - CSRF/autenticação pública e regressões de segurança.
 
-`release-lifecycle.test.js` é o teste de aceitação de release: cria utilizadores reais numa base isolada e atravessa o ciclo social principal do início ao fim.
-
-No fim da suite, o CI executa também o `reset:production` contra a base descartável, com a frase de confirmação correta, para provar que a operação de limpeza total funciona antes de poder ser usada em produção.
+`release-lifecycle.test.js` é o teste de aceitação de release: cria utilizadores reais numa base isolada e atravessa o ciclo principal do início ao fim.
 
 ## Cobertura Mobile Safari
 
@@ -42,28 +39,31 @@ No fim da suite, o CI executa também o `reset:production` contra a base descart
 Fluxos cobertos:
 
 - criar conta e concluir onboarding;
+- entrar diretamente no Feed sem pré-requisitos extra;
 - logout e novo login real com email/password;
 - persistência de sessão/reload;
-- criar comunidade;
-- navegação final Feed · Salas · Novo · Radar · Conversas;
+- navegação Feed · Salas · Novo · Radar · Chat;
 - Alertas e Perfil no topo;
+- `Novo` abre o composer diretamente a partir do Feed, Perfil e Chat;
 - criar, editar e apagar publicação;
-- composer de post a partir de vários ecrãs;
 - editor de fotografia: crop/gestos, brilho, rotação, stickers, trocar/remover media;
 - publicação de vídeo;
-- Momento com fotografia/vídeo e editor antes da publicação;
-- substituir o media de um Momento já publicado, através do visualizador do autor;
-- perfil e edição/crop do avatar;
-- Sala pública: criar, editar, conversar, apagar mensagem e apagar sala;
+- Momentos com fotografia/vídeo e editor antes da publicação;
+- substituir o media de um Momento já publicado através do visualizador do autor;
+- Perfil com seguidores, a seguir, descoberta de pessoas e entrada em Salas;
+- edição/crop do avatar;
+- Sala pública: criar, editar, conversar, apagar mensagem e apagar Sala;
 - Sala privada com dois utilizadores: criar, procurar utilizador, convidar, login do convidado, aceitar convite e entrar;
 - Chat com ações de áudio/vídeo;
 - Alertas de pedido de follow e mudança de perfil público/privado.
 
+## Regressão específica do botão Novo
+
+O teste principal de Mobile Safari começa com uma conta recém-criada, entra no Feed vazio e carrega em **Novo** sem criar nem aderir a qualquer outro espaço. O composer tem de abrir e a publicação tem de aparecer no Feed. Esta regressão impede que volte a surgir qualquer pré-condição indevida no botão central.
+
 ## Momentos: regra de produto
 
 Antes de publicar, uma fotografia de Momento pode passar pelo editor completo e o ficheiro pode ser trocado ou removido. Depois de publicado, o autor pode **substituir a fotografia/vídeo** ou apagar o Momento. A substituição mantém o mesmo Momento e a mesma hora de expiração; não oferece mais 24 horas ao conteúdo.
-
-O WebKit valida a ação de edição no visualizador e o pedido de substituição. A autorização real e o ciclo de vida do upload são validados nos testes de integração da API.
 
 ## Media e armazenamento
 
@@ -94,7 +94,7 @@ Para WebKit, usar o workflow GitHub Actions ou instalar Playwright localmente de
 Um bug encontrado na auditoria deve resultar, sempre que possível, em:
 
 1. teste que reproduz a falha;
-2. correção mínima;
+2. correção estrutural;
 3. teste verde;
 4. regressão mantida na suite.
 

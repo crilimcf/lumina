@@ -16,13 +16,8 @@ async function registerAndOpenProfile(page) {
   await page.locator('input[type="checkbox"]').check();
   await page.getByRole('button', { name: 'Criar conta' }).click();
   await page.getByRole('button', { name: 'Entendido, vamos lá' }).click();
-  await page.getByRole('button', { name: /Criar ou entrar numa comunidade/ }).click();
-
-  const communityName = `Avatar QA ${Date.now()}${Math.floor(Math.random() * 1000)}`;
-  await page.getByPlaceholder('ex: Amigos da faculdade').fill(communityName);
-  const seeds = page.locator('input[placeholder^="ideia "]');
-  for (let i = 0; i < 5; i++) await seeds.nth(i).fill(`avatar pergunta ${i + 1}`);
-  await page.getByRole('button', { name: 'Criar comunidade' }).click();
+  await expect(page.getByRole('button', { name: 'Ir para o Feed' })).toBeVisible();
+  await page.getByRole('button', { name: 'Ir para o Feed' }).click();
   await page.getByRole('button', { name: 'Perfil' }).click();
   await page.getByRole('button', { name: 'Editar perfil' }).click();
   await expect(page.getByRole('heading', { name: 'Editar perfil' })).toBeVisible();
@@ -40,9 +35,7 @@ test('foto de perfil recorta, guarda e não mostra paleta antiga em Mobile Safar
     'base64'
   );
   await page.locator('input[type="file"][accept="image/jpeg,image/png,image/webp"]').setInputFiles({
-    name: 'perfil.png',
-    mimeType: 'image/png',
-    buffer: png,
+    name: 'perfil.png', mimeType: 'image/png', buffer: png,
   });
 
   await expect(page.getByRole('dialog', { name: 'Ajustar foto de perfil' })).toBeVisible();

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api.js';
 
-export function useComposer({ loadFeed, setComs, setDays, ping }) {
+export function useComposer({ loadFeed, ping }) {
   const [comp, setComp] = useState(null);
   const [body, setBody] = useState('');
   const [palette, setPalette] = useState(0);
@@ -14,28 +14,18 @@ export function useComposer({ loadFeed, setComs, setDays, ping }) {
     try {
       let mediaUrl = null;
       if (file) mediaUrl = await api.upload(file);
-      const answeringInvite = !!comp.inviteId;
 
       await api.posts.create({
-        communityId: comp.community,
         body: body.trim(),
         mediaUrl,
         palette,
-        inviteId: comp.inviteId || null,
       });
 
       setBody('');
       setFile(null);
       setComp(null);
-
-      const [, communities, answerDays] = await Promise.all([
-        loadFeed(),
-        api.communities.mine(),
-        api.account.days(),
-      ]);
-      setComs(communities);
-      setDays(answerDays.days || []);
-      ping(answeringInvite ? 'Respondeste. Vê as outras respostas.' : 'Publicado');
+      await loadFeed();
+      ping('Publicado');
     } catch (e) {
       ping(e.message);
     } finally {

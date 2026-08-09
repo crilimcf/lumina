@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { q, tx } from '../db.js';
-import { auth, h, bad, notFound, forbidden, requirePostMember } from '../middleware/auth.js';
+import { auth, h, bad, notFound, forbidden, requireVisiblePost } from '../middleware/auth.js';
 import { claimUpload, removeUploadIfUnreferenced } from '../lib/uploads.js';
 
 export const postRoutes = Router();
@@ -8,8 +8,7 @@ export const postRoutes = Router();
 const SELECT_POST = `
   SELECT p.id, p.body, p.media_url,
          (SELECT up.mime FROM uploads up WHERE up.url = p.media_url LIMIT 1) AS media_mime,
-         p.palette, p.created_at, p.edited_at, p.kind, p.invite_id, p.repost_of,
-         c.slug AS community_slug, c.name AS community_name,
+         p.palette, p.created_at, p.edited_at, p.kind, p.repost_of,
          u.id AS author_id, u.handle, u.name, u.palette AS author_palette, u.avatar_url AS author_avatar_url,
          (SELECT count(*) FROM reactions r WHERE r.post_id = p.id AND r.kind = 'like')::int AS likes,
          (SELECT count(*) FROM reactions r WHERE r.post_id = p.id AND r.kind = 'fire')::int AS fires,
@@ -18,18 +17,22 @@ const SELECT_POST = `
          (SELECT array_agg(r.kind) FROM reactions r WHERE r.post_id = p.id AND r.user_id = $1) AS my_reactions
   FROM posts p
   JOIN users u ON u.id = p.author_id
-  JOIN communities c ON c.id = p.community_id
 `;
 
 async function listByKind(req, kind) {
   const before = req.query.before || null;
   const asked = Number(req.query.limit);
   const limit = Number.isInteger(asked) && asked > 0 ? Math.min(asked, 50) : 20;
+  const socialFilter = kind === 'post'
+    ? `AND (p.author_id = $1 OR EXISTS (
+         SELECT 1 FROM follows f WHERE f.follower_id = $1 AND f.following_id = p.author_id
+       ))`
+    : '';
   const { rows } = await q(
     `${SELECT_POST}
      WHERE p.hidden_at IS NULL
        AND COALESCE(p.kind,'post') = $4
-       AND p.community_id IN (SELECT community_id FROM memberships WHERE user_id = $1)
+       ${socialFilter}
        AND NOT EXISTS (SELECT 1 FROM blocks b
                        WHERE (b.blocker_id = $1 AND b.blocked_id = p.author_id)
                           OR (b.blocked_id = $1 AND b.blocker_id = p.author_id))
@@ -41,59 +44,33 @@ async function listByKind(req, kind) {
   return { posts: rows, nextCursor: rows.length === limit ? rows.at(-1).created_at : null };
 }
 
-/** Feed social cronológico e sem publicidade. */
 postRoutes.get('/feed', auth, h(async (req, res) => {
   res.json(await listByKind(req, 'post'));
 }));
 
-/** Promoções vivem num feed separado para nunca poluir o feed social. */
 postRoutes.get('/promotions', auth, h(async (req, res) => {
   res.json(await listByKind(req, 'promotion'));
 }));
 
 postRoutes.post('/', auth, h(async (req, res) => {
-  const { communityId, mediaUrl = null, inviteId = null } = req.body;
+  const { mediaUrl = null } = req.body;
   const body = String(req.body.body || '').trim();
   const palette = Number(req.body.palette ?? 0);
-  if (!communityId || !body) throw bad('Faltam campos');
+  if (!body) throw bad('A publicação não pode ficar vazia');
   if (body.length > 2000) throw bad('A publicação tem no máximo 2000 caracteres');
   if (!Number.isInteger(palette) || palette < 0 || palette > 4) throw bad('Cor inválida', 'bad_palette');
 
-  const { rows: mem } = await q(
-    'SELECT 1 FROM memberships WHERE community_id = $1 AND user_id = $2',
-    [communityId, req.user.id]
-  );
-  if (!mem[0]) throw bad('Só membros publicam nesta comunidade', 'not_member');
-
   const post = await tx(async (c) => {
-    if (inviteId) {
-      const { rows: inv } = await c.query(
-        `SELECT id FROM invites
-         WHERE id = $1 AND community_id = $2 AND now() BETWEEN opens_at AND closes_at`,
-        [inviteId, communityId]
-      );
-      if (!inv[0]) throw bad('Esse convite já fechou', 'invite_closed');
-    }
-
     if (mediaUrl) {
       const claimed = await claimUpload(mediaUrl, req.user.id, 'post', (text, params) => c.query(text, params), { allowVideo: true });
       if (!claimed) throw bad('Media não verificado ou já utilizado', 'unconfirmed_upload');
     }
 
     const { rows } = await c.query(
-      `INSERT INTO posts (author_id, community_id, body, media_url, palette, invite_id, kind)
-       VALUES ($1, $2, $3, $4, $5, $6, 'post') RETURNING id`,
-      [req.user.id, communityId, body, mediaUrl, palette, inviteId]
+      `INSERT INTO posts (author_id, body, media_url, palette, kind)
+       VALUES ($1, $2, $3, $4, 'post') RETURNING id`,
+      [req.user.id, body, mediaUrl, palette]
     );
-    if (inviteId) {
-      await c.query('UPDATE invites SET reply_count = reply_count + 1 WHERE id = $1', [inviteId]);
-      await c.query(
-        `INSERT INTO answer_days (user_id, community_id, local_date)
-         SELECT $1, $2, i.local_date FROM invites i WHERE i.id = $3
-         ON CONFLICT DO NOTHING`,
-        [req.user.id, communityId, inviteId]
-      );
-    }
     return rows[0];
   });
 
@@ -101,7 +78,6 @@ postRoutes.post('/', auth, h(async (req, res) => {
   res.status(201).json(rows[0]);
 }));
 
-/** Só o autor edita o texto da publicação. Media e autoria ficam imutáveis. */
 postRoutes.patch('/:postId', auth, h(async (req, res) => {
   const body = String(req.body.body || '').trim();
   if (!body) throw bad('A publicação não pode ficar vazia');
@@ -117,7 +93,7 @@ postRoutes.patch('/:postId', auth, h(async (req, res) => {
   res.json(full[0]);
 }));
 
-postRoutes.post('/:postId/reactions/:kind', auth, requirePostMember, h(async (req, res) => {
+postRoutes.post('/:postId/reactions/:kind', auth, requireVisiblePost, h(async (req, res) => {
   const { postId, kind } = req.params;
   if (!['like', 'fire'].includes(kind)) throw bad('Reação inválida');
   const del = await q('DELETE FROM reactions WHERE post_id=$1 AND user_id=$2 AND kind=$3 RETURNING user_id', [postId, req.user.id, kind]);
@@ -130,15 +106,13 @@ postRoutes.post('/:postId/reactions/:kind', auth, requirePostMember, h(async (re
   res.json({ active: !del.rowCount, ...rows[0] });
 }));
 
-postRoutes.post('/:postId/repost', auth, h(async (req, res) => {
+postRoutes.post('/:postId/repost', auth, requireVisiblePost, h(async (req, res) => {
   const { rows: orig } = await q(
-    `SELECT community_id, body, media_url, palette FROM posts
+    `SELECT body, media_url, palette FROM posts
      WHERE id=$1 AND hidden_at IS NULL AND COALESCE(kind,'post')='post'`,
     [req.params.postId]
   );
   if (!orig[0]) throw notFound('Publicação não encontrada');
-  const { rows: mem } = await q('SELECT 1 FROM memberships WHERE community_id=$1 AND user_id=$2', [orig[0].community_id, req.user.id]);
-  if (!mem[0]) throw bad('Só membros desta comunidade republicam aqui', 'not_member');
 
   const del = await q('DELETE FROM posts WHERE author_id=$1 AND repost_of=$2 RETURNING id,media_url', [req.user.id, req.params.postId]);
   if (del.rowCount) {
@@ -146,14 +120,14 @@ postRoutes.post('/:postId/repost', auth, h(async (req, res) => {
     return res.json({ reposted: false });
   }
   const { rows } = await q(
-    `INSERT INTO posts (author_id,community_id,body,media_url,palette,repost_of,kind)
-     VALUES ($1,$2,$3,$4,$5,$6,'post') RETURNING id`,
-    [req.user.id, orig[0].community_id, orig[0].body, orig[0].media_url, orig[0].palette, req.params.postId]
+    `INSERT INTO posts (author_id,body,media_url,palette,repost_of,kind)
+     VALUES ($1,$2,$3,$4,$5,'post') RETURNING id`,
+    [req.user.id, orig[0].body, orig[0].media_url, orig[0].palette, req.params.postId]
   );
   res.status(201).json({ reposted: true, id: rows[0].id });
 }));
 
-postRoutes.get('/:postId/comments', auth, requirePostMember, h(async (req, res) => {
+postRoutes.get('/:postId/comments', auth, requireVisiblePost, h(async (req, res) => {
   const { rows } = await q(
     `SELECT cm.id, cm.author_id, cm.body, cm.created_at, cm.edited_at,
             p.author_id AS post_author_id,
@@ -168,7 +142,7 @@ postRoutes.get('/:postId/comments', auth, requirePostMember, h(async (req, res) 
   res.json(rows);
 }));
 
-postRoutes.post('/:postId/comments', auth, requirePostMember, h(async (req, res) => {
+postRoutes.post('/:postId/comments', auth, requireVisiblePost, h(async (req, res) => {
   const body = String(req.body.body || '').trim();
   if (!body) throw bad('Comentário vazio');
   if (body.length > 1000) throw bad('O comentário tem no máximo 1000 caracteres');
@@ -180,7 +154,7 @@ postRoutes.post('/:postId/comments', auth, requirePostMember, h(async (req, res)
   res.status(201).json(rows[0]);
 }));
 
-postRoutes.patch('/:postId/comments/:commentId', auth, requirePostMember, h(async (req, res) => {
+postRoutes.patch('/:postId/comments/:commentId', auth, requireVisiblePost, h(async (req, res) => {
   const body = String(req.body.body || '').trim();
   if (!body) throw bad('Comentário vazio');
   if (body.length > 1000) throw bad('O comentário tem no máximo 1000 caracteres');
@@ -194,7 +168,7 @@ postRoutes.patch('/:postId/comments/:commentId', auth, requirePostMember, h(asyn
   res.json(rows[0]);
 }));
 
-postRoutes.delete('/:postId/comments/:commentId', auth, requirePostMember, h(async (req, res) => {
+postRoutes.delete('/:postId/comments/:commentId', auth, requireVisiblePost, h(async (req, res) => {
   const { rows } = await q(
     `DELETE FROM comments cm
      USING posts p

@@ -22,14 +22,18 @@ Nunca usar `api/public/` como fonte de edição manual.
 
 ## Migrações
 
-- `api/src/db.js` executa migrations no arranque.
-- Migrations existentes são imutáveis depois de produção.
-- Para alterar schema, criar o próximo ficheiro numerado em `api/migrations/`.
-- Testar sempre contra PostgreSQL limpo no CI.
+- `api/src/db.js` executa migrations no arranque e regista cada versão em `schema_migrations`.
+- `001_init.sql` é o esquema canónico atual para uma base nova.
+- `010_social_feed_cleanup.sql` é a migração de compatibilidade para instalações que já tinham versões 1–9 registadas antes da consolidação do esquema.
+- A migração 010 é idempotente em relação ao esquema limpo: também pode correr depois de `001_init.sql` numa base nova.
+- Alterações futuras de schema devem usar o próximo número disponível; não reutilizar 010 para mudanças posteriores.
+- Testar sempre uma base PostgreSQL limpa no CI e validar a migração de upgrade antes de produção quando houver alteração estrutural.
 
 ## Jobs
 
 Os jobs podem correr dentro do processo da API ou através dos scripts de cron, consoante a configuração do ambiente. Não manter duas implementações SQL diferentes para a mesma tarefa.
+
+Atualmente os jobs tratam expiração de mensagens e Momentos, uploads abandonados/órfãos, apagamentos RGPD e limpeza de tokens/tentativas de login.
 
 ## Operações destrutivas
 
@@ -41,7 +45,7 @@ Se no futuro for necessária uma limpeza integral de ambiente, tratar como opera
 2. exigir confirmação explícita e proteção contra repetição;
 3. testar primeiro numa base PostgreSQL descartável;
 4. garantir limpeza coordenada de dados e media rastreado;
-5. validar contadores/estado depois da execução;
+5. validar estado depois da execução;
 6. remover o mecanismo destrutivo e voltar ao arranque normal antes de encerrar a release.
 
 Nunca executar `seed` em produção pública nem introduzir comandos destrutivos no `npm start` normal.
@@ -86,7 +90,7 @@ Validar no mínimo:
 - abrir PWA instalada sem reinstalar;
 - Feed;
 - Salas;
-- Novo post;
+- Novo post numa conta que não tenha qualquer outro conteúdo;
 - Radar;
 - Conversas;
 - Alertas;

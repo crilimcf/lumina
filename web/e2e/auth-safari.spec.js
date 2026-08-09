@@ -19,12 +19,8 @@ test('criar conta, sair e voltar a entrar funciona em Mobile Safari', async ({ p
 
   await expect(page.getByText('Bem-vindo à Lumina')).toBeVisible();
   await page.getByRole('button', { name: 'Entendido, vamos lá' }).click();
-  await page.getByRole('button', { name: /Criar ou entrar numa comunidade/ }).click();
-
-  await page.getByPlaceholder('ex: Amigos da faculdade').fill(`Auth QA ${suffix}`);
-  const seeds = page.locator('input[placeholder^="ideia "]');
-  for (let i = 0; i < 5; i++) await seeds.nth(i).fill(`auth pergunta ${i + 1}`);
-  await page.getByRole('button', { name: 'Criar comunidade' }).click();
+  await expect(page.getByRole('button', { name: 'Ir para o Feed' })).toBeVisible();
+  await page.getByRole('button', { name: 'Ir para o Feed' }).click();
   await expect(page.getByRole('button', { name: 'Perfil' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Perfil' }).click();
@@ -36,7 +32,7 @@ test('criar conta, sair e voltar a entrar funciona em Mobile Safari', async ({ p
   await page.getByRole('button', { name: 'Entrar' }).click();
 
   await expect(page.getByText('Olá, Safari')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Ver o feed' })).toBeVisible();
-  await page.getByRole('button', { name: 'Ver o feed' }).click();
+  await expect(page.getByRole('button', { name: 'Ir para o Feed' })).toBeVisible();
+  await page.getByRole('button', { name: 'Ir para o Feed' }).click();
   await expect(page.getByRole('button', { name: 'Perfil' })).toBeVisible();
 });

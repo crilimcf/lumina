@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Edit3, Flag, MoreHorizontal, Plus, Repeat2, Search, Send, Trash2, X } from 'lucide-react';
 import { api } from '../api.js';
 import { PAL, Orb, Skeleton, ErrorNote, Empty } from '../ui.jsx';
-import { Composer, Nav, Toast, TopActions } from '../components/AppChrome.jsx';
+import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
 import { MomentComposer, MomentRing, MomentViewer } from '../components/Moments.jsx';
 
 function EditPostSheet({ post, onClose, onSave }) {
@@ -29,16 +29,15 @@ function CommentRow({ comment, post, me, editComment, deleteComment }) {
       <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}><div style={{ fontSize: 13, fontWeight: 650 }}>{comment.name}</div>{comment.edited_at && <span className="m" style={{ fontSize: 9 }}>editado</span>}</div>
       {editing ? <div style={{ display: 'flex', gap: 7, marginTop: 6 }}><input value={value} maxLength={1000} onChange={e => setValue(e.target.value)} /><button className="p p-sm p-ink" onClick={async () => { if (await editComment(post.id, comment.id, value.trim())) setEditing(false); }}>Guardar</button></div> : <div style={{ fontSize: 15, lineHeight: 1.4, marginTop: 2, color: '#332E4E' }}>{comment.body}</div>}
     </div>
-    {(own || canDelete) && <div style={{ display: 'flex', gap: 1 }}>{own && <button onClick={() => setEditing(v => !v)} aria-label="Editar comentário" style={{ border: 0, background: 'none', color: '#A49CBF', padding: 4 }}><Edit3 size={13} /></button>}{canDelete && <button onClick={() => deleteComment(post.id, comment.id)} aria-label="Apagar comentário" style={{ border: 0, background: 'none', color: '#D77972', padding: 4 }}><Trash2 size={13} /></button>}</div>}
+    {canDelete && <div style={{ display: 'flex', gap: 1 }}>{own && <button onClick={() => setEditing(v => !v)} aria-label="Editar comentário" style={{ border: 0, background: 'none', color: '#A49CBF', padding: 4 }}><Edit3 size={13} /></button>}<button onClick={() => deleteComment(post.id, comment.id)} aria-label="Apagar comentário" style={{ border: 0, background: 'none', color: '#D77972', padding: 4 }}><Trash2 size={13} /></button></div>}
   </div>;
 }
 
 export function Feed({
-  me, coms, tab, setTab, setScreen,
+  me, tab, setTab, setScreen,
   feed, feedErr, loadingFeed, loadFeed, comments, open, draft, setDraft,
   react, repost, editPost, deletePost, loadComments, comment, editComment, deleteComment,
-  burst, menuFor, setMenuFor, report,
-  comp, setComp, file, setFile, palette, setPalette, body, setBody, busy, publish,
+  burst, menuFor, setMenuFor, report, setComp,
   threads, setThread, ping, toast, unreadCount,
   momentGroups, myMomentGroup, viewingAuthor, setViewingAuthor,
   viewMoment, deleteMoment, replyToMoment,
@@ -66,7 +65,7 @@ export function Feed({
       </div>
 
       <div style={{ padding: '0 16px' }}><ErrorNote error={feedErr} onRetry={loadFeed} /></div>
-      {loadingFeed ? <div style={{ display: 'grid', gap: 10 }}>{[0,1].map(i => <div key={i} className="sect" style={{ padding: '13px 0' }}><div style={{ display: 'flex', gap: 11, padding: '0 16px 13px', alignItems: 'center' }}><Skeleton w={38} h={38} r={99} /><div style={{ flex: 1 }}><Skeleton w="45%" h={13} /></div></div><Skeleton w="100%" h={280} r={0} /><div style={{ padding: '14px 16px' }}><Skeleton w="70%" h={13} /></div></div>)}</div> : feed.length === 0 ? <Empty>O teu feed está vazio.<br />Publica algo ou junta-te a mais comunidades.</Empty> : (
+      {loadingFeed ? <div style={{ display: 'grid', gap: 10 }}>{[0,1].map(i => <div key={i} className="sect" style={{ padding: '13px 0' }}><div style={{ display: 'flex', gap: 11, padding: '0 16px 13px', alignItems: 'center' }}><Skeleton w={38} h={38} r={99} /><div style={{ flex: 1 }}><Skeleton w="45%" h={13} /></div></div><Skeleton w="100%" h={280} r={0} /><div style={{ padding: '14px 16px' }}><Skeleton w="70%" h={13} /></div></div>)}</div> : feed.length === 0 ? <Empty>O teu Feed está vazio.<br />Segue pessoas ou publica algo novo.</Empty> : (
         <div style={{ display: 'grid', gap: 10 }}>
           {feed.map((p, i) => {
             const mine = p.my_reactions || [];
@@ -77,7 +76,7 @@ export function Feed({
               {p.repost_of && <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px 0', color: 'var(--grey)' }}><Repeat2 size={14} /><span className="m">{own ? 'Republicaste' : `${p.name} republicou`}</span></div>}
               <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '13px 16px' }}>
                 <Orb p={p.author_palette} avatarUrl={p.author_avatar_url} s={38} />
-                <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-.02em' }}>{p.name}</div><div className="m" style={{ marginTop: 2 }}>{p.community_name} · {new Date(p.created_at).toLocaleDateString('pt-PT', { day:'numeric', month:'short' })}{p.edited_at ? ' · editado' : ''}</div></div>
+                <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-.02em' }}>{p.name}</div><div className="m" style={{ marginTop: 2 }}>@{p.handle} · {new Date(p.created_at).toLocaleDateString('pt-PT', { day:'numeric', month:'short' })}{p.edited_at ? ' · editado' : ''}</div></div>
                 <div style={{ position: 'relative' }}>
                   <button onClick={() => setMenuFor(menuFor === p.id ? null : p.id)} aria-label="Mais opções" style={{ background: 'none', border: 0, cursor: 'pointer', color: '#AFA7CA', padding: 6 }}><MoreHorizontal size={19} /></button>
                   {menuFor === p.id && <div className="card in" style={{ position: 'absolute', top: '100%', right: 0, zIndex: 30, minWidth: 164, padding: 6, display: 'grid' }}>
@@ -104,11 +103,9 @@ export function Feed({
         </div>
       )}
 
-      <Composer comp={comp} setComp={setComp} coms={coms} file={file} setFile={setFile} palette={palette} setPalette={setPalette} body={body} setBody={setBody} busy={busy} publish={publish} />
-      <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} coms={coms} threads={threads} ping={ping} />
+      <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} threads={threads} />
       <Toast text={toast} />
       {editingPost && <EditPostSheet post={editingPost} onClose={() => setEditingPost(null)} onSave={body => editPost(editingPost, body)} />}
-
       {viewingAuthor && (() => { const group = momentGroups.find(g => g.author.id === viewingAuthor); if (!group) return null; const idx=momentGroups.indexOf(group); return <MomentViewer group={group} meId={me.id} onView={viewMoment} onDelete={deleteMoment} onReply={replyToMoment} onClose={() => setViewingAuthor(null)} onNext={() => setViewingAuthor(momentGroups[idx+1]?.author.id || null)} onPrev={() => setViewingAuthor(momentGroups[idx-1]?.author.id || null)} />; })()}
       {momentComposer && <MomentComposer file={momentFile} setFile={setMomentFile} palette={momentPalette} setPalette={setMomentPalette} busy={momentBusy} onClose={() => { setMomentComposer(false); setMomentFile(null); setMomentPalette(0); }} onPublish={publishMoment} />}
     </div>

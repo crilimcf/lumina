@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Bell, Check, DoorOpen, FileText, Globe2, Lock, Search, UserPlus, Users, X,
 } from 'lucide-react';
@@ -36,7 +36,7 @@ function notificationText(n) {
   return 'Tens uma novidade';
 }
 
-function ProfileView({ person, posts, loadingPosts, onBack, onToggleFollow, ping }) {
+function ProfileView({ person, posts, loadingPosts, onBack, onToggleFollow }) {
   if (!person) return null;
   const locked = person.is_private && !person.can_view_posts;
   return <div style={{ padding: 'calc(18px + env(safe-area-inset-top)) 18px 112px', maxWidth: 720, margin: '0 auto' }}>
@@ -162,7 +162,7 @@ export function Atividade({
     try {
       let result;
       if (target.following || target.requested) result = await api.users.unfollow(target.id);
-      else result = await api.users.follow(target.id);
+      else result = await api.users.followAction(target.id);
       const next = { ...target, following: !!result.following, requested: !!result.pending };
       setResults(rows => rows.map(r => r.id === target.id ? next : r));
       if (person?.id === target.id) {
@@ -221,14 +221,14 @@ export function Atividade({
     } catch (e) { ping(e.message); }
   };
 
+  const unread = items.filter(n => !n.read_at).length;
+  const pendingRequests = items.filter(n => n.type === 'follow_request' && n.follow_request_status === 'pending');
+
   if (person) return <>
-    <ProfileView person={person} posts={posts} loadingPosts={loadingPosts} onBack={() => { setPerson(null); setPosts([]); }} onToggleFollow={toggleFollow} ping={ping} />
+    <ProfileView person={person} posts={posts} loadingPosts={loadingPosts} onBack={() => { setPerson(null); setPosts([]); }} onToggleFollow={toggleFollow} />
     <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} coms={coms} threads={threads} ping={ping} unreadCount={unreadCount} />
     <Toast text={toast} />
   </>;
-
-  const unread = items.filter(n => !n.read_at).length;
-  const pendingRequests = useMemo(() => items.filter(n => n.type === 'follow_request' && n.follow_request_status === 'pending'), [items]);
 
   return <div style={{ minHeight: '100dvh', paddingBottom: 102 }}>
     <main style={{ maxWidth: 720, margin: '0 auto', padding: 'calc(20px + env(safe-area-inset-top)) 18px 28px' }}>

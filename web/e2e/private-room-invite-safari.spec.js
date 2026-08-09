@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 const PASSWORD = 'lumina-webkit-1234';
 
-async function registerAndCreateCommunity(page, label) {
+async function registerAndEnterFeed(page, label) {
   const suffix = `${Date.now()}${Math.floor(Math.random() * 10000)}`;
   const safeLabel = label.toLowerCase().replace(/[^a-z0-9._]/g, '');
   const handle = `${safeLabel}${suffix}`.slice(0, 22);
@@ -18,14 +18,9 @@ async function registerAndCreateCommunity(page, label) {
   await page.locator('input[type="checkbox"]').check();
   await page.getByRole('button', { name: 'Criar conta' }).click();
   await page.getByRole('button', { name: 'Entendido, vamos lá' }).click();
-  await page.getByRole('button', { name: /Criar ou entrar numa comunidade/ }).click();
-
-  await page.getByPlaceholder('ex: Amigos da faculdade').fill(`${label} Circle ${suffix}`);
-  const seeds = page.locator('input[placeholder^="ideia "]');
-  for (let i = 0; i < 5; i++) await seeds.nth(i).fill(`${label} pergunta ${i + 1}`);
-  await page.getByRole('button', { name: 'Criar comunidade' }).click();
+  await expect(page.getByRole('button', { name: 'Ir para o Feed' })).toBeVisible();
+  await page.getByRole('button', { name: 'Ir para o Feed' }).click();
   await expect(page.getByRole('button', { name: 'Perfil' })).toBeVisible();
-
   return { handle, email };
 }
 
@@ -40,34 +35,18 @@ async function login(page, email, firstName) {
   await page.getByPlaceholder('Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page.getByText(`Olá, ${firstName}`)).toBeVisible();
-  await page.getByRole('button', { name: 'Ver o feed' }).click();
+  await page.getByRole('button', { name: 'Ir para o Feed' }).click();
 }
 
 test('Sala privada fica invisível sem convite e entra pelo convite em Mobile Safari', async ({ page }) => {
-  const guest = await registerAndCreateCommunity(page, 'Convidado QA');
+  const guest = await registerAndEnterFeed(page, 'Convidado QA');
   await logout(page);
 
-  await page.getByRole('button', { name: 'Criar conta' }).click();
-  const suffix = `${Date.now()}${Math.floor(Math.random() * 10000)}`;
-  const ownerHandle = `owner${suffix}`.slice(0, 22);
-  const ownerEmail = `${ownerHandle}@example.test`;
-  await page.getByPlaceholder('Como te chamas').fill('Dono QA');
-  await page.getByPlaceholder('Nome de utilizador').fill(ownerHandle);
-  await page.locator('input[type="date"]').fill('1990-01-01');
-  await page.getByPlaceholder('Email').fill(ownerEmail);
-  await page.getByPlaceholder('Password').fill(PASSWORD);
-  await page.locator('input[type="checkbox"]').check();
-  await page.getByRole('button', { name: 'Criar conta' }).click();
-  await page.getByRole('button', { name: 'Entendido, vamos lá' }).click();
-  await page.getByRole('button', { name: /Criar ou entrar numa comunidade/ }).click();
-  await page.getByPlaceholder('ex: Amigos da faculdade').fill(`Owner Circle ${suffix}`);
-  const seeds = page.locator('input[placeholder^="ideia "]');
-  for (let i = 0; i < 5; i++) await seeds.nth(i).fill(`owner pergunta ${i + 1}`);
-  await page.getByRole('button', { name: 'Criar comunidade' }).click();
-
+  const owner = await registerAndEnterFeed(page, 'Dono QA');
   await page.getByRole('button', { name: 'Salas' }).click();
   await page.getByRole('button', { name: /Criar/ }).click();
-  const roomName = `Sala Privada QA ${suffix}`;
+
+  const roomName = `Sala Privada QA ${Date.now()}`;
   await page.getByPlaceholder('Nome da sala').fill(roomName);
   await page.getByPlaceholder('Tópico principal').fill('Só convidados entram');
   await page.getByRole('button', { name: 'Privada Só aparece a pessoas convidadas por ti.', exact: true }).click();
@@ -95,4 +74,6 @@ test('Sala privada fica invisível sem convite e entra pelo convite em Mobile Sa
   await expect(page.getByText(roomName, { exact: true })).toBeVisible();
   await expect(page.getByText('Só convidados entram', { exact: true })).toBeVisible();
   await expect(page.getByPlaceholder('Mensagem para a sala…')).toBeVisible();
+
+  expect(owner.handle).not.toBe(guest.handle);
 });

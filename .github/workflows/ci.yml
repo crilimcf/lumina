@@ -67,3 +67,7 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
       - run: node --check scripts/reset-production.js
       - run: npm test
+      - name: Prove guarded full reset on disposable database
+        env:
+          LUMINA_RESET_CONFIRM: RESET_LUMINA_PRODUCTION
+        run: npm run reset:production

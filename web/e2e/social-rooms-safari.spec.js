@@ -75,7 +75,7 @@ test('Sala pública cria, edita, conversa e apaga em Mobile Safari', async ({ pa
   await page.getByPlaceholder('Nome da sala').fill(roomName);
   await page.getByPlaceholder('Tópico principal').fill('Liga Portugal esta noite');
   await page.getByPlaceholder('Descrição (opcional)').fill('Conversa em tempo real sem poluir o feed.');
-  await page.getByRole('button', { name: /^Pública/ }).click();
+  await page.getByRole('button', { name: /^Pública Qualquer pessoa/ }).click();
   await page.getByRole('button', { name: 'Criar sala', exact: true }).click();
 
   const roomCard = page.getByText(roomName, { exact: true });

@@ -22,6 +22,7 @@ import { momentRoutes } from './routes/moments.js';
 import { roomRoutes } from './routes/rooms.js';
 import { callRoutes } from './routes/calls.js';
 import { paymentRoutes } from './routes/payments.js';
+import { notificationRoutes } from './routes/notifications.js';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -72,6 +73,7 @@ app.use('/messages', messageRoutes);
 app.use('/rooms', roomRoutes);
 app.use('/calls', callRoutes);
 app.use('/payments', paymentRoutes);
+app.use('/notifications', notificationRoutes);
 app.use('/reports', reportRoutes);
 app.use('/account', accountRoutes);
 app.use('/uploads', uploadRoutes);

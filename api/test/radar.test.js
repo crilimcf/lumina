@@ -139,7 +139,7 @@ test('Radar é legível por utilizadores mas só a equipa Lumina o pode gerir', 
   assert.equal(afterArchive.data.items.length, 0);
 });
 
-test('Radar valida tipos, URLs e datas e não mostra conteúdo fora da janela', async () => {
+test('Radar valida tipos, URLs e aplica janelas diferentes a eventos e promoções', async () => {
   const staff = await register('radar.editor');
   const member = await register('radar.reader');
   await q('UPDATE users SET is_staff=true WHERE id=$1', [staff.user.id]);
@@ -153,10 +153,17 @@ test('Radar valida tipos, URLs e datas e não mostra conteúdo fora da janela', 
 
   const badUrl = await request('/radar', {
     method: 'POST', token: staff.token,
-    body: { type: 'event', title: 'Evento', externalUrl: 'javascript:alert(1)' },
+    body: { type: 'event', title: 'Evento', startsAt: '2099-01-01T10:00:00Z', externalUrl: 'javascript:alert(1)' },
   });
   assert.equal(badUrl.response.status, 400);
   assert.equal(badUrl.data.code, 'bad_url');
+
+  const missingEventStart = await request('/radar', {
+    method: 'POST', token: staff.token,
+    body: { type: 'event', title: 'Evento sem data' },
+  });
+  assert.equal(missingEventStart.response.status, 400);
+  assert.equal(missingEventStart.data.code, 'missing_event_start');
 
   const expired = await request('/radar', {
     method: 'POST', token: staff.token,
@@ -169,7 +176,7 @@ test('Radar valida tipos, URLs e datas e não mostra conteúdo fora da janela', 
   });
   assert.equal(expired.response.status, 201, JSON.stringify(expired.data));
 
-  const future = await request('/radar', {
+  const futureEvent = await request('/radar', {
     method: 'POST', token: staff.token,
     body: {
       type: 'event',
@@ -178,10 +185,26 @@ test('Radar valida tipos, URLs e datas e não mostra conteúdo fora da janela', 
       endsAt: '2099-01-01T11:00:00Z',
     },
   });
-  assert.equal(future.response.status, 201, JSON.stringify(future.data));
+  assert.equal(futureEvent.response.status, 201, JSON.stringify(futureEvent.data));
+
+  const futurePromotion = await request('/radar', {
+    method: 'POST', token: staff.token,
+    body: {
+      type: 'promotion',
+      title: 'Promoção agendada',
+      startsAt: '2099-01-01T10:00:00Z',
+      endsAt: '2099-01-02T10:00:00Z',
+      sponsored: true,
+    },
+  });
+  assert.equal(futurePromotion.response.status, 201, JSON.stringify(futurePromotion.data));
 
   const events = await request('/radar?type=event', { token: member.token });
   assert.equal(events.response.status, 200);
   assert.equal(events.data.items.some(item => item.id === expired.data.id), false);
-  assert.equal(events.data.items.some(item => item.id === future.data.id), false);
+  assert.equal(events.data.items.some(item => item.id === futureEvent.data.id), true);
+
+  const promotions = await request('/radar?type=promotion', { token: member.token });
+  assert.equal(promotions.response.status, 200);
+  assert.equal(promotions.data.items.some(item => item.id === futurePromotion.data.id), false);
 });

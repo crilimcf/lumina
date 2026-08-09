@@ -11,6 +11,7 @@ const FETCH_TIMEOUT_MS = 10_000;
 const MAX_REDIRECTS = 3;
 const INGEST_LOCK = 4_817_337;
 const AUTO_RSS_TYPES = new Set(['news', 'trend', 'editorial']);
+const TRACKING_QUERY_PARAMS = new Set(['fbclid', 'gclid', 'mc_cid', 'mc_eid']);
 
 const blocked = new net.BlockList();
 for (const [network, prefix] of [
@@ -406,8 +407,22 @@ function sourceConfig(source) {
   };
 }
 
-function fingerprint(sourceId, entry) {
-  return `rss:${crypto.createHash('sha256').update(`${sourceId}\n${entry.stableId}`).digest('hex')}`;
+export function canonicalArticleUrl(value) {
+  try {
+    const url = new URL(String(value || ''));
+    if (!['http:', 'https:'].includes(url.protocol)) return null;
+    url.hash = '';
+    for (const key of [...url.searchParams.keys()]) {
+      const lower = key.toLowerCase();
+      if (lower.startsWith('utm_') || TRACKING_QUERY_PARAMS.has(lower)) url.searchParams.delete(key);
+    }
+    return url.toString();
+  } catch { return null; }
+}
+
+function fingerprint(_sourceId, entry) {
+  const identity = canonicalArticleUrl(entry.externalUrl) || entry.stableId;
+  return `rss:${crypto.createHash('sha256').update(String(identity || '')).digest('hex')}`;
 }
 
 async function recordFailure(sourceId, error) {

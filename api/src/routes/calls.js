@@ -19,9 +19,6 @@ let turnCache = null;
 function browserSafeIceUrl(value) {
   const url = String(value || '').trim();
   if (!/^(?:stun|turn|turns):/i.test(url)) return null;
-  // Browsers (notavelmente WebKit) bloqueiam ICE na porta 53. Cloudflare pode
-  // devolvê-la como alternativa, mas deixá-la na lista cria erros/atrasos antes
-  // de chegar às rotas UDP/TCP/TLS úteis (3478/5349).
   if (/^(?:stun|turn|turns):[^?]*:53(?:\?|$)/i.test(url)) return null;
   return url;
 }
@@ -91,11 +88,13 @@ async function cloudflareTurnServers() {
 
 async function rtcIceConfig() {
   const cloudflare = await cloudflareTurnServers();
-  const managed = cloudflare.length ? cloudflare : staticTurnServers();
+  const staticTurn = cloudflare.length ? [] : staticTurnServers();
+  const managed = cloudflare.length ? cloudflare : staticTurn;
   const iceServers = [BASE_STUN, ...managed];
   return {
     iceServers,
     relayConfigured: iceServers.some(server => server.urls.some(url => /^(?:turn|turns):/i.test(url))),
+    relaySource: cloudflare.length ? 'cloudflare' : staticTurn.length ? 'managed' : 'none',
   };
 }
 
@@ -141,6 +140,16 @@ async function callForUser(callId, userId) {
   return call;
 }
 
+async function pushReadyFor(userId) {
+  const { rows } = await q(
+    `SELECT EXISTS(
+       SELECT 1 FROM web_push_subscriptions WHERE user_id=$1
+     ) AS ready`,
+    [userId]
+  );
+  return !!rows[0]?.ready;
+}
+
 callRoutes.get('/ice-config', auth, h(async (_req, res) => {
   res.setHeader('Cache-Control', 'private, no-store');
   res.json(await rtcIceConfig());
@@ -159,14 +168,17 @@ callRoutes.post('/', auth, h(async (req, res) => {
     [threadId, req.user.id]
   );
 
-  const { rows } = await q(
-    `INSERT INTO call_sessions (thread_id,caller_id,callee_id,mode)
-     VALUES ($1,$2,$3,$4)
-     RETURNING id,thread_id,caller_id,callee_id,mode,status,created_at`,
-    [threadId, req.user.id, thread.other_id, mode]
-  );
+  const [{ rows }, calleePushReady] = await Promise.all([
+    q(
+      `INSERT INTO call_sessions (thread_id,caller_id,callee_id,mode)
+       VALUES ($1,$2,$3,$4)
+       RETURNING id,thread_id,caller_id,callee_id,mode,status,created_at`,
+      [threadId, req.user.id, thread.other_id, mode]
+    ),
+    pushReadyFor(thread.other_id),
+  ]);
   sendPushToUser(thread.other_id).catch(error => console.debug('[push] chamada', error?.message));
-  res.status(201).json(rows[0]);
+  res.status(201).json({ ...rows[0], callee_push_ready: calleePushReady });
 }));
 
 callRoutes.get('/incoming', auth, h(async (req, res) => {

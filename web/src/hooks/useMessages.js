@@ -49,9 +49,9 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
     const people = new Map();
     for (const person of [...following, ...followers]) {
       const previous = people.get(person.id) || {};
-      people.set(person.id, { ...previous, ...person, follows_me: !!(previous.follows_me || person.follows_me), following: !!(previous.following || person.following) });
+      people.set(person.id, { ...previous, ...person, follows_me:!!(previous.follows_me || person.follows_me), following:!!(previous.following || person.following) });
     }
-    const next = [...people.values()].sort((a, b) => {
+    const next = [...people.values()].sort((a,b) => {
       const mutualA = a.following && a.follows_me ? 1 : 0;
       const mutualB = b.following && b.follows_me ? 1 : 0;
       return mutualB - mutualA || String(a.name || '').localeCompare(String(b.name || ''), 'pt');
@@ -60,8 +60,6 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
     return next;
   }, []);
 
-  // Mantém o badge/chat sincronizado em toda a app, não apenas quando o utilizador
-  // entra em Conversas. O primeiro carregamento não mostra um toast histórico.
   useEffect(() => {
     if (!enabled) return;
     let alive = true;
@@ -70,10 +68,10 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
       loadThreads({ announce:true }).catch(() => {});
     };
     loadThreads({ announce:false }).catch(() => {});
-    const timer = setInterval(() => { if (alive) refresh(); }, 5000);
+    const timer = setInterval(() => { if (alive) refresh(); }, 7000);
     const visible = () => { if (document.visibilityState === 'visible') refresh(); };
     document.addEventListener('visibilitychange', visible);
-    return () => { alive = false; clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
+    return () => { alive=false; clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
   }, [enabled, loadThreads]);
 
   useEffect(() => {
@@ -81,17 +79,15 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
     loadContacts().catch(() => {});
   }, [enabled, tab, loadContacts]);
 
-  // Confirma entrega enquanto existe uma sessão Lumina ativa. Uma frequência de 8 s
-  // evita saturar a API quando vários dispositivos partilham o mesmo IP/NAT.
   useEffect(() => {
     if (!enabled) return;
     let alive = true;
     const markDelivered = () => api.messages.delivered().catch(() => {});
     markDelivered();
-    const timer = setInterval(() => { if (document.visibilityState === 'visible' && alive) markDelivered(); }, 8000);
+    const timer = setInterval(() => { if (document.visibilityState === 'visible' && alive) markDelivered(); }, 12000);
     const visible = () => { if (document.visibilityState === 'visible') markDelivered(); };
     document.addEventListener('visibilitychange', visible);
-    return () => { alive = false; clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
+    return () => { alive=false; clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
   }, [enabled]);
 
   const loadMessages = useCallback(async () => {
@@ -105,38 +101,39 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
 
   useEffect(() => {
     if (!thread) { setMsgs([]); return; }
+    if (!enabled || tab !== 'dms') return;
     let current = true;
-    const load = () => api.messages.list(thread.id).then(r => {
-      if (!current) return;
-      setMsgs(r);
-      setThreads(rows => rows.map(row => row.id === thread.id ? { ...row, unread:0 } : row));
-      unreadSnapshot.current.set(thread.id, 0);
-    }).catch(() => {});
+    const load = () => {
+      if (document.visibilityState !== 'visible') return;
+      api.messages.list(thread.id).then(r => {
+        if (!current) return;
+        setMsgs(r);
+        setThreads(rows => rows.map(row => row.id === thread.id ? { ...row, unread:0 } : row));
+        unreadSnapshot.current.set(thread.id, 0);
+      }).catch(() => {});
+    };
     load();
     const timer = setInterval(load, 3000);
-    return () => { current = false; clearInterval(timer); };
-  }, [thread]);
+    const visible = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', visible);
+    return () => { current=false; clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
+  }, [thread, tab, enabled]);
 
-  useEffect(() => { end.current?.scrollIntoView?.({ block: 'end' }); }, [msgs]);
-  useEffect(() => {
-    if (mode === 'timer') { setMediaDraft(null); setMediaReady(null); }
-  }, [mode]);
+  useEffect(() => { end.current?.scrollIntoView?.({ block:'end' }); }, [msgs]);
+  useEffect(() => { if (mode === 'timer') { setMediaDraft(null); setMediaReady(null); } }, [mode]);
 
   const openContact = useCallback(async (person) => {
     if (!person?.id) return;
     try {
       const created = await api.messages.openThread(person.id);
-      setThread({ id: created.id, name: person.name, handle: person.handle, palette: person.palette, avatar_url: person.avatar_url, other_id: person.id });
+      setThread({ id:created.id, name:person.name, handle:person.handle, palette:person.palette, avatar_url:person.avatar_url, other_id:person.id });
       await loadThreads({ announce:false }).catch(() => {});
     } catch (e) { ping(e.message); }
   }, [loadThreads, ping]);
 
   const chooseMedia = useCallback((file) => {
     if (!file) return;
-    if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
-      ping('Escolhe uma fotografia ou vídeo.');
-      return;
-    }
+    if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) { ping('Escolhe uma fotografia ou vídeo.'); return; }
     setMediaDraft(file);
   }, [ping]);
 
@@ -161,13 +158,12 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
       let payload;
       if (hasMedia) {
         const mediaUrl = await api.upload(mediaReady.file);
-        payload = { kind:'media', mode: mode === 'once' ? 'once' : 'normal', mediaUrl, mediaType:mediaReady.type, palette };
+        payload = { kind:'media', mode:mode === 'once' ? 'once' : 'normal', mediaUrl, mediaType:mediaReady.type, palette };
       } else {
         payload = { kind:'text', mode, body:text.trim(), palette };
       }
       await api.messages.send(thread.id, payload);
-      setText('');
-      clearMedia();
+      setText(''); clearMedia();
       await loadMessages();
       await loadThreads({ announce:false }).catch(() => {});
       if (mode === 'timer') ping('Apaga-se pouco depois de ser aberta');

@@ -63,6 +63,19 @@ after(async () => {
   await pool.end();
 });
 
+test('ICE config exige sessão e fornece STUN seguro como fallback', async () => {
+  const unauthenticated = await request('/calls/ice-config');
+  assert.equal(unauthenticated.response.status, 401);
+
+  const user = await register('call.ice.user');
+  const out = await request('/calls/ice-config', { token: user.token });
+  assert.equal(out.response.status, 200, JSON.stringify(out.data));
+  assert.equal(out.response.headers.get('cache-control'), 'private, no-store');
+  assert.equal(Array.isArray(out.data.iceServers), true);
+  assert.equal(out.data.iceServers.some(server => server.urls.some(url => url.startsWith('stun:'))), true);
+  assert.equal(out.data.relayConfigured, false);
+});
+
 test('um bloqueio posterior corta chamada, incoming e signaling', async () => {
   const caller = await register('call.block.caller');
   const callee = await register('call.block.callee');

@@ -53,27 +53,29 @@ export function Bubble({ msg, mine, onReveal, onEdit, onDelete }) {
   const side = { alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '82%', minWidth: 0 };
   const when = new Date(msg.created_at).toLocaleTimeString('pt-PT', { hour:'2-digit', minute:'2-digit' });
   const receipt = msg.read_at ? 'Vista' : msg.delivered_at ? 'Entregue' : 'Enviada';
-  const stamp = (extra) => <div className="m" style={{ marginTop:5, textAlign:mine?'right':'left', display:'flex', justifyContent:mine?'flex-end':'flex-start', gap:5, alignItems:'center', flexWrap:'wrap' }}>
+  const stamp = (extra) => <div className="m message-stamp" style={{ marginTop:5, textAlign:mine?'right':'left', display:'flex', justifyContent:mine?'flex-end':'flex-start', gap:5, alignItems:'center', flexWrap:'wrap' }}>
     <span>{when}</span>{msg.edited_at && !msg.deleted_at && <span>· editada</span>}{mine && <span>· {receipt}</span>}{extra && <span>· {extra}</span>}
-    {mine && !msg.deleted_at && !dying && <span style={{ position:'relative' }}><button onClick={()=>setMenu(v=>!v)} aria-label="Opções da mensagem" style={{ border:0,background:'transparent',padding:2,color:'inherit',opacity:.75 }}><MoreHorizontal size={15}/></button>{menu && <span style={{ position:'absolute',right:0,bottom:22,zIndex:12,background:'var(--card)',border:'1px solid var(--edge)',borderRadius:13,padding:5,boxShadow:'0 10px 28px rgba(20,18,42,.16)',display:'grid',minWidth:125 }}>
+    {mine && !msg.deleted_at && !dying && <span style={{ position:'relative' }}><button onClick={()=>setMenu(v=>!v)} aria-label="Opções da mensagem" style={{ border:0,background:'transparent',padding:2,color:'inherit',opacity:.75 }}><MoreHorizontal size={15}/></button>{menu && <span className="message-menu" style={{ position:'absolute',right:0,bottom:22,zIndex:12,background:'var(--card)',border:'1px solid var(--edge)',borderRadius:13,padding:5,boxShadow:'0 10px 28px rgba(20,18,42,.16)',display:'grid',minWidth:125 }}>
       {msg.mode==='normal' && msg.kind==='text' && <button onClick={()=>{setEditing(true);setMenu(false)}} style={{border:0,background:'transparent',padding:'9px 10px',textAlign:'left',display:'flex',gap:7,alignItems:'center'}}><Pencil size={14}/>Editar</button>}
       <button onClick={remove} style={{border:0,background:'transparent',padding:'9px 10px',textAlign:'left',display:'flex',gap:7,alignItems:'center',color:'#C43D4D'}}><Trash2 size={14}/>Apagar</button>
     </span>}</span>}
   </div>;
 
-  if (msg.deleted_at) return <div className="in" style={side}><div className="ghost"><Trash2 size={14}/>Mensagem apagada</div>{stamp()}</div>;
-  if (msg.purged_at || content?.error || dying) return <div className="in" style={side}>
-    <div className="ghost">{msg.mode==='once'?<Eye size={14}/>:<Timer size={14}/>} {msg.mode==='once'?'Conteúdo já visto':'Mensagem apagada'}</div>{stamp()}
+  const wrapClass = `in message-wrap ${mine ? 'message-wrap-mine' : 'message-wrap-theirs'}`;
+
+  if (msg.deleted_at) return <div className={wrapClass} style={side}><div className="ghost message-ghost"><Trash2 size={14}/>Mensagem apagada</div>{stamp()}</div>;
+  if (msg.purged_at || content?.error || dying) return <div className={wrapClass} style={side}>
+    <div className="ghost message-ghost">{msg.mode==='once'?<Eye size={14}/>:<Timer size={14}/>} {msg.mode==='once'?'Conteúdo já visto':'Mensagem apagada'}</div>{stamp()}
   </div>;
 
   if (msg.mode !== 'normal' && !content) {
-    if (mine) return <div className="in" style={side}>
-      <div className="ghost" style={{ borderStyle:'solid',borderColor:'rgba(43,43,247,.28)',color:'var(--cobalt)' }}>
+    if (mine) return <div className={wrapClass} style={side}>
+      <div className="ghost message-ghost" style={{ borderStyle:'solid',borderColor:'rgba(43,43,247,.28)',color:'var(--cobalt)' }}>
         {msg.mode==='once'?<Eye size={14}/>:<Timer size={14}/>} {msg.mode==='once' ? `${msg.media_type==='video'?'Vídeo':'Foto'} · uma vez` : 'Efémera · à espera'}
       </div>{stamp()}
     </div>;
-    return <div className="in" style={side}>
-      <button className="veil" onClick={busy?undefined:reveal} style={{ border:0,width:msg.mode==='once'?200:'auto',height:msg.mode==='once'?250:'auto',cursor:'pointer' }}>
+    return <div className={wrapClass} style={side}>
+      <button className="veil message-veil" onClick={busy?undefined:reveal} style={{ border:0,width:msg.mode==='once'?200:'auto',height:msg.mode==='once'?250:'auto',cursor:'pointer' }}>
         {msg.mode==='once' && <span style={{position:'absolute',inset:0,background:PAL[msg.palette||1].bg}}/>}
         <span className="veil-in" style={{position:msg.mode==='once'?'absolute':'static',inset:0,padding:msg.mode==='once'?0:'14px 18px'}}>
           {busy?<Loader2 size={20}/>:msg.mode==='once'?<Eye size={22}/>:<Timer size={20}/>}<span style={{fontSize:13,fontWeight:600}}>{msg.mode==='once'?`Ver ${msg.media_type==='video'?'vídeo':'foto'} uma vez`:'Toca para ler'}</span><span className="m" style={{color:'rgba(20,18,42,.6)'}}>{msg.mode==='once'?'não volta':'apaga-se depois'}</span>
@@ -86,10 +88,10 @@ export function Bubble({ msg, mine, onReveal, onEdit, onDelete }) {
   const media = content?.mediaUrl ?? msg.media_url;
   const mediaType = content?.mediaType ?? msg.media_type;
 
-  return <div className="in" style={side}>
+  return <div className={wrapClass} style={side}>
     {editing ? <div style={{display:'grid',gap:7,minWidth:230}}><textarea value={draft} autoFocus onChange={e=>setDraft(e.target.value)} maxLength={4000} style={{minHeight:76,resize:'vertical'}}/><div style={{display:'flex',justifyContent:'flex-end',gap:7}}><button className="p p-sm" onClick={()=>{setEditing(false);setDraft(msg.body||'')}}><X size={14}/> Cancelar</button><button className="p p-sm p-brand" disabled={busy||!draft.trim()} onClick={saveEdit}><Check size={14}/> Guardar</button></div></div>
-      : media ? (mediaType==='video' ? <video src={media} controls playsInline preload="metadata" style={{width:'min(280px,72vw)',maxHeight:360,borderRadius:20,display:'block',background:'#080711'}}/> : <button onClick={()=>setMediaOpen(true)} aria-label="Abrir fotografia" style={{padding:0,border:0,background:'transparent',display:'block'}}><img src={media} alt="Fotografia enviada" style={{width:'min(280px,72vw)',maxHeight:360,objectFit:'cover',borderRadius:20,display:'block'}}/></button>)
-      : <div style={{padding:'12px 16px',fontSize:15,lineHeight:1.4,borderRadius:mine?'20px 20px 6px 20px':'20px 20px 20px 6px',background:mine?'var(--cobalt)':'var(--card)',color:mine?'#fff':'var(--ink)',boxShadow:mine?'0 5px 16px rgba(43,43,247,.32)':'0 3px 12px rgba(30,16,90,.12)'}}>{body}</div>}
+      : media ? (mediaType==='video' ? <video className="message-media" src={media} controls playsInline preload="metadata" style={{width:'min(280px,72vw)',maxHeight:360,borderRadius:20,display:'block',background:'#080711'}}/> : <button onClick={()=>setMediaOpen(true)} aria-label="Abrir fotografia" style={{padding:0,border:0,background:'transparent',display:'block'}}><img className="message-media" src={media} alt="Fotografia enviada" style={{width:'min(280px,72vw)',maxHeight:360,objectFit:'cover',borderRadius:20,display:'block'}}/></button>)
+      : <div className={`message-bubble ${mine ? 'message-bubble-mine' : 'message-bubble-theirs'}`} style={{padding:'12px 16px',fontSize:15,lineHeight:1.4,borderRadius:mine?'20px 20px 6px 20px':'20px 20px 20px 6px',background:mine?'var(--cobalt)':'var(--card)',color:mine?'#fff':'var(--ink)',boxShadow:mine?'0 5px 16px rgba(43,43,247,.32)':'0 3px 12px rgba(30,16,90,.12)'}}>{body}</div>}
     {stamp(left>0?`apaga em ${left} s`:undefined)}
     {mediaOpen && mediaType!=='video' && <div onClick={()=>setMediaOpen(false)} style={{position:'fixed',inset:0,zIndex:220,background:'rgba(5,4,12,.95)',display:'grid',placeItems:'center',padding:16}}><img src={media} alt="Fotografia em tamanho grande" style={{maxWidth:'100%',maxHeight:'90dvh',objectFit:'contain'}}/><button onClick={()=>setMediaOpen(false)} aria-label="Fechar" style={{position:'absolute',top:'calc(12px + env(safe-area-inset-top))',right:14,width:42,height:42,borderRadius:99,border:0,background:'rgba(255,255,255,.14)',color:'#fff',display:'grid',placeItems:'center'}}><X size={20}/></button></div>}
   </div>;

@@ -34,6 +34,14 @@ const initialTab = () => {
 
 const ScreenFallback = () => <div style={{minHeight:'78dvh',display:'grid',placeItems:'center'}}><div className="d" style={{fontSize:26,opacity:.24}}>Lumi<span className="it">na</span></div></div>;
 
+const syncAppBadge = async (count) => {
+  const value = Math.max(0, Number(count) || 0);
+  try {
+    if (value > 0 && 'setAppBadge' in navigator) await navigator.setAppBadge(Math.min(999, Math.floor(value)));
+    else if (value === 0 && 'clearAppBadge' in navigator) await navigator.clearAppBadge();
+  } catch {}
+};
+
 export default function App() {
   const [me, setMe] = useState(null);
   const [booting, setBooting] = useState(true);
@@ -79,13 +87,36 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!me) return;
+  if (!me) return;
+  refreshUnread();
+  const id = setInterval(refreshUnread, 15_000);
+  const onVisible = () => { if (document.visibilityState === 'visible') refreshUnread(); };
+  const onNotificationsChanged = () => refreshUnread();
+  document.addEventListener('visibilitychange', onVisible);
+  window.addEventListener('lumina:notifications-changed', onNotificationsChanged);
+  return () => {
+    clearInterval(id);
+    document.removeEventListener('visibilitychange', onVisible);
+    window.removeEventListener('lumina:notifications-changed', onNotificationsChanged);
+  };
+}, [me, refreshUnread]);
+
+useEffect(() => { syncAppBadge(me ? unreadCount : 0); }, [me, unreadCount]);
+
+useEffect(() => {
+  if (!me) return;
+  const url = new URL(window.location.href);
+  const notificationId = url.searchParams.get('notification');
+  if (!notificationId) return;
+  let alive = true;
+  api.notifications.read(notificationId).catch(() => {}).finally(() => {
+    if (!alive) return;
+    url.searchParams.delete('notification');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
     refreshUnread();
-    const id = setInterval(refreshUnread, 15_000);
-    const onVisible = () => { if (document.visibilityState === 'visible') refreshUnread(); };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
-  }, [me, refreshUnread]);
+  });
+  return () => { alive = false; };
+}, [me, refreshUnread]);
 
   async function afterLogin(user, isNewAccount = false) {
     setMe(user);

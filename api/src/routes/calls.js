@@ -172,18 +172,49 @@ callRoutes.post('/', auth, h(async (req, res) => {
     q(
       `INSERT INTO call_sessions (thread_id,caller_id,callee_id,mode)
        VALUES ($1,$2,$3,$4)
-       RETURNING id,thread_id,caller_id,callee_id,mode,status,created_at`,
+       RETURNING id,thread_id,caller_id,callee_id,mode,status,created_at,
+                 push_attempted,push_accepted,push_last_at,callee_seen_at`,
       [threadId, req.user.id, thread.other_id, mode]
     ),
     pushReadyFor(thread.other_id),
   ]);
-  sendPushToUser(thread.other_id).catch(error => console.debug('[push] chamada', error?.message));
-  res.status(201).json({ ...rows[0], callee_push_ready: calleePushReady });
+  const call = rows[0];
+  const push = await sendPushToUser(thread.other_id, {
+    callId:call.id,
+    notification:{
+      title:`Chamada de ${req.user.name || req.user.handle}`,
+      body:mode === 'video' ? 'Videochamada recebida' : 'Chamada de áudio recebida',
+      tag:`lumina:call:${call.id}`,
+      url:`/?tab=dms&call=${encodeURIComponent(call.id)}`,
+    },
+    badge:1,
+  }).catch(error => {
+    console.debug('[push] chamada inicial', error?.message);
+    return { attempted:0, accepted:0, encrypted:0, statuses:[] };
+  });
+
+  if (push.attempted > 0) {
+    await q(
+      `UPDATE call_sessions
+          SET push_attempted=$2,push_accepted=$3,push_last_at=now()
+        WHERE id=$1`,
+      [call.id, push.attempted, push.accepted]
+    );
+  }
+
+  res.status(201).json({
+    ...call,
+    push_attempted:push.attempted,
+    push_accepted:push.accepted,
+    push_encrypted:push.encrypted,
+    callee_push_ready:calleePushReady,
+  });
 }));
 
 callRoutes.get('/incoming', auth, h(async (req, res) => {
   const { rows } = await q(
     `SELECT cs.id,cs.thread_id,cs.caller_id,cs.callee_id,cs.mode,cs.status,cs.created_at,
+            cs.push_attempted,cs.push_accepted,cs.push_last_at,cs.callee_seen_at,
             u.name,u.handle,u.palette,u.avatar_url
      FROM call_sessions cs
      JOIN users u ON u.id=cs.caller_id AND u.suspended_at IS NULL
@@ -196,7 +227,15 @@ callRoutes.get('/incoming', auth, h(async (req, res) => {
      ORDER BY cs.created_at DESC LIMIT 1`,
     [req.user.id]
   );
-  res.json(rows[0] || null);
+  const call = rows[0] || null;
+  if (call) {
+    await q(
+      `UPDATE call_sessions SET callee_seen_at=COALESCE(callee_seen_at,now()) WHERE id=$1`,
+      [call.id]
+    );
+    call.callee_seen_at = call.callee_seen_at || new Date().toISOString();
+  }
+  res.json(call);
 }));
 
 callRoutes.post('/:callId/answer', auth, h(async (req, res) => {
@@ -204,7 +243,7 @@ callRoutes.post('/:callId/answer', auth, h(async (req, res) => {
   if (call.callee_id !== req.user.id) throw forbidden('Só quem recebe pode atender');
   if (call.status !== 'ringing') throw bad('A chamada já não está a tocar');
   const { rows } = await q(
-    `UPDATE call_sessions SET status='active', answered_at=now()
+    `UPDATE call_sessions SET status='active', answered_at=now(),callee_seen_at=COALESCE(callee_seen_at,now())
      WHERE id=$1 RETURNING *`,
     [call.id]
   );
@@ -214,7 +253,7 @@ callRoutes.post('/:callId/answer', auth, h(async (req, res) => {
 callRoutes.post('/:callId/decline', auth, h(async (req, res) => {
   const call = await callForUser(req.params.callId, req.user.id);
   if (call.callee_id !== req.user.id) throw forbidden();
-  await q(`UPDATE call_sessions SET status='declined', ended_at=now() WHERE id=$1 AND status='ringing'`, [call.id]);
+  await q(`UPDATE call_sessions SET status='declined', ended_at=now(),callee_seen_at=COALESCE(callee_seen_at,now()) WHERE id=$1 AND status='ringing'`, [call.id]);
   res.json({ declined: true });
 }));
 
@@ -240,6 +279,10 @@ callRoutes.get('/:callId/sync', auth, h(async (req, res) => {
     status: call.status,
     answeredAt: call.answered_at,
     endedAt: call.ended_at,
+    pushAttempted: call.push_attempted || 0,
+    pushAccepted: call.push_accepted || 0,
+    pushLastAt: call.push_last_at,
+    calleeSeenAt: call.callee_seen_at,
     signals,
   });
 }));

@@ -22,6 +22,7 @@ test('chamada iniciada chega ao destinatário visível em Mobile Safari e fica o
   expect(callerResponse.status()).toBe(201);
   const caller = await callerResponse.json();
   expect(caller.token).toBeTruthy();
+  expect(caller.csrf).toBeTruthy();
 
   await page.goto('/');
   await page.getByRole('button', { name:'Criar conta' }).click();
@@ -44,7 +45,10 @@ test('chamada iniciada chega ao destinatário visível em Mobile Safari e fica o
   await page.getByRole('button', { name:'Ir para o Feed' }).click();
   await expect(page.getByRole('button', { name:'Novo' })).toBeVisible();
 
-  const authHeaders = { authorization:`Bearer ${caller.token}` };
+  const authHeaders = {
+    authorization:`Bearer ${caller.token}`,
+    'x-csrf-token':caller.csrf,
+  };
   const threadResponse = await request.post('/api/messages/threads', {
     headers:authHeaders,
     data:{ userId:callee.id },

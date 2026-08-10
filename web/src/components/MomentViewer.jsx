@@ -12,7 +12,7 @@ function SideMomentCard({ group, side }) {
   const item = side < 0 ? group.items.at(-1) : group.items[0];
   const isVideo = momentIsVideo(item);
   return <div aria-hidden="true" style={{
-    position:'absolute', top:'9%', bottom:'9%', width:'68%',
+    position:'absolute', top:'9%', bottom:'9%', width:'68%', zIndex:1,
     left:side < 0 ? '-50%' : '82%', borderRadius:28, overflow:'hidden',
     transform:`rotateY(${side < 0 ? 48 : -48}deg) scale(.9)`,
     transformOrigin:side < 0 ? 'right center' : 'left center',
@@ -20,7 +20,7 @@ function SideMomentCard({ group, side }) {
     border:'1px solid rgba(255,255,255,.16)', pointerEvents:'none',
   }}>
     {item?.media_url && !isVideo
-      ? <img src={item.media_url} alt="" loading="eager" decoding="async" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+      ? <img src={item.media_url} alt="" loading="eager" decoding="async" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>
       : <div style={{width:'100%',height:'100%',display:'grid',placeItems:'center',background:'linear-gradient(145deg,#30255D,#0B0914)'}}><Orb p={group.author.palette} avatarUrl={group.author.avatarUrl} s={72}/></div>}
     <div style={{position:'absolute',inset:'auto 0 0',padding:'34px 18px 18px',background:'linear-gradient(transparent,rgba(0,0,0,.72))',color:'#fff',fontWeight:750,fontSize:13}}>{group.author.name}</div>
   </div>;
@@ -143,6 +143,7 @@ export function MomentViewer({ group, prevGroup, nextGroup, onClose, onNext, onP
   const interactionCount = (item.likes || 0) + (item.fires || 0);
   const cardRotate = dragX / -22;
   const cardScale = 1 - Math.min(.035, Math.abs(dragX) / 3200);
+  const activeTransform = `translateX(${dragX}px) rotateY(${cardRotate}deg) scale(${cardScale})`;
 
   return <div className="reveal" style={{ position:'fixed', inset:0, zIndex:80, background:'radial-gradient(circle at 50% 25%,#24203E,#07060D 72%)', overflow:'hidden' }}>
     <div style={{ display:'flex', gap:4, padding:'12px 12px 0', position:'relative', zIndex:14 }}>
@@ -161,19 +162,19 @@ export function MomentViewer({ group, prevGroup, nextGroup, onClose, onNext, onP
     </div>
 
     <div onTouchStart={startSwipe} onTouchMove={moveSwipe} onTouchEnd={endSwipe} onTouchCancel={endSwipe}
-      style={{ position:'absolute', inset:'64px 0 82px', perspective:'820px', transformStyle:'preserve-3d', touchAction:'pan-y', zIndex:1 }}>
+      style={{ position:'absolute', inset:'64px 0 82px', perspective:'820px', touchAction:'pan-y', zIndex:1 }}>
       <SideMomentCard group={leftGroup} side={-1}/>
       <SideMomentCard group={rightGroup} side={1}/>
       <div style={{
-        position:'absolute', inset:'2% 6%', borderRadius:30, overflow:'hidden', background:'#05040A',
-        transform:`translate3d(${dragX}px,0,60px) rotateY(${cardRotate}deg) scale(${cardScale})`,
+        position:'absolute', inset:'2% 6%', zIndex:4, borderRadius:30, overflow:'hidden', background:'#05040A',
+        transform:activeTransform, WebkitTransform:activeTransform,
         transition:touchStart.current === null ? 'transform .28s cubic-bezier(.2,.8,.2,1)' : 'none',
         boxShadow:'0 26px 90px rgba(0,0,0,.52)', border:'1px solid rgba(255,255,255,.14)',
-        willChange:'transform',
+        willChange:'transform', backfaceVisibility:'visible', WebkitBackfaceVisibility:'visible',
       }}>
         {item.media_url ? (isVideo
-          ? <video ref={videoRef} src={item.media_url} autoPlay controls playsInline preload="metadata" aria-label={`Vídeo do momento de ${group.author.name}`} onTimeUpdate={e=>{const m=e.currentTarget;if(Number.isFinite(m.duration)&&m.duration>0)setVideoProgress(Math.min(100,(m.currentTime/m.duration)*100));}} onEnded={()=>advance(1)} style={{width:'100%',height:'100%',objectFit:'cover',background:'#05040A'}}/>
-          : <img src={item.media_url} alt="" decoding="async" style={{width:'100%',height:'100%',objectFit:'cover'}}/>)
+          ? <video ref={videoRef} src={item.media_url} autoPlay controls playsInline preload="metadata" aria-label={`Vídeo do momento de ${group.author.name}`} onTimeUpdate={e=>{const m=e.currentTarget;if(Number.isFinite(m.duration)&&m.duration>0)setVideoProgress(Math.min(100,(m.currentTime/m.duration)*100));}} onEnded={()=>advance(1)} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',background:'#05040A',display:'block'}}/>
+          : <img src={item.media_url} alt="" decoding="async" style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>)
           : <div style={{width:'100%',height:'100%',background:'linear-gradient(160deg,#171329,#090811)'}}/>}
       </div>
     </div>

@@ -26,6 +26,16 @@ export const env = {
   S3_SECRET_KEY: process.env.S3_SECRET_KEY || '',
   S3_PUBLIC_URL: process.env.S3_PUBLIC_URL || '',
 
+  // WebRTC/TURN. As credenciais de longa duração ficam exclusivamente no backend.
+  // Cloudflare Realtime TURN é preferido: o backend troca a TURN key por
+  // credenciais curtas antes de cada chamada. TURN_URLS permite um fornecedor
+  // TURN alternativo/gerido sem recompilar o frontend.
+  TURN_CLOUDFLARE_KEY_ID: process.env.TURN_CLOUDFLARE_KEY_ID || '',
+  TURN_CLOUDFLARE_API_TOKEN: process.env.TURN_CLOUDFLARE_API_TOKEN || '',
+  TURN_URLS: process.env.TURN_URLS || '',
+  TURN_USERNAME: process.env.TURN_USERNAME || '',
+  TURN_CREDENTIAL: process.env.TURN_CREDENTIAL || '',
+
   FEATURE_SUBSCRIPTIONS: process.env.FEATURE_SUBSCRIPTIONS === 'true',
 
   // Pagamentos das Salas Ultra. Sem chaves, públicas/privadas continuam a funcionar

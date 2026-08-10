@@ -4,13 +4,6 @@ import App from './App.jsx';
 import { ErrorBoundary } from './ui.jsx';
 import './index.css';
 
-/**
- * A PWA instalada fica presa à origem (scheme + host + port) onde foi criada.
- * Por isso a Lumina tem UMA origem canónica para utilizadores. Previews e
- * aliases de branches nunca devem tornar-se outra "Lumina" no Home Screen.
- *
- * QA continua possível em previews acrescentando ?preview=1 ao URL.
- */
 const CANONICAL_HOST = 'lumina-snowy-ten.vercel.app';
 const host = window.location.hostname;
 const isLocal = host === 'localhost' || host === '127.0.0.1';
@@ -30,35 +23,12 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
     </React.StrictMode>
   );
 
-  /**
-   * Retira o service worker/cache customizado antigo.
-   *
-   * Nesta fase da Lumina, consistência de deploy é mais importante do que um
-   * shell offline. O HTML já é no-store e os assets do Vite têm hash, por isso
-   * o browser pode usar o seu cache HTTP normal sem manter uma segunda versão
-   * da aplicação escondida num CacheStorage controlado por nós.
-   */
-  const retireLegacyPwaState = async () => {
-    if ('serviceWorker' in navigator) {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(registrations.map((registration) => registration.unregister()));
-    }
-    if ('caches' in window) {
-      const keys = await caches.keys();
-      await Promise.all(
-        keys.filter((key) => key.startsWith('lumina-')).map((key) => caches.delete(key))
-      );
-    }
+  const clearLegacyCaches = async () => {
+    if (!('caches' in window)) return;
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((key) => key.startsWith('lumina-')).map((key) => caches.delete(key)));
   };
 
-  /**
-   * Assinatura do deployment atualmente carregado.
-   *
-   * A build do Vite coloca hashes nos nomes do JS/CSS. Comparar os assets do
-   * HTML que esta janela carregou com os assets do HTML que a Vercel serve
-   * agora permite detetar um deployment novo sem service worker, versão
-   * manual ou dependência de caches do Safari.
-   */
   const deploymentSignature = (doc) => Array.from(doc.querySelectorAll(
     'script[type="module"][src*="/assets/"], link[rel="stylesheet"][href*="/assets/"]'
   ))
@@ -74,39 +44,26 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
   const checkForNewDeployment = async () => {
     if (checkingDeployment || reloadingForDeployment || !loadedDeployment) return;
     checkingDeployment = true;
-
     try {
       const url = new URL('/', window.location.origin);
       url.searchParams.set('__lumina_update_check', Date.now().toString());
-
       const response = await fetch(url, {
-        cache: 'no-store',
-        credentials: 'same-origin',
-        headers: { 'cache-control': 'no-cache' },
+        cache: 'no-store', credentials: 'same-origin', headers: { 'cache-control': 'no-cache' },
       });
       if (!response.ok) return;
-
       const html = await response.text();
       const latestDocument = new DOMParser().parseFromString(html, 'text/html');
       const latestDeployment = deploymentSignature(latestDocument);
-
       if (latestDeployment && latestDeployment !== loadedDeployment) {
         reloadingForDeployment = true;
         window.location.reload();
       }
     } catch {
-      // Uma falha de rede nunca deve impedir a app de continuar a funcionar.
-      // Voltamos a verificar naturalmente no próximo foreground/pageshow.
-    } finally {
-      checkingDeployment = false;
-    }
+      // Uma falha de rede nunca bloqueia a utilização da app.
+    } finally { checkingDeployment = false; }
   };
 
-  /**
-   * Dock inferior: esconde ao deslizar para baixo e reaparece imediatamente ao
-   * deslizar para cima. O listener usa capture porque vários ecrãs (Feed,
-   * Radar, Salas, listas) podem ter o seu próprio contentor de scroll no iOS.
-   */
+  // Dock inferior: esconde ao deslizar para baixo e reaparece ao deslizar para cima.
   const scrollPositions = new WeakMap();
   let dockHidden = false;
   let lastDockChange = 0;
@@ -121,14 +78,9 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
     dock.style.opacity = hidden ? '0' : '1';
     dock.style.pointerEvents = hidden ? 'none' : 'auto';
   };
-
-  const scrollTopFor = (target) => {
-    if (target === document || target === document.documentElement || target === document.body) {
-      return window.scrollY || document.documentElement.scrollTop || 0;
-    }
-    return Number(target?.scrollTop || 0);
-  };
-
+  const scrollTopFor = (target) => target === document || target === document.documentElement || target === document.body
+    ? (window.scrollY || document.documentElement.scrollTop || 0)
+    : Number(target?.scrollTop || 0);
   const handleAnyScroll = (event) => {
     const target = event.target === document ? document : event.target;
     if (!target) return;
@@ -136,33 +88,117 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
     const previous = scrollPositions.get(target) ?? current;
     scrollPositions.set(target, current);
     const delta = current - previous;
-
-    if (current < 36) {
-      setDockHidden(false);
-      return;
-    }
-    if (Math.abs(delta) < 3) return;
-    if (performance.now() - lastDockChange < 90) return;
-    if (delta > 0) setDockHidden(true);
-    else setDockHidden(false);
+    if (current < 36) return setDockHidden(false);
+    if (Math.abs(delta) < 3 || performance.now() - lastDockChange < 90) return;
+    setDockHidden(delta > 0);
   };
-
   document.addEventListener('scroll', handleAnyScroll, true);
   window.addEventListener('scroll', handleAnyScroll, { passive:true });
   window.addEventListener('pageshow', () => setDockHidden(false));
 
-  window.addEventListener('load', () => {
-    retireLegacyPwaState().catch(() => {});
-    checkForNewDeployment();
-  }, { once: true });
+  // Web Push standards-based. Em iOS o prompt só existe numa web app adicionada ao
+  // ecrã principal e tem de partir de uma ação explícita do utilizador.
+  const supportsPush = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const standalone = window.matchMedia?.('(display-mode: standalone)')?.matches || window.navigator.standalone === true;
+  let pushBanner = null;
+  let pushBusy = false;
 
-  // iOS pode recuperar uma PWA instalada da memória em vez de fazer uma nova
-  // navegação. Ao voltar à Lumina, verificamos sempre a produção antes de o
-  // utilizador continuar numa versão antiga.
+  const b64ToBytes = (value) => {
+    const padding = '='.repeat((4 - value.length % 4) % 4);
+    const raw = atob((value + padding).replace(/-/g, '+').replace(/_/g, '/'));
+    return Uint8Array.from(raw, (char) => char.charCodeAt(0));
+  };
+
+  const registerPush = async ({ ask = false } = {}) => {
+    if (!supportsPush || pushBusy) return false;
+    pushBusy = true;
+    try {
+      const registration = await navigator.serviceWorker.register('/sw.js', { updateViaCache:'none' });
+      await navigator.serviceWorker.ready;
+      let permission = Notification.permission;
+      if (permission === 'default' && ask) permission = await Notification.requestPermission();
+      if (permission !== 'granted') return false;
+
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        const keyResponse = await fetch('/api/notifications/push/key', { credentials:'include', cache:'no-store' });
+        if (!keyResponse.ok) return false;
+        const { publicKey } = await keyResponse.json();
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: b64ToBytes(publicKey),
+        });
+      }
+      const save = await fetch('/api/notifications/push/subscribe', {
+        method:'POST', credentials:'include', headers:{ 'content-type':'application/json' },
+        body:JSON.stringify(subscription.toJSON()),
+      });
+      if (!save.ok) return false;
+      pushBanner?.remove(); pushBanner = null;
+      return true;
+    } catch (error) {
+      console.debug('[push] subscrição', error?.message);
+      return false;
+    } finally { pushBusy = false; }
+  };
+
+  const showPushBanner = () => {
+    if (pushBanner || !supportsPush || Notification.permission !== 'default') return;
+    // No iPhone, Safari normal não oferece PushManager; `standalone` evita pedir ao
+    // utilizador para instalar novamente quando já está na PWA.
+    if (/iPhone|iPad|iPod/i.test(navigator.userAgent) && !standalone) return;
+    const box = document.createElement('div');
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-label', 'Ativar notificações Lumina');
+    Object.assign(box.style, {
+      position:'fixed', left:'14px', right:'14px', top:'calc(14px + env(safe-area-inset-top))',
+      zIndex:'250', maxWidth:'470px', margin:'0 auto', padding:'14px', borderRadius:'22px',
+      background:'rgba(20,18,42,.96)', color:'#fff', boxShadow:'0 16px 44px rgba(20,18,42,.32)',
+      fontFamily:'Manrope,system-ui,sans-serif', display:'flex', gap:'12px', alignItems:'center',
+    });
+    box.innerHTML = '<div style="flex:1"><div style="font-weight:800;font-size:14px">Não percas mensagens nem chamadas</div><div style="font-size:11px;opacity:.72;margin-top:3px;line-height:1.35">Ativa as notificações da Lumina neste iPhone.</div></div>';
+    const activate = document.createElement('button');
+    activate.textContent = 'Ativar';
+    Object.assign(activate.style, { border:0,borderRadius:'999px',padding:'10px 14px',fontWeight:'800',background:'#fff',color:'#14122A' });
+    activate.addEventListener('click', async () => {
+      activate.disabled = true; activate.textContent = 'A ativar…';
+      const ok = await registerPush({ ask:true });
+      if (!ok) { activate.disabled = false; activate.textContent = Notification.permission === 'denied' ? 'Bloqueadas' : 'Tentar'; }
+    });
+    const later = document.createElement('button');
+    later.textContent = '×'; later.setAttribute('aria-label', 'Agora não');
+    Object.assign(later.style, { border:0,background:'transparent',color:'#fff',fontSize:'22px',padding:'4px' });
+    later.addEventListener('click', () => { box.remove(); pushBanner = null; sessionStorage.setItem('lumina-push-later','1'); });
+    box.append(activate, later);
+    document.body.appendChild(box); pushBanner = box;
+  };
+
+  const maybeSetupPush = async () => {
+    if (!supportsPush) return;
+    // Registar o worker é seguro sem pedir permissão: ele não faz cache/interceção.
+    await navigator.serviceWorker.register('/sw.js', { updateViaCache:'none' }).catch(() => null);
+    const session = await fetch('/api/auth/me', { credentials:'include', cache:'no-store' }).catch(() => null);
+    if (!session?.ok) return;
+    if (Notification.permission === 'granted') await registerPush();
+    else if (Notification.permission === 'default' && !sessionStorage.getItem('lumina-push-later')) showPushBanner();
+  };
+
+  window.addEventListener('load', () => {
+    clearLegacyCaches().catch(() => {});
+    checkForNewDeployment();
+    setTimeout(() => maybeSetupPush().catch(() => {}), 900);
+  }, { once:true });
+  // Também apanha logins feitos sem reload.
+  const pushProbe = setInterval(() => {
+    if (Notification?.permission === 'granted' || !pushBanner) maybeSetupPush().catch(() => {});
+    if (Notification?.permission === 'denied') clearInterval(pushProbe);
+  }, 10_000);
+
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       setDockHidden(false);
       checkForNewDeployment();
+      maybeSetupPush().catch(() => {});
     }
   });
   window.addEventListener('pageshow', checkForNewDeployment);

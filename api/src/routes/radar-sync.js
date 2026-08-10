@@ -12,12 +12,12 @@ function requireStaff(req, _res, next) {
   next();
 }
 
-function assertRssType(kind, defaultType) {
+function assertRssType(kind, defaultType, config = null) {
   if (kind === 'rss' && !AUTO_RSS_TYPES.has(String(defaultType || 'news').toLowerCase())) {
     throw bad('RSS automático suporta notícias, tendências ou editorial', 'bad_rss_type');
   }
-  if (kind === 'web' && String(defaultType || 'news').toLowerCase() !== 'news') {
-    throw bad('Fontes web verificadas suportam manchetes de notícias', 'bad_web_type');
+  if (kind === 'partner' && config?.adapter === 'headline-links' && String(defaultType || 'news').toLowerCase() !== 'news') {
+    throw bad('Publishers verificados suportam manchetes de notícias', 'bad_partner_type');
   }
 }
 
@@ -97,12 +97,13 @@ async function sourceStatus(_req, res) {
 }
 
 async function syncSource(req, res) {
-  const { rows } = await q('SELECT id, name, kind FROM radar_sources WHERE id=$1', [req.params.sourceId]);
+  const { rows } = await q('SELECT id, name, kind, config FROM radar_sources WHERE id=$1', [req.params.sourceId]);
   const source = rows[0];
   if (!source) throw notFound('Fonte Radar não encontrada');
-  if (!['rss','web'].includes(source.kind)) throw forbidden('Esta fonte não tem sincronização automática');
+  const publisher = source.kind === 'partner' && source.config?.adapter === 'headline-links';
+  if (source.kind !== 'rss' && !publisher) throw forbidden('Esta fonte não tem sincronização automática');
 
-  const result = source.kind === 'web'
+  const result = publisher
     ? await syncWebRadarSources({ sourceId: source.id })
     : await syncRadarSources({ sourceId: source.id });
   audit(req.user.id, 'radar_source_sync', `radar_source:${source.id}`, result);
@@ -123,7 +124,7 @@ radarSyncRoutes.post('/sources/:sourceId/sync', auth, requireStaff, h(syncSource
 
 radarSyncRoutes.post('/sources', auth, requireStaff, (req, _res, next) => {
   try {
-    assertRssType(String(req.body?.kind || 'manual').toLowerCase(), req.body?.defaultType || 'news');
+    assertRssType(String(req.body?.kind || 'manual').toLowerCase(), req.body?.defaultType || 'news', req.body?.config);
     next();
   } catch (error) { next(error); }
 });
@@ -131,12 +132,13 @@ radarSyncRoutes.post('/sources', auth, requireStaff, (req, _res, next) => {
 radarSyncRoutes.patch('/sources/:sourceId', auth, requireStaff, h(async (req, res, next) => {
   if (req.body?.syncNow === true) return syncSource(req, res);
 
-  if (req.body?.kind !== undefined || req.body?.defaultType !== undefined) {
-    const { rows } = await q('SELECT kind, default_type FROM radar_sources WHERE id=$1', [req.params.sourceId]);
+  if (req.body?.kind !== undefined || req.body?.defaultType !== undefined || req.body?.config !== undefined) {
+    const { rows } = await q('SELECT kind, default_type, config FROM radar_sources WHERE id=$1', [req.params.sourceId]);
     if (!rows[0]) throw notFound('Fonte Radar não encontrada');
     const kind = req.body.kind === undefined ? rows[0].kind : String(req.body.kind || '').toLowerCase();
     const defaultType = req.body.defaultType === undefined ? rows[0].default_type : req.body.defaultType;
-    assertRssType(kind, defaultType);
+    const config = req.body.config === undefined ? rows[0].config : req.body.config;
+    assertRssType(kind, defaultType, config);
   }
   next();
 }));

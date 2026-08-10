@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import { encryptWebPushPayload } from '../src/lib/webpush.js';
+import { declarativePayload, encryptWebPushPayload } from '../src/lib/webpush.js';
 
 const hmac = (key, value) => crypto.createHmac('sha256', key).update(value).digest();
 const expandOne = (prk, info, length) => hmac(prk, Buffer.concat([info, Buffer.from([1])])).subarray(0, length);
@@ -51,4 +51,11 @@ test('encryptWebPushPayload produz um registo aes128gcm que o browser consegue d
 
 test('encryptWebPushPayload rejeita subscrições sem chaves válidas', () => {
   assert.throws(() => encryptWebPushPayload({ web_push:8030 }, { p256dh:'x', auth:'y' }), /inválidas/);
+});
+
+
+test('declarative Web Push envia app_badge zero no nível superior', () => {
+  const payload = declarativePayload({ title:'Lumina', body:'Teste', url:'/?tab=alerts' }, 0);
+  assert.equal(payload.app_badge, '0');
+  assert.equal(payload.notification.app_badge, undefined);
 });

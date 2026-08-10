@@ -3,6 +3,22 @@ import { api } from '../api.js';
 
 const INCOMING_POLL_MS = 1200;
 
+function setVoiceAudioSession(active) {
+  const session = navigator.audioSession;
+  if (!session) return;
+  try {
+    if (active) {
+      session.type = 'play-and-record';
+    } else {
+      // WebKit needs an explicit playback -> auto reset after microphone use.
+      session.type = 'playback';
+      session.type = 'auto';
+    }
+  } catch {}
+}
+
+const notifyActivityChanged = () => window.dispatchEvent(new CustomEvent('lumina:notifications-changed'));
+
 function createRingtone(audioRef) {
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -99,6 +115,8 @@ export function useCalls({ enabled, ping }) {
 
   const startCall = useCallback(async (thread, mode) => {
     if (!thread || busy) return;
+    const voiceCall = mode === 'audio';
+    if (voiceCall) setVoiceAudioSession(true);
     setBusy(true);
     try {
       const call = await api.calls.start(thread.id, mode);
@@ -106,31 +124,46 @@ export function useCalls({ enabled, ping }) {
       if (call.callee_push_ready === false) {
         ping('O outro dispositivo não tem notificações de chamada ativas. Se a Lumina estiver fechada, pode não receber o aviso.');
       }
-    } catch (e) { ping(e.message); }
-    finally { setBusy(false); }
+    } catch (e) {
+      if (voiceCall) setVoiceAudioSession(false);
+      ping(e.message);
+    } finally { setBusy(false); }
   }, [busy, ping]);
 
   const acceptIncoming = useCallback(async () => {
     if (!incoming || busy) return;
+    const voiceCall = incoming.mode === 'audio';
+    // Must be set before CallOverlay mounts and asks getUserMedia for the microphone.
+    if (voiceCall) setVoiceAudioSession(true);
     setBusy(true);
     try {
       await audioRef.current?.resume?.().catch(() => {});
       const call = await api.calls.answer(incoming.id);
       setActiveCall({ call, caller:false, person:{ name:incoming.name, handle:incoming.handle, palette:incoming.palette, avatar_url:incoming.avatar_url } });
       setIncoming(null);
-    } catch (e) { ping(e.message); setIncoming(null); }
-    finally { setBusy(false); }
+      notifyActivityChanged();
+    } catch (e) {
+      if (voiceCall) setVoiceAudioSession(false);
+      ping(e.message);
+      setIncoming(null);
+    } finally { setBusy(false); }
   }, [incoming, busy, ping]);
 
   const declineIncoming = useCallback(async () => {
     const current = incoming;
     setIncoming(null);
     if (!current) return;
-    try { await api.calls.decline(current.id); }
-    catch (e) { ping(e.message); }
+    try {
+      await api.calls.decline(current.id);
+      notifyActivityChanged();
+    } catch (e) { ping(e.message); }
   }, [incoming, ping]);
 
-  const closeActiveCall = useCallback(() => setActiveCall(null), []);
+  const closeActiveCall = useCallback(() => {
+    setVoiceAudioSession(false);
+    setActiveCall(null);
+    notifyActivityChanged();
+  }, []);
 
   return { activeCall, incoming, busy, startCall, acceptIncoming, declineIncoming, closeActiveCall };
 }

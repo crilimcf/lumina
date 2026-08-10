@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 
+const notifyActivityChanged = () => window.dispatchEvent(new CustomEvent('lumina:notifications-changed'));
+
 export function useMessages({ tab, palette, ping, enabled = true }) {
   const [threads, setThreads] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -91,27 +93,31 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
   }, [enabled]);
 
   const loadMessages = useCallback(async () => {
-    if (!thread) return [];
-    const next = await api.messages.list(thread.id);
-    setMsgs(next);
-    setThreads(rows => rows.map(row => row.id === thread.id ? { ...row, unread:0 } : row));
-    unreadSnapshot.current.set(thread.id, 0);
-    return next;
-  }, [thread]);
+  if (!thread) return [];
+  const hadUnread = Number(unreadSnapshot.current.get(thread.id) || 0) > 0;
+  const next = await api.messages.list(thread.id);
+  setMsgs(next);
+  setThreads(rows => rows.map(row => row.id === thread.id ? { ...row, unread:0 } : row));
+  unreadSnapshot.current.set(thread.id, 0);
+  if (hadUnread) notifyActivityChanged();
+  return next;
+}, [thread]);
 
   useEffect(() => {
     if (!thread) { setMsgs([]); return; }
     if (!enabled || tab !== 'dms') return;
     let current = true;
     const load = () => {
-      if (document.visibilityState !== 'visible') return;
-      api.messages.list(thread.id).then(r => {
-        if (!current) return;
-        setMsgs(r);
-        setThreads(rows => rows.map(row => row.id === thread.id ? { ...row, unread:0 } : row));
-        unreadSnapshot.current.set(thread.id, 0);
-      }).catch(() => {});
-    };
+    if (document.visibilityState !== 'visible') return;
+    const hadUnread = Number(unreadSnapshot.current.get(thread.id) || 0) > 0;
+    api.messages.list(thread.id).then(r => {
+      if (!current) return;
+      setMsgs(r);
+      setThreads(rows => rows.map(row => row.id === thread.id ? { ...row, unread:0 } : row));
+      unreadSnapshot.current.set(thread.id, 0);
+      if (hadUnread) notifyActivityChanged();
+    }).catch(() => {});
+  };
     load();
     const timer = setInterval(load, 3000);
     const visible = () => { if (document.visibilityState === 'visible') load(); };

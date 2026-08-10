@@ -1,4 +1,5 @@
 import React from 'react';
+import './adaptiveDock.js';
 
 export const PAL = [
   { o1: '#FFB3A6', o2: '#FF5442', bg: 'linear-gradient(155deg,#FFD9CE,#FF7A63 60%,#E8341C)', chip: '#FFD9CE' },

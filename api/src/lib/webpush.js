@@ -122,11 +122,18 @@ function absoluteNavigation(value) {
   catch { return `${APP_ORIGIN}/?tab=alerts`; }
 }
 
-function declarativePayload(notification, badge = 0) {
+function addNotificationId(value, notificationId) {
+  const url = new URL(absoluteNavigation(value));
+  if (notificationId) url.searchParams.set('notification', String(notificationId));
+  return url.toString();
+}
+
+export function declarativePayload(notification, badge = 0) {
   const item = notification || {};
+  const appBadge = Math.max(0, Math.min(999, Number(badge) || 0));
   return {
     web_push: 8030,
-    ...(badge > 0 ? { app_badge:String(Math.min(999, badge)) } : {}),
+    app_badge: String(appBadge),
     notification: {
       title: String(item.title || 'Lumina').slice(0, 120),
       body: String(item.body || 'Tens uma novidade.').slice(0, 220),
@@ -161,7 +168,7 @@ async function latestNotificationFor(userId) {
         title:`Chamada de ${name}`,
         body:item.data?.mode === 'video' ? 'Videochamada recebida' : 'Chamada de áudio recebida',
         tag:`lumina:call:${item.data?.callId || item.id}`,
-        url:`/?tab=dms&call=${encodeURIComponent(item.data?.callId || '')}`,
+        url:addNotificationId(`/?tab=dms&call=${encodeURIComponent(item.data?.callId || '')}`, item.id),
       },
       badge:countResult.rows[0]?.count || 0,
       callId:item.data?.callId || null,
@@ -177,7 +184,7 @@ async function latestNotificationFor(userId) {
         ? (mode === 'once' ? `Enviou ${mediaType === 'video' ? 'um vídeo' : 'uma foto'} para veres uma vez` : `Enviou ${mediaType === 'video' ? 'um vídeo' : 'uma fotografia'}`)
         : 'Enviou-te uma mensagem',
       tag:`lumina:message:${item.data?.threadId || item.id}`,
-      url:'/?tab=dms',
+      url:addNotificationId('/?tab=dms', item.id),
     },
     badge:countResult.rows[0]?.count || 0,
     callId:null,
@@ -280,9 +287,19 @@ export async function sendPushToUser(userId, options = {}) {
   const subscriptions = await subscriptionsFor(userId);
   if (!subscriptions.length) return { attempted:0, accepted:0, encrypted:0, statuses:[] };
 
-  const latest = options.notification
-    ? { notification:options.notification, badge:options.badge || 1, callId:options.callId || null }
-    : await latestNotificationFor(userId);
+  let latest;
+  if (options.notification) {
+    const countResult = await q('SELECT count(*)::int AS count FROM notifications WHERE user_id=$1 AND read_at IS NULL', [userId]);
+    let notification = options.notification;
+    if (options.callId) {
+      const { rows: noticeRows } = await q(
+        `SELECT id FROM notifications WHERE user_id=$1 AND type='incoming_call' AND data->>'callId'=$2 ORDER BY created_at DESC LIMIT 1`,
+        [userId, String(options.callId)]
+      );
+      if (noticeRows[0]?.id) notification = { ...notification, url:addNotificationId(notification.url, noticeRows[0].id) };
+    }
+    latest = { notification, badge:countResult.rows[0]?.count || 0, callId:options.callId || null };
+  } else latest = await latestNotificationFor(userId);
   const pushPayload = latest.notification ? declarativePayload(latest.notification, latest.badge) : null;
   const key = await getOrCreateVapid();
   const result = await deliverWake(userId, key, subscriptions, pushPayload);

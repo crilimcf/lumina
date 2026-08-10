@@ -15,6 +15,15 @@ self.addEventListener('activate', (event) => {
   })());
 });
 
+async function syncAppBadge(value) {
+  const count = Number(value);
+  if (!Number.isFinite(count)) return;
+  try {
+    if (count > 0 && 'setAppBadge' in self.navigator) await self.navigator.setAppBadge(Math.min(999, Math.floor(count)));
+    else if (count <= 0 && 'clearAppBadge' in self.navigator) await self.navigator.clearAppBadge();
+  } catch {}
+}
+
 self.addEventListener('push', (event) => {
   event.waitUntil((async () => {
     // iOS 18.4+ consegue apresentar este formato declarativamente mesmo se o
@@ -24,8 +33,10 @@ self.addEventListener('push', (event) => {
     try { direct = event.data?.json?.() || null; } catch {}
 
     let notification = null;
-    if (direct?.web_push === 8030 && direct?.notification?.title) {
-      notification = {
+  let badgeCount = null;
+  if (direct?.web_push === 8030 && direct?.notification?.title) {
+    badgeCount = Number(direct.app_badge);
+    notification = {
         title: direct.notification.title,
         body: direct.notification.body || '',
         tag: direct.notification.tag || 'lumina:activity',
@@ -41,8 +52,11 @@ self.addEventListener('push', (event) => {
           credentials: 'include',
           cache: 'no-store',
           headers: { 'cache-control': 'no-cache' },
-        });
-        if (response.ok) notification = (await response.json())?.notification || null;
+        });      if (response.ok) {
+      const payload = await response.json();
+      notification = payload?.notification || null;
+      badgeCount = Number(payload?.unread);
+    }
       } catch {}
     }
 
@@ -54,7 +68,9 @@ self.addEventListener('push', (event) => {
       type: 'activity',
     };
 
-    await self.registration.showNotification(notification.title || 'Lumina', {
+    await Promise.all([
+    syncAppBadge(badgeCount),
+    self.registration.showNotification(notification.title || 'Lumina', {
       body: notification.body,
       tag: notification.tag,
       icon: '/icon-192.png',
@@ -63,7 +79,8 @@ self.addEventListener('push', (event) => {
       renotify: true,
       silent: false,
       requireInteraction: notification.type === 'incoming_call',
-    });
+    }),
+  ]);
   })());
 });
 

@@ -1,0 +1,154 @@
+name: Apply notification read-state patch
+
+on:
+  push:
+    branches: [fix/notifications-badge-call-audio]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/notifications-badge-call-audio
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Patch read state and Safari regression
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          def rep(path, old, new):
+              p=Path(path); text=p.read_text(); count=text.count(old)
+              if count != 1: raise SystemExit(f'{path}: expected {old[:100]!r}, got {count}')
+              p.write_text(text.replace(old,new,1))
+
+          def sub(path, pattern, new):
+              p=Path(path); text=p.read_text(); out,count=re.subn(pattern,lambda _m:new,text,count=1,flags=re.S)
+              if count != 1: raise SystemExit(f'{path}: regex miss {pattern[:100]!r}')
+              p.write_text(out)
+
+          # App: unread counter is the single source of truth for the Home Screen badge.
+          path='web/src/App.jsx'
+          rep(path,'export default function App() {',"""const syncAppBadge = async (count) => {
+            const value = Math.max(0, Number(count) || 0);
+            try {
+              if (value > 0 && 'setAppBadge' in navigator) await navigator.setAppBadge(Math.min(999, Math.floor(value)));
+              else if (value === 0 && 'clearAppBadge' in navigator) await navigator.clearAppBadge();
+            } catch {}
+          };
+
+          export default function App() {""")
+          sub(path,r"  useEffect\(\(\) => \{\s*if \(!me\) return;\s*refreshUnread\(\);\s*const id = setInterval\(refreshUnread, 15_000\);\s*const onVisible = \(\) => \{ if \(document\.visibilityState === 'visible'\) refreshUnread\(\); \};\s*document\.addEventListener\('visibilitychange', onVisible\);\s*return \(\) => \{ clearInterval\(id\); document\.removeEventListener\('visibilitychange', onVisible\); \};\s*\}, \[me, refreshUnread\]\);", """  useEffect(() => {
+            if (!me) return;
+            refreshUnread();
+            const id = setInterval(refreshUnread, 15_000);
+            const onVisible = () => { if (document.visibilityState === 'visible') refreshUnread(); };
+            const onNotificationsChanged = () => refreshUnread();
+            document.addEventListener('visibilitychange', onVisible);
+            window.addEventListener('lumina:notifications-changed', onNotificationsChanged);
+            return () => {
+              clearInterval(id);
+              document.removeEventListener('visibilitychange', onVisible);
+              window.removeEventListener('lumina:notifications-changed', onNotificationsChanged);
+            };
+          }, [me, refreshUnread]);
+
+          useEffect(() => { syncAppBadge(me ? unreadCount : 0); }, [me, unreadCount]);
+
+          useEffect(() => {
+            if (!me) return;
+            const url = new URL(window.location.href);
+            const notificationId = url.searchParams.get('notification');
+            if (!notificationId) return;
+            let alive = true;
+            api.notifications.read(notificationId).catch(() => {}).finally(() => {
+              if (!alive) return;
+              url.searchParams.delete('notification');
+              window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+              refreshUnread();
+            });
+            return () => { alive = false; };
+          }, [me, refreshUnread]);""")
+
+          # DMs: backend already marks the corresponding notification read; tell App immediately.
+          path='web/src/hooks/useMessages.js'
+          rep(path,"import { api } from '../api.js';\n","import { api } from '../api.js';\n\nconst notifyActivityChanged = () => window.dispatchEvent(new CustomEvent('lumina:notifications-changed'));\n")
+          sub(path,r"  const loadMessages = useCallback\(async \(\) => \{\s*if \(!thread\) return \[\];\s*const next = await api\.messages\.list\(thread\.id\);\s*setMsgs\(next\);\s*setThreads\(rows => rows\.map\(row => row\.id === thread\.id \? \{ \.\.\.row, unread:0 \} : row\)\);\s*unreadSnapshot\.current\.set\(thread\.id, 0\);\s*return next;\s*\}, \[thread\]\);", """  const loadMessages = useCallback(async () => {
+            if (!thread) return [];
+            const hadUnread = Number(unreadSnapshot.current.get(thread.id) || 0) > 0;
+            const next = await api.messages.list(thread.id);
+            setMsgs(next);
+            setThreads(rows => rows.map(row => row.id === thread.id ? { ...row, unread:0 } : row));
+            unreadSnapshot.current.set(thread.id, 0);
+            if (hadUnread) notifyActivityChanged();
+            return next;
+          }, [thread]);""")
+          sub(path,r"    const load = \(\) => \{\s*if \(document\.visibilityState !== 'visible'\) return;\s*api\.messages\.list\(thread\.id\)\.then\(r => \{\s*if \(!current\) return;\s*setMsgs\(r\);\s*setThreads\(rows => rows\.map\(row => row\.id === thread\.id \? \{ \.\.\.row, unread:0 \} : row\)\);\s*unreadSnapshot\.current\.set\(thread\.id, 0\);\s*\}\)\.catch\(\(\) => \{\}\);\s*\};", """    const load = () => {
+              if (document.visibilityState !== 'visible') return;
+              const hadUnread = Number(unreadSnapshot.current.get(thread.id) || 0) > 0;
+              api.messages.list(thread.id).then(r => {
+                if (!current) return;
+                setMsgs(r);
+                setThreads(rows => rows.map(row => row.id === thread.id ? { ...row, unread:0 } : row));
+                unreadSnapshot.current.set(thread.id, 0);
+                if (hadUnread) notifyActivityChanged();
+              }).catch(() => {});
+            };""")
+
+          # Activity: show a human-readable state, not only a coloured dot.
+          rep('web/src/screens/Atividade.jsx','<div className="m" style={{ marginTop:4 }}>{relativeTime(n.created_at)}</div>', '<div className="m" style={{ marginTop:4,display:\'flex\',alignItems:\'center\',gap:7 }}>{relativeTime(n.created_at)}<span style={{ fontSize:9.5,fontWeight:900,letterSpacing:\'.05em\',textTransform:\'uppercase\',padding:\'2px 6px\',borderRadius:999,background:n.read_at?\'#EDF5F0\':\'#ECE9FF\',color:n.read_at?\'#47705D\':\'var(--cobalt)\' }}>{n.read_at?\'Lida\':\'Não lida\'}</span></div>')
+
+          # Safari regression: open notification -> unread=0; deep-link from push -> unread=0.
+          Path('web/e2e/notifications-safari.spec.js').write_text(r"""import { test, expect } from '@playwright/test';
+
+          const PASSWORD='lumina-notify-webkit-1234';
+          const registration=(handle,name)=>({handle,email:`${handle}@example.test`,password:PASSWORD,name,birthDate:'1990-01-01',acceptTerms:true});
+
+          test('notificação passa de Não lida para Lida e deep-link limpa unread', async ({page,request}) => {
+            const suffix=`${Date.now()}${Math.floor(Math.random()*1000)}`;
+            const senderHandle=`notifys${suffix}`.slice(0,22), receiverHandle=`notifyr${suffix}`.slice(0,22);
+            const senderResponse=await request.post('/api/auth/register',{data:registration(senderHandle,'Sender Notify')});
+            expect(senderResponse.status()).toBe(201); const sender=await senderResponse.json();
+
+            await page.goto('/'); await page.getByRole('button',{name:'Criar conta'}).click();
+            await page.getByPlaceholder('Como te chamas').fill('Receiver Notify');
+            await page.getByPlaceholder('Nome de utilizador').fill(receiverHandle);
+            await page.locator('input[type="date"]').fill('1990-01-01');
+            await page.getByPlaceholder('Email').fill(`${receiverHandle}@example.test`);
+            await page.getByPlaceholder('Password').fill(PASSWORD); await page.locator('input[type="checkbox"]').check();
+            await page.getByRole('button',{name:'Criar conta'}).click(); await expect(page.getByText('Bem-vindo à Lumina')).toBeVisible();
+
+            const receiver=await page.evaluate(async()=>await (await fetch('/api/auth/me',{credentials:'include'})).json());
+            const headers={authorization:`Bearer ${sender.token}`,'x-csrf-token':sender.csrf};
+            const threadResponse=await request.post('/api/messages/threads',{headers,data:{userId:receiver.id}}); expect(threadResponse.status()).toBe(201); const thread=await threadResponse.json();
+            const send=async body=>{const r=await request.post(`/api/messages/threads/${thread.id}/messages`,{headers,data:{kind:'text',mode:'normal',body,palette:0}}); expect(r.status()).toBe(201);};
+            const unreadCount=()=>page.evaluate(async()=>((await (await fetch('/api/notifications/unread-count',{credentials:'include',cache:'no-store'})).json()).count));
+
+            await send('primeira notificação'); await page.goto('/?tab=alerts');
+            const row=page.getByText('Sender Notify enviou-te uma mensagem'); await expect(row).toBeVisible({timeout:5000}); await expect(page.getByText('Não lida')).toBeVisible();
+            await row.click(); await expect.poll(unreadCount).toBe(0);
+            await page.goto('/?tab=alerts'); await expect(page.getByText('Lida').first()).toBeVisible();
+
+            await send('segunda notificação');
+            await expect.poll(async()=>page.evaluate(async()=>{const d=await (await fetch('/api/notifications',{credentials:'include',cache:'no-store'})).json(); return d.notifications?.some(n=>!n.read_at&&n.type==='message')||false;}),{timeout:5000}).toBe(true);
+            const rows=await page.evaluate(async()=>(await (await fetch('/api/notifications',{credentials:'include',cache:'no-store'})).json()).notifications);
+            const unread=rows.find(n=>!n.read_at&&n.type==='message'); expect(unread?.id).toBeTruthy();
+            await page.goto(`/?tab=dms&notification=${encodeURIComponent(unread.id)}`); await expect.poll(unreadCount).toBe(0);
+          });
+          """)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/src/App.jsx web/src/hooks/useMessages.js web/src/screens/Atividade.jsx web/e2e/notifications-safari.spec.js
+          git commit -m "fix: keep notification read state and badge synchronized"
+          git push origin HEAD:fix/notifications-badge-call-audio

@@ -117,7 +117,7 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
 
       <div style={{margin:'15px 0 13px',borderRadius:22,padding:15,background:'linear-gradient(135deg,#17122F,#29204E)',color:'#fff',boxShadow:'0 17px 42px rgba(26,18,61,.16)',display:'flex',gap:11,alignItems:'flex-start'}}>
         <ShieldCheck size={20} style={{marginTop:1,flexShrink:0}}/>
-        <div style={{fontSize:12.5,lineHeight:1.5,opacity:.92}}><b>Fontes editoriais verificadas.</b> O Radar mostra manchetes e contexto e mantém o artigo original no respetivo órgão. Conteúdo comercial continua sempre identificado.</div>
+        <div style={{fontSize:12.5,lineHeight:1.5,opacity:.92}}><b>Separado do Feed social.</b> O Radar reúne fontes editoriais verificadas, mostra manchetes e contexto e mantém o artigo original no respetivo órgão. Conteúdo comercial continua sempre identificado.</div>
       </div>
 
       {me?.is_staff&&<button type="button" className="p" onClick={()=>setScreen?.('radar-admin')} style={{width:'100%',justifyContent:'center',marginBottom:12}}><Settings2 size={15}/>Gerir Radar</button>}

@@ -1,0 +1,32 @@
+name: Call copy hotfix
+on:
+  workflow_dispatch:
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update call copy
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('web/src/components/calls/CallOverlay.jsx')
+          s=p.read_text()
+          pairs={
+            'O outro dispositivo recebeu a chamada.':'O outro amigo recebeu a chamada.',
+            'Aviso aceite pelo serviço de notificações; à espera do outro iPhone…':'Aviso enviado; à espera do outro amigo…',
+            'O outro dispositivo não tem chamadas em segundo plano ativas.':'O outro amigo não tem chamadas em segundo plano ativas.',
+            'A tentar chegar ao outro dispositivo…':'A tentar chegar ao outro amigo…',
+          }
+          for a,b in pairs.items(): s=s.replace(a,b)
+          p.write_text(s)
+          PY
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add web/src/components/calls/CallOverlay.jsx
+          git diff --cached --quiet || git commit -m "fix: use friend language in call status"
+          git push

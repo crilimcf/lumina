@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { q } from '../db.js';
 import { auth, h, bad, forbidden, notFound } from '../middleware/auth.js';
+import { sendPushToUser } from '../lib/webpush.js';
 
 export const callRoutes = Router();
 
@@ -65,6 +66,7 @@ callRoutes.post('/', auth, h(async (req, res) => {
      RETURNING id,thread_id,caller_id,callee_id,mode,status,created_at`,
     [threadId, req.user.id, thread.other_id, mode]
   );
+  sendPushToUser(thread.other_id).catch(error => console.debug('[push] chamada', error?.message));
   res.status(201).json(rows[0]);
 }));
 

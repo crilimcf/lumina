@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { q } from '../db.js';
 import { auth, h, bad, notFound } from '../middleware/auth.js';
+import { validPushEndpoint, vapidPublicKey } from '../lib/webpush.js';
 
 export const notificationRoutes = Router();
 
@@ -83,6 +84,79 @@ notificationRoutes.get('/unread-count', auth, h(async (req, res) => {
     [req.user.id]
   );
   res.json({ count: rows[0].count });
+}));
+
+notificationRoutes.get('/push/key', auth, h(async (_req, res) => {
+  res.json({ publicKey: await vapidPublicKey() });
+}));
+
+notificationRoutes.get('/push/status', auth, h(async (req, res) => {
+  const { rows } = await q('SELECT count(*)::int AS count FROM web_push_subscriptions WHERE user_id=$1', [req.user.id]);
+  res.json({ subscribed: rows[0].count > 0, devices: rows[0].count });
+}));
+
+notificationRoutes.post('/push/subscribe', auth, h(async (req, res) => {
+  const endpoint = String(req.body?.endpoint || '').trim();
+  if (endpoint.length > 4000 || !validPushEndpoint(endpoint)) {
+    throw bad('Subscrição push inválida', 'bad_push_subscription');
+  }
+  const keys = req.body?.keys || {};
+  const p256dh = keys.p256dh ? String(keys.p256dh).slice(0, 500) : null;
+  const authKey = keys.auth ? String(keys.auth).slice(0, 500) : null;
+  await q(
+    `INSERT INTO web_push_subscriptions (endpoint,user_id,p256dh,auth)
+     VALUES ($1,$2,$3,$4)
+     ON CONFLICT (endpoint) DO UPDATE
+       SET user_id=EXCLUDED.user_id,p256dh=EXCLUDED.p256dh,auth=EXCLUDED.auth,updated_at=now()`,
+    [endpoint, req.user.id, p256dh, authKey]
+  );
+  res.status(201).json({ subscribed:true });
+}));
+
+notificationRoutes.post('/push/unsubscribe', auth, h(async (req, res) => {
+  const endpoint = String(req.body?.endpoint || '').trim();
+  if (endpoint) await q('DELETE FROM web_push_subscriptions WHERE endpoint=$1 AND user_id=$2', [endpoint, req.user.id]);
+  res.json({ subscribed:false });
+}));
+
+notificationRoutes.get('/push/latest', auth, h(async (req, res) => {
+  const [{ rows }, countResult] = await Promise.all([
+    q(
+      `${SELECT_NOTIFICATION}
+       WHERE n.user_id=$1 AND n.read_at IS NULL
+         AND COALESCE(n.type,n.kind) IN ('message','incoming_call')
+         AND ${BLOCKED_ACTOR_FILTER}
+         AND ${ACTIVE_ACTOR_FILTER}
+       ORDER BY n.created_at DESC LIMIT 1`,
+      [req.user.id]
+    ),
+    q('SELECT count(*)::int AS count FROM notifications WHERE user_id=$1 AND read_at IS NULL', [req.user.id]),
+  ]);
+  const item = rows[0] || null;
+  if (!item) return res.json({ notification:null, unread:countResult.rows[0].count });
+
+  const name = item.actor_name || 'Alguém';
+  let title = 'Lumina';
+  let body = 'Tens uma novidade.';
+  let tag = `lumina:${item.id}`;
+  let url = '/?tab=alerts';
+  if (item.type === 'message') {
+    title = name;
+    const kind = item.data?.kind;
+    const mediaType = item.data?.mediaType;
+    const mode = item.data?.mode;
+    body = kind === 'media'
+      ? (mode === 'once' ? `Enviou ${mediaType === 'video' ? 'um vídeo' : 'uma foto'} para veres uma vez` : `Enviou ${mediaType === 'video' ? 'um vídeo' : 'uma fotografia'}`)
+      : 'Enviou-te uma mensagem';
+    tag = `lumina:message:${item.data?.threadId || item.id}`;
+    url = '/?tab=dms';
+  } else if (item.type === 'incoming_call') {
+    title = `Chamada de ${name}`;
+    body = item.data?.mode === 'video' ? 'Videochamada recebida' : 'Chamada de áudio recebida';
+    tag = `lumina:call:${item.data?.callId || item.id}`;
+    url = '/?tab=dms';
+  }
+  res.json({ notification:{ title,body,tag,url,type:item.type }, unread:countResult.rows[0].count });
 }));
 
 notificationRoutes.post('/read-all', auth, h(async (req, res) => {

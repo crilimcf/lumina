@@ -3,6 +3,7 @@ import { q, tx } from '../db.js';
 import { env } from '../env.js';
 import { auth, h, bad, notFound, forbidden } from '../middleware/auth.js';
 import { claimUpload, removeClaimedUploadIfUnreferenced } from '../lib/uploads.js';
+import { sendPushToUser } from '../lib/webpush.js';
 
 export const messageRoutes = Router();
 
@@ -136,7 +137,7 @@ messageRoutes.post('/threads/:threadId/messages', auth, h(async (req, res) => {
   }
   if (mode === 'once' && kind !== 'media') throw bad('O modo uma vez é só para foto ou vídeo');
   if (mode === 'timer' && kind !== 'text') throw bad('O modo efémero é só para texto');
-  await assertParticipant(req.params.threadId, req.user.id);
+  const thread = await assertParticipant(req.params.threadId, req.user.id);
 
   const message = await tx(async (c) => {
     let resolvedMediaType = mediaType;
@@ -155,6 +156,8 @@ messageRoutes.post('/threads/:threadId/messages', auth, h(async (req, res) => {
     );
     return rows[0];
   });
+  const recipientId = thread.user_a === req.user.id ? thread.user_b : thread.user_a;
+  sendPushToUser(recipientId).catch(error => console.debug('[push] mensagem', error?.message));
   res.status(201).json(message);
 }));
 

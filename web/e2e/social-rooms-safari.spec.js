@@ -57,7 +57,8 @@ test('navegação final tem 5 itens; publicação edita/apaga; Radar está separ
   // Radar stays a discovery surface: commercial/editorial content never becomes a normal social post.
   await page.getByRole('button', { name: 'Radar' }).click();
   await expect(page.getByRole('heading', { name: /Radar/i })).toBeVisible();
-  await expect(page.getByText(/Separado do Feed social/i)).toBeVisible();
+  await expect(page.getByText(/sem misturar com o teu Feed/i)).toBeVisible();
+  await expect(page.getByText(/Fontes editoriais verificadas/i)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Notícias' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Promoções' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Eventos' })).toBeVisible();

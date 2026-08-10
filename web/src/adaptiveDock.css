@@ -1,12 +1,14 @@
-/* Adaptive mobile dock: floats above the safe area, yields space while reading,
-   and returns as soon as the user scrolls back up. */
+/* Adaptive mobile dock: fica junto à zona segura, cede espaço enquanto se lê
+   e regressa assim que o utilizador volta a deslizar para cima. */
 .nav {
   left: 50% !important;
   right: auto !important;
   width: min(calc(100vw - 24px), 420px) !important;
   max-width: none !important;
   margin: 0 !important;
-  bottom: calc(12px + env(safe-area-inset-bottom)) !important;
+  /* No iPhone, safe-area-inset-bottom já reserva uma margem generosa. Subtrair
+     6px aproxima visualmente o dock da base sem o colocar sobre o home indicator. */
+  bottom: max(6px, calc(env(safe-area-inset-bottom) - 6px)) !important;
   border-radius: 28px !important;
   padding: 7px 8px 8px !important;
   background: rgba(249, 248, 255, .82) !important;
@@ -15,25 +17,27 @@
   -webkit-backdrop-filter: blur(22px) saturate(1.25);
   backdrop-filter: blur(22px) saturate(1.25);
   transform: translate3d(-50%, 0, 0) !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
   transition: transform .30s cubic-bezier(.22,.82,.32,1), opacity .20s ease, box-shadow .20s ease !important;
   will-change: transform, opacity;
 }
 
 .nav.nav-smart-hidden {
-  transform: translate3d(-50%, calc(100% + 38px + env(safe-area-inset-bottom)), 0) !important;
-  opacity: 0;
-  pointer-events: none;
+  transform: translate3d(-50%, calc(100% + 42px + env(safe-area-inset-bottom)), 0) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
-/* The central create action is deliberately elevated so the dock has a clear
-   primary action without becoming visually heavy. */
+/* O + continua a ser a ação principal, mas deixa de levantar toda a composição
+   visualmente tanto como antes. */
 .nav > .nb:nth-child(3) {
-  transform: translateY(-8px);
+  transform: translateY(-5px);
   overflow: visible;
 }
 
 .nav > .nb:nth-child(3):active {
-  transform: translateY(-8px) scale(.92);
+  transform: translateY(-5px) scale(.92);
 }
 
 .nav > .nb:nth-child(3) > svg {

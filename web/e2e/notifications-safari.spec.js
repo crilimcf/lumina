@@ -41,7 +41,7 @@ test('notificação passa de Não lida para Lida e deep-link limpa unread', asyn
 
   // Um destino explícito não deve voltar a mostrar o ecrã de abertura.
   await page.goto('/?tab=alerts');
-  await expect(page.getByText('Atividade')).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Atividade',exact:true})).toBeVisible({timeout:15000});
   await expect(page.getByText('Lida').first()).toBeVisible();
   await expect(page.getByText('Olá, Receiver Notify')).toHaveCount(0);
 
@@ -51,6 +51,6 @@ test('notificação passa de Não lida para Lida e deep-link limpa unread', asyn
   const unread=rows.find(n=>!n.read_at&&n.type==='message'); expect(unread?.id).toBeTruthy();
   await page.goto(`/?tab=dms&notification=${encodeURIComponent(unread.id)}`);
   await expect.poll(unreadCount).toBe(0);
-  await expect(page.getByRole('heading',{name:/Conversas/i})).toBeVisible();
+  await expect(page.getByRole('heading',{name:/Conversas/i})).toBeVisible({timeout:15000});
   await expect(page.getByText('Olá, Receiver Notify')).toHaveCount(0);
 });

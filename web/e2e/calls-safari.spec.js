@@ -13,7 +13,7 @@ function registration(handle, name) {
   };
 }
 
-test('chamada iniciada chega ao destinatário visível em Mobile Safari e fica observável', async ({ page, request }) => {
+test('chamada aberta pelo deep-link do push chega ao destinatário em Mobile Safari', async ({ page, request }) => {
   const suffix = `${Date.now()}${Math.floor(Math.random()*1000)}`;
   const callerHandle = `callera${suffix}`.slice(0,22);
   const calleeHandle = `calleeb${suffix}`.slice(0,22);
@@ -65,6 +65,11 @@ test('chamada iniciada chega ao destinatário visível em Mobile Safari e fica o
   expect(call.callee_push_ready).toBe(false);
   expect(call.push_attempted).toBe(0);
   expect(call.push_accepted).toBe(0);
+
+  // Simula o toque numa notificação Web Push depois de a PWA ter estado fora
+  // do ecrã: a sessão persiste e o deep-link deve recuperar a chamada pendente.
+  await page.goto(`/?tab=dms&call=${encodeURIComponent(call.id)}`);
+  await expect(page).toHaveURL(/tab=dms/);
 
   const incoming = page.getByRole('dialog', { name:'Chamada recebida de Caller WebKit' });
   await expect(incoming).toBeVisible({ timeout:5000 });

@@ -281,7 +281,7 @@
 
 .room-message button[aria-label="Apagar mensagem"] {
   min-width: 44px;
-  min-height: 36px;
+  min-height: 44px;
   margin-left: -8px;
   color: #FF9BA8 !important;
 }

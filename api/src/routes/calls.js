@@ -1,9 +1,96 @@
 import { Router } from 'express';
 import { q } from '../db.js';
+import { env } from '../env.js';
 import { auth, h, bad, forbidden, notFound } from '../middleware/auth.js';
 import { sendPushToUser } from '../lib/webpush.js';
 
 export const callRoutes = Router();
+
+const BASE_STUN = {
+  urls: [
+    'stun:stun.cloudflare.com:3478',
+    'stun:stun.cloudflare.com:53',
+    'stun:stun.l.google.com:19302',
+    'stun:stun1.l.google.com:19302',
+  ],
+};
+const TURN_CACHE_MS = 50 * 60_000;
+let turnCache = null;
+
+function cleanIceServers(value) {
+  if (!Array.isArray(value)) return [];
+  const out = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const raw = Array.isArray(item.urls) ? item.urls : [item.urls];
+    const urls = raw
+      .map(v => String(v || '').trim())
+      .filter(v => /^(?:stun|turn|turns):/i.test(v));
+    if (!urls.length) continue;
+    const next = { urls };
+    if (typeof item.username === 'string' && item.username) next.username = item.username;
+    if (typeof item.credential === 'string' && item.credential) next.credential = item.credential;
+    out.push(next);
+  }
+  return out;
+}
+
+function staticTurnServers() {
+  const urls = String(env.TURN_URLS || '').split(',').map(v => v.trim()).filter(Boolean);
+  if (!urls.length) return [];
+  return cleanIceServers([{ urls, username: env.TURN_USERNAME, credential: env.TURN_CREDENTIAL }]);
+}
+
+async function cloudflareTurnServers() {
+  const keyId = String(env.TURN_CLOUDFLARE_KEY_ID || '').trim();
+  const token = String(env.TURN_CLOUDFLARE_API_TOKEN || '').trim();
+  if (!keyId || !token) return [];
+  if (!/^[a-f0-9]{32}$/i.test(keyId)) {
+    console.warn('[calls] TURN_CLOUDFLARE_KEY_ID inválido');
+    return [];
+  }
+  if (turnCache && turnCache.expiresAt > Date.now()) return turnCache.iceServers;
+
+  try {
+    const response = await fetch(
+      `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(keyId)}/credentials/generate-ice-servers`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${token}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ ttl: 3600 }),
+        signal: AbortSignal.timeout(5_000),
+        redirect: 'error',
+      }
+    );
+    if (!response.ok) throw new Error(`Cloudflare TURN HTTP ${response.status}`);
+    const data = await response.json();
+    const iceServers = cleanIceServers(data?.iceServers).filter(server =>
+      server.urls.some(url => /^(?:turn|turns):/i.test(url))
+      || server.urls.some(url => /^stun:/i.test(url))
+    );
+    if (!iceServers.some(server => server.urls.some(url => /^(?:turn|turns):/i.test(url)))) {
+      throw new Error('Cloudflare TURN respondeu sem relay');
+    }
+    turnCache = { iceServers, expiresAt: Date.now() + TURN_CACHE_MS };
+    return iceServers;
+  } catch (error) {
+    console.warn('[calls] Não foi possível obter credenciais TURN:', error?.message);
+    return [];
+  }
+}
+
+async function rtcIceConfig() {
+  const cloudflare = await cloudflareTurnServers();
+  const managed = cloudflare.length ? cloudflare : staticTurnServers();
+  const iceServers = [BASE_STUN, ...managed];
+  return {
+    iceServers,
+    relayConfigured: iceServers.some(server => server.urls.some(url => /^(?:turn|turns):/i.test(url))),
+  };
+}
 
 async function blocked(a, b) {
   const { rows } = await q(
@@ -46,6 +133,12 @@ async function callForUser(callId, userId) {
   if (await blocked(userId, otherId)) throw forbidden('Esta chamada já não está disponível');
   return call;
 }
+
+// ICE config autenticada. Credenciais TURN de longa duração nunca entram no bundle web.
+callRoutes.get('/ice-config', auth, h(async (_req, res) => {
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.json(await rtcIceConfig());
+}));
 
 callRoutes.post('/', auth, h(async (req, res) => {
   const threadId = String(req.body.threadId || '');

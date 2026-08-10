@@ -2,13 +2,23 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Camera, CameraOff, Mic, MicOff, PhoneOff, Volume2 } from 'lucide-react';
 import { api } from '../../api.js';
 import { Orb } from '../../ui.jsx';
-import { syncCall } from './callSync.js';
+import { fetchIceConfig, syncCall } from './callSync.js';
 
-const ICE_SERVERS = (() => {
-  const servers = [{ urls: ['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302'] }];
-  const turn = String(import.meta.env.VITE_TURN_URL || '').split(',').map(v=>v.trim()).filter(Boolean);
-  if (turn.length) servers.push({ urls:turn, username:import.meta.env.VITE_TURN_USERNAME || '', credential:import.meta.env.VITE_TURN_CREDENTIAL || '' });
-  return servers;
+const FALLBACK_ICE_SERVERS = [{
+  urls: [
+    'stun:stun.cloudflare.com:3478',
+    'stun:stun.cloudflare.com:53',
+    'stun:stun.l.google.com:19302',
+    'stun:stun1.l.google.com:19302',
+  ],
+}];
+
+// Compatibilidade temporária com builds antigos. A configuração segura vem do
+// backend e estas variáveis deixam de ser necessárias quando TURN server-side estiver ativo.
+const LEGACY_TURN = (() => {
+  const urls = String(import.meta.env.VITE_TURN_URL || '').split(',').map(v=>v.trim()).filter(Boolean);
+  if (!urls.length) return [];
+  return [{ urls, username:import.meta.env.VITE_TURN_USERNAME || '', credential:import.meta.env.VITE_TURN_CREDENTIAL || '' }];
 })();
 
 /** WebRTC 1:1; a API troca apenas signaling autenticado, nunca o áudio/vídeo. */
@@ -19,7 +29,7 @@ export function CallOverlay({ call, caller, person, onClosed, ping }) {
   const [remoteReady,setRemoteReady]=useState(false);
   const [needsAudioTap,setNeedsAudioTap]=useState(false);
   const [networkHint,setNetworkHint]=useState('');
-  const localVideo=useRef(null),remoteMedia=useRef(null),pcRef=useRef(null),streamRef=useRef(null),pollRef=useRef(null),lastSignalRef=useRef(0),closedRef=useRef(false),pendingIceRef=useRef([]),handlingOfferRef=useRef(false),restartRef=useRef(0),connectedRef=useRef(false),startedAtRef=useRef(Date.now());
+  const localVideo=useRef(null),remoteMedia=useRef(null),pcRef=useRef(null),streamRef=useRef(null),pollRef=useRef(null),lastSignalRef=useRef(0),closedRef=useRef(false),pendingIceRef=useRef([]),handlingOfferRef=useRef(false),restartRef=useRef(0),connectedRef=useRef(false),startedAtRef=useRef(Date.now()),relayConfiguredRef=useRef(false);
 
   const cleanup=async({notify=false}={})=>{if(closedRef.current)return;closedRef.current=true;clearInterval(pollRef.current);pollRef.current=null;try{pcRef.current?.close()}catch{}pcRef.current=null;streamRef.current?.getTracks?.().forEach(t=>t.stop());streamRef.current=null;if(notify)await api.calls.end(call.id).catch(()=>{});onClosed?.();};
   const flushIce=async()=>{const pc=pcRef.current;if(!pc?.remoteDescription)return;for(const c of pendingIceRef.current.splice(0)){try{await pc.addIceCandidate(new RTCIceCandidate(c))}catch(e){console.debug('[call] ICE rejeitado',e?.message)}}};
@@ -29,6 +39,19 @@ export function CallOverlay({ call, caller, person, onClosed, ping }) {
     const node=remoteMedia.current;
     if(!node)return;
     try{await node.play?.();setNeedsAudioTap(false)}catch{setNeedsAudioTap(true)}
+  };
+
+  const logSelectedRoute=async()=>{
+    const pc=pcRef.current;
+    if(!pc?.getStats)return;
+    try{
+      const stats=await pc.getStats();
+      let selected=null;
+      stats.forEach(report=>{if(report.type==='transport'&&report.selectedCandidatePairId)selected=stats.get(report.selectedCandidatePairId)||selected;if(report.type==='candidate-pair'&&report.selected)selected=report});
+      if(!selected)return;
+      const local=stats.get(selected.localCandidateId),remote=stats.get(selected.remoteCandidateId);
+      console.debug('[call] ICE route',{local:local?.candidateType,remote:remote?.candidateType,protocol:local?.protocol,relayConfigured:relayConfiguredRef.current});
+    }catch{}
   };
 
   const handleSignal=async signal=>{
@@ -49,8 +72,6 @@ export function CallOverlay({ call, caller, person, onClosed, ping }) {
     }
     if(signal.kind==='answer'){
       if(!caller)return;
-      // Uma resposta posterior pode pertencer a um ICE restart; só a aplicamos
-      // quando existe uma oferta local pendente.
       if(pc.signalingState==='have-local-offer'){
         await pc.setRemoteDescription(new RTCSessionDescription(signal.payload));
         await flushIce();
@@ -93,7 +114,7 @@ export function CallOverlay({ call, caller, person, onClosed, ping }) {
         if(state.status==='active'&&!connectedRef.current)setPhase('A ligar…');
         const elapsed=Date.now()-startedAtRef.current;
         if(state.status==='active'&&!connectedRef.current&&elapsed>18000)setNetworkHint('A negociar a ligação de áudio…');
-        if(state.status==='active'&&!connectedRef.current&&elapsed>32000)setNetworkHint('A rede está a dificultar a ligação. A tentar uma rota alternativa…');
+        if(state.status==='active'&&!connectedRef.current&&elapsed>32000)setNetworkHint(relayConfiguredRef.current?'A tentar uma rota alternativa…':'Esta rede está a bloquear a ligação direta…');
       }catch(e){if(!closedRef.current)console.debug('[call] sync',e?.message)}
     };
     poll();
@@ -102,11 +123,17 @@ export function CallOverlay({ call, caller, person, onClosed, ping }) {
 
   useEffect(()=>{let mounted=true;(async()=>{try{
     if(!navigator.mediaDevices?.getUserMedia||typeof RTCPeerConnection==='undefined')throw new Error('Este dispositivo/browser não permite chamadas WebRTC.');
-    const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:call.mode==='video'?{facingMode:'user',width:{ideal:1280},height:{ideal:720}}:false});
+    const [stream,iceConfig]=await Promise.all([
+      navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:call.mode==='video'?{facingMode:'user',width:{ideal:1280},height:{ideal:720}}:false}),
+      fetchIceConfig().catch(error=>{console.debug('[call] ICE config fallback',error?.message);return null}),
+    ]);
     if(!mounted){stream.getTracks().forEach(t=>t.stop());return;}
     streamRef.current=stream;
     if(localVideo.current){localVideo.current.srcObject=stream;localVideo.current.play?.().catch(()=>{})}
-    const pc=new RTCPeerConnection({iceServers:ICE_SERVERS,iceCandidatePoolSize:4});
+    const serverIce=Array.isArray(iceConfig?.iceServers)&&iceConfig.iceServers.length?iceConfig.iceServers:FALLBACK_ICE_SERVERS;
+    const iceServers=iceConfig?.relayConfigured?serverIce:[...serverIce,...LEGACY_TURN];
+    relayConfiguredRef.current=!!iceConfig?.relayConfigured||LEGACY_TURN.length>0;
+    const pc=new RTCPeerConnection({iceServers,iceCandidatePoolSize:4});
     pcRef.current=pc;
     stream.getTracks().forEach(t=>pc.addTrack(t,stream));
     pc.ontrack=e=>{
@@ -118,15 +145,16 @@ export function CallOverlay({ call, caller, person, onClosed, ping }) {
       setPhase('Em chamada');
     };
     pc.onicecandidate=e=>{if(e.candidate)api.calls.signal(call.id,'ice',e.candidate.toJSON?.()||e.candidate).catch(()=>{})};
+    pc.onicecandidateerror=e=>console.debug('[call] ICE candidate error',e?.errorCode,e?.errorText,e?.url);
     pc.oniceconnectionstatechange=()=>{
       const state=pc.iceConnectionState;
       if(state==='checking')setPhase('A ligar…');
-      if(state==='connected'||state==='completed'){connectedRef.current=true;setNetworkHint('');setPhase('Em chamada')}
+      if(state==='connected'||state==='completed'){connectedRef.current=true;setNetworkHint('');setPhase('Em chamada');logSelectedRoute()}
       if(state==='disconnected')setPhase('A restabelecer…');
       if(state==='failed'&&!closedRef.current)restartIce();
     };
     pc.onconnectionstatechange=()=>{
-      if(pc.connectionState==='connected'){connectedRef.current=true;setNetworkHint('');setPhase('Em chamada');playRemote()}
+      if(pc.connectionState==='connected'){connectedRef.current=true;setNetworkHint('');setPhase('Em chamada');playRemote();logSelectedRoute()}
       if(pc.connectionState==='disconnected')setPhase('A restabelecer…');
       if(pc.connectionState==='failed'&&!closedRef.current)restartIce();
     };

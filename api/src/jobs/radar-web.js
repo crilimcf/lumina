@@ -79,8 +79,6 @@ export function parsePublisherHeadlineLinks(html, sourceUrl, { maxItems = 14 } =
     found.push({ title, externalUrl:url, imageUrl:imageFromAnchor(inner, sourceUrl) });
   }
 
-  // Os sites de notícias costumam repetir a manchete no link da imagem e no
-  // título. Mantemos a primeira ocorrência e limitamos o coletor ao topo atual.
   return found.slice(0, Math.max(1, Math.min(Number(maxItems) || 14, 24)));
 }
 
@@ -122,7 +120,7 @@ export async function ingestWebSource(source, { fetchPageImpl = fetchPublicFeed 
            ingestion_trusted,ingestion_publishable
          ) VALUES (
            'news',$1,'','',$2,$3,$4,$5,$6,false,$7,$8,
-           now()+($9||' hours')::interval,now(),'published',$10,$11,true,true
+           now()+make_interval(hours => $9::int),now(),'published',$10,$11,true,true
          )
          ON CONFLICT (fingerprint) DO UPDATE SET
            title=EXCLUDED.title,

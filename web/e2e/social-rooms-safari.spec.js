@@ -153,7 +153,7 @@ test('Alertas aceita pedido e Pessoas & privacidade muda o perfil', async ({ pag
   await page.getByRole('button', { name: /Alertas/ }).click();
   await expect(page.getByText('Pessoa Privada quer seguir-te')).toBeVisible();
   await page.getByRole('button', { name: 'Aceitar' }).click();
-  await page.getByRole('button', { name: 'Pessoas & privacidade' }).click();
+  await page.getByRole('tab', { name: 'Pessoas & privacidade' }).click();
   await expect(page.getByText('Perfil público', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Tornar privado' }).click();
   await expect(page.getByText('Perfil privado', { exact: true })).toBeVisible();

@@ -128,8 +128,6 @@ momentRoutes.post('/:momentId/reactions/:kind', auth, h(async (req, res) => {
     if (!visible[0]) throw notFound('Momento não encontrado');
     if (visible[0].author_id === req.user.id) throw bad('Não podes reagir ao teu próprio Momento');
 
-    // Serializa toggles concorrentes da mesma reação. Dois toques rápidos ficam
-    // semanticamente iguais a dois toggles sequenciais, em vez de dois INSERTs concorrentes.
     const lockKey = `moment-reaction:${req.params.momentId}:${req.user.id}:${kind}`;
     await c.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [lockKey]);
 
@@ -163,6 +161,24 @@ momentRoutes.get('/:momentId/viewers', auth, h(async (req, res) => {
     `SELECT u.id, u.handle, u.name, u.palette, u.avatar_url, v.seen_at
      FROM moment_views v JOIN users u ON u.id = v.user_id
      WHERE v.moment_id = $1 ORDER BY v.seen_at DESC`,
+    [req.params.momentId]
+  );
+  res.json(rows);
+}));
+
+momentRoutes.get('/:momentId/interactions', auth, h(async (req, res) => {
+  const { rows: own } = await q('SELECT author_id FROM moments WHERE id=$1', [req.params.momentId]);
+  if (!own[0]) throw notFound('Momento não encontrado');
+  if (own[0].author_id !== req.user.id) throw forbidden('Só o autor vê as interações');
+  const { rows } = await q(
+    `SELECT u.id,u.handle,u.name,u.palette,u.avatar_url,
+            array_agg(r.kind ORDER BY r.created_at)::text[] AS reactions,
+            max(r.created_at) AS reacted_at
+       FROM moment_reactions r
+       JOIN users u ON u.id=r.user_id
+      WHERE r.moment_id=$1
+      GROUP BY u.id,u.handle,u.name,u.palette,u.avatar_url
+      ORDER BY max(r.created_at) DESC`,
     [req.params.momentId]
   );
   res.json(rows);

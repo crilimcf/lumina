@@ -108,6 +108,9 @@ export const api = {
     openThread: (userId) => call('/messages/threads', { method: 'POST', body: { userId } }),
     list: (tid) => call(`/messages/threads/${tid}/messages`),
     send: (tid, b) => call(`/messages/threads/${tid}/messages`, { method: 'POST', body: b }),
+    delivered: () => call('/messages/delivered', { method: 'POST' }),
+    edit: (mid, body) => call(`/messages/${mid}`, { method: 'PATCH', body: { body } }),
+    remove: (mid) => call(`/messages/${mid}`, { method: 'DELETE' }),
     reveal: (mid) => call(`/messages/${mid}/open`, { method: 'POST' }),
   },
   rooms: {
@@ -187,6 +190,7 @@ export const api = {
     view: (id) => call(`/moments/${id}/view`, { method: 'POST' }),
     react: (id, kind) => call(`/moments/${id}/reactions/${kind}`, { method: 'POST' }),
     viewers: (id) => call(`/moments/${id}/viewers`),
+    interactions: (id) => call(`/moments/${id}/interactions`),
     remove: (id) => call(`/moments/${id}`, { method: 'DELETE' }),
   },
   async upload(file) {

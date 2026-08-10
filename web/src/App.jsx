@@ -3,6 +3,8 @@ import { api, onUnauthorized } from './api.js';
 import { Seguranca, Moderacao, Legal } from './Seguranca.jsx';
 import { Composer } from './components/AppChrome.jsx';
 import { Welcome } from './components/Milestones.jsx';
+import { IncomingCall } from './components/calls/IncomingCall.jsx';
+import { CallOverlay } from './components/calls/CallOverlay.jsx';
 import { Entrada } from './screens/Entrada.jsx';
 import { Abertura } from './screens/Abertura.jsx';
 import { EditarPerfil } from './screens/EditarPerfil.jsx';
@@ -18,6 +20,7 @@ import { useFeed } from './hooks/useFeed.js';
 import { useMessages } from './hooks/useMessages.js';
 import { useComposer } from './hooks/useComposer.js';
 import { useMoments } from './hooks/useMoments.js';
+import { useCalls } from './hooks/useCalls.js';
 
 const initialTab = () => {
   const requested = new URLSearchParams(window.location.search).get('tab');
@@ -42,8 +45,9 @@ export default function App() {
 
   const feedState = useFeed({ me, ping });
   const composerState = useComposer({ loadFeed: feedState.loadFeed, ping });
-  const messageState = useMessages({ tab, palette: composerState.palette, ping });
+  const messageState = useMessages({ tab, palette: composerState.palette, ping, enabled: !!me });
   const momentState = useMoments({ me, ping });
+  const callState = useCalls({ enabled: !!me, ping });
 
   const meRef = useRef(null);
   useEffect(() => { meRef.current = me; }, [me]);
@@ -109,17 +113,23 @@ export default function App() {
     messageState.setThread(null);
   };
 
+  const withCalls = (content) => <>
+    {content}
+    {callState.incoming && !callState.activeCall && <IncomingCall call={callState.incoming} busy={callState.busy} onAccept={callState.acceptIncoming} onDecline={callState.declineIncoming}/>} 
+    {callState.activeCall && <CallOverlay {...callState.activeCall} ping={ping} onClosed={callState.closeActiveCall}/>} 
+  </>;
+
   if (booting) return <div style={{minHeight:'100dvh',display:'grid',placeItems:'center'}}><div className="d" style={{fontSize:34,opacity:.25}}>Lumi<span className="it">na</span></div></div>;
   if (!me) return <Entrada onIn={afterLogin}/>;
-  if (showWelcome) return <Welcome onContinue={()=>setShowWelcome(false)}/>;
-  if (opening) return <Abertura me={me} onSkip={()=>setOpening(false)} onRooms={()=>{setOpening(false);setTab('rooms')}}/>;
+  if (showWelcome) return withCalls(<Welcome onContinue={()=>setShowWelcome(false)}/>);
+  if (opening) return withCalls(<Abertura me={me} onSkip={()=>setOpening(false)} onRooms={()=>{setOpening(false);setTab('rooms')}}/>);
 
-  if (screen==='seguranca') return <Seguranca onBack={()=>setScreen(null)} ping={ping}/>;
-  if (screen==='moderacao') return <Moderacao onBack={()=>setScreen(null)} ping={ping}/>;
-  if (screen==='radar-admin' && me.is_staff) return <RadarAdmin onBack={()=>setScreen(null)} ping={ping}/>;
-  if (screen==='TERMOS'||screen==='PRIVACIDADE') return <Legal page={screen} onBack={()=>setScreen(null)}/>;
-  if (screen==='editar-perfil') return <EditarPerfil me={me} onSave={setMe} onBack={()=>setScreen(null)} ping={ping}/>;
-  if (screen==='amigos') return <Amigos onBack={()=>setScreen(null)} ping={ping}/>;
+  if (screen==='seguranca') return withCalls(<Seguranca onBack={()=>setScreen(null)} ping={ping}/>);
+  if (screen==='moderacao') return withCalls(<Moderacao onBack={()=>setScreen(null)} ping={ping}/>);
+  if (screen==='radar-admin' && me.is_staff) return withCalls(<RadarAdmin onBack={()=>setScreen(null)} ping={ping}/>);
+  if (screen==='TERMOS'||screen==='PRIVACIDADE') return withCalls(<Legal page={screen} onBack={()=>setScreen(null)}/>);
+  if (screen==='editar-perfil') return withCalls(<EditarPerfil me={me} onSave={setMe} onBack={()=>setScreen(null)} ping={ping}/>);
+  if (screen==='amigos') return withCalls(<Amigos onBack={()=>setScreen(null)} ping={ping}/>);
 
   const { comp, ...composerWithoutComp } = composerState;
   const navProps = {
@@ -134,14 +144,14 @@ export default function App() {
   };
 
   let activeScreen;
-  if (tab==='dms') activeScreen=<Conversas me={me} {...navProps} comp={comp} {...messageState}/>;
+  if (tab==='dms') activeScreen=<Conversas me={me} {...navProps} comp={comp} {...messageState} startCall={callState.startCall} callBusy={callState.busy}/>;
   else if (tab==='rooms') activeScreen=<Salas me={me} {...navProps}/>;
   else if (tab==='promos') activeScreen=<Promocoes me={me} setScreen={setScreen} {...navProps}/>;
   else if (tab==='alerts') activeScreen=<Atividade {...navProps} onUnreadChange={setUnreadCount}/>;
   else if (tab==='me') activeScreen=<Perfil me={me} blocked={blocked} setBlocked={setBlocked} setScreen={setScreen} logout={logout} tab={tab} setTab={setTab} setThread={messageState.setThread} setComp={composerState.setComp} threads={messageState.threads} ping={ping} toast={toast} unreadCount={unreadCount}/>;
   else activeScreen=<Feed me={me} tab={tab} setTab={setTab} setScreen={setScreen} {...feedState} report={report} comp={null} {...composerWithoutComp} threads={messageState.threads} setThread={messageState.setThread} ping={ping} toast={toast} unreadCount={unreadCount} {...momentState}/>;
 
-  return <>
+  return withCalls(<>
     {activeScreen}
     <Composer
       comp={comp}
@@ -153,5 +163,5 @@ export default function App() {
       busy={composerState.busy}
       publish={composerState.publish}
     />
-  </>;
+  </>);
 }

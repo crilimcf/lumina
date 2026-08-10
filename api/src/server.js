@@ -64,6 +64,10 @@ const CSRF_PUBLIC_PATHS = new Set([
   '/auth/register',
   '/account/forgot-password',
   '/account/reset-password',
+  // Estes dois endpoints só aceitam JSON autenticado; um POST cross-site simples
+  // não consegue construir o body e CORS bloqueia fetch credentialed de outra origem.
+  '/notifications/push/subscribe',
+  '/notifications/push/unsubscribe',
 ]);
 const withoutApiPrefix = (pathname) => pathname.startsWith('/api/') ? pathname.slice(4) : pathname;
 app.use((req, res, next) => {

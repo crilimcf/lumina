@@ -115,7 +115,16 @@ test('Chat mostra ações de chamada áudio e vídeo', async ({ page }) => {
   await page.route('**/api/calls/incoming', route => route.fulfill({ status: 200, contentType: 'application/json', body: 'null' }));
 
   await page.getByRole('button', { name: 'Conversas' }).click();
-  await page.getByRole('button', { name: /Pessoa Chamada/ }).click();
+  await expect(page.getByRole('heading', { name: 'Conversas' })).toBeVisible();
+  const search = page.getByRole('textbox', { name: 'Pesquisar conversas e pessoas' });
+  await expect(search).toBeVisible();
+  await search.fill('Pessoa');
+  await expect(page.getByRole('button', { name: 'Abrir conversa com Pessoa Chamada' })).toBeVisible();
+  await search.fill('Nada por aqui');
+  await expect(page.getByText(/Não encontrámos conversas ou pessoas/)).toBeVisible();
+  await search.fill('');
+
+  await page.getByRole('button', { name: 'Abrir conversa com Pessoa Chamada' }).click();
   await expect(page.getByRole('button', { name: 'Ligar por áudio a Pessoa Chamada' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Fazer videochamada com Pessoa Chamada' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Enviar', exact: true })).toBeVisible();

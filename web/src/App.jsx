@@ -1,32 +1,38 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { api, onUnauthorized } from './api.js';
-import { Seguranca, Moderacao, Legal } from './Seguranca.jsx';
 import { Composer } from './components/AppChrome.jsx';
 import { Welcome } from './components/Milestones.jsx';
 import { IncomingCall } from './components/calls/IncomingCall.jsx';
 import { CallOverlay } from './components/calls/CallOverlay.jsx';
 import { Entrada } from './screens/Entrada.jsx';
 import { Abertura } from './screens/Abertura.jsx';
-import { EditarPerfil } from './screens/EditarPerfil.jsx';
-import { Amigos } from './screens/Amigos.jsx';
-import { PublicProfile } from './screens/PublicProfile.jsx';
-import { Conversas } from './screens/Conversas.jsx';
-import { Perfil } from './screens/Perfil.jsx';
-import { Feed } from './screens/Feed.jsx';
-import { Salas } from './screens/Salas.jsx';
-import { Promocoes } from './screens/Promocoes.jsx';
-import { RadarAdmin } from './screens/RadarAdmin.jsx';
-import { Atividade } from './screens/Atividade.jsx';
 import { useFeed } from './hooks/useFeed.js';
 import { useMessages } from './hooks/useMessages.js';
 import { useComposer } from './hooks/useComposer.js';
 import { useMoments } from './hooks/useMoments.js';
 import { useCalls } from './hooks/useCalls.js';
 
+const namedLazy = (loader, name) => lazy(() => loader().then(module => ({ default:module[name] })));
+const EditarPerfil = namedLazy(() => import('./screens/EditarPerfil.jsx'), 'EditarPerfil');
+const Amigos = namedLazy(() => import('./screens/Amigos.jsx'), 'Amigos');
+const PublicProfile = namedLazy(() => import('./screens/PublicProfile.jsx'), 'PublicProfile');
+const Conversas = namedLazy(() => import('./screens/Conversas.jsx'), 'Conversas');
+const Perfil = namedLazy(() => import('./screens/Perfil.jsx'), 'Perfil');
+const Feed = namedLazy(() => import('./screens/Feed.jsx'), 'Feed');
+const Salas = namedLazy(() => import('./screens/Salas.jsx'), 'Salas');
+const Promocoes = namedLazy(() => import('./screens/Promocoes.jsx'), 'Promocoes');
+const RadarAdmin = namedLazy(() => import('./screens/RadarAdmin.jsx'), 'RadarAdmin');
+const Atividade = namedLazy(() => import('./screens/Atividade.jsx'), 'Atividade');
+const Seguranca = namedLazy(() => import('./Seguranca.jsx'), 'Seguranca');
+const Moderacao = namedLazy(() => import('./Seguranca.jsx'), 'Moderacao');
+const Legal = namedLazy(() => import('./Seguranca.jsx'), 'Legal');
+
 const initialTab = () => {
   const requested = new URLSearchParams(window.location.search).get('tab');
   return ['feed','rooms','promos','alerts','dms','me'].includes(requested) ? requested : 'feed';
 };
+
+const ScreenFallback = () => <div style={{minHeight:'78dvh',display:'grid',placeItems:'center'}}><div className="d" style={{fontSize:26,opacity:.24}}>Lumi<span className="it">na</span></div></div>;
 
 export default function App() {
   const [me, setMe] = useState(null);
@@ -46,10 +52,10 @@ export default function App() {
   }, []);
 
   const feedState = useFeed({ me, ping });
-  const composerState = useComposer({ loadFeed: feedState.loadFeed, ping });
-  const messageState = useMessages({ tab, palette: composerState.palette, ping, enabled: !!me });
+  const composerState = useComposer({ loadFeed:feedState.loadFeed, ping });
+  const messageState = useMessages({ tab, palette:composerState.palette, ping, enabled:!!me });
   const momentState = useMoments({ me, ping });
-  const callState = useCalls({ enabled: !!me, ping });
+  const callState = useCalls({ enabled:!!me, ping });
 
   const meRef = useRef(null);
   useEffect(() => { meRef.current = me; }, [me]);
@@ -132,7 +138,7 @@ export default function App() {
   }, [messageState.openContact]);
 
   const withCalls = (content) => <>
-    {content}
+    <Suspense fallback={<ScreenFallback/>}>{content}</Suspense>
     {callState.incoming && !callState.activeCall && <IncomingCall call={callState.incoming} busy={callState.busy} onAccept={callState.acceptIncoming} onDecline={callState.declineIncoming}/>} 
     {callState.activeCall && <CallOverlay {...callState.activeCall} ping={ping} onClosed={callState.closeActiveCall}/>} 
   </>;
@@ -154,9 +160,9 @@ export default function App() {
   const navProps = {
     tab,
     setTab,
-    setComp: composerState.setComp,
-    threads: messageState.threads,
-    setThread: messageState.setThread,
+    setComp:composerState.setComp,
+    threads:messageState.threads,
+    setThread:messageState.setThread,
     ping,
     toast,
     unreadCount,

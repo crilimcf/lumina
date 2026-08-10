@@ -2,11 +2,16 @@ import crypto from 'node:crypto';
 import { q, tx } from '../db.js';
 
 const SECRET_NAME = 'web_push_vapid_v1';
-const VAPID_SUBJECT = 'https://lumina-snowy-ten.vercel.app';
+const APP_ORIGIN = 'https://lumina-snowy-ten.vercel.app';
+const VAPID_SUBJECT = APP_ORIGIN;
 const CALL_RETRY_DELAYS = [2600, 7600, 15000];
+const MAX_PUSH_PLAINTEXT = 3600;
+const RECORD_SIZE = 4096;
 
 const b64url = (value) => Buffer.from(value).toString('base64url');
 const decode64 = (value) => Buffer.from(String(value || ''), 'base64url');
+const hmac = (key, value) => crypto.createHmac('sha256', key).update(value).digest();
+const expandOne = (prk, info, length) => hmac(prk, Buffer.concat([info, Buffer.from([1])])).subarray(0, length);
 
 export function validPushEndpoint(value) {
   let url;
@@ -16,6 +21,7 @@ export function validPushEndpoint(value) {
   if (url.port && url.port !== '443') return false;
   const host = url.hostname.toLowerCase();
   return host === 'web.push.apple.com'
+    || host.endsWith('.push.apple.com')
     || host === 'fcm.googleapis.com'
     || host === 'updates.push.services.mozilla.com'
     || host.endsWith('.push.services.mozilla.com')
@@ -71,51 +77,176 @@ function makeVapidJwt(endpoint, key) {
   return `${signingInput}.${signature}`;
 }
 
-async function sendWake(endpoint, key) {
-  if (!validPushEndpoint(endpoint)) return { stale:true, status:0 };
+/**
+ * RFC 8291 + RFC 8188, aes128gcm, single record.
+ * Exportada para podermos validar criptograficamente o payload nos testes sem
+ * depender de um serviço Push externo.
+ */
+export function encryptWebPushPayload(payload, subscription) {
+  const uaPublic = decode64(subscription?.p256dh);
+  const authSecret = decode64(subscription?.auth);
+  if (uaPublic.length !== 65 || uaPublic[0] !== 4 || authSecret.length < 16) {
+    throw new Error('Chaves da subscrição Web Push inválidas');
+  }
+
+  const plaintext = Buffer.from(typeof payload === 'string' ? payload : JSON.stringify(payload));
+  if (!plaintext.length || plaintext.length > MAX_PUSH_PLAINTEXT) throw new Error('Payload Web Push inválido');
+
+  const asEcdh = crypto.createECDH('prime256v1');
+  const asPublic = asEcdh.generateKeys();
+  const sharedSecret = asEcdh.computeSecret(uaPublic);
+  const prkKey = hmac(authSecret, sharedSecret);
+  const keyInfo = Buffer.concat([Buffer.from('WebPush: info\0'), uaPublic, asPublic]);
+  const ikm = expandOne(prkKey, keyInfo, 32);
+
+  const salt = crypto.randomBytes(16);
+  const prk = hmac(salt, ikm);
+  const cek = expandOne(prk, Buffer.from('Content-Encoding: aes128gcm\0'), 16);
+  const nonce = expandOne(prk, Buffer.from('Content-Encoding: nonce\0'), 12);
+
+  const recordPlaintext = Buffer.concat([plaintext, Buffer.from([2])]);
+  const cipher = crypto.createCipheriv('aes-128-gcm', cek, nonce);
+  const encrypted = Buffer.concat([cipher.update(recordPlaintext), cipher.final(), cipher.getAuthTag()]);
+
+  const header = Buffer.alloc(21);
+  salt.copy(header, 0);
+  header.writeUInt32BE(RECORD_SIZE, 16);
+  header[20] = asPublic.length;
+  const body = Buffer.concat([header, asPublic, encrypted]);
+  if (body.length > 4096) throw new Error('Payload Web Push excede o limite de 4096 bytes');
+  return body;
+}
+
+function absoluteNavigation(value) {
+  try { return new URL(String(value || '/?tab=alerts'), APP_ORIGIN).toString(); }
+  catch { return `${APP_ORIGIN}/?tab=alerts`; }
+}
+
+function declarativePayload(notification, badge = 0) {
+  const item = notification || {};
+  return {
+    web_push: 8030,
+    notification: {
+      title: String(item.title || 'Lumina').slice(0, 120),
+      body: String(item.body || 'Tens uma novidade.').slice(0, 220),
+      navigate: absoluteNavigation(item.url),
+      silent: false,
+      tag: String(item.tag || 'lumina:activity').slice(0, 180),
+      ...(badge > 0 ? { app_badge:String(Math.min(999, badge)) } : {}),
+    },
+  };
+}
+
+async function latestNotificationFor(userId) {
+  const [{ rows }, countResult] = await Promise.all([
+    q(
+      `SELECT n.id,COALESCE(n.type,n.kind) AS type,
+              CASE WHEN n.type IS NULL THEN COALESCE(n.payload,'{}'::jsonb) ELSE n.data END AS data,
+              a.name AS actor_name
+       FROM notifications n
+       LEFT JOIN users a ON a.id=n.actor_id
+       WHERE n.user_id=$1 AND n.read_at IS NULL
+         AND COALESCE(n.type,n.kind) IN ('message','incoming_call')
+       ORDER BY n.created_at DESC LIMIT 1`,
+      [userId]
+    ),
+    q('SELECT count(*)::int AS count FROM notifications WHERE user_id=$1 AND read_at IS NULL', [userId]),
+  ]);
+  const item = rows[0];
+  if (!item) return { notification:null, badge:countResult.rows[0]?.count || 0, callId:null };
+  const name = item.actor_name || 'Alguém';
+  if (item.type === 'incoming_call') {
+    return {
+      notification: {
+        title:`Chamada de ${name}`,
+        body:item.data?.mode === 'video' ? 'Videochamada recebida' : 'Chamada de áudio recebida',
+        tag:`lumina:call:${item.data?.callId || item.id}`,
+        url:`/?tab=dms&call=${encodeURIComponent(item.data?.callId || '')}`,
+      },
+      badge:countResult.rows[0]?.count || 0,
+      callId:item.data?.callId || null,
+    };
+  }
+  const kind = item.data?.kind;
+  const mediaType = item.data?.mediaType;
+  const mode = item.data?.mode;
+  return {
+    notification: {
+      title:name,
+      body:kind === 'media'
+        ? (mode === 'once' ? `Enviou ${mediaType === 'video' ? 'um vídeo' : 'uma foto'} para veres uma vez` : `Enviou ${mediaType === 'video' ? 'um vídeo' : 'uma fotografia'}`)
+        : 'Enviou-te uma mensagem',
+      tag:`lumina:message:${item.data?.threadId || item.id}`,
+      url:'/?tab=dms',
+    },
+    badge:countResult.rows[0]?.count || 0,
+    callId:null,
+  };
+}
+
+async function sendWake(subscription, key, pushPayload) {
+  const endpoint = subscription?.endpoint;
+  if (!validPushEndpoint(endpoint)) return { stale:true, status:0, encrypted:false };
 
   const jwt = makeVapidJwt(endpoint, key);
   const publicKey = publicApplicationKey(key.x, key.y);
+  const headers = {
+    TTL: '120',
+    Urgency: 'high',
+    Authorization: `vapid t=${jwt}, k=${publicKey}`,
+  };
+  let body;
+  let encrypted = false;
+  try {
+    if (pushPayload && subscription?.p256dh && subscription?.auth) {
+      body = encryptWebPushPayload(pushPayload, subscription);
+      headers['Content-Encoding'] = 'aes128gcm';
+      headers['Content-Type'] = 'application/octet-stream';
+      encrypted = true;
+    }
+  } catch (error) {
+    console.debug('[push] payload', error?.message);
+  }
+
   try {
     const response = await fetch(endpoint, {
       method: 'POST',
       redirect: 'error',
-      headers: {
-        TTL: '120',
-        Urgency: 'high',
-        Authorization: `vapid t=${jwt}, k=${publicKey}`,
-      },
-      signal: AbortSignal.timeout(7_000),
+      headers,
+      body,
+      signal: AbortSignal.timeout(5_000),
     });
-    return { stale: response.status === 404 || response.status === 410, status: response.status };
+    return { stale: response.status === 404 || response.status === 410, status: response.status, encrypted };
   } catch {
-    return { stale:false, status:0 };
+    return { stale:false, status:0, encrypted };
   }
 }
 
 async function subscriptionsFor(userId) {
   const { rows } = await q(
-    `SELECT endpoint FROM web_push_subscriptions
+    `SELECT endpoint,p256dh,auth FROM web_push_subscriptions
      WHERE user_id=$1 ORDER BY updated_at DESC LIMIT 8`,
     [userId]
   );
   return rows;
 }
 
-async function deliverWake(userId, key, subscriptions = null) {
+async function deliverWake(userId, key, subscriptions = null, pushPayload = null) {
   const rows = subscriptions || await subscriptionsFor(userId);
-  if (!rows.length) return { attempted:0, accepted:0 };
+  if (!rows.length) return { attempted:0, accepted:0, encrypted:0, statuses:[] };
 
-  const results = await Promise.all(rows.map(async ({ endpoint }) => ({ endpoint, ...(await sendWake(endpoint, key)) })));
+  const results = await Promise.all(rows.map(async (subscription) => ({ endpoint:subscription.endpoint, ...(await sendWake(subscription, key, pushPayload)) })));
   const stale = results.filter(r => r.stale).map(r => r.endpoint);
   if (stale.length) await q('DELETE FROM web_push_subscriptions WHERE endpoint = ANY($1::text[])', [stale]);
   return {
     attempted: results.length,
     accepted: results.filter(r => r.status >= 200 && r.status < 300).length,
+    encrypted: results.filter(r => r.encrypted).length,
+    statuses: results.map(r => r.status),
   };
 }
 
-function scheduleIncomingCallRetries(userId, callId, key) {
+function scheduleIncomingCallRetries(userId, callId, key, pushPayload) {
   if (!callId) return;
   for (const delay of CALL_RETRY_DELAYS) {
     const timer = setTimeout(async () => {
@@ -127,7 +258,15 @@ function scheduleIncomingCallRetries(userId, callId, key) {
           [callId, userId]
         );
         if (!rows[0]) return;
-        await deliverWake(userId, key);
+        const retry = await deliverWake(userId, key, null, pushPayload);
+        await q(
+          `UPDATE call_sessions
+             SET push_attempted=push_attempted+$2,
+                 push_accepted=push_accepted+$3,
+                 push_last_at=now()
+           WHERE id=$1`,
+          [callId, retry.attempted, retry.accepted]
+        ).catch(() => {});
       } catch (error) {
         console.debug('[push] retry chamada', error?.message);
       }
@@ -136,30 +275,19 @@ function scheduleIncomingCallRetries(userId, callId, key) {
   }
 }
 
-async function latestIncomingCallId(userId) {
-  const { rows } = await q(
-    `SELECT data->>'callId' AS call_id
-     FROM notifications
-     WHERE user_id=$1 AND read_at IS NULL AND type='incoming_call'
-     ORDER BY created_at DESC LIMIT 1`,
-    [userId]
-  );
-  return rows[0]?.call_id || null;
-}
-
-export async function sendPushToUser(userId) {
-  if (!userId) return { attempted:0, accepted:0 };
+export async function sendPushToUser(userId, options = {}) {
+  if (!userId) return { attempted:0, accepted:0, encrypted:0, statuses:[] };
   const subscriptions = await subscriptionsFor(userId);
-  if (!subscriptions.length) return { attempted:0, accepted:0 };
+  if (!subscriptions.length) return { attempted:0, accepted:0, encrypted:0, statuses:[] };
 
+  const latest = options.notification
+    ? { notification:options.notification, badge:options.badge || 1, callId:options.callId || null }
+    : await latestNotificationFor(userId);
+  const pushPayload = latest.notification ? declarativePayload(latest.notification, latest.badge) : null;
   const key = await getOrCreateVapid();
-  const result = await deliverWake(userId, key, subscriptions);
+  const result = await deliverWake(userId, key, subscriptions, pushPayload);
 
-  // Uma chamada não pode depender de um único wake-up. iOS pode atrasar um
-  // push pontual em redes móveis; repetimos apenas enquanto a sessão continua
-  // realmente a tocar. Mensagens normais continuam a gerar um único push.
-  const callId = await latestIncomingCallId(userId).catch(() => null);
-  if (callId) scheduleIncomingCallRetries(userId, callId, key);
-
+  const callId = options.callId || latest.callId;
+  if (callId) scheduleIncomingCallRetries(userId, callId, key, pushPayload);
   return result;
 }

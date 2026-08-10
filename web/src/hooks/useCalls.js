@@ -103,6 +103,9 @@ export function useCalls({ enabled, ping }) {
     try {
       const call = await api.calls.start(thread.id, mode);
       setActiveCall({ call, caller:true, person:{ name:thread.name, handle:thread.handle, palette:thread.palette, avatar_url:thread.avatar_url } });
+      if (call.callee_push_ready === false) {
+        ping('O outro dispositivo não tem notificações de chamada ativas. Se a Lumina estiver fechada, pode não receber o aviso.');
+      }
     } catch (e) { ping(e.message); }
     finally { setBusy(false); }
   }, [busy, ping]);

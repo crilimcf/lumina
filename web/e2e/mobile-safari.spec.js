@@ -120,7 +120,7 @@ test('Perfil funciona como hub social sem dependências antigas', async ({ page 
   await registerAndEnterFeed(page);
   await page.getByRole('button', { name: 'Perfil' }).click();
 
-  await expect(page.getByText('A TUA REDE', { exact: true })).toBeVisible();
+  await expect(page.getByText('Conexões', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Descobrir pessoas' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Explorar Salas' })).toBeVisible();
 

@@ -9,7 +9,6 @@ export const callRoutes = Router();
 const BASE_STUN = {
   urls: [
     'stun:stun.cloudflare.com:3478',
-    'stun:stun.cloudflare.com:53',
     'stun:stun.l.google.com:19302',
     'stun:stun1.l.google.com:19302',
   ],
@@ -17,15 +16,23 @@ const BASE_STUN = {
 const TURN_CACHE_MS = 50 * 60_000;
 let turnCache = null;
 
+function browserSafeIceUrl(value) {
+  const url = String(value || '').trim();
+  if (!/^(?:stun|turn|turns):/i.test(url)) return null;
+  // Browsers (notavelmente WebKit) bloqueiam ICE na porta 53. Cloudflare pode
+  // devolvê-la como alternativa, mas deixá-la na lista cria erros/atrasos antes
+  // de chegar às rotas UDP/TCP/TLS úteis (3478/5349).
+  if (/^(?:stun|turn|turns):[^?]*:53(?:\?|$)/i.test(url)) return null;
+  return url;
+}
+
 function cleanIceServers(value) {
   if (!Array.isArray(value)) return [];
   const out = [];
   for (const item of value) {
     if (!item || typeof item !== 'object') continue;
     const raw = Array.isArray(item.urls) ? item.urls : [item.urls];
-    const urls = raw
-      .map(v => String(v || '').trim())
-      .filter(v => /^(?:stun|turn|turns):/i.test(v));
+    const urls = raw.map(browserSafeIceUrl).filter(Boolean);
     if (!urls.length) continue;
     const next = { urls };
     if (typeof item.username === 'string' && item.username) next.username = item.username;
@@ -134,7 +141,6 @@ async function callForUser(callId, userId) {
   return call;
 }
 
-// ICE config autenticada. Credenciais TURN de longa duração nunca entram no bundle web.
 callRoutes.get('/ice-config', auth, h(async (_req, res) => {
   res.setHeader('Cache-Control', 'private, no-store');
   res.json(await rtcIceConfig());
@@ -207,8 +213,6 @@ callRoutes.post('/:callId/end', auth, h(async (req, res) => {
   res.json({ ended: true });
 }));
 
-// Um único pedido devolve estado + sinais novos. Isto reduz drasticamente o
-// polling por chamada e evita 429 quando dois telemóveis estão no mesmo Wi-Fi.
 callRoutes.get('/:callId/sync', auth, h(async (req, res) => {
   const call = await callForUser(req.params.callId, req.user.id);
   const rawAfter = req.query.after === undefined ? 0 : Number(req.query.after);

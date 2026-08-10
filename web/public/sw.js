@@ -17,6 +17,12 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('push', (event) => {
   event.waitUntil((async () => {
+    // Com a Lumina visível, os próprios fluxos de chat/chamada mostram o alerta.
+    // Evita uma notificação do sistema duplicada por cima da app aberta.
+    const windows = await self.clients.matchAll({ type:'window', includeUncontrolled:true });
+    const visible = windows.some((client) => client.visibilityState === 'visible' || client.focused === true);
+    if (visible) return;
+
     let data = null;
     try {
       const response = await fetch('/api/notifications/push/latest', {

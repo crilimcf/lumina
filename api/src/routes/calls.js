@@ -187,7 +187,6 @@ callRoutes.post('/', auth, h(async (req, res) => {
       tag:`lumina:call:${call.id}`,
       url:`/?tab=dms&call=${encodeURIComponent(call.id)}`,
     },
-    badge:1,
   }).catch(error => {
     console.debug('[push] chamada inicial', error?.message);
     return { attempted:0, accepted:0, encrypted:0, statuses:[] };

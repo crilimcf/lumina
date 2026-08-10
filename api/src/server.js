@@ -105,6 +105,9 @@ const health = async (_req, res) => {
          (SELECT count(*)::int FROM radar_sources
            WHERE active=true AND (kind='rss' OR (kind='partner' AND config->>'adapter'='headline-links'))
              AND last_fetch_error IS NOT NULL) AS failing_sources,
+         (SELECT string_agg(name, ' | ' ORDER BY name) FROM radar_sources
+           WHERE active=true AND (kind='rss' OR (kind='partner' AND config->>'adapter'='headline-links'))
+             AND last_fetch_error IS NOT NULL) AS failing_names,
          (SELECT count(*)::int FROM radar_items WHERE status='published' AND published_at >= now() - interval '24 hours') AS items_24h,
          (SELECT CASE
             WHEN bool_or(last_fetch_error ILIKE '%Timeout ao resolver DNS%') THEN 'dns_timeout'
@@ -129,6 +132,7 @@ const health = async (_req, res) => {
     res.setHeader('X-Lumina-Radar-Failing', String(radar.failing_sources ?? 0));
     res.setHeader('X-Lumina-Radar-Items-24h', String(radar.items_24h ?? 0));
     if (radar.error_class) res.setHeader('X-Lumina-Radar-Error-Class', String(radar.error_class));
+    if (radar.failing_names) res.setHeader('X-Lumina-Radar-Failing-Sources', encodeURIComponent(String(radar.failing_names)));
     res.json({ ok: true });
   } catch {
     res.status(503).json({ ok: false });

@@ -3,7 +3,7 @@
 .nav {
   left: 50% !important;
   right: auto !important;
-  width: min(calc(100vw - 64px), 348px) !important;
+  width: min(calc(100vw - 72px), 330px) !important;
   max-width: none !important;
   margin: 0 !important;
   bottom: max(2px, calc(env(safe-area-inset-bottom) - 18px)) !important;

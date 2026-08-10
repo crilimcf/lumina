@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { q } from '../db.js';
 import { audit, auth, bad, forbidden, h, notFound } from '../middleware/auth.js';
 import { syncRadarSources } from '../jobs/radar.js';
+import { syncWebRadarSources } from '../jobs/radar-web.js';
 
 export const radarSyncRoutes = Router();
 const AUTO_RSS_TYPES = new Set(['news', 'trend', 'editorial']);
@@ -15,12 +16,11 @@ function assertRssType(kind, defaultType) {
   if (kind === 'rss' && !AUTO_RSS_TYPES.has(String(defaultType || 'news').toLowerCase())) {
     throw bad('RSS automático suporta notícias, tendências ou editorial', 'bad_rss_type');
   }
+  if (kind === 'web' && String(defaultType || 'news').toLowerCase() !== 'news') {
+    throw bad('Fontes web verificadas suportam manchetes de notícias', 'bad_web_type');
+  }
 }
 
-// Se não houver tendências editoriais explícitas, o Radar constrói tendências
-// reais a partir de palavras que aparecem repetidamente em notícias recentes e
-// em várias fontes. Não inventa histórias: cada tendência aponta para a notícia
-// recente que a sustenta e informa quantas notícias/fontes a estão a mencionar.
 radarSyncRoutes.get('/', auth, h(async (req, res, next) => {
   if (String(req.query.type || '').toLowerCase() !== 'trend') return next();
 
@@ -100,9 +100,11 @@ async function syncSource(req, res) {
   const { rows } = await q('SELECT id, name, kind FROM radar_sources WHERE id=$1', [req.params.sourceId]);
   const source = rows[0];
   if (!source) throw notFound('Fonte Radar não encontrada');
-  if (source.kind !== 'rss') throw forbidden('Só fontes RSS podem ser sincronizadas por este coletor');
+  if (!['rss','web'].includes(source.kind)) throw forbidden('Esta fonte não tem sincronização automática');
 
-  const result = await syncRadarSources({ sourceId: source.id });
+  const result = source.kind === 'web'
+    ? await syncWebRadarSources({ sourceId: source.id })
+    : await syncRadarSources({ sourceId: source.id });
   audit(req.user.id, 'radar_source_sync', `radar_source:${source.id}`, result);
   if (result.failed) {
     const { rows: state } = await q('SELECT last_fetch_error FROM radar_sources WHERE id=$1', [source.id]);
@@ -115,12 +117,10 @@ async function syncSource(req, res) {
   res.status(result.skipped ? 202 : 200).json(result);
 }
 
-// Montado antes de radarRoutes: enriquece o GET já usado pelo painel sem mudar o cliente.
 radarSyncRoutes.get('/sources', auth, requireStaff, h(sourceStatus));
 radarSyncRoutes.get('/sources/ingestion', auth, requireStaff, h(sourceStatus));
 radarSyncRoutes.post('/sources/:sourceId/sync', auth, requireStaff, h(syncSource));
 
-// Validação adicional do coletor antes de deixar o router principal criar a fonte.
 radarSyncRoutes.post('/sources', auth, requireStaff, (req, _res, next) => {
   try {
     assertRssType(String(req.body?.kind || 'manual').toLowerCase(), req.body?.defaultType || 'news');
@@ -128,7 +128,6 @@ radarSyncRoutes.post('/sources', auth, requireStaff, (req, _res, next) => {
   } catch (error) { next(error); }
 });
 
-// Reutiliza api.radar.editSource(...). `syncNow` é intercetado; edições normais seguem para radarRoutes.
 radarSyncRoutes.patch('/sources/:sourceId', auth, requireStaff, h(async (req, res, next) => {
   if (req.body?.syncNow === true) return syncSource(req, res);
 

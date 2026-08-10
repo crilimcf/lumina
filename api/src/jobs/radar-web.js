@@ -93,12 +93,16 @@ function sourceConfig(source) {
   };
 }
 
+function isHeadlinePartner(source) {
+  return source?.kind === 'partner' && source?.config?.adapter === 'headline-links';
+}
+
 function fingerprint(sourceId, url) {
   return `web:${crypto.createHash('sha256').update(`${sourceId}\n${url}`).digest('hex')}`;
 }
 
 export async function ingestWebSource(source, { fetchPageImpl = fetchPublicFeed } = {}) {
-  if (!source?.id || source.kind !== 'web' || !source.url) throw new Error('Fonte web inválida');
+  if (!source?.id || !isHeadlinePartner(source) || !source.url) throw new Error('Fonte publisher inválida');
   const config = sourceConfig(source);
   try {
     const fetched = await fetchPageImpl(source.url, { deadlineAt: Date.now() + 12_000 });
@@ -153,8 +157,8 @@ export async function ingestWebSource(source, { fetchPageImpl = fetchPublicFeed 
 
 export async function syncWebRadarSources({ sourceId = null } = {}) {
   const { rows:sources } = sourceId
-    ? await q(`SELECT * FROM radar_sources WHERE id=$1 AND kind='web'`, [sourceId])
-    : await q(`SELECT * FROM radar_sources WHERE active=true AND kind='web' ORDER BY COALESCE(last_fetched_at,'-infinity') ASC`);
+    ? await q(`SELECT * FROM radar_sources WHERE id=$1 AND kind='partner' AND config->>'adapter'='headline-links'`, [sourceId])
+    : await q(`SELECT * FROM radar_sources WHERE active=true AND kind='partner' AND config->>'adapter'='headline-links' ORDER BY COALESCE(last_fetched_at,'-infinity') ASC`);
   const result = { attempted:sources.length, succeeded:0, failed:0, items:0 };
   for (const source of sources) {
     try {
@@ -163,7 +167,7 @@ export async function syncWebRadarSources({ sourceId = null } = {}) {
       result.items += out.touched || 0;
     } catch (error) {
       result.failed += 1;
-      console.warn(`[radar] web ${source.name}: ${error.message}`);
+      console.warn(`[radar] publisher ${source.name}: ${error.message}`);
     }
   }
   return result;

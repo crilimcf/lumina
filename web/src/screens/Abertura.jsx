@@ -14,7 +14,7 @@ export function Abertura({ me, onSkip, onRooms }) {
     const a = setTimeout(() => setStep(1), 240);
     const b = setTimeout(() => setStep(2), 820);
     return () => { clearTimeout(a); clearTimeout(b); };
-  }, [onSkip]);
+  }, []);
 
   return (
     <div style={{ minHeight:'100dvh', position:'relative', background:'linear-gradient(180deg,#EFEDFB,#DFDCF2)' }}>

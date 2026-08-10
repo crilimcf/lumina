@@ -19,9 +19,7 @@ export function useMoments({ me, ping }) {
     try {
       const mediaUrl = await api.upload(file);
       const edited = await api.moments.update(id, { mediaUrl });
-      setMoments(current => current.map(moment =>
-        moment.id === id ? { ...moment, ...edited } : moment
-      ));
+      setMoments(current => current.map(moment => moment.id === id ? { ...moment, ...edited } : moment));
       ping('Momento atualizado');
       return true;
     } catch (e) {
@@ -73,7 +71,14 @@ export function useMoments({ me, ping }) {
       const bUnseen = b.items.some(item => !item.viewed);
       return aUnseen === bUnseen ? 0 : aUnseen ? -1 : 1;
     });
-    return groups;
+
+    // O viewer 3D só conhece os dois vizinhos imediatos. Não pré-carregamos a
+    // galeria inteira, o que mantém fotos/vídeos dos Momentos leves no iPhone.
+    return groups.map((group, index) => ({
+      ...group,
+      prevGroup: groups[index - 1] || null,
+      nextGroup: groups[index + 1] || null,
+    }));
   }, [moments, me?.id, editMoment]);
 
   const myMomentGroup = momentGroups.find(group => group.author.id === me?.id) || null;
@@ -99,9 +104,7 @@ export function useMoments({ me, ping }) {
 
   const viewMoment = (id) => {
     api.moments.view(id).catch(() => {});
-    setMoments(current => current.map(moment =>
-      moment.id === id ? { ...moment, viewed: true } : moment
-    ));
+    setMoments(current => current.map(moment => moment.id === id ? { ...moment, viewed: true } : moment));
   };
 
   const deleteMoment = async (id) => {
@@ -109,9 +112,7 @@ export function useMoments({ me, ping }) {
       await api.moments.remove(id);
       setMoments(current => {
         const remaining = current.filter(moment => moment.id !== id);
-        setViewingAuthor(authorId =>
-          authorId && !remaining.some(moment => moment.author_id === authorId) ? null : authorId
-        );
+        setViewingAuthor(authorId => authorId && !remaining.some(moment => moment.author_id === authorId) ? null : authorId);
         return remaining;
       });
       ping('Momento apagado');
@@ -125,7 +126,7 @@ export function useMoments({ me, ping }) {
     if (!body) return;
     try {
       const thread = await api.messages.openThread(authorId);
-      await api.messages.send(thread.id, { kind: 'text', mode: 'normal', body });
+      await api.messages.send(thread.id, { kind:'text', mode:'normal', body });
       ping('Resposta enviada');
     } catch (e) {
       ping(e.message);
@@ -133,24 +134,8 @@ export function useMoments({ me, ping }) {
   };
 
   return {
-    moments,
-    loadMoments,
-    momentGroups,
-    myMomentGroup,
-    viewingAuthor,
-    setViewingAuthor,
-    momentComposer,
-    setMomentComposer,
-    momentFile,
-    setMomentFile,
-    momentPalette,
-    setMomentPalette,
-    momentBusy,
-    publishMoment,
-    editMoment,
-    reactMoment,
-    viewMoment,
-    deleteMoment,
-    replyToMoment,
+    moments, loadMoments, momentGroups, myMomentGroup, viewingAuthor, setViewingAuthor,
+    momentComposer, setMomentComposer, momentFile, setMomentFile, momentPalette, setMomentPalette,
+    momentBusy, publishMoment, editMoment, reactMoment, viewMoment, deleteMoment, replyToMoment,
   };
 }

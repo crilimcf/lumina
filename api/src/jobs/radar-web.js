@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
+import http from 'node:http';
+import https from 'node:https';
 import { q } from '../db.js';
-import { fetchPublicFeed } from './radar.js';
+import { resolvePublicFeedTarget, resolveRedirectUrl } from './radar.js';
 
 const NAV_PATHS = new Set([
   '/', '/ultimas', '/agora', '/ver', '/ouvir', '/descobrir', '/rss', '/newsletters',
@@ -8,6 +10,127 @@ const NAV_PATHS = new Set([
   '/subscrever', '/pesquisa', '/search', '/arquivo', '/contactos', '/politica-de-privacidade',
 ]);
 const SKIP_EXT = /\.(?:jpg|jpeg|png|gif|webp|svg|ico|css|js|json|xml|pdf|zip|mp3|m4a|wav|mp4|mov|webm)(?:$|[?#])/i;
+const MAX_PAGE_BYTES = 4_000_000;
+const PAGE_TIMEOUT_MS = 15_000;
+const MAX_PAGE_REDIRECTS = 3;
+
+function remainingMs(deadlineAt) {
+  const remaining = Number(deadlineAt) - Date.now();
+  if (!Number.isFinite(remaining) || remaining <= 0) throw new Error('Timeout total ao obter página oficial');
+  return remaining;
+}
+
+// Páginas editoriais são significativamente maiores do que RSS. Reutilizamos a
+// resolução DNS/anti-SSRF do coletor RSS, mas com um limite HTML próprio e um
+// User-Agent honesto (não tenta imitar browser nem contornar proteções do site).
+export async function fetchPublicPublisherPage(input, {
+  redirects = 0,
+  deadlineAt = Date.now() + PAGE_TIMEOUT_MS,
+  resolveTargetImpl = resolvePublicFeedTarget,
+} = {}) {
+  if (redirects > MAX_PAGE_REDIRECTS) throw new Error('Demasiados redirects na página oficial');
+  remainingMs(deadlineAt);
+  const target = await resolveTargetImpl(input, { deadlineAt });
+  const transport = target.url.protocol === 'https:' ? https : http;
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let absoluteTimeout = null;
+    const finishResolve = (value) => {
+      if (settled) return;
+      settled = true;
+      if (absoluteTimeout) clearTimeout(absoluteTimeout);
+      resolve(value);
+    };
+    const finishReject = (error) => {
+      if (settled) return;
+      settled = true;
+      if (absoluteTimeout) clearTimeout(absoluteTimeout);
+      reject(error instanceof Error ? error : new Error(String(error || 'Falha ao obter página oficial')));
+    };
+
+    const request = transport.get(target.url, {
+      headers: {
+        accept: 'text/html, application/xhtml+xml;q=0.9, */*;q=0.1',
+        'accept-encoding': 'identity',
+        'user-agent': 'LuminaRadar/1.0 (+public-headline-ingestion)',
+      },
+      servername: target.url.hostname,
+      family: target.family,
+      autoSelectFamily: false,
+      lookup: (_hostname, options, callback) => {
+        if (options?.all) return callback(null, [{ address:target.address, family:target.family }]);
+        callback(null, target.address, target.family);
+      },
+    }, (response) => {
+      const status = response.statusCode || 0;
+      if (status >= 300 && status < 400 && response.headers.location) {
+        let next;
+        try { next = resolveRedirectUrl(response.headers.location, target.url); }
+        catch (error) { response.resume(); finishReject(error); return; }
+        response.resume();
+        fetchPublicPublisherPage(next, { redirects:redirects + 1, deadlineAt, resolveTargetImpl })
+          .then(finishResolve, finishReject);
+        return;
+      }
+      if (status !== 200) {
+        response.resume();
+        finishReject(new Error(`Página oficial respondeu HTTP ${status}`));
+        return;
+      }
+
+      const encoding = String(response.headers['content-encoding'] || 'identity').toLowerCase();
+      if (encoding !== 'identity') {
+        response.resume();
+        finishReject(new Error('Compressão inesperada na página oficial'));
+        return;
+      }
+      const declared = Number(response.headers['content-length'] || 0);
+      if (declared > MAX_PAGE_BYTES) {
+        response.resume();
+        finishReject(new Error('Página oficial demasiado grande'));
+        return;
+      }
+
+      const chunks = [];
+      let bytes = 0;
+      response.on('data', chunk => {
+        bytes += chunk.length;
+        if (bytes > MAX_PAGE_BYTES) {
+          const error = new Error('Página oficial demasiado grande');
+          request.destroy(error);
+          finishReject(error);
+          return;
+        }
+        chunks.push(chunk);
+      });
+      response.on('end', () => {
+        if (!response.complete) return finishReject(new Error('Resposta da página oficial truncada'));
+        finishResolve({
+          notModified:false,
+          text:Buffer.concat(chunks).toString('utf8'),
+          etag:response.headers.etag || null,
+          lastModified:response.headers['last-modified'] || null,
+        });
+      });
+      response.once('aborted', () => finishReject(new Error('Resposta da página oficial interrompida')));
+      response.once('error', finishReject);
+      response.once('close', () => {
+        if (!response.complete && !settled) finishReject(new Error('Resposta da página oficial truncada'));
+      });
+    });
+
+    absoluteTimeout = setTimeout(() => {
+      const error = new Error('Timeout total ao obter página oficial');
+      request.destroy(error); finishReject(error);
+    }, remainingMs(deadlineAt));
+    request.setTimeout(PAGE_TIMEOUT_MS, () => {
+      const error = new Error('Timeout de inatividade ao obter página oficial');
+      request.destroy(error); finishReject(error);
+    });
+    request.on('error', finishReject);
+  });
+}
 
 function decodeHtml(value) {
   return String(value || '')
@@ -101,11 +224,11 @@ function fingerprint(sourceId, url) {
   return `web:${crypto.createHash('sha256').update(`${sourceId}\n${url}`).digest('hex')}`;
 }
 
-export async function ingestWebSource(source, { fetchPageImpl = fetchPublicFeed } = {}) {
+export async function ingestWebSource(source, { fetchPageImpl = fetchPublicPublisherPage } = {}) {
   if (!source?.id || !isHeadlinePartner(source) || !source.url) throw new Error('Fonte publisher inválida');
   const config = sourceConfig(source);
   try {
-    const fetched = await fetchPageImpl(source.url, { deadlineAt: Date.now() + 12_000 });
+    const fetched = await fetchPageImpl(source.url, { deadlineAt:Date.now() + PAGE_TIMEOUT_MS });
     if (fetched.notModified) {
       await q(`UPDATE radar_sources SET last_fetched_at=now(),last_success_at=now(),last_fetch_error=NULL,last_item_count=0,updated_at=now() WHERE id=$1`, [source.id]);
       return { sourceId:source.id, fetched:0, touched:0, notModified:true };

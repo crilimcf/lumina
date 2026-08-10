@@ -43,6 +43,8 @@ export function MomentViewer({ group, prevGroup, nextGroup, onClose, onNext, onP
   const dragged = useRef(false);
   const safeI = Math.min(i, group.items.length - 1);
   const item = group.items[safeI];
+  const leftGroup = prevGroup || group.prevGroup || null;
+  const rightGroup = nextGroup || group.nextGroup || null;
   const isMine = group.author.id === meId;
   const isVideo = momentIsVideo(item);
   const paused = replyFocused || !!reply.trim() || replacing || !!interactions || Math.abs(dragX) > 4;
@@ -160,8 +162,8 @@ export function MomentViewer({ group, prevGroup, nextGroup, onClose, onNext, onP
 
     <div onTouchStart={startSwipe} onTouchMove={moveSwipe} onTouchEnd={endSwipe} onTouchCancel={endSwipe}
       style={{ position:'absolute', inset:'64px 0 82px', perspective:'820px', transformStyle:'preserve-3d', touchAction:'pan-y', zIndex:1 }}>
-      <SideMomentCard group={prevGroup} side={-1}/>
-      <SideMomentCard group={nextGroup} side={1}/>
+      <SideMomentCard group={leftGroup} side={-1}/>
+      <SideMomentCard group={rightGroup} side={1}/>
       <div style={{
         position:'absolute', inset:'2% 6%', borderRadius:30, overflow:'hidden', background:'#05040A',
         transform:`translate3d(${dragX}px,0,60px) rotateY(${cardRotate}deg) scale(${cardScale})`,

@@ -7,19 +7,27 @@ import { fetchIceConfig, syncCall } from './callSync.js';
 const FALLBACK_ICE_SERVERS = [{
   urls: [
     'stun:stun.cloudflare.com:3478',
-    'stun:stun.cloudflare.com:53',
     'stun:stun.l.google.com:19302',
     'stun:stun1.l.google.com:19302',
   ],
 }];
 
+const browserSafeIceUrl = (value) => {
+  const url = String(value || '').trim();
+  if (!/^(?:stun|turn|turns):/i.test(url)) return null;
+  if (/^(?:stun|turn|turns):[^?]*:53(?:\?|$)/i.test(url)) return null;
+  return url;
+};
+
 // Compatibilidade temporária com builds antigos. A configuração segura vem do
 // backend e estas variáveis deixam de ser necessárias quando TURN server-side estiver ativo.
 const LEGACY_TURN = (() => {
-  const urls = String(import.meta.env.VITE_TURN_URL || '').split(',').map(v=>v.trim()).filter(Boolean);
+  const urls = String(import.meta.env.VITE_TURN_URL || '').split(',').map(browserSafeIceUrl).filter(Boolean);
   if (!urls.length) return [];
   return [{ urls, username:import.meta.env.VITE_TURN_USERNAME || '', credential:import.meta.env.VITE_TURN_CREDENTIAL || '' }];
 })();
+
+const NO_ANSWER_MS = 45_000;
 
 /** WebRTC 1:1; a API troca apenas signaling autenticado, nunca o áudio/vídeo. */
 export function CallOverlay({ call, caller, person, onClosed, ping }) {
@@ -29,7 +37,7 @@ export function CallOverlay({ call, caller, person, onClosed, ping }) {
   const [remoteReady,setRemoteReady]=useState(false);
   const [needsAudioTap,setNeedsAudioTap]=useState(false);
   const [networkHint,setNetworkHint]=useState('');
-  const localVideo=useRef(null),remoteMedia=useRef(null),pcRef=useRef(null),streamRef=useRef(null),pollRef=useRef(null),lastSignalRef=useRef(0),closedRef=useRef(false),pendingIceRef=useRef([]),handlingOfferRef=useRef(false),restartRef=useRef(0),connectedRef=useRef(false),startedAtRef=useRef(Date.now()),relayConfiguredRef=useRef(false);
+  const localVideo=useRef(null),remoteMedia=useRef(null),pcRef=useRef(null),streamRef=useRef(null),pollRef=useRef(null),lastSignalRef=useRef(0),closedRef=useRef(false),pendingIceRef=useRef([]),handlingOfferRef=useRef(false),restartRef=useRef(0),connectedRef=useRef(false),startedAtRef=useRef(Date.now()),relayConfiguredRef=useRef(false),noAnswerRef=useRef(false);
 
   const cleanup=async({notify=false}={})=>{if(closedRef.current)return;closedRef.current=true;clearInterval(pollRef.current);pollRef.current=null;try{pcRef.current?.close()}catch{}pcRef.current=null;streamRef.current?.getTracks?.().forEach(t=>t.stop());streamRef.current=null;if(notify)await api.calls.end(call.id).catch(()=>{});onClosed?.();};
   const flushIce=async()=>{const pc=pcRef.current;if(!pc?.remoteDescription)return;for(const c of pendingIceRef.current.splice(0)){try{await pc.addIceCandidate(new RTCIceCandidate(c))}catch(e){console.debug('[call] ICE rejeitado',e?.message)}}};
@@ -100,6 +108,16 @@ export function CallOverlay({ call, caller, person, onClosed, ping }) {
     }catch(e){console.debug('[call] ICE restart',e?.message);return false}
   };
 
+  const finishNoAnswer=()=>{
+    if(noAnswerRef.current||closedRef.current)return;
+    noAnswerRef.current=true;
+    clearInterval(pollRef.current);pollRef.current=null;
+    setNetworkHint('O destinatário não atendeu.');
+    setPhase('Sem resposta');
+    api.calls.end(call.id).catch(()=>{});
+    setTimeout(()=>cleanup(),1200);
+  };
+
   const startPolling=()=>{
     clearInterval(pollRef.current);
     const poll=async()=>{
@@ -111,8 +129,12 @@ export function CallOverlay({ call, caller, person, onClosed, ping }) {
         }
         if(state.status==='declined'){setPhase('Chamada recusada');setTimeout(()=>cleanup(),650);return}
         if(state.status==='ended'){cleanup();return}
-        if(state.status==='active'&&!connectedRef.current)setPhase('A ligar…');
         const elapsed=Date.now()-startedAtRef.current;
+        if(caller&&state.status==='ringing'){
+          if(elapsed>12000)setNetworkHint('A tentar chegar ao outro dispositivo…');
+          if(elapsed>NO_ANSWER_MS)return finishNoAnswer();
+        }
+        if(state.status==='active'&&!connectedRef.current)setPhase('A ligar…');
         if(state.status==='active'&&!connectedRef.current&&elapsed>18000)setNetworkHint('A negociar a ligação de áudio…');
         if(state.status==='active'&&!connectedRef.current&&elapsed>32000)setNetworkHint(relayConfiguredRef.current?'A tentar uma rota alternativa…':'Esta rede está a bloquear a ligação direta…');
       }catch(e){if(!closedRef.current)console.debug('[call] sync',e?.message)}

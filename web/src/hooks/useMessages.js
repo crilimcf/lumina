@@ -12,12 +12,34 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
   const [mediaReady, setMediaReady] = useState(null);
   const [sending, setSending] = useState(false);
   const end = useRef(null);
+  const unreadSnapshot = useRef(new Map());
+  const unreadReady = useRef(false);
+  const threadRef = useRef(null);
 
-  const loadThreads = useCallback(async () => {
-    const next = await api.messages.threads();
+  useEffect(() => { threadRef.current = thread; }, [thread]);
+
+  const applyThreads = useCallback((next, { announce = true } = {}) => {
+    const previous = unreadSnapshot.current;
+    if (announce && unreadReady.current) {
+      for (const row of next) {
+        const before = Number(previous.get(row.id) || 0);
+        const after = Number(row.unread || 0);
+        if (after > before && threadRef.current?.id !== row.id) {
+          ping(`${row.name}: nova mensagem`);
+          break;
+        }
+      }
+    }
+    unreadSnapshot.current = new Map(next.map(row => [row.id, Number(row.unread || 0)]));
+    unreadReady.current = true;
     setThreads(next);
     return next;
-  }, []);
+  }, [ping]);
+
+  const loadThreads = useCallback(async ({ announce = true } = {}) => {
+    const next = await api.messages.threads();
+    return applyThreads(next, { announce });
+  }, [applyThreads]);
 
   const loadContacts = useCallback(async () => {
     const [followers, following] = await Promise.all([
@@ -38,18 +60,35 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
     return next;
   }, []);
 
+  // Mantém o badge/chat sincronizado em toda a app, não apenas quando o utilizador
+  // entra em Conversas. O primeiro carregamento não mostra um toast histórico.
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') return;
+      loadThreads({ announce:true }).catch(() => {});
+    };
+    loadThreads({ announce:false }).catch(() => {});
+    const timer = setInterval(() => { if (alive) refresh(); }, 5000);
+    const visible = () => { if (document.visibilityState === 'visible') refresh(); };
+    document.addEventListener('visibilitychange', visible);
+    return () => { alive = false; clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
+  }, [enabled, loadThreads]);
+
   useEffect(() => {
     if (!enabled || tab !== 'dms') return;
-    loadThreads().catch(() => {});
     loadContacts().catch(() => {});
-  }, [enabled, tab, loadThreads, loadContacts]);
+  }, [enabled, tab, loadContacts]);
 
+  // Confirma entrega enquanto existe uma sessão Lumina ativa. Uma frequência de 8 s
+  // evita saturar a API quando vários dispositivos partilham o mesmo IP/NAT.
   useEffect(() => {
     if (!enabled) return;
     let alive = true;
     const markDelivered = () => api.messages.delivered().catch(() => {});
     markDelivered();
-    const timer = setInterval(() => { if (document.visibilityState === 'visible' && alive) markDelivered(); }, 3000);
+    const timer = setInterval(() => { if (document.visibilityState === 'visible' && alive) markDelivered(); }, 8000);
     const visible = () => { if (document.visibilityState === 'visible') markDelivered(); };
     document.addEventListener('visibilitychange', visible);
     return () => { alive = false; clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
@@ -59,15 +98,22 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
     if (!thread) return [];
     const next = await api.messages.list(thread.id);
     setMsgs(next);
+    setThreads(rows => rows.map(row => row.id === thread.id ? { ...row, unread:0 } : row));
+    unreadSnapshot.current.set(thread.id, 0);
     return next;
   }, [thread]);
 
   useEffect(() => {
     if (!thread) { setMsgs([]); return; }
     let current = true;
-    const load = () => api.messages.list(thread.id).then(r => { if (current) setMsgs(r); }).catch(() => {});
+    const load = () => api.messages.list(thread.id).then(r => {
+      if (!current) return;
+      setMsgs(r);
+      setThreads(rows => rows.map(row => row.id === thread.id ? { ...row, unread:0 } : row));
+      unreadSnapshot.current.set(thread.id, 0);
+    }).catch(() => {});
     load();
-    const timer = setInterval(load, 2500);
+    const timer = setInterval(load, 3000);
     return () => { current = false; clearInterval(timer); };
   }, [thread]);
 
@@ -81,7 +127,7 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
     try {
       const created = await api.messages.openThread(person.id);
       setThread({ id: created.id, name: person.name, handle: person.handle, palette: person.palette, avatar_url: person.avatar_url, other_id: person.id });
-      await loadThreads().catch(() => {});
+      await loadThreads({ announce:false }).catch(() => {});
     } catch (e) { ping(e.message); }
   }, [loadThreads, ping]);
 
@@ -123,7 +169,7 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
       setText('');
       clearMedia();
       await loadMessages();
-      await loadThreads().catch(() => {});
+      await loadThreads({ announce:false }).catch(() => {});
       if (mode === 'timer') ping('Apaga-se pouco depois de ser aberta');
       setMode('normal');
     } catch (e) { ping(e.message); }
@@ -131,12 +177,12 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
   };
 
   const editMessage = useCallback(async (id, body) => {
-    try { await api.messages.edit(id, body); await loadMessages(); await loadThreads().catch(() => {}); }
+    try { await api.messages.edit(id, body); await loadMessages(); await loadThreads({ announce:false }).catch(() => {}); }
     catch (e) { ping(e.message); throw e; }
   }, [loadMessages, loadThreads, ping]);
 
   const removeMessage = useCallback(async (id) => {
-    try { await api.messages.remove(id); await loadMessages(); await loadThreads().catch(() => {}); }
+    try { await api.messages.remove(id); await loadMessages(); await loadThreads({ announce:false }).catch(() => {}); }
     catch (e) { ping(e.message); }
   }, [loadMessages, loadThreads, ping]);
 

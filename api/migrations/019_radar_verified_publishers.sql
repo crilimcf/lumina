@@ -1,9 +1,6 @@
 -- Lumina · Radar verified publisher adapters
--- RSS continua preferido; `web` serve apenas para manchetes/link das páginas oficiais.
-
-ALTER TABLE radar_sources DROP CONSTRAINT IF EXISTS radar_sources_kind_check;
-ALTER TABLE radar_sources ADD CONSTRAINT radar_sources_kind_check
-  CHECK (kind IN ('manual','rss','web','api','partner'));
+-- RSS continua preferido; `partner` + adapter headline-links serve apenas
+-- manchetes/link das páginas oficiais, sem copiar o corpo integral dos artigos.
 
 -- Renascença disponibiliza RSS oficial para Informação.
 INSERT INTO radar_sources (name, kind, url, default_type, active, trusted, config)
@@ -14,8 +11,8 @@ VALUES (
 )
 ON CONFLICT DO NOTHING;
 
--- Converte o catálogo existente em adaptadores web oficiais. Estes adaptadores
--- só recolhem manchete/link público; o corpo integral continua no publisher.
+-- Converte o catálogo existente em publishers verificados. `partner` já faz
+-- parte do schema Radar e mantém compatibilidade com o painel de administração.
 WITH verified(name, url, priority) AS (
   VALUES
     ('SIC Notícias', 'https://sicnoticias.pt/ultimas', 20),
@@ -32,7 +29,7 @@ WITH verified(name, url, priority) AS (
     ('Notícias ao Minuto', 'https://www.noticiasaominuto.com/', 13)
 )
 UPDATE radar_sources rs
-SET kind='web', url=v.url, active=true, trusted=true,
+SET kind='partner', url=v.url, active=true, trusted=true,
     config = COALESCE(rs.config,'{}'::jsonb)
       || jsonb_build_object(
         'adapter','headline-links',
@@ -47,7 +44,7 @@ SET kind='web', url=v.url, active=true, trusted=true,
 FROM verified v
 WHERE rs.name=v.name;
 
--- Insere os que não existiam no catálogo anterior (por exemplo TSF).
+-- Insere os publishers que não existiam no catálogo anterior (por exemplo TSF).
 WITH verified(name, url, priority) AS (
   VALUES
     ('SIC Notícias', 'https://sicnoticias.pt/ultimas', 20),
@@ -64,7 +61,7 @@ WITH verified(name, url, priority) AS (
     ('Notícias ao Minuto', 'https://www.noticiasaominuto.com/', 13)
 )
 INSERT INTO radar_sources (name, kind, url, default_type, active, trusted, config)
-SELECT v.name,'web',v.url,'news',true,true,
+SELECT v.name,'partner',v.url,'news',true,true,
        jsonb_build_object(
          'adapter','headline-links','maxItems',14,'maxLiveHours',72,
          'priority',v.priority,'region','Portugal','verified',true,'autoPublish',true

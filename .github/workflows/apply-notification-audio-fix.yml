@@ -1,0 +1,547 @@
+name: Apply notification and call audio fix
+
+on:
+  push:
+    branches: [fix/notifications-badge-call-audio]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/notifications-badge-call-audio
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply focused patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected 1 match, got {count}: {old[:80]!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          # --- Declarative Web Push: badge = actual unread count and notification deep-link marks read.
+          path = 'api/src/lib/webpush.js'
+          text = Path(path).read_text()
+          old = """function absoluteNavigation(value) {
+            try { return new URL(String(value || '/?tab=alerts'), APP_ORIGIN).toString(); }
+            catch { return `${APP_ORIGIN}/?tab=alerts`; }
+          }
+
+          function declarativePayload(notification, badge = 0) {
+            const item = notification || {};
+            return {
+              web_push: 8030,
+              ...(badge > 0 ? { app_badge:String(Math.min(999, badge)) } : {}),
+              notification: {
+                title: String(item.title || 'Lumina').slice(0, 120),
+                body: String(item.body || 'Tens uma novidade.').slice(0, 220),
+                navigate: absoluteNavigation(item.url),
+                silent: false,
+                tag: String(item.tag || 'lumina:activity').slice(0, 180),
+              },
+            };
+          }
+          """
+          new = """function absoluteNavigation(value) {
+            try { return new URL(String(value || '/?tab=alerts'), APP_ORIGIN).toString(); }
+            catch { return `${APP_ORIGIN}/?tab=alerts`; }
+          }
+
+          function addNotificationId(value, notificationId) {
+            const url = new URL(absoluteNavigation(value));
+            if (notificationId) url.searchParams.set('notification', String(notificationId));
+            return url.toString();
+          }
+
+          export function declarativePayload(notification, badge = 0) {
+            const item = notification || {};
+            const appBadge = Math.max(0, Math.min(999, Number(badge) || 0));
+            return {
+              web_push: 8030,
+              notification: {
+                title: String(item.title || 'Lumina').slice(0, 120),
+                body: String(item.body || 'Tens uma novidade.').slice(0, 220),
+                navigate: absoluteNavigation(item.url),
+                silent: false,
+                tag: String(item.tag || 'lumina:activity').slice(0, 180),
+                app_badge: String(appBadge),
+              },
+            };
+          }
+          """
+          if text.count(old) != 1:
+              raise SystemExit('webpush declarative block mismatch')
+          text = text.replace(old, new, 1)
+          text = text.replace(
+              "url:`/?tab=dms&call=${encodeURIComponent(item.data?.callId || '')}`",
+              "url:addNotificationId(`/?tab=dms&call=${encodeURIComponent(item.data?.callId || '')}`, item.id)",
+              1,
+          )
+          text = text.replace("url:'/?tab=dms',", "url:addNotificationId('/?tab=dms', item.id),", 1)
+          old = """  const latest = options.notification
+            ? { notification:options.notification, badge:options.badge || 1, callId:options.callId || null }
+            : await latestNotificationFor(userId);
+          const pushPayload = latest.notification ? declarativePayload(latest.notification, latest.badge) : null;
+          """
+          new = """  let latest;
+            if (options.notification) {
+              const countResult = await q('SELECT count(*)::int AS count FROM notifications WHERE user_id=$1 AND read_at IS NULL', [userId]);
+              let notification = options.notification;
+              if (options.callId) {
+                const { rows: noticeRows } = await q(
+                  `SELECT id FROM notifications
+                   WHERE user_id=$1 AND type='incoming_call' AND data->>'callId'=$2
+                   ORDER BY created_at DESC LIMIT 1`,
+                  [userId, String(options.callId)]
+                );
+                if (noticeRows[0]?.id) notification = { ...notification, url:addNotificationId(notification.url, noticeRows[0].id) };
+              }
+              latest = { notification, badge:countResult.rows[0]?.count || 0, callId:options.callId || null };
+            } else {
+              latest = await latestNotificationFor(userId);
+            }
+            const pushPayload = latest.notification ? declarativePayload(latest.notification, latest.badge) : null;
+          """
+          if text.count(old) != 1:
+              raise SystemExit('webpush send block mismatch')
+          Path(path).write_text(text.replace(old, new, 1))
+
+          # --- Service worker mirrors the server unread count into the iOS Home Screen badge.
+          path = 'web/public/sw.js'
+          text = Path(path).read_text()
+          anchor = """self.addEventListener('push', (event) => {
+          """
+          helper = """async function syncAppBadge(value) {
+            const count = Number(value);
+            if (!Number.isFinite(count)) return;
+            try {
+              if (count > 0 && 'setAppBadge' in self.navigator) await self.navigator.setAppBadge(Math.min(999, Math.floor(count)));
+              else if (count <= 0 && 'clearAppBadge' in self.navigator) await self.navigator.clearAppBadge();
+            } catch {}
+          }
+
+          self.addEventListener('push', (event) => {
+          """
+          if text.count(anchor) != 1:
+              raise SystemExit('sw push anchor mismatch')
+          text = text.replace(anchor, helper, 1)
+          text = text.replace("""    let notification = null;
+            if (direct?.web_push === 8030 && direct?.notification?.title) {
+          """, """    let notification = null;
+            let badgeCount = null;
+            if (direct?.web_push === 8030 && direct?.notification?.title) {
+              badgeCount = Number(direct.notification.app_badge);
+          """, 1)
+          text = text.replace("""        const response = await fetch('/api/notifications/push/latest', {
+                  credentials: 'include',
+                  cache: 'no-store',
+                  headers: { 'cache-control': 'no-cache' },
+                });
+                if (response.ok) notification = (await response.json())?.notification || null;
+          """, """        const response = await fetch('/api/notifications/push/latest', {
+                  credentials: 'include',
+                  cache: 'no-store',
+                  headers: { 'cache-control': 'no-cache' },
+                });
+                if (response.ok) {
+                  const payload = await response.json();
+                  notification = payload?.notification || null;
+                  badgeCount = Number(payload?.unread);
+                }
+          """, 1)
+          old = """    await self.registration.showNotification(notification.title || 'Lumina', {
+              body: notification.body,
+              tag: notification.tag,
+              icon: '/icon-192.png',
+              badge: '/icon-192.png',
+              data: { url: notification.url || '/?tab=alerts' },
+              renotify: true,
+              silent: false,
+              requireInteraction: notification.type === 'incoming_call',
+            });
+          """
+          new = """    await Promise.all([
+              syncAppBadge(badgeCount),
+              self.registration.showNotification(notification.title || 'Lumina', {
+                body: notification.body,
+                tag: notification.tag,
+                icon: '/icon-192.png',
+                badge: '/icon-192.png',
+                data: { url: notification.url || '/?tab=alerts' },
+                renotify: true,
+                silent: false,
+                requireInteraction: notification.type === 'incoming_call',
+              }),
+            ]);
+          """
+          if text.count(old) != 1:
+              raise SystemExit('sw showNotification block mismatch')
+          Path(path).write_text(text.replace(old, new, 1))
+
+          # --- App badge follows the real unread counter and a tapped push marks its row read.
+          path = 'web/src/App.jsx'
+          text = Path(path).read_text()
+          anchor = """const ScreenFallback = () => <div style={{minHeight:'78dvh',display:'grid',placeItems:'center'}}><div className=\"d\" style={{fontSize:26,opacity:.24}}>Lumi<span className=\"it\">na</span></div></div>;
+
+          export default function App() {
+          """
+          helper = """const ScreenFallback = () => <div style={{minHeight:'78dvh',display:'grid',placeItems:'center'}}><div className=\"d\" style={{fontSize:26,opacity:.24}}>Lumi<span className=\"it\">na</span></div></div>;
+
+          const syncAppBadge = async (count) => {
+            const value = Math.max(0, Number(count) || 0);
+            try {
+              if (value > 0 && 'setAppBadge' in navigator) await navigator.setAppBadge(Math.min(999, Math.floor(value)));
+              else if (value === 0 && 'clearAppBadge' in navigator) await navigator.clearAppBadge();
+            } catch {}
+          };
+
+          export default function App() {
+          """
+          if text.count(anchor) != 1:
+              raise SystemExit('App helper anchor mismatch')
+          text = text.replace(anchor, helper, 1)
+          old = """  useEffect(() => {
+            if (!me) return;
+            refreshUnread();
+            const id = setInterval(refreshUnread, 15_000);
+            const onVisible = () => { if (document.visibilityState === 'visible') refreshUnread(); };
+            document.addEventListener('visibilitychange', onVisible);
+            return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
+          }, [me, refreshUnread]);
+          """
+          new = """  useEffect(() => {
+            if (!me) return;
+            refreshUnread();
+            const id = setInterval(refreshUnread, 15_000);
+            const onVisible = () => { if (document.visibilityState === 'visible') refreshUnread(); };
+            const onNotificationsChanged = () => refreshUnread();
+            document.addEventListener('visibilitychange', onVisible);
+            window.addEventListener('lumina:notifications-changed', onNotificationsChanged);
+            return () => {
+              clearInterval(id);
+              document.removeEventListener('visibilitychange', onVisible);
+              window.removeEventListener('lumina:notifications-changed', onNotificationsChanged);
+            };
+          }, [me, refreshUnread]);
+
+          useEffect(() => { syncAppBadge(me ? unreadCount : 0); }, [me, unreadCount]);
+
+          useEffect(() => {
+            if (!me) return;
+            const url = new URL(window.location.href);
+            const notificationId = url.searchParams.get('notification');
+            if (!notificationId) return;
+            let alive = true;
+            api.notifications.read(notificationId).catch(() => {}).finally(() => {
+              if (!alive) return;
+              url.searchParams.delete('notification');
+              window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+              refreshUnread();
+            });
+            return () => { alive = false; };
+          }, [me, refreshUnread]);
+          """
+          if text.count(old) != 1:
+              raise SystemExit('App unread effect mismatch')
+          Path(path).write_text(text.replace(old, new, 1))
+
+          # --- Message reads immediately refresh activity/badge instead of waiting 15 seconds.
+          path = 'web/src/hooks/useMessages.js'
+          text = Path(path).read_text()
+          anchor = """import { api } from '../api.js';
+
+          export function useMessages({ tab, palette, ping, enabled = true }) {
+          """
+          helper = """import { api } from '../api.js';
+
+          const notifyActivityChanged = () => window.dispatchEvent(new CustomEvent('lumina:notifications-changed'));
+
+          export function useMessages({ tab, palette, ping, enabled = true }) {
+          """
+          if text.count(anchor) != 1:
+              raise SystemExit('useMessages helper anchor mismatch')
+          text = text.replace(anchor, helper, 1)
+          old = """  const loadMessages = useCallback(async () => {
+            if (!thread) return [];
+            const next = await api.messages.list(thread.id);
+            setMsgs(next);
+            setThreads(rows => rows.map(row => row.id === thread.id ? { ...row, unread:0 } : row));
+            unreadSnapshot.current.set(thread.id, 0);
+            return next;
+          }, [thread]);
+          """
+          new = """  const loadMessages = useCallback(async () => {
+            if (!thread) return [];
+            const hadUnread = Number(unreadSnapshot.current.get(thread.id) || 0) > 0;
+            const next = await api.messages.list(thread.id);
+            setMsgs(next);
+            setThreads(rows => rows.map(row => row.id === thread.id ? { ...row, unread:0 } : row));
+            unreadSnapshot.current.set(thread.id, 0);
+            if (hadUnread) notifyActivityChanged();
+            return next;
+          }, [thread]);
+          """
+          if text.count(old) != 1:
+              raise SystemExit('useMessages loadMessages mismatch')
+          text = text.replace(old, new, 1)
+          old = """      api.messages.list(thread.id).then(r => {
+                if (!current) return;
+                setMsgs(r);
+                setThreads(rows => rows.map(row => row.id === thread.id ? { ...row, unread:0 } : row));
+                unreadSnapshot.current.set(thread.id, 0);
+              }).catch(() => {});
+          """
+          new = """      const hadUnread = Number(unreadSnapshot.current.get(thread.id) || 0) > 0;
+              api.messages.list(thread.id).then(r => {
+                if (!current) return;
+                setMsgs(r);
+                setThreads(rows => rows.map(row => row.id === thread.id ? { ...row, unread:0 } : row));
+                unreadSnapshot.current.set(thread.id, 0);
+                if (hadUnread) notifyActivityChanged();
+              }).catch(() => {});
+          """
+          if text.count(old) != 1:
+              raise SystemExit('useMessages thread poll mismatch')
+          Path(path).write_text(text.replace(old, new, 1))
+
+          # --- iPhone voice calls use the communication audio session (receiver/earpiece), not loudspeaker by default.
+          path = 'web/src/hooks/useCalls.js'
+          text = Path(path).read_text()
+          anchor = """const INCOMING_POLL_MS = 1200;
+
+          function createRingtone(audioRef) {
+          """
+          helper = """const INCOMING_POLL_MS = 1200;
+
+          function setVoiceAudioSession(active) {
+            const session = navigator.audioSession;
+            if (!session) return;
+            try {
+              if (active) {
+                session.type = 'play-and-record';
+              } else {
+                session.type = 'playback';
+                setTimeout(() => { try { session.type = 'auto'; } catch {} }, 0);
+              }
+            } catch {}
+          }
+
+          const notifyActivityChanged = () => window.dispatchEvent(new CustomEvent('lumina:notifications-changed'));
+
+          function createRingtone(audioRef) {
+          """
+          if text.count(anchor) != 1:
+              raise SystemExit('useCalls helper anchor mismatch')
+          text = text.replace(anchor, helper, 1)
+          old = """  const startCall = useCallback(async (thread, mode) => {
+            if (!thread || busy) return;
+            setBusy(true);
+            try {
+              const call = await api.calls.start(thread.id, mode);
+              setActiveCall({ call, caller:true, person:{ name:thread.name, handle:thread.handle, palette:thread.palette, avatar_url:thread.avatar_url } });
+              if (call.callee_push_ready === false) {
+                ping('O outro dispositivo não tem notificações de chamada ativas. Se a Lumina estiver fechada, pode não receber o aviso.');
+              }
+            } catch (e) { ping(e.message); }
+            finally { setBusy(false); }
+          }, [busy, ping]);
+          """
+          new = """  const startCall = useCallback(async (thread, mode) => {
+            if (!thread || busy) return;
+            const voiceCall = mode === 'audio';
+            if (voiceCall) setVoiceAudioSession(true);
+            setBusy(true);
+            try {
+              const call = await api.calls.start(thread.id, mode);
+              setActiveCall({ call, caller:true, person:{ name:thread.name, handle:thread.handle, palette:thread.palette, avatar_url:thread.avatar_url } });
+              if (call.callee_push_ready === false) {
+                ping('O outro dispositivo não tem notificações de chamada ativas. Se a Lumina estiver fechada, pode não receber o aviso.');
+              }
+            } catch (e) {
+              if (voiceCall) setVoiceAudioSession(false);
+              ping(e.message);
+            } finally { setBusy(false); }
+          }, [busy, ping]);
+          """
+          if text.count(old) != 1:
+              raise SystemExit('useCalls startCall mismatch')
+          text = text.replace(old, new, 1)
+          old = """  const acceptIncoming = useCallback(async () => {
+            if (!incoming || busy) return;
+            setBusy(true);
+            try {
+              await audioRef.current?.resume?.().catch(() => {});
+              const call = await api.calls.answer(incoming.id);
+              setActiveCall({ call, caller:false, person:{ name:incoming.name, handle:incoming.handle, palette:incoming.palette, avatar_url:incoming.avatar_url } });
+              setIncoming(null);
+            } catch (e) { ping(e.message); setIncoming(null); }
+            finally { setBusy(false); }
+          }, [incoming, busy, ping]);
+          """
+          new = """  const acceptIncoming = useCallback(async () => {
+            if (!incoming || busy) return;
+            const voiceCall = incoming.mode === 'audio';
+            if (voiceCall) setVoiceAudioSession(true);
+            setBusy(true);
+            try {
+              await audioRef.current?.resume?.().catch(() => {});
+              const call = await api.calls.answer(incoming.id);
+              setActiveCall({ call, caller:false, person:{ name:incoming.name, handle:incoming.handle, palette:incoming.palette, avatar_url:incoming.avatar_url } });
+              setIncoming(null);
+              notifyActivityChanged();
+            } catch (e) {
+              if (voiceCall) setVoiceAudioSession(false);
+              ping(e.message);
+              setIncoming(null);
+            } finally { setBusy(false); }
+          }, [incoming, busy, ping]);
+          """
+          if text.count(old) != 1:
+              raise SystemExit('useCalls accept mismatch')
+          text = text.replace(old, new, 1)
+          old = """  const declineIncoming = useCallback(async () => {
+            const current = incoming;
+            setIncoming(null);
+            if (!current) return;
+            try { await api.calls.decline(current.id); }
+            catch (e) { ping(e.message); }
+          }, [incoming, ping]);
+
+          const closeActiveCall = useCallback(() => setActiveCall(null), []);
+          """
+          new = """  const declineIncoming = useCallback(async () => {
+            const current = incoming;
+            setIncoming(null);
+            if (!current) return;
+            try {
+              await api.calls.decline(current.id);
+              notifyActivityChanged();
+            } catch (e) { ping(e.message); }
+          }, [incoming, ping]);
+
+          const closeActiveCall = useCallback(() => {
+            setVoiceAudioSession(false);
+            setActiveCall(null);
+            notifyActivityChanged();
+          }, []);
+          """
+          if text.count(old) != 1:
+              raise SystemExit('useCalls close mismatch')
+          Path(path).write_text(text.replace(old, new, 1))
+
+          # --- Make unread state explicit in the Activity UI.
+          replace_once(
+              'web/src/screens/Atividade.jsx',
+              '<div className="m" style={{ marginTop:4 }}>{relativeTime(n.created_at)}</div>',
+              '<div className="m" style={{ marginTop:4,display:\'flex\',alignItems:\'center\',gap:7 }}>{relativeTime(n.created_at)}{!n.read_at&&<span style={{ fontSize:9.5,fontWeight:900,letterSpacing:\'.05em\',textTransform:\'uppercase\',padding:\'2px 6px\',borderRadius:999,background:\'#ECE9FF\',color:\'var(--cobalt)\' }}>Não lida</span>}</div>',
+          )
+
+          # --- Test declarative badge placement/clearing.
+          path = 'api/test/webpush-encryption.test.js'
+          text = Path(path).read_text()
+          text = text.replace(
+              "import { encryptWebPushPayload } from '../src/lib/webpush.js';",
+              "import { declarativePayload, encryptWebPushPayload } from '../src/lib/webpush.js';",
+              1,
+          )
+          text += """
+
+          test('declarative Web Push mantém app_badge dentro de notification e permite limpar a zero', () => {
+            const payload = declarativePayload({ title:'Lumina', body:'Teste', url:'/?tab=alerts' }, 0);
+            assert.equal(payload.notification.app_badge, '0');
+            assert.equal(payload.app_badge, undefined);
+            assert.match(payload.notification.navigate, /^https:\/\/lumina-snowy-ten\.vercel\.app\//);
+          });
+          """
+          Path(path).write_text(text)
+
+          # --- Mobile Safari regression: unread -> open -> read, and push deep-link -> read.
+          Path('web/e2e/notifications-safari.spec.js').write_text(r"""import { test, expect } from '@playwright/test';
+
+          const PASSWORD = 'lumina-notify-webkit-1234';
+
+          const registration = (handle, name) => ({
+            handle,
+            email:`${handle}@example.test`,
+            password:PASSWORD,
+            name,
+            birthDate:'1990-01-01',
+            acceptTerms:true,
+          });
+
+          test('notificação passa de Não lida para lida e deep-link do push limpa o unread', async ({ page, request }) => {
+            const suffix = `${Date.now()}${Math.floor(Math.random()*1000)}`;
+            const senderHandle = `notifys${suffix}`.slice(0,22);
+            const receiverHandle = `notifyr${suffix}`.slice(0,22);
+
+            const senderResponse = await request.post('/api/auth/register', { data:registration(senderHandle,'Sender Notify') });
+            expect(senderResponse.status()).toBe(201);
+            const sender = await senderResponse.json();
+
+            await page.goto('/');
+            await page.getByRole('button', { name:'Criar conta' }).click();
+            await page.getByPlaceholder('Como te chamas').fill('Receiver Notify');
+            await page.getByPlaceholder('Nome de utilizador').fill(receiverHandle);
+            await page.locator('input[type="date"]').fill('1990-01-01');
+            await page.getByPlaceholder('Email').fill(`${receiverHandle}@example.test`);
+            await page.getByPlaceholder('Password').fill(PASSWORD);
+            await page.locator('input[type="checkbox"]').check();
+            await page.getByRole('button', { name:'Criar conta' }).click();
+            await expect(page.getByText('Bem-vindo à Lumina')).toBeVisible();
+
+            const receiver = await page.evaluate(async () => (await fetch('/api/auth/me', { credentials:'include' })).json());
+            const authHeaders = { authorization:`Bearer ${sender.token}`, 'x-csrf-token':sender.csrf };
+            const threadResponse = await request.post('/api/messages/threads', { headers:authHeaders, data:{ userId:receiver.id } });
+            const thread = await threadResponse.json();
+
+            const send = async (body) => {
+              const response = await request.post(`/api/messages/threads/${thread.id}/messages`, {
+                headers:authHeaders,
+                data:{ kind:'text', mode:'normal', body, palette:0 },
+              });
+              expect(response.status()).toBe(201);
+            };
+
+            await send('primeira notificação');
+            await page.goto('/?tab=alerts');
+            await expect(page.getByText('Sender Notify enviou-te uma mensagem')).toBeVisible({ timeout:5000 });
+            await expect(page.getByText('Não lida')).toBeVisible();
+            await page.getByText('Sender Notify enviou-te uma mensagem').click();
+            await expect.poll(async () => page.evaluate(async () => (await (await fetch('/api/notifications/unread-count', { credentials:'include', cache:'no-store' })).json()).count)).toBe(0);
+
+            await send('segunda notificação');
+            const notification = await expect.poll(async () => page.evaluate(async () => {
+              const data = await (await fetch('/api/notifications', { credentials:'include', cache:'no-store' })).json();
+              return data.notifications?.find(item => !item.read_at && item.type === 'message') || null;
+            }), { timeout:5000 }).not.toBeNull();
+
+            const rows = await page.evaluate(async () => (await (await fetch('/api/notifications', { credentials:'include', cache:'no-store' })).json()).notifications);
+            const unread = rows.find(item => !item.read_at && item.type === 'message');
+            expect(unread?.id).toBeTruthy();
+            await page.goto(`/?tab=dms&notification=${encodeURIComponent(unread.id)}`);
+            await expect.poll(async () => page.evaluate(async () => (await (await fetch('/api/notifications/unread-count', { credentials:'include', cache:'no-store' })).json()).count)).toBe(0);
+          });
+          """)
+          PY
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add api/src/lib/webpush.js api/test/webpush-encryption.test.js web/public/sw.js web/src/App.jsx web/src/hooks/useMessages.js web/src/hooks/useCalls.js web/src/screens/Atividade.jsx web/e2e/notifications-safari.spec.js
+          git commit -m "fix: sync notification state and route voice calls to receiver"
+          git push origin HEAD:fix/notifications-badge-call-audio

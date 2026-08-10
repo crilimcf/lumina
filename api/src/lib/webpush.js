@@ -7,6 +7,20 @@ const VAPID_SUBJECT = 'https://lumina-snowy-ten.vercel.app';
 const b64url = (value) => Buffer.from(value).toString('base64url');
 const decode64 = (value) => Buffer.from(String(value || ''), 'base64url');
 
+export function validPushEndpoint(value) {
+  let url;
+  try { url = new URL(String(value || '')); }
+  catch { return false; }
+  if (url.protocol !== 'https:' || url.username || url.password) return false;
+  if (url.port && url.port !== '443') return false;
+  const host = url.hostname.toLowerCase();
+  return host === 'web.push.apple.com'
+    || host === 'fcm.googleapis.com'
+    || host === 'updates.push.services.mozilla.com'
+    || host.endsWith('.push.services.mozilla.com')
+    || host.endsWith('.notify.windows.com');
+}
+
 function publicApplicationKey(x, y) {
   return Buffer.concat([Buffer.from([4]), decode64(x), decode64(y)]).toString('base64url');
 }
@@ -57,16 +71,14 @@ function makeVapidJwt(endpoint, key) {
 }
 
 async function sendWake(endpoint, key) {
-  let parsed;
-  try { parsed = new URL(endpoint); }
-  catch { return { stale:true, status:0 }; }
-  if (parsed.protocol !== 'https:') return { stale:true, status:0 };
+  if (!validPushEndpoint(endpoint)) return { stale:true, status:0 };
 
   const jwt = makeVapidJwt(endpoint, key);
   const publicKey = publicApplicationKey(key.x, key.y);
   try {
     const response = await fetch(endpoint, {
       method: 'POST',
+      redirect: 'error',
       headers: {
         TTL: '120',
         Urgency: 'high',

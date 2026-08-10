@@ -1,17 +1,22 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowUpRight, Flag, Search, Shield, Sparkles, UserPlus, Users, X } from 'lucide-react';
+import { ArrowUpRight, Flag, LogOut, Pencil, Search, Shield, Sparkles, UserPlus, Users, X } from 'lucide-react';
 import { api } from '../api.js';
 import { Orb } from '../ui.jsx';
 import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
+import '../facelift.css';
+import '../profileFacelift.css';
 
 function PersonRow({ person, onToggle, onOpenProfile }) {
-  return <div className="card" style={{ padding: 13, display: 'flex', alignItems: 'center', gap: 11 }}>
-    <button type="button" onClick={()=>onOpenProfile?.(person)} aria-label={`Abrir perfil de ${person.name}`} style={{border:0,background:'transparent',padding:0,cursor:'pointer',display:'grid',placeItems:'center'}}><Orb p={person.palette} avatarUrl={person.avatar_url} s={45} /></button>
-    <button type="button" onClick={()=>onOpenProfile?.(person)} style={{ flex: 1, minWidth: 0, border:0, background:'transparent',padding:0,textAlign:'left',cursor:'pointer',color:'inherit' }}>
-      <div style={{ fontWeight: 700, fontSize: 14.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{person.name}</div>
-      <div className="m" style={{ marginTop: 2 }}>@{person.handle} · {person.followers || 0} seguidores</div>
+  const active = person.following || person.requested;
+  return <div className="lumina-person-row">
+    <button type="button" onClick={() => onOpenProfile?.(person)} aria-label={`Abrir perfil de ${person.name}`} style={{ border:0, background:'transparent', padding:0, cursor:'pointer', display:'grid', placeItems:'center' }}>
+      <Orb p={person.palette} avatarUrl={person.avatar_url} s={43} />
     </button>
-    <button className={person.following || person.requested ? 'p p-sm' : 'p p-sm p-brand'} onClick={() => onToggle(person)}>
+    <button type="button" onClick={() => onOpenProfile?.(person)} style={{ flex:1, minWidth:0, border:0, background:'transparent', padding:0, textAlign:'left', cursor:'pointer', color:'inherit' }}>
+      <div className="lumina-person-name">{person.name}</div>
+      <div className="lumina-person-meta">@{person.handle} · {person.followers || 0} seguidores</div>
+    </button>
+    <button className={`lumina-person-follow${active ? '' : ' lumina-person-follow-primary'}`} onClick={() => onToggle(person)}>
       {person.following ? 'A seguir' : person.requested ? 'Pendente' : 'Seguir'}
     </button>
   </div>;
@@ -48,20 +53,29 @@ function ConnectionsSheet({ open, onClose, initialTab, followers, setFollowers, 
   };
 
   if (!open) return null;
-  return <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:87, background:'rgba(16,12,38,.5)', backdropFilter:'blur(9px)', display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
-    <div onClick={e=>e.stopPropagation()} className="in" style={{ width:'100%', maxWidth:520, maxHeight:'86dvh', overflow:'hidden', background:'linear-gradient(180deg,#F8F7FE,#ECE9FA)', borderRadius:'30px 30px 0 0', boxShadow:'0 -20px 64px rgba(20,18,42,.24)' }}>
-      <div style={{ padding:'18px 18px 12px', background:'rgba(248,247,254,.95)', backdropFilter:'blur(16px)' }}>
-        <div style={{ width:42, height:5, borderRadius:9, background:'#D7D2EA', margin:'0 auto 15px' }} />
-        <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:14 }}><div style={{ flex:1 }}><div className="d" style={{ fontSize:27 }}>Ligações</div><div className="m" style={{ marginTop:3 }}>A tua rede, sem saíres do perfil.</div></div><button className="p" aria-label="Fechar ligações" onClick={onClose} style={{ padding:10 }}><X size={16}/></button></div>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', padding:4, background:'#E7E3F5', borderRadius:16, marginBottom:12 }}>
-          <button onClick={()=>{setTab('followers');setQuery('')}} style={{ border:0,borderRadius:13,padding:'10px 12px',fontWeight:750,color:tab==='followers'?'var(--ink)':'var(--grey)',background:tab==='followers'?'#fff':'transparent' }}>Seguidores · {followers.length}</button>
-          <button onClick={()=>{setTab('following');setQuery('')}} style={{ border:0,borderRadius:13,padding:'10px 12px',fontWeight:750,color:tab==='following'?'var(--ink)':'var(--grey)',background:tab==='following'?'#fff':'transparent' }}>A seguir · {following.length}</button>
+  return <div className="lumina-profile-sheet-backdrop" onClick={onClose}>
+    <div className="lumina-profile-sheet in" onClick={e => e.stopPropagation()}>
+      <div className="lumina-profile-sheet-head">
+        <div className="lumina-profile-sheet-grabber" />
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div className="lumina-profile-sheet-title">Ligações</div>
+            <div className="lumina-profile-sheet-subtitle">A tua rede, sem saíres do perfil.</div>
+          </div>
+          <button className="lumina-profile-sheet-close" aria-label="Fechar ligações" onClick={onClose}><X size={17} /></button>
         </div>
-        <div style={{ position:'relative' }}><Search size={17} style={{ position:'absolute',left:15,top:'50%',transform:'translateY(-50%)',color:'#9A94B7' }}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={tab==='followers'?'Pesquisar seguidores…':'Pesquisar quem segues…'} style={{ paddingLeft:43,background:'#fff' }} autoCapitalize="none" /></div>
+        <div className="lumina-profile-sheet-tabs">
+          <button className={`lumina-profile-sheet-tab${tab === 'followers' ? ' lumina-profile-sheet-tab-active' : ''}`} onClick={() => { setTab('followers'); setQuery(''); }}>Seguidores · {followers.length}</button>
+          <button className={`lumina-profile-sheet-tab${tab === 'following' ? ' lumina-profile-sheet-tab-active' : ''}`} onClick={() => { setTab('following'); setQuery(''); }}>A seguir · {following.length}</button>
+        </div>
+        <div className="lumina-profile-search-wrap">
+          <Search size={16} />
+          <input value={query} onChange={e => setQuery(e.target.value)} placeholder={tab === 'followers' ? 'Pesquisar seguidores…' : 'Pesquisar quem segues…'} autoCapitalize="none" />
+        </div>
       </div>
-      <div className="ns" style={{ overflowY:'auto',maxHeight:'calc(86dvh - 190px)',padding:'6px 18px calc(26px + env(safe-area-inset-bottom))',display:'grid',gap:9 }}>
-        {visible.length===0 && <div className="m" style={{ padding:22,textAlign:'center' }}>Ainda não há pessoas nesta lista.</div>}
-        {visible.map(person=><PersonRow key={person.id} person={person} onToggle={toggleFollow} onOpenProfile={(p)=>{onClose();onOpenProfile?.(p)}}/>) }
+      <div className="ns lumina-profile-sheet-body" style={{ display:'grid', gap:8 }}>
+        {visible.length === 0 && <div className="lumina-profile-empty">Ainda não há pessoas nesta lista.</div>}
+        {visible.map(person => <PersonRow key={person.id} person={person} onToggle={toggleFollow} onOpenProfile={(p) => { onClose(); onOpenProfile?.(p); }} />)}
       </div>
     </div>
   </div>;
@@ -89,24 +103,37 @@ function DiscoverySheet({ open, onClose, suggestions, setSuggestions, followers,
       if (person.following || person.requested) result = await api.users.unfollow(person.id);
       else result = await api.users.followAction(person.id);
       const next = { ...person, following: !!result.following, requested: !!result.pending };
-      setResults(rows => rows && rows.map(p => p.id===person.id ? next : p));
-      setSuggestions(rows => result.following ? rows.filter(p=>p.id!==person.id) : rows.map(p=>p.id===person.id?next:p));
-      setFollowers(rows => rows.map(p=>p.id===person.id?next:p));
-      setFollowing(rows => result.following ? [next,...rows.filter(p=>p.id!==person.id)] : rows.filter(p=>p.id!==person.id));
+      setResults(rows => rows && rows.map(p => p.id === person.id ? next : p));
+      setSuggestions(rows => result.following ? rows.filter(p => p.id !== person.id) : rows.map(p => p.id === person.id ? next : p));
+      setFollowers(rows => rows.map(p => p.id === person.id ? next : p));
+      setFollowing(rows => result.following ? [next, ...rows.filter(p => p.id !== person.id)] : rows.filter(p => p.id !== person.id));
       ping(result.pending ? 'Pedido enviado' : result.following ? `Agora segues ${person.name}` : `Deixaste de seguir ${person.name}`);
     } catch (e) { ping(e.message); }
   };
 
   if (!open) return null;
   const people = results ?? suggestions;
-  return <div onClick={onClose} style={{ position:'fixed',inset:0,zIndex:85,background:'rgba(16,12,38,.48)',backdropFilter:'blur(8px)',display:'flex',alignItems:'flex-end',justifyContent:'center' }}>
-    <div onClick={e=>e.stopPropagation()} className="in" style={{ width:'100%',maxWidth:520,maxHeight:'88dvh',overflow:'hidden',background:'linear-gradient(180deg,#F7F6FD,#ECE9FA)',borderRadius:'30px 30px 0 0',boxShadow:'0 -18px 60px rgba(20,18,42,.22)' }}>
-      <div style={{ padding:'18px 18px 12px' }}><div style={{ width:42,height:5,borderRadius:9,background:'#D7D2EA',margin:'0 auto 15px' }}/><div style={{ display:'flex',alignItems:'center',gap:12,marginBottom:14 }}><div style={{ flex:1 }}><div className="d" style={{ fontSize:27 }}>Descobrir pessoas</div><div className="m" style={{ marginTop:3 }}>Encontra quem queres seguir.</div></div><button className="p" aria-label="Fechar descobrir" onClick={onClose} style={{ padding:10 }}><X size={16}/></button></div><div style={{ position:'relative' }}><Search size={17} style={{ position:'absolute',left:15,top:'50%',transform:'translateY(-50%)',color:'#9A94B7' }}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar pessoas…" style={{ paddingLeft:43,background:'#fff' }} autoCapitalize="none" /></div></div>
-      <div className="ns" style={{ overflowY:'auto',maxHeight:'calc(88dvh - 160px)',padding:'6px 18px calc(26px + env(safe-area-inset-bottom))' }}>
-        <div className="m" style={{ margin:'5px 0 10px' }}>{results!==null?'Resultados':'Pessoas que podes conhecer'}</div>
-        {searching && <div className="m" style={{ padding:18,textAlign:'center' }}>A procurar…</div>}
-        {!searching && people.length===0 && <div className="card" style={{ padding:20,textAlign:'center' }}><Sparkles size={20} style={{ marginBottom:8 }}/><div style={{ fontWeight:700 }}>Ainda não encontrámos ninguém.</div><div className="m" style={{ marginTop:5 }}>Experimenta outro nome.</div></div>}
-        <div style={{ display:'grid',gap:9 }}>{!searching && people.map(person=><PersonRow key={person.id} person={person} onToggle={toggleFollow} onOpenProfile={(p)=>{onClose();onOpenProfile?.(p)}}/>)}</div>
+  return <div className="lumina-profile-sheet-backdrop" onClick={onClose} style={{ zIndex:85 }}>
+    <div className="lumina-profile-sheet in" onClick={e => e.stopPropagation()}>
+      <div className="lumina-profile-sheet-head">
+        <div className="lumina-profile-sheet-grabber" />
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div className="lumina-profile-sheet-title">Descobrir pessoas</div>
+            <div className="lumina-profile-sheet-subtitle">Encontra novas luzes para a tua rede.</div>
+          </div>
+          <button className="lumina-profile-sheet-close" aria-label="Fechar descobrir" onClick={onClose}><X size={17} /></button>
+        </div>
+        <div className="lumina-profile-search-wrap">
+          <Search size={16} />
+          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Pesquisar pessoas…" autoCapitalize="none" />
+        </div>
+      </div>
+      <div className="ns lumina-profile-sheet-body">
+        <div className="lumina-profile-sheet-label">{results !== null ? 'Resultados' : 'Pessoas que podes conhecer'}</div>
+        {searching && <div className="lumina-profile-empty">A procurar…</div>}
+        {!searching && people.length === 0 && <div className="lumina-profile-empty"><Sparkles size={21} style={{ marginBottom:8 }} /><div style={{ color:'#dfe1ed', fontWeight:720 }}>Ainda não encontrámos ninguém.</div><div style={{ marginTop:5 }}>Experimenta outro nome.</div></div>}
+        <div style={{ display:'grid', gap:8 }}>{!searching && people.map(person => <PersonRow key={person.id} person={person} onToggle={toggleFollow} onOpenProfile={(p) => { onClose(); onOpenProfile?.(p); }} />)}</div>
       </div>
     </div>
   </div>;
@@ -121,48 +148,99 @@ export function Perfil({ me, blocked, setBlocked, setScreen, onOpenProfile, logo
 
   useEffect(() => {
     Promise.all([api.users.followers(), api.users.following(), api.users.suggestions()])
-      .then(([a,b,c]) => { setFollowers(a); setFollowing(b); setSuggestions(c); })
+      .then(([a, b, c]) => { setFollowers(a); setFollowing(b); setSuggestions(c); })
       .catch(() => {});
   }, []);
 
   const unblock = async (person) => {
-    try { await api.users.unblock(person.id); setBlocked(rows=>rows.filter(x=>x.id!==person.id)); ping(`${person.name} desbloqueado`); }
-    catch (e) { ping(e.message); }
+    try {
+      await api.users.unblock(person.id);
+      setBlocked(rows => rows.filter(x => x.id !== person.id));
+      ping(`${person.name} desbloqueado`);
+    } catch (e) { ping(e.message); }
   };
 
-  return <div style={{ minHeight:'100dvh',paddingBottom:104,background:'linear-gradient(180deg,#EFEDFB,#E8E5F7)' }}>
-    <main style={{ maxWidth:620,margin:'0 auto',padding:'20px 18px 30px' }}>
-      <div style={{ display:'flex',alignItems:'center',gap:10,marginBottom:22 }}><h1 className="d" style={{ fontSize:36,flex:1 }}>Per<span className="it">fil</span></h1><TopActions tab={tab} setTab={setTab} setThread={setThread} unreadCount={unreadCount}/></div>
+  return <div className="lumina-facelift lumina-profile">
+    <main className="lumina-profile-shell">
+      <div className="lumina-profile-topbar">
+        <div className="lumina-profile-topbar-copy">
+          <div className="lumina-profile-kicker">O teu espaço</div>
+          <h1>Perfil</h1>
+        </div>
+        <TopActions tab={tab} setTab={setTab} setThread={setThread} unreadCount={unreadCount} />
+      </div>
 
-      <section className="card" style={{ padding:20 }}>
-        <div style={{ display:'flex',gap:14,alignItems:'center' }}><Orb p={me.palette} avatarUrl={me.avatar_url} s={76}/><div style={{ flex:1,minWidth:0 }}><div className="d" style={{ fontSize:29,lineHeight:1 }}>{me.name}</div><div className="m" style={{ marginTop:5 }}>@{me.handle}</div></div></div>
-        {me.bio && <p style={{ marginTop:15,lineHeight:1.5 }}>{me.bio}</p>}
-        {me.stars?.length>0 && <div style={{ display:'flex',gap:6,flexWrap:'wrap',marginTop:13 }}>{me.stars.map(s=><span key={s} className="p p-sm" style={{ pointerEvents:'none' }}>{s}</span>)}</div>}
-        <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:16 }}><button className="p" onClick={()=>setConnections('followers')} style={{ justifyContent:'center' }} aria-label="Ver seguidores"><Users size={15}/>{followers.length} seguidores</button><button className="p" onClick={()=>setConnections('following')} style={{ justifyContent:'center' }} aria-label="Ver a seguir"><UserPlus size={15}/>{following.length} a seguir</button></div>
-        <button className="p p-brand" onClick={()=>setScreen('editar-perfil')} style={{ width:'100%',justifyContent:'center',marginTop:9 }}>Editar perfil</button>
+      <section className="lumina-profile-hero">
+        <div className="lumina-profile-identity">
+          <div className="lumina-profile-avatar-shell">
+            <div className="lumina-profile-avatar-inner"><Orb p={me.palette} avatarUrl={me.avatar_url} s={92} /></div>
+            <span className="lumina-profile-avatar-spark" aria-hidden="true"><Sparkles size={13} /></span>
+          </div>
+          <div className="lumina-profile-name">{me.name}</div>
+          <div className="lumina-profile-handle">@{me.handle}</div>
+          {me.bio && <p className="lumina-profile-bio">{me.bio}</p>}
+          {me.stars?.length > 0 && <div className="lumina-profile-stars">{me.stars.map(s => <span key={s} className="lumina-profile-star">{s}</span>)}</div>}
+        </div>
+        <div className="lumina-profile-stats">
+          <button className="lumina-profile-stat" onClick={() => setConnections('followers')} aria-label="Ver seguidores"><strong>{followers.length}</strong><span>Seguidores</span></button>
+          <button className="lumina-profile-stat" onClick={() => setConnections('following')} aria-label="Ver a seguir"><strong>{following.length}</strong><span>A seguir</span></button>
+        </div>
+        <button className="lumina-profile-edit" onClick={() => setScreen('editar-perfil')}><Pencil size={15} />Editar perfil</button>
       </section>
 
-      <div className="m" style={{ margin:'22px 4px 9px' }}>A TUA REDE</div>
-      <section className="card" style={{ padding:15,display:'grid',gap:9 }}>
-        <button className="p" onClick={()=>setDiscover(true)} style={{ justifyContent:'space-between' }}><span style={{ display:'flex',alignItems:'center',gap:9 }}><Search size={16}/>Descobrir pessoas</span><ArrowUpRight size={15}/></button>
-        <button className="p" onClick={()=>setTab('rooms')} style={{ justifyContent:'space-between' }}><span style={{ display:'flex',alignItems:'center',gap:9 }}><Users size={16}/>Explorar Salas</span><ArrowUpRight size={15}/></button>
+      <section className="lumina-profile-section">
+        <div className="lumina-profile-section-head"><strong>Conexões</strong><span>Expande a tua comunidade</span></div>
+        <div className="lumina-profile-panel">
+          <button className="lumina-profile-action" onClick={() => setDiscover(true)}>
+            <span className="lumina-profile-action-icon"><Search size={17} /></span>
+            <span className="lumina-profile-action-copy">Descobrir pessoas<small>Sugestões e pesquisa para encontrar novas ligações.</small></span>
+            <ArrowUpRight className="lumina-profile-action-chevron" size={16} />
+          </button>
+          <button className="lumina-profile-action" onClick={() => setTab('rooms')}>
+            <span className="lumina-profile-action-icon"><Users size={17} /></span>
+            <span className="lumina-profile-action-copy">Explorar Salas<small>Entra em conversas e momentos partilhados.</small></span>
+            <ArrowUpRight className="lumina-profile-action-chevron" size={16} />
+          </button>
+        </div>
       </section>
 
-      <div className="m" style={{ margin:'22px 4px 9px' }}>CONTA & SEGURANÇA</div>
-      <section className="card" style={{ padding:15,display:'grid',gap:9 }}>
-        <button className="p" onClick={()=>setScreen('seguranca')} style={{ justifyContent:'space-between' }}><span style={{ display:'flex',alignItems:'center',gap:9 }}><Shield size={16}/>Segurança e sessões</span><ArrowUpRight size={15}/></button>
-        {me.is_staff && <button className="p" onClick={()=>setScreen('moderacao')} style={{ justifyContent:'space-between' }}><span style={{ display:'flex',alignItems:'center',gap:9 }}><Flag size={16}/>Moderação</span><ArrowUpRight size={15}/></button>}
-        <button className="p" onClick={()=>setScreen('PRIVACIDADE')} style={{ justifyContent:'space-between' }}>Privacidade <ArrowUpRight size={15}/></button>
-        <button className="p" onClick={()=>setScreen('TERMOS')} style={{ justifyContent:'space-between' }}>Termos <ArrowUpRight size={15}/></button>
+      <section className="lumina-profile-section">
+        <div className="lumina-profile-section-head"><strong>Conta & segurança</strong><span>Controlo e privacidade</span></div>
+        <div className="lumina-profile-panel">
+          <button className="lumina-profile-action" onClick={() => setScreen('seguranca')}>
+            <span className="lumina-profile-action-icon"><Shield size={17} /></span>
+            <span className="lumina-profile-action-copy">Segurança e sessões<small>Protege a tua conta e gere dispositivos ligados.</small></span>
+            <ArrowUpRight className="lumina-profile-action-chevron" size={16} />
+          </button>
+          {me.is_staff && <button className="lumina-profile-action" onClick={() => setScreen('moderacao')}>
+            <span className="lumina-profile-action-icon"><Flag size={17} /></span>
+            <span className="lumina-profile-action-copy">Moderação<small>Ferramentas internas para manter a comunidade segura.</small></span>
+            <ArrowUpRight className="lumina-profile-action-chevron" size={16} />
+          </button>}
+          <button className="lumina-profile-action" onClick={() => setScreen('PRIVACIDADE')}>
+            <span className="lumina-profile-action-icon"><Shield size={17} /></span>
+            <span className="lumina-profile-action-copy">Privacidade<small>Escolhe como a tua presença aparece na Lumina.</small></span>
+            <ArrowUpRight className="lumina-profile-action-chevron" size={16} />
+          </button>
+          <button className="lumina-profile-action" onClick={() => setScreen('TERMOS')}>
+            <span className="lumina-profile-action-icon"><Sparkles size={17} /></span>
+            <span className="lumina-profile-action-copy">Termos<small>Consulta as regras e condições da plataforma.</small></span>
+            <ArrowUpRight className="lumina-profile-action-chevron" size={16} />
+          </button>
+        </div>
       </section>
 
-      {blocked.length>0 && <><div className="m" style={{ margin:'22px 4px 9px' }}>BLOQUEADOS</div><section className="card" style={{ padding:14,display:'grid',gap:8 }}>{blocked.map(person=><div key={person.id} style={{ display:'flex',alignItems:'center',gap:10 }}><Orb p={person.palette} s={36}/><div style={{ flex:1 }}><b>{person.name}</b><div className="m">@{person.handle}</div></div><button className="p p-sm" onClick={()=>unblock(person)}>Desbloquear</button></div>)}</section></>}
+      {blocked.length > 0 && <section className="lumina-profile-section">
+        <div className="lumina-profile-section-head"><strong>Bloqueados</strong><span>{blocked.length} {blocked.length === 1 ? 'pessoa' : 'pessoas'}</span></div>
+        <div className="lumina-profile-panel">{blocked.map(person => <div key={person.id} className="lumina-profile-blocked-row"><Orb p={person.palette} avatarUrl={person.avatar_url} s={36} /><div style={{ flex:1, minWidth:0 }}><div className="lumina-person-name">{person.name}</div><div className="lumina-person-meta">@{person.handle}</div></div><button className="lumina-profile-unblock" onClick={() => unblock(person)}>Desbloquear</button></div>)}</div>
+      </section>}
 
-      <button className="p" onClick={logout} style={{ width:'100%',justifyContent:'center',marginTop:22,color:'var(--coral)' }}>Sair</button>
+      <button className="lumina-profile-logout" onClick={logout}><LogOut size={16} />Sair da Lumina</button>
     </main>
-    <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} threads={threads}/>
-    <Toast text={toast}/>
-    <ConnectionsSheet open={!!connections} onClose={()=>setConnections(null)} initialTab={connections} followers={followers} setFollowers={setFollowers} following={following} setFollowing={setFollowing} suggestions={suggestions} setSuggestions={setSuggestions} ping={ping} onOpenProfile={onOpenProfile}/>
-    <DiscoverySheet open={discover} onClose={()=>setDiscover(false)} suggestions={suggestions} setSuggestions={setSuggestions} followers={followers} setFollowers={setFollowers} following={following} setFollowing={setFollowing} ping={ping} onOpenProfile={onOpenProfile}/>
+
+    <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} threads={threads} />
+    <Toast text={toast} />
+    <ConnectionsSheet open={!!connections} onClose={() => setConnections(null)} initialTab={connections} followers={followers} setFollowers={setFollowers} following={following} setFollowing={setFollowing} suggestions={suggestions} setSuggestions={setSuggestions} ping={ping} onOpenProfile={onOpenProfile} />
+    <DiscoverySheet open={discover} onClose={() => setDiscover(false)} suggestions={suggestions} setSuggestions={setSuggestions} followers={followers} setFollowers={setFollowers} following={following} setFollowing={setFollowing} ping={ping} onOpenProfile={onOpenProfile} />
   </div>;
 }

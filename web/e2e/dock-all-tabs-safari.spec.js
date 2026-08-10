@@ -20,23 +20,31 @@ async function registerAndEnterFeed(page) {
   await expect(page.getByRole('button',{name:'Novo'})).toBeVisible();
 }
 
-async function scrollWindow(page,y) {
+async function ensureVerticalProbe(page) {
+  await page.evaluate(()=>{
+    if (document.querySelector('[data-testid="dock-scroll-probe"]')) return;
+    const probe=document.createElement('div');
+    probe.dataset.testid='dock-scroll-probe';
+    probe.style.cssText='position:fixed;left:-20px;top:0;width:4px;height:80px;overflow-y:auto;opacity:0;pointer-events:none';
+    const inside=document.createElement('div');
+    inside.style.height='900px';
+    probe.appendChild(inside);
+    document.body.appendChild(probe);
+  });
+}
+
+async function scrollProbe(page,y) {
   await page.evaluate(async nextY=>{
-    window.scrollTo(0,nextY);
-    window.dispatchEvent(new Event('scroll'));
+    const probe=document.querySelector('[data-testid="dock-scroll-probe"]');
+    probe.scrollTop=nextY;
+    probe.dispatchEvent(new Event('scroll'));
     await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
   },y);
 }
 
-test('dock global é compacto, baixo, esconde ao descer e volta ao subir em todas as abas principais', async ({page}) => {
+test('dock global é compacto, baixo e reage a scroll vertical em todas as abas principais', async ({page}) => {
   await registerAndEnterFeed(page);
-  await page.evaluate(()=>{
-    const spacer=document.createElement('div');
-    spacer.dataset.testid='global-dock-spacer';
-    spacer.style.height='260vh';
-    spacer.style.pointerEvents='none';
-    document.body.appendChild(spacer);
-  });
+  await ensureVerticalProbe(page);
 
   const nav=page.locator('.nav');
   await expect(nav).toBeVisible();
@@ -47,16 +55,16 @@ test('dock global é compacto, baixo, esconde ao descer e volta ao subir em toda
   expect(bottom).toBeLessThanOrEqual(8);
 
   for (const label of ['Feed','Salas','Radar','Conversas']) {
-    await scrollWindow(page,0);
+    await scrollProbe(page,0);
     await expect(nav).not.toHaveClass(/nav-smart-hidden/);
     await page.getByRole('button',{name:label,exact:true}).click();
     await expect(nav).toBeVisible();
 
-    await scrollWindow(page,520);
-    await expect.poll(()=>page.evaluate(()=>window.scrollY)).toBeGreaterThan(100);
+    await scrollProbe(page,520);
+    await expect.poll(()=>page.evaluate(()=>document.querySelector('[data-testid="dock-scroll-probe"]')?.scrollTop || 0)).toBeGreaterThan(100);
     await expect(nav).toHaveClass(/nav-smart-hidden/);
 
-    await scrollWindow(page,220);
+    await scrollProbe(page,220);
     await expect(nav).not.toHaveClass(/nav-smart-hidden/);
   }
 

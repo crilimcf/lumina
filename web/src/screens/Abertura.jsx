@@ -6,10 +6,15 @@ import { Orb, Skeleton } from '../ui.jsx';
 export function Abertura({ me, onSkip, onRooms }) {
   const [step, setStep] = useState(0);
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('tab') || params.has('notification')) {
+      onSkip();
+      return undefined;
+    }
     const a = setTimeout(() => setStep(1), 240);
     const b = setTimeout(() => setStep(2), 820);
     return () => { clearTimeout(a); clearTimeout(b); };
-  }, []);
+  }, [onSkip]);
 
   return (
     <div style={{ minHeight:'100dvh', position:'relative', background:'linear-gradient(180deg,#EFEDFB,#DFDCF2)' }}>

@@ -17,21 +17,36 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('push', (event) => {
   event.waitUntil((async () => {
-    // WebKit/iOS não permite silent Web Push. Mesmo que a Lumina esteja aberta,
-    // cada push tem de resultar numa notificação user-visible; caso contrário o
-    // browser pode penalizar/revogar a subscrição. O overlay dentro da app continua
-    // a aparecer em paralelo quando a janela está visível.
-    let data = null;
-    try {
-      const response = await fetch('/api/notifications/push/latest', {
-        credentials: 'include',
-        cache: 'no-store',
-        headers: { 'cache-control': 'no-cache' },
-      });
-      if (response.ok) data = await response.json();
-    } catch {}
+    // iOS 18.4+ consegue apresentar este formato declarativamente mesmo se o
+    // Service Worker falhar. Browsers antigos chegam aqui e apresentamos a mesma
+    // notificação por JavaScript, mantendo compatibilidade.
+    let direct = null;
+    try { direct = event.data?.json?.() || null; } catch {}
 
-    const notification = data?.notification || {
+    let notification = null;
+    if (direct?.web_push === 8030 && direct?.notification?.title) {
+      notification = {
+        title: direct.notification.title,
+        body: direct.notification.body || '',
+        tag: direct.notification.tag || 'lumina:activity',
+        url: direct.notification.navigate || '/?tab=alerts',
+        type: String(direct.notification.tag || '').startsWith('lumina:call:') ? 'incoming_call' : 'activity',
+      };
+    }
+
+    // Compatibilidade com pushes vazios já em trânsito ou subscrições antigas.
+    if (!notification) {
+      try {
+        const response = await fetch('/api/notifications/push/latest', {
+          credentials: 'include',
+          cache: 'no-store',
+          headers: { 'cache-control': 'no-cache' },
+        });
+        if (response.ok) notification = (await response.json())?.notification || null;
+      } catch {}
+    }
+
+    notification ||= {
       title: 'Lumina',
       body: 'Tens uma novidade.',
       tag: 'lumina:activity',
@@ -39,7 +54,7 @@ self.addEventListener('push', (event) => {
       type: 'activity',
     };
 
-    const options = {
+    await self.registration.showNotification(notification.title || 'Lumina', {
       body: notification.body,
       tag: notification.tag,
       icon: '/icon-192.png',
@@ -48,8 +63,7 @@ self.addEventListener('push', (event) => {
       renotify: true,
       silent: false,
       requireInteraction: notification.type === 'incoming_call',
-    };
-    await self.registration.showNotification(notification.title || 'Lumina', options);
+    });
   })());
 });
 

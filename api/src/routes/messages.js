@@ -39,6 +39,18 @@ async function findOrCreateThread(userA, userB) {
   return rows[0];
 }
 
+async function assertParticipant(threadId, userId) {
+  const { rows } = await q(
+    'SELECT * FROM threads WHERE id = $1 AND (user_a = $2 OR user_b = $2)',
+    [threadId, userId]
+  );
+  if (!rows[0]) throw forbidden('Não fazes parte desta conversa');
+
+  const other = rows[0].user_a === userId ? rows[0].user_b : rows[0].user_a;
+  if (await blocked(userId, other)) throw forbidden('Esta conversa já não está disponível');
+  return rows[0];
+}
+
 messageRoutes.get('/threads', auth, h(async (req, res) => {
   const { rows } = await q(
     `SELECT t.id,
@@ -61,12 +73,12 @@ messageRoutes.get('/threads', auth, h(async (req, res) => {
     [req.user.id]
   );
 
-  // A pré-visualização nunca mostra o conteúdo de mensagens efémeras.
   res.json(rows.map(r => ({
     ...r,
     body: r.purged_at ? null
       : r.mode === 'once' ? '👁 Foto de uma vez'
       : r.mode === 'timer' ? '⏱ Mensagem efémera'
+      : r.kind === 'media' ? '📷 Fotografia'
       : r.body,
   })));
 }));
@@ -76,29 +88,35 @@ messageRoutes.post('/threads', auth, h(async (req, res) => {
   res.status(201).json(thread);
 }));
 
-async function assertParticipant(threadId, userId) {
-  const { rows } = await q(
-    'SELECT * FROM threads WHERE id = $1 AND (user_a = $2 OR user_b = $2)',
-    [threadId, userId]
+/** Marca como entregues as mensagens que chegaram a uma sessão ativa do destinatário. */
+messageRoutes.post('/delivered', auth, h(async (req, res) => {
+  const { rowCount } = await q(
+    `UPDATE messages m
+        SET delivered_at = COALESCE(m.delivered_at, now())
+       FROM threads t
+      WHERE m.thread_id = t.id
+        AND m.sender_id <> $1
+        AND m.delivered_at IS NULL
+        AND (t.user_a = $1 OR t.user_b = $1)`,
+    [req.user.id]
   );
-  if (!rows[0]) throw forbidden('Não fazes parte desta conversa');
-
-  const other = rows[0].user_a === userId ? rows[0].user_b : rows[0].user_a;
-  if (await blocked(userId, other)) throw forbidden('Esta conversa já não está disponível');
-  return rows[0];
-}
+  res.json({ delivered: rowCount });
+}));
 
 messageRoutes.get('/threads/:threadId/messages', auth, h(async (req, res) => {
   await assertParticipant(req.params.threadId, req.user.id);
 
   await q(
-    `UPDATE messages SET read_at = now()
-     WHERE thread_id = $1 AND sender_id <> $2 AND read_at IS NULL`,
+    `UPDATE messages
+        SET delivered_at = COALESCE(delivered_at, now()),
+            read_at = COALESCE(read_at, now())
+      WHERE thread_id = $1 AND sender_id <> $2 AND read_at IS NULL`,
     [req.params.threadId, req.user.id]
   );
 
   const { rows } = await q(
-    `SELECT id, sender_id, kind, mode, palette, opened_at, expires_at, purged_at, created_at,
+    `SELECT id, sender_id, kind, mode, palette, opened_at, expires_at, purged_at,
+            created_at, delivered_at, read_at,
             CASE
               WHEN purged_at IS NOT NULL THEN NULL
               WHEN mode <> 'normal' AND sender_id <> $2 AND opened_at IS NULL THEN NULL
@@ -134,11 +152,10 @@ messageRoutes.post('/threads/:threadId/messages', auth, h(async (req, res) => {
     if (body) throw bad('Mensagem de imagem não leva texto');
   }
   if (mode === 'once' && kind !== 'media') throw bad('O modo uma vez é só para fotos');
+  if (mode === 'timer' && kind !== 'text') throw bad('O modo efémero é só para texto');
 
   await assertParticipant(req.params.threadId, req.user.id);
 
-  // Claim + INSERT no mesmo COMMIT: se a mensagem falhar, o upload volta a
-  // ficar disponível; se passar, essa URL deixa de poder ser reutilizada.
   const message = await tx(async (c) => {
     if (mediaUrl) {
       const claimed = await claimUpload(
@@ -153,7 +170,7 @@ messageRoutes.post('/threads/:threadId/messages', auth, h(async (req, res) => {
     const { rows } = await c.query(
       `INSERT INTO messages (thread_id, sender_id, kind, mode, body, media_url, palette)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, kind, mode, created_at`,
+       RETURNING id, sender_id, kind, mode, body, media_url, palette, created_at, delivered_at, read_at`,
       [req.params.threadId, req.user.id, kind, mode, body, mediaUrl, palette]
     );
     return rows[0];
@@ -168,10 +185,6 @@ function bodyOrNull(value) {
   return text || null;
 }
 
-/**
- * Abrir uma mensagem efémera. É aqui que o relógio começa: gravamos opened_at
- * e marcamos a hora em que o conteúdo é apagado do servidor.
- */
 messageRoutes.post('/:messageId/open', auth, h(async (req, res) => {
   const out = await tx(async (c) => {
     const { rows } = await c.query(
@@ -198,7 +211,8 @@ messageRoutes.post('/:messageId/open', auth, h(async (req, res) => {
 
     const seconds = m.mode === 'once' ? env.ONCE_SECONDS : env.EPHEMERAL_SECONDS;
     const { rows: up } = await c.query(
-      `UPDATE messages SET opened_at = now(), expires_at = now() + ($2 || ' seconds')::interval
+      `UPDATE messages SET delivered_at=COALESCE(delivered_at,now()), read_at=COALESCE(read_at,now()),
+                           opened_at = now(), expires_at = now() + ($2 || ' seconds')::interval
        WHERE id = $1 RETURNING body, media_url, expires_at`,
       [m.id, seconds]
     );

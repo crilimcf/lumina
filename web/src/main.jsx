@@ -96,12 +96,13 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
   window.addEventListener('scroll', handleAnyScroll, { passive:true });
   window.addEventListener('pageshow', () => setDockHidden(false));
 
-  // Web Push standards-based. Em iOS o prompt só existe numa web app adicionada ao
-  // ecrã principal e tem de partir de uma ação explícita do utilizador.
+  // Web Push standards-based. Em iOS o prompt só aparece numa web app instalada
+  // no ecrã principal e é sempre iniciado por um toque explícito em "Ativar".
   const supportsPush = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
   const standalone = window.matchMedia?.('(display-mode: standalone)')?.matches || window.navigator.standalone === true;
   let pushBanner = null;
   let pushBusy = false;
+  let pushConfigured = false;
 
   const b64ToBytes = (value) => {
     const padding = '='.repeat((4 - value.length % 4) % 4);
@@ -134,6 +135,7 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
         body:JSON.stringify(subscription.toJSON()),
       });
       if (!save.ok) return false;
+      pushConfigured = true;
       pushBanner?.remove(); pushBanner = null;
       return true;
     } catch (error) {
@@ -142,10 +144,24 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
     } finally { pushBusy = false; }
   };
 
+  // Usado no logout para não deixar um dispositivo partilhado associado à conta anterior.
+  window.__luminaDisablePush = async () => {
+    if (!supportsPush) return;
+    try {
+      const registration = await navigator.serviceWorker.getRegistration('/');
+      const subscription = await registration?.pushManager?.getSubscription();
+      if (subscription) {
+        await fetch('/api/notifications/push/unsubscribe', {
+          method:'POST', credentials:'include', headers:{ 'content-type':'application/json' },
+          body:JSON.stringify({ endpoint:subscription.endpoint }),
+        }).catch(() => null);
+        await subscription.unsubscribe().catch(() => false);
+      }
+    } finally { pushConfigured = false; }
+  };
+
   const showPushBanner = () => {
     if (pushBanner || !supportsPush || Notification.permission !== 'default') return;
-    // No iPhone, Safari normal não oferece PushManager; `standalone` evita pedir ao
-    // utilizador para instalar novamente quando já está na PWA.
     if (/iPhone|iPad|iPod/i.test(navigator.userAgent) && !standalone) return;
     const box = document.createElement('div');
     box.setAttribute('role', 'dialog');
@@ -163,19 +179,23 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
     activate.addEventListener('click', async () => {
       activate.disabled = true; activate.textContent = 'A ativar…';
       const ok = await registerPush({ ask:true });
-      if (!ok) { activate.disabled = false; activate.textContent = Notification.permission === 'denied' ? 'Bloqueadas' : 'Tentar'; }
+      if (!ok) {
+        activate.disabled = false;
+        activate.textContent = Notification.permission === 'denied' ? 'Bloqueadas' : 'Tentar';
+      }
     });
     const later = document.createElement('button');
     later.textContent = '×'; later.setAttribute('aria-label', 'Agora não');
     Object.assign(later.style, { border:0,background:'transparent',color:'#fff',fontSize:'22px',padding:'4px' });
-    later.addEventListener('click', () => { box.remove(); pushBanner = null; sessionStorage.setItem('lumina-push-later','1'); });
+    later.addEventListener('click', () => {
+      box.remove(); pushBanner = null; sessionStorage.setItem('lumina-push-later','1');
+    });
     box.append(activate, later);
     document.body.appendChild(box); pushBanner = box;
   };
 
   const maybeSetupPush = async () => {
-    if (!supportsPush) return;
-    // Registar o worker é seguro sem pedir permissão: ele não faz cache/interceção.
+    if (!supportsPush || pushConfigured) return;
     await navigator.serviceWorker.register('/sw.js', { updateViaCache:'none' }).catch(() => null);
     const session = await fetch('/api/auth/me', { credentials:'include', cache:'no-store' }).catch(() => null);
     if (!session?.ok) return;
@@ -186,21 +206,25 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
   window.addEventListener('load', () => {
     clearLegacyCaches().catch(() => {});
     checkForNewDeployment();
-    setTimeout(() => maybeSetupPush().catch(() => {}), 900);
+    if (supportsPush) setTimeout(() => maybeSetupPush().catch(() => {}), 900);
   }, { once:true });
-  // Também apanha logins feitos sem reload.
-  const pushProbe = setInterval(() => {
-    if (Notification?.permission === 'granted' || !pushBanner) maybeSetupPush().catch(() => {});
-    if (Notification?.permission === 'denied') clearInterval(pushProbe);
-  }, 10_000);
+
+  // Apanha logins feitos sem reload, mas deixa de consultar quando a subscrição está pronta.
+  const pushProbe = supportsPush ? setInterval(() => {
+    if (pushConfigured || Notification.permission === 'denied') return;
+    const shouldProbe = Notification.permission === 'granted'
+      || (Notification.permission === 'default' && !pushBanner && !sessionStorage.getItem('lumina-push-later'));
+    if (shouldProbe) maybeSetupPush().catch(() => {});
+  }, 15_000) : null;
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       setDockHidden(false);
       checkForNewDeployment();
-      maybeSetupPush().catch(() => {});
+      if (supportsPush && !pushConfigured) maybeSetupPush().catch(() => {});
     }
   });
   window.addEventListener('pageshow', checkForNewDeployment);
   window.addEventListener('focus', checkForNewDeployment);
+  window.addEventListener('pagehide', () => { if (pushProbe && Notification.permission === 'denied') clearInterval(pushProbe); });
 }

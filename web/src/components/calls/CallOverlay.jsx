@@ -29,14 +29,23 @@ const LEGACY_TURN = (() => {
 
 const NO_ANSWER_MS = 45_000;
 
+function initialDeliveryHint(call, caller) {
+  if (!caller) return '';
+  if (call?.callee_seen_at) return 'O outro dispositivo recebeu a chamada.';
+  if (Number(call?.push_accepted || 0) > 0) return 'Aviso aceite pelo serviço de notificações; à espera do outro iPhone…';
+  if (Number(call?.push_attempted || 0) > 0) return 'O serviço de notificações não aceitou o aviso desta chamada.';
+  if (call?.callee_push_ready === false) return 'O outro dispositivo não tem chamadas em segundo plano ativas.';
+  return '';
+}
+
 /** WebRTC 1:1; a API troca apenas signaling autenticado, nunca o áudio/vídeo. */
 export function CallOverlay({ call, caller, person, onClosed, ping }) {
-  const [phase,setPhase]=useState(caller?'A chamar…':'A ligar…');
+  const [phase,setPhase]=useState(caller?(call?.callee_seen_at?'A tocar…':'A chamar…'):'A ligar…');
   const [muted,setMuted]=useState(false);
   const [cameraOff,setCameraOff]=useState(false);
   const [remoteReady,setRemoteReady]=useState(false);
   const [needsAudioTap,setNeedsAudioTap]=useState(false);
-  const [networkHint,setNetworkHint]=useState('');
+  const [networkHint,setNetworkHint]=useState(()=>initialDeliveryHint(call,caller));
   const localVideo=useRef(null),remoteMedia=useRef(null),pcRef=useRef(null),streamRef=useRef(null),pollRef=useRef(null),lastSignalRef=useRef(0),closedRef=useRef(false),pendingIceRef=useRef([]),handlingOfferRef=useRef(false),restartRef=useRef(0),connectedRef=useRef(false),startedAtRef=useRef(Date.now()),relayConfiguredRef=useRef(false),noAnswerRef=useRef(false);
 
   const cleanup=async({notify=false}={})=>{if(closedRef.current)return;closedRef.current=true;clearInterval(pollRef.current);pollRef.current=null;try{pcRef.current?.close()}catch{}pcRef.current=null;streamRef.current?.getTracks?.().forEach(t=>t.stop());streamRef.current=null;if(notify)await api.calls.end(call.id).catch(()=>{});onClosed?.();};
@@ -131,12 +140,22 @@ export function CallOverlay({ call, caller, person, onClosed, ping }) {
         if(state.status==='ended'){cleanup();return}
         const elapsed=Date.now()-startedAtRef.current;
         if(caller&&state.status==='ringing'){
-          if(elapsed>12000)setNetworkHint('A tentar chegar ao outro dispositivo…');
+          if(state.calleeSeenAt){
+            setPhase('A tocar…');
+            setNetworkHint('O outro dispositivo recebeu a chamada.');
+          }else if(Number(state.pushAccepted||0)>0){
+            setNetworkHint('Aviso aceite pelo serviço de notificações; à espera do outro iPhone…');
+          }else if(Number(state.pushAttempted||0)>0){
+            setNetworkHint('O serviço de notificações não aceitou o aviso desta chamada.');
+          }else if(call?.callee_push_ready===false){
+            setNetworkHint('O outro dispositivo não tem chamadas em segundo plano ativas.');
+          }else if(elapsed>12000){
+            setNetworkHint('A tentar chegar ao outro dispositivo…');
+          }
           if(elapsed>NO_ANSWER_MS)return finishNoAnswer();
         }
-        if(state.status==='active'&&!connectedRef.current)setPhase('A ligar…');
-        if(state.status==='active'&&!connectedRef.current&&elapsed>18000)setNetworkHint('A negociar a ligação de áudio…');
-        if(state.status==='active'&&!connectedRef.current&&elapsed>32000)setNetworkHint(relayConfiguredRef.current?'A tentar uma rota alternativa…':'Esta rede está a bloquear a ligação direta…');
+        if(state.status==='active'&&!connectedRef.current){setPhase('A ligar…');setNetworkHint('A negociar a ligação de áudio…')}
+        if(state.status==='active'&&!connectedRef.current&&elapsed>32000)setNetworkHint(relayConfiguredRef.current?'A tentar uma rota TURN alternativa…':'Esta rede está a bloquear a ligação direta…');
       }catch(e){if(!closedRef.current)console.debug('[call] sync',e?.message)}
     };
     poll();
@@ -188,7 +207,7 @@ export function CallOverlay({ call, caller, person, onClosed, ping }) {
   const toggleCamera=()=>{if(call.mode!=='video')return;const next=!cameraOff;streamRef.current?.getVideoTracks?.().forEach(t=>{t.enabled=!next});setCameraOff(next)};
 
   return <div role="dialog" aria-label={`${call.mode==='video'?'Videochamada':'Chamada áudio'} com ${person.name}`} style={{position:'fixed',inset:0,zIndex:180,background:'#080711',color:'#fff',display:'grid',overflow:'hidden'}}>
-    {call.mode==='video'?<><video ref={remoteMedia} playsInline autoPlay aria-label="Vídeo remoto" style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',background:'#090713'}}/>{!remoteReady&&<div style={{position:'absolute',inset:0,display:'grid',placeItems:'center',background:'radial-gradient(circle at 50% 35%,#342466,#080711 65%)'}}><div style={{textAlign:'center',padding:24}}><Orb p={person.palette} avatarUrl={person.avatar_url} s={112}/><div className="d" style={{fontSize:31,marginTop:15,color:'#fff'}}>{person.name}</div><div style={{opacity:.68,marginTop:7}}>{phase}</div>{networkHint&&<div style={{opacity:.5,fontSize:12,marginTop:9,maxWidth:280}}>{networkHint}</div>}</div></div>}<div style={{position:'absolute',top:'calc(16px + env(safe-area-inset-top))',right:14,width:108,height:154,borderRadius:22,overflow:'hidden',border:'1px solid rgba(255,255,255,.3)',background:'#171425',boxShadow:'0 12px 30px rgba(0,0,0,.34)'}}><video ref={localVideo} playsInline autoPlay muted aria-label="O teu vídeo" style={{width:'100%',height:'100%',objectFit:'cover',transform:'scaleX(-1)'}}/></div></>:<div style={{position:'absolute',inset:0,display:'grid',placeItems:'center',background:'radial-gradient(circle at 50% 30%,#47327D,#17102E 46%,#080711 78%)'}}><div style={{textAlign:'center',transform:'translateY(-45px)',padding:24}}><div style={{padding:7,borderRadius:'50%',background:'linear-gradient(135deg,#FF6558,#624DFF)',display:'inline-grid'}}><Orb p={person.palette} avatarUrl={person.avatar_url} s={122}/></div><div className="d" style={{fontSize:34,marginTop:19,color:'#fff'}}>{person.name}</div><div style={{opacity:.68,marginTop:8}}>{phase}</div>{networkHint&&<div style={{opacity:.5,fontSize:12,marginTop:9,maxWidth:280}}>{networkHint}</div>}</div><audio ref={remoteMedia} autoPlay playsInline/></div>}
+    {call.mode==='video'?<><video ref={remoteMedia} playsInline autoPlay aria-label="Vídeo remoto" style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',background:'#090713'}}/>{!remoteReady&&<div style={{position:'absolute',inset:0,display:'grid',placeItems:'center',background:'radial-gradient(circle at 50% 35%,#342466,#080711 65%)'}}><div style={{textAlign:'center',padding:24}}><Orb p={person.palette} avatarUrl={person.avatar_url} s={112}/><div className="d" style={{fontSize:31,marginTop:15,color:'#fff'}}>{person.name}</div><div style={{opacity:.68,marginTop:7}}>{phase}</div>{networkHint&&<div style={{opacity:.58,fontSize:12,marginTop:9,maxWidth:300,lineHeight:1.4}}>{networkHint}</div>}</div></div>}<div style={{position:'absolute',top:'calc(16px + env(safe-area-inset-top))',right:14,width:108,height:154,borderRadius:22,overflow:'hidden',border:'1px solid rgba(255,255,255,.3)',background:'#171425',boxShadow:'0 12px 30px rgba(0,0,0,.34)'}}><video ref={localVideo} playsInline autoPlay muted aria-label="O teu vídeo" style={{width:'100%',height:'100%',objectFit:'cover',transform:'scaleX(-1)'}}/></div></>:<div style={{position:'absolute',inset:0,display:'grid',placeItems:'center',background:'radial-gradient(circle at 50% 30%,#47327D,#17102E 46%,#080711 78%)'}}><div style={{textAlign:'center',transform:'translateY(-45px)',padding:24}}><div style={{padding:7,borderRadius:'50%',background:'linear-gradient(135deg,#FF6558,#624DFF)',display:'inline-grid'}}><Orb p={person.palette} avatarUrl={person.avatar_url} s={122}/></div><div className="d" style={{fontSize:34,marginTop:19,color:'#fff'}}>{person.name}</div><div style={{opacity:.68,marginTop:8}}>{phase}</div>{networkHint&&<div style={{opacity:.58,fontSize:12,marginTop:9,maxWidth:300,lineHeight:1.4}}>{networkHint}</div>}</div><audio ref={remoteMedia} autoPlay playsInline/></div>}
     {needsAudioTap&&<button onClick={playRemote} style={{position:'absolute',left:'50%',transform:'translateX(-50%)',bottom:'calc(108px + env(safe-area-inset-bottom))',zIndex:5,border:0,borderRadius:999,padding:'11px 16px',background:'#fff',color:'#14122A',fontWeight:800,display:'flex',alignItems:'center',gap:8}}><Volume2 size={17}/>Ativar áudio</button>}
     <div style={{position:'absolute',left:0,right:0,bottom:'calc(28px + env(safe-area-inset-bottom))',display:'flex',justifyContent:'center',gap:16,zIndex:3}}><button onClick={toggleMute} aria-label={muted?'Ativar microfone':'Desativar microfone'} style={{width:58,height:58,borderRadius:99,border:0,background:'rgba(255,255,255,.16)',backdropFilter:'blur(13px)',color:'#fff',display:'grid',placeItems:'center'}}>{muted?<MicOff/>:<Mic/>}</button>{call.mode==='video'&&<button onClick={toggleCamera} aria-label={cameraOff?'Ativar câmara':'Desativar câmara'} style={{width:58,height:58,borderRadius:99,border:0,background:'rgba(255,255,255,.16)',backdropFilter:'blur(13px)',color:'#fff',display:'grid',placeItems:'center'}}>{cameraOff?<CameraOff/>:<Camera/>}</button>}<button onClick={()=>cleanup({notify:true})} aria-label="Terminar chamada" style={{width:64,height:64,borderRadius:99,border:0,background:'#FF5149',color:'#fff',display:'grid',placeItems:'center',boxShadow:'0 10px 30px rgba(255,81,73,.34)'}}><PhoneOff size={28}/></button></div>
   </div>;

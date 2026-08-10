@@ -141,6 +141,7 @@ export const api = {
   notifications: {
     list: (cursor) => call(`/notifications${cursor ? `?before=${encodeURIComponent(cursor)}` : ''}`),
     unread: () => call('/notifications/unread-count'),
+    pushStatus: () => call('/notifications/push/status'),
     read: (id) => call(`/notifications/${id}/read`, { method: 'POST' }),
     readAll: () => call('/notifications/read-all', { method: 'POST' }),
   },

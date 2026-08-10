@@ -42,6 +42,25 @@ async function scrollProbe(page,y) {
   },y);
 }
 
+async function swipe(page, fromY, toY) {
+  await page.evaluate(async ({fromY,toY})=>{
+    const fire=(type,y)=>{
+      const event=new Event(type,{bubbles:true,cancelable:true});
+      Object.defineProperty(event,'touches',{value:type==='touchend'?[]:[{clientX:180,clientY:y}]});
+      Object.defineProperty(event,'changedTouches',{value:[{clientX:180,clientY:y}]});
+      document.body.dispatchEvent(event);
+    };
+    fire('touchstart',fromY);
+    const steps=4;
+    for(let i=1;i<=steps;i+=1){
+      fire('touchmove',fromY+((toY-fromY)*i/steps));
+      await new Promise(resolve=>requestAnimationFrame(resolve));
+    }
+    fire('touchend',toY);
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  },{fromY,toY});
+}
+
 test('dock global é compacto, baixo e reage a scroll vertical em todas as abas principais', async ({page}) => {
   await registerAndEnterFeed(page);
   await ensureVerticalProbe(page);
@@ -67,6 +86,13 @@ test('dock global é compacto, baixo e reage a scroll vertical em todas as abas 
     await scrollProbe(page,220);
     await expect(nav).not.toHaveClass(/nav-smart-hidden/);
   }
+
+  await page.getByRole('button',{name:'Feed',exact:true}).click();
+  await expect(nav).not.toHaveClass(/nav-smart-hidden/);
+  await swipe(page,620,360);
+  await expect(nav).toHaveClass(/nav-smart-hidden/);
+  await swipe(page,360,620);
+  await expect(nav).not.toHaveClass(/nav-smart-hidden/);
 
   await page.getByRole('button',{name:'Novo'}).click();
   await expect(page.getByPlaceholder('O que estás a ver?')).toBeVisible();

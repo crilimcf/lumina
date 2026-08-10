@@ -4,20 +4,20 @@ import { api } from '../api.js';
 import { Orb } from '../ui.jsx';
 import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
 
-function PersonRow({ person, onToggle }) {
+function PersonRow({ person, onToggle, onOpenProfile }) {
   return <div className="card" style={{ padding: 13, display: 'flex', alignItems: 'center', gap: 11 }}>
-    <Orb p={person.palette} avatarUrl={person.avatar_url} s={45} />
-    <div style={{ flex: 1, minWidth: 0 }}>
+    <button type="button" onClick={()=>onOpenProfile?.(person)} aria-label={`Abrir perfil de ${person.name}`} style={{border:0,background:'transparent',padding:0,cursor:'pointer',display:'grid',placeItems:'center'}}><Orb p={person.palette} avatarUrl={person.avatar_url} s={45} /></button>
+    <button type="button" onClick={()=>onOpenProfile?.(person)} style={{ flex: 1, minWidth: 0, border:0, background:'transparent',padding:0,textAlign:'left',cursor:'pointer',color:'inherit' }}>
       <div style={{ fontWeight: 700, fontSize: 14.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{person.name}</div>
       <div className="m" style={{ marginTop: 2 }}>@{person.handle} · {person.followers || 0} seguidores</div>
-    </div>
+    </button>
     <button className={person.following || person.requested ? 'p p-sm' : 'p p-sm p-brand'} onClick={() => onToggle(person)}>
       {person.following ? 'A seguir' : person.requested ? 'Pendente' : 'Seguir'}
     </button>
   </div>;
 }
 
-function ConnectionsSheet({ open, onClose, initialTab, followers, setFollowers, following, setFollowing, suggestions, setSuggestions, ping }) {
+function ConnectionsSheet({ open, onClose, initialTab, followers, setFollowers, following, setFollowing, suggestions, setSuggestions, ping, onOpenProfile }) {
   const [tab, setTab] = useState(initialTab || 'followers');
   const [query, setQuery] = useState('');
 
@@ -61,13 +61,13 @@ function ConnectionsSheet({ open, onClose, initialTab, followers, setFollowers, 
       </div>
       <div className="ns" style={{ overflowY:'auto',maxHeight:'calc(86dvh - 190px)',padding:'6px 18px calc(26px + env(safe-area-inset-bottom))',display:'grid',gap:9 }}>
         {visible.length===0 && <div className="m" style={{ padding:22,textAlign:'center' }}>Ainda não há pessoas nesta lista.</div>}
-        {visible.map(person=><PersonRow key={person.id} person={person} onToggle={toggleFollow}/>) }
+        {visible.map(person=><PersonRow key={person.id} person={person} onToggle={toggleFollow} onOpenProfile={(p)=>{onClose();onOpenProfile?.(p)}}/>) }
       </div>
     </div>
   </div>;
 }
 
-function DiscoverySheet({ open, onClose, suggestions, setSuggestions, followers, setFollowers, following, setFollowing, ping }) {
+function DiscoverySheet({ open, onClose, suggestions, setSuggestions, followers, setFollowers, following, setFollowing, ping, onOpenProfile }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState(null);
   const [searching, setSearching] = useState(false);
@@ -106,13 +106,13 @@ function DiscoverySheet({ open, onClose, suggestions, setSuggestions, followers,
         <div className="m" style={{ margin:'5px 0 10px' }}>{results!==null?'Resultados':'Pessoas que podes conhecer'}</div>
         {searching && <div className="m" style={{ padding:18,textAlign:'center' }}>A procurar…</div>}
         {!searching && people.length===0 && <div className="card" style={{ padding:20,textAlign:'center' }}><Sparkles size={20} style={{ marginBottom:8 }}/><div style={{ fontWeight:700 }}>Ainda não encontrámos ninguém.</div><div className="m" style={{ marginTop:5 }}>Experimenta outro nome.</div></div>}
-        <div style={{ display:'grid',gap:9 }}>{!searching && people.map(person=><PersonRow key={person.id} person={person} onToggle={toggleFollow}/>)}</div>
+        <div style={{ display:'grid',gap:9 }}>{!searching && people.map(person=><PersonRow key={person.id} person={person} onToggle={toggleFollow} onOpenProfile={(p)=>{onClose();onOpenProfile?.(p)}}/>)}</div>
       </div>
     </div>
   </div>;
 }
 
-export function Perfil({ me, blocked, setBlocked, setScreen, logout, tab, setTab, setThread, setComp, threads, ping, toast, unreadCount }) {
+export function Perfil({ me, blocked, setBlocked, setScreen, onOpenProfile, logout, tab, setTab, setThread, setComp, threads, ping, toast, unreadCount }) {
   const [followers, setFollowers] = useState([]);
   const [following, setFollowing] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
@@ -162,7 +162,7 @@ export function Perfil({ me, blocked, setBlocked, setScreen, logout, tab, setTab
     </main>
     <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} threads={threads}/>
     <Toast text={toast}/>
-    <ConnectionsSheet open={!!connections} onClose={()=>setConnections(null)} initialTab={connections} followers={followers} setFollowers={setFollowers} following={following} setFollowing={setFollowing} suggestions={suggestions} setSuggestions={setSuggestions} ping={ping}/>
-    <DiscoverySheet open={discover} onClose={()=>setDiscover(false)} suggestions={suggestions} setSuggestions={setSuggestions} followers={followers} setFollowers={setFollowers} following={following} setFollowing={setFollowing} ping={ping}/>
+    <ConnectionsSheet open={!!connections} onClose={()=>setConnections(null)} initialTab={connections} followers={followers} setFollowers={setFollowers} following={following} setFollowing={setFollowing} suggestions={suggestions} setSuggestions={setSuggestions} ping={ping} onOpenProfile={onOpenProfile}/>
+    <DiscoverySheet open={discover} onClose={()=>setDiscover(false)} suggestions={suggestions} setSuggestions={setSuggestions} followers={followers} setFollowers={setFollowers} following={following} setFollowing={setFollowing} ping={ping} onOpenProfile={onOpenProfile}/>
   </div>;
 }

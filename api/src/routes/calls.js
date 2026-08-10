@@ -112,6 +112,27 @@ callRoutes.post('/:callId/end', auth, h(async (req, res) => {
   res.json({ ended: true });
 }));
 
+// Um único pedido devolve estado + sinais novos. Isto reduz drasticamente o
+// polling por chamada e evita 429 quando dois telemóveis estão no mesmo Wi-Fi.
+callRoutes.get('/:callId/sync', auth, h(async (req, res) => {
+  const call = await callForUser(req.params.callId, req.user.id);
+  const rawAfter = req.query.after === undefined ? 0 : Number(req.query.after);
+  if (!Number.isSafeInteger(rawAfter) || rawAfter < 0) throw bad('Cursor de sinal inválido', 'bad_cursor');
+  const { rows: signals } = await q(
+    `SELECT id,sender_id,kind,payload,created_at
+     FROM call_signals
+     WHERE call_id=$1 AND sender_id<>$2 AND id>$3
+     ORDER BY id ASC LIMIT 200`,
+    [call.id, req.user.id, rawAfter]
+  );
+  res.json({
+    status: call.status,
+    answeredAt: call.answered_at,
+    endedAt: call.ended_at,
+    signals,
+  });
+}));
+
 callRoutes.get('/:callId', auth, h(async (req, res) => {
   res.json(await callForUser(req.params.callId, req.user.id));
 }));

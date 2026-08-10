@@ -37,7 +37,7 @@ after(async () => {
   await pool.end();
 });
 
-test('mensagem evolui de enviada para entregue e vista', async () => {
+test('mensagem evolui de enviada para entregue e vista e limpa a notificação ao abrir', async () => {
   const alice = await register('receipt.alice');
   const bob = await register('receipt.bob');
   const thread = await request('/messages/threads', { method:'POST', token:alice.token, body:{ userId:bob.user.id } });
@@ -47,6 +47,13 @@ test('mensagem evolui de enviada para entregue e vista', async () => {
   assert.equal(sent.response.status, 201);
   assert.equal(sent.data.delivered_at, null);
   assert.equal(sent.data.read_at, null);
+
+  let bobAlerts = await request('/notifications', { token:bob.token });
+  const messageAlert = bobAlerts.data.notifications.find(n=>n.type==='message');
+  assert.ok(messageAlert);
+  assert.equal(messageAlert.actor_id, alice.user.id);
+  assert.equal(messageAlert.data.threadId, thread.data.id);
+  assert.equal(messageAlert.read_at, null);
 
   const delivered = await request('/messages/delivered', { method:'POST', token:bob.token });
   assert.equal(delivered.response.status, 200);
@@ -63,6 +70,10 @@ test('mensagem evolui de enviada para entregue e vista', async () => {
   aliceHistory = await request(`/messages/threads/${thread.data.id}/messages`, { token:alice.token });
   message = aliceHistory.data.find(m=>m.id===sent.data.id);
   assert.ok(message.read_at);
+
+  bobAlerts = await request('/notifications', { token:bob.token });
+  const readAlert = bobAlerts.data.notifications.find(n=>n.id===messageAlert.id);
+  assert.ok(readAlert.read_at);
 });
 
 test('autor pode editar texto normal e apagar para todos; destinatário não pode editar', async () => {

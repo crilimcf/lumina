@@ -5,23 +5,29 @@ function createRingtone(audioRef) {
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     if (!AudioContext) return () => {};
-    if (!audioRef.current) audioRef.current = new AudioContext();
+    if (!audioRef.current || audioRef.current.state === 'closed') audioRef.current = new AudioContext();
     const ctx = audioRef.current;
     ctx.resume?.().catch(() => {});
     const play = () => {
-      if (ctx.state === 'closed') return;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = 720;
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.08, ctx.currentTime + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.55);
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.start(); osc.stop(ctx.currentTime + 0.58);
+      if (ctx.state !== 'running') { ctx.resume?.().catch(() => {}); return; }
+      const now = ctx.currentTime;
+      // Duplo toque curto, mais audível que um tom contínuo e semelhante a
+      // ringtone sem depender de um ficheiro que o Safari possa bloquear.
+      for (const offset of [0, .24]) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(740, now + offset);
+        osc.frequency.exponentialRampToValueAtTime(880, now + offset + .16);
+        gain.gain.setValueAtTime(0.0001, now + offset);
+        gain.gain.exponentialRampToValueAtTime(0.13, now + offset + .018);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + .2);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(now + offset); osc.stop(now + offset + .22);
+      }
     };
     play();
-    const timer = setInterval(play, 1700);
+    const timer = setInterval(play, 1450);
     return () => clearInterval(timer);
   } catch { return () => {}; }
 }
@@ -38,15 +44,19 @@ export function useCalls({ enabled, ping }) {
       try {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         if (!AudioContext) return;
-        if (!audioRef.current) audioRef.current = new AudioContext();
+        if (!audioRef.current || audioRef.current.state === 'closed') audioRef.current = new AudioContext();
         audioRef.current.resume?.().catch(() => {});
       } catch {}
     };
-    window.addEventListener('pointerdown', unlock, { once:true, passive:true });
-    window.addEventListener('touchstart', unlock, { once:true, passive:true });
+    // Não usamos `once`: no iOS um gesto pode acontecer durante uma transição
+    // em que o AudioContext ainda não fica running. Repetir resume é barato.
+    document.addEventListener('pointerdown', unlock, { passive:true, capture:true });
+    document.addEventListener('touchend', unlock, { passive:true, capture:true });
+    document.addEventListener('click', unlock, { passive:true, capture:true });
     return () => {
-      window.removeEventListener('pointerdown', unlock);
-      window.removeEventListener('touchstart', unlock);
+      document.removeEventListener('pointerdown', unlock, true);
+      document.removeEventListener('touchend', unlock, true);
+      document.removeEventListener('click', unlock, true);
     };
   }, [enabled]);
 
@@ -61,7 +71,7 @@ export function useCalls({ enabled, ping }) {
       } catch {}
     };
     check();
-    const timer = setInterval(check, 2000);
+    const timer = setInterval(check, 3000);
     const visible = () => { if (document.visibilityState === 'visible') check(); };
     document.addEventListener('visibilitychange', visible);
     return () => { alive=false; clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
@@ -88,6 +98,9 @@ export function useCalls({ enabled, ping }) {
     if (!incoming || busy) return;
     setBusy(true);
     try {
+      // O toque no botão Atender é um gesto válido para o iOS; aproveitamos
+      // esse mesmo gesto para garantir o contexto de áudio antes do WebRTC.
+      await audioRef.current?.resume?.().catch(() => {});
       const call = await api.calls.answer(incoming.id);
       setActiveCall({ call, caller:false, person:{ name:incoming.name, handle:incoming.handle, palette:incoming.palette, avatar_url:incoming.avatar_url } });
       setIncoming(null);

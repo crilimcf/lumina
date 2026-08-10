@@ -9,6 +9,7 @@ import { Entrada } from './screens/Entrada.jsx';
 import { Abertura } from './screens/Abertura.jsx';
 import { EditarPerfil } from './screens/EditarPerfil.jsx';
 import { Amigos } from './screens/Amigos.jsx';
+import { PublicProfile } from './screens/PublicProfile.jsx';
 import { Conversas } from './screens/Conversas.jsx';
 import { Perfil } from './screens/Perfil.jsx';
 import { Feed } from './screens/Feed.jsx';
@@ -36,6 +37,7 @@ export default function App() {
   const [toast, setToast] = useState('');
   const [blocked, setBlocked] = useState([]);
   const [screen, setScreen] = useState(null);
+  const [profileHandle, setProfileHandle] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
   const ping = useCallback((text) => {
@@ -58,6 +60,7 @@ export default function App() {
         setMe(null);
         setTab('feed');
         setUnreadCount(0);
+        setProfileHandle(null);
         messageState.setThread(null);
         ping('A sessão expirou. Entra outra vez.');
       }
@@ -109,9 +112,24 @@ export default function App() {
     api.auth.logout().catch(()=>{});
     setMe(null);
     setUnreadCount(0);
+    setProfileHandle(null);
     setTab('feed');
     messageState.setThread(null);
   };
+
+  const openProfile = useCallback((personOrHandle) => {
+    const handle = typeof personOrHandle === 'string' ? personOrHandle : personOrHandle?.handle;
+    if (!handle || handle === meRef.current?.handle) return;
+    setProfileHandle(handle);
+    setScreen('public-profile');
+  }, []);
+
+  const messageFromProfile = useCallback(async (person) => {
+    await messageState.openContact(person);
+    setScreen(null);
+    setProfileHandle(null);
+    setTab('dms');
+  }, [messageState.openContact]);
 
   const withCalls = (content) => <>
     {content}
@@ -129,7 +147,8 @@ export default function App() {
   if (screen==='radar-admin' && me.is_staff) return withCalls(<RadarAdmin onBack={()=>setScreen(null)} ping={ping}/>);
   if (screen==='TERMOS'||screen==='PRIVACIDADE') return withCalls(<Legal page={screen} onBack={()=>setScreen(null)}/>);
   if (screen==='editar-perfil') return withCalls(<EditarPerfil me={me} onSave={setMe} onBack={()=>setScreen(null)} ping={ping}/>);
-  if (screen==='amigos') return withCalls(<Amigos onBack={()=>setScreen(null)} ping={ping}/>);
+  if (screen==='amigos') return withCalls(<Amigos onBack={()=>setScreen(null)} ping={ping} onOpenProfile={openProfile}/>);
+  if (screen==='public-profile' && profileHandle) return withCalls(<PublicProfile handle={profileHandle} onBack={()=>{setProfileHandle(null);setScreen(null)}} onMessage={messageFromProfile} ping={ping}/>);
 
   const { comp, ...composerWithoutComp } = composerState;
   const navProps = {
@@ -148,7 +167,7 @@ export default function App() {
   else if (tab==='rooms') activeScreen=<Salas me={me} {...navProps}/>;
   else if (tab==='promos') activeScreen=<Promocoes me={me} setScreen={setScreen} {...navProps}/>;
   else if (tab==='alerts') activeScreen=<Atividade {...navProps} onUnreadChange={setUnreadCount}/>;
-  else if (tab==='me') activeScreen=<Perfil me={me} blocked={blocked} setBlocked={setBlocked} setScreen={setScreen} logout={logout} tab={tab} setTab={setTab} setThread={messageState.setThread} setComp={composerState.setComp} threads={messageState.threads} ping={ping} toast={toast} unreadCount={unreadCount}/>;
+  else if (tab==='me') activeScreen=<Perfil me={me} blocked={blocked} setBlocked={setBlocked} setScreen={setScreen} onOpenProfile={openProfile} logout={logout} tab={tab} setTab={setTab} setThread={messageState.setThread} setComp={composerState.setComp} threads={messageState.threads} ping={ping} toast={toast} unreadCount={unreadCount}/>;
   else activeScreen=<Feed me={me} tab={tab} setTab={setTab} setScreen={setScreen} {...feedState} report={report} comp={null} {...composerWithoutComp} threads={messageState.threads} setThread={messageState.setThread} ping={ping} toast={toast} unreadCount={unreadCount} {...momentState}/>;
 
   return withCalls(<>

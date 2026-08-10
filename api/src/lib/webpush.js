@@ -126,13 +126,13 @@ function declarativePayload(notification, badge = 0) {
   const item = notification || {};
   return {
     web_push: 8030,
+    ...(badge > 0 ? { app_badge:String(Math.min(999, badge)) } : {}),
     notification: {
       title: String(item.title || 'Lumina').slice(0, 120),
       body: String(item.body || 'Tens uma novidade.').slice(0, 220),
       navigate: absoluteNavigation(item.url),
       silent: false,
       tag: String(item.tag || 'lumina:activity').slice(0, 180),
-      ...(badge > 0 ? { app_badge:String(Math.min(999, badge)) } : {}),
     },
   };
 }

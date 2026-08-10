@@ -1,0 +1,131 @@
+name: Apply push badge core patch
+
+on:
+  push:
+    branches: [fix/notifications-badge-call-audio]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/notifications-badge-call-audio
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Patch push and badge
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          def rep(path, old, new):
+              p=Path(path); text=p.read_text(); count=text.count(old)
+              if count != 1: raise SystemExit(f'{path}: expected {old[:80]!r}, got {count}')
+              p.write_text(text.replace(old,new,1))
+
+          def sub(path, pattern, new):
+              p=Path(path); text=p.read_text(); out,count=re.subn(pattern,lambda _m:new,text,count=1,flags=re.S)
+              if count != 1: raise SystemExit(f'{path}: regex miss {pattern[:80]!r}')
+              p.write_text(out)
+
+          path='api/src/lib/webpush.js'
+          sub(path,r"function declarativePayload\(notification, badge = 0\) \{.*?\n\}\n\nasync function latestNotificationFor", """function addNotificationId(value, notificationId) {
+            const url = new URL(absoluteNavigation(value));
+            if (notificationId) url.searchParams.set('notification', String(notificationId));
+            return url.toString();
+          }
+
+          export function declarativePayload(notification, badge = 0) {
+            const item = notification || {};
+            const appBadge = Math.max(0, Math.min(999, Number(badge) || 0));
+            return {
+              web_push: 8030,
+              app_badge: String(appBadge),
+              notification: {
+                title: String(item.title || 'Lumina').slice(0, 120),
+                body: String(item.body || 'Tens uma novidade.').slice(0, 220),
+                navigate: absoluteNavigation(item.url),
+                silent: false,
+                tag: String(item.tag || 'lumina:activity').slice(0, 180),
+              },
+            };
+          }
+
+          async function latestNotificationFor""")
+          rep(path,"url:`/?tab=dms&call=${encodeURIComponent(item.data?.callId || '')}`","url:addNotificationId(`/?tab=dms&call=${encodeURIComponent(item.data?.callId || '')}`, item.id)")
+          rep(path,"url:'/?tab=dms',","url:addNotificationId('/?tab=dms', item.id),")
+          sub(path,r"\s{2}const latest = options\.notification\s*\n\s*\? \{ notification:options\.notification, badge:options\.badge \|\| 1, callId:options\.callId \|\| null \}\s*\n\s*: await latestNotificationFor\(userId\);\s*\n\s*const pushPayload = latest\.notification \? declarativePayload\(latest\.notification, latest\.badge\) : null;", """  let latest;
+            if (options.notification) {
+              const countResult = await q('SELECT count(*)::int AS count FROM notifications WHERE user_id=$1 AND read_at IS NULL', [userId]);
+              let notification = options.notification;
+              if (options.callId) {
+                const { rows: noticeRows } = await q(
+                  `SELECT id FROM notifications WHERE user_id=$1 AND type='incoming_call' AND data->>'callId'=$2 ORDER BY created_at DESC LIMIT 1`,
+                  [userId, String(options.callId)]
+                );
+                if (noticeRows[0]?.id) notification = { ...notification, url:addNotificationId(notification.url, noticeRows[0].id) };
+              }
+              latest = { notification, badge:countResult.rows[0]?.count || 0, callId:options.callId || null };
+            } else latest = await latestNotificationFor(userId);
+            const pushPayload = latest.notification ? declarativePayload(latest.notification, latest.badge) : null;""")
+
+          p=Path('api/src/routes/calls.js'); text=p.read_text().replace("    badge:1,\n",'',1); p.write_text(text)
+
+          path='web/public/sw.js'
+          rep(path,"self.addEventListener('push', (event) => {", """async function syncAppBadge(value) {
+            const count = Number(value);
+            if (!Number.isFinite(count)) return;
+            try {
+              if (count > 0 && 'setAppBadge' in self.navigator) await self.navigator.setAppBadge(Math.min(999, Math.floor(count)));
+              else if (count <= 0 && 'clearAppBadge' in self.navigator) await self.navigator.clearAppBadge();
+            } catch {}
+          }
+
+          self.addEventListener('push', (event) => {""")
+          sub(path,r"\s{4}let notification = null;\s*\n\s*if \(direct\?\.web_push === 8030 && direct\?\.notification\?\.title\) \{\s*\n\s*notification = \{", """    let notification = null;
+            let badgeCount = null;
+            if (direct?.web_push === 8030 && direct?.notification?.title) {
+              badgeCount = Number(direct.app_badge);
+              notification = {""")
+          sub(path,r"\s*if \(response\.ok\) notification = \(await response\.json\(\)\)\?\.notification \|\| null;", """      if (response.ok) {
+                const payload = await response.json();
+                notification = payload?.notification || null;
+                badgeCount = Number(payload?.unread);
+              }""")
+          sub(path,r"\s{4}await self\.registration\.showNotification\(notification\.title \|\| 'Lumina', \{.*?requireInteraction: notification\.type === 'incoming_call',\s*\n\s*\}\);", """    await Promise.all([
+              syncAppBadge(badgeCount),
+              self.registration.showNotification(notification.title || 'Lumina', {
+                body: notification.body,
+                tag: notification.tag,
+                icon: '/icon-192.png',
+                badge: '/icon-192.png',
+                data: { url: notification.url || '/?tab=alerts' },
+                renotify: true,
+                silent: false,
+                requireInteraction: notification.type === 'incoming_call',
+              }),
+            ]);""")
+
+          p=Path('api/test/webpush-encryption.test.js'); text=p.read_text().replace("import { encryptWebPushPayload } from '../src/lib/webpush.js';","import { declarativePayload, encryptWebPushPayload } from '../src/lib/webpush.js';",1); text += """
+
+          test('declarative Web Push envia app_badge zero no nível superior', () => {
+            const payload = declarativePayload({ title:'Lumina', body:'Teste', url:'/?tab=alerts' }, 0);
+            assert.equal(payload.app_badge, '0');
+            assert.equal(payload.notification.app_badge, undefined);
+          });
+          """; p.write_text(text)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add api/src/lib/webpush.js api/src/routes/calls.js api/test/webpush-encryption.test.js web/public/sw.js
+          git commit -m "fix: keep push badge aligned with unread notifications"
+          git push origin HEAD:fix/notifications-badge-call-audio

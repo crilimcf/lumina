@@ -102,6 +102,55 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
     }
   };
 
+  /**
+   * Dock inferior: esconde ao deslizar para baixo e reaparece imediatamente ao
+   * deslizar para cima. O listener usa capture porque vários ecrãs (Feed,
+   * Radar, Salas, listas) podem ter o seu próprio contentor de scroll no iOS.
+   */
+  const scrollPositions = new WeakMap();
+  let dockHidden = false;
+  let lastDockChange = 0;
+  const setDockHidden = (hidden) => {
+    if (hidden === dockHidden) return;
+    dockHidden = hidden;
+    lastDockChange = performance.now();
+    const dock = document.querySelector('.nav');
+    if (!dock) return;
+    dock.style.transition = 'transform .24s cubic-bezier(.2,.8,.2,1), opacity .2s ease';
+    dock.style.transform = hidden ? 'translate3d(0, calc(100% + 34px), 0)' : 'translate3d(0,0,0)';
+    dock.style.opacity = hidden ? '0' : '1';
+    dock.style.pointerEvents = hidden ? 'none' : 'auto';
+  };
+
+  const scrollTopFor = (target) => {
+    if (target === document || target === document.documentElement || target === document.body) {
+      return window.scrollY || document.documentElement.scrollTop || 0;
+    }
+    return Number(target?.scrollTop || 0);
+  };
+
+  const handleAnyScroll = (event) => {
+    const target = event.target === document ? document : event.target;
+    if (!target) return;
+    const current = scrollTopFor(target);
+    const previous = scrollPositions.get(target) ?? current;
+    scrollPositions.set(target, current);
+    const delta = current - previous;
+
+    if (current < 36) {
+      setDockHidden(false);
+      return;
+    }
+    if (Math.abs(delta) < 3) return;
+    if (performance.now() - lastDockChange < 90) return;
+    if (delta > 0) setDockHidden(true);
+    else setDockHidden(false);
+  };
+
+  document.addEventListener('scroll', handleAnyScroll, true);
+  window.addEventListener('scroll', handleAnyScroll, { passive:true });
+  window.addEventListener('pageshow', () => setDockHidden(false));
+
   window.addEventListener('load', () => {
     retireLegacyPwaState().catch(() => {});
     checkForNewDeployment();
@@ -111,7 +160,10 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
   // navegação. Ao voltar à Lumina, verificamos sempre a produção antes de o
   // utilizador continuar numa versão antiga.
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') checkForNewDeployment();
+    if (document.visibilityState === 'visible') {
+      setDockHidden(false);
+      checkForNewDeployment();
+    }
   });
   window.addEventListener('pageshow', checkForNewDeployment);
   window.addEventListener('focus', checkForNewDeployment);

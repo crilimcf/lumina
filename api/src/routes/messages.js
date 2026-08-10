@@ -131,7 +131,7 @@ messageRoutes.post('/threads/:threadId/messages', auth, h(async (req, res) => {
   }
   if (kind === 'media') {
     if (!mediaUrl) throw bad('Falta o ficheiro','media_required');
-    if (!['image','video'].includes(mediaType)) throw bad('Tipo de media inválido','bad_media_type');
+    if (mediaType !== null && !['image','video'].includes(mediaType)) throw bad('Tipo de media inválido','bad_media_type');
     if (body) throw bad('Mensagem de media não leva texto');
   }
   if (mode === 'once' && kind !== 'media') throw bad('O modo uma vez é só para foto ou vídeo');
@@ -139,17 +139,19 @@ messageRoutes.post('/threads/:threadId/messages', auth, h(async (req, res) => {
   await assertParticipant(req.params.threadId, req.user.id);
 
   const message = await tx(async (c) => {
+    let resolvedMediaType = mediaType;
     if (mediaUrl) {
       const claimed = await claimUpload(mediaUrl, req.user.id, 'message', (text, params) => c.query(text, params), { allowVideo: true });
       if (!claimed) throw bad('Media não verificada ou já utilizada','unconfirmed_upload');
       const actualType = String(claimed.mime).startsWith('video/') ? 'video' : 'image';
-      if (actualType !== mediaType) throw bad('O tipo do ficheiro não corresponde ao envio','bad_media_type');
+      if (resolvedMediaType && actualType !== resolvedMediaType) throw bad('O tipo do ficheiro não corresponde ao envio','bad_media_type');
+      resolvedMediaType = actualType;
     }
     const { rows } = await c.query(
       `INSERT INTO messages (thread_id,sender_id,kind,mode,body,media_url,media_type,palette)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
        RETURNING id,sender_id,kind,mode,body,media_url,media_type,palette,created_at,delivered_at,read_at,edited_at,deleted_at`,
-      [req.params.threadId,req.user.id,kind,mode,body,mediaUrl,mediaType,palette]
+      [req.params.threadId,req.user.id,kind,mode,body,mediaUrl,resolvedMediaType,palette]
     );
     return rows[0];
   });

@@ -17,6 +17,74 @@ function assertRssType(kind, defaultType) {
   }
 }
 
+// Se não houver tendências editoriais explícitas, o Radar constrói tendências
+// reais a partir de palavras que aparecem repetidamente em notícias recentes e
+// em várias fontes. Não inventa histórias: cada tendência aponta para a notícia
+// recente que a sustenta e informa quantas notícias/fontes a estão a mencionar.
+radarSyncRoutes.get('/', auth, h(async (req, res, next) => {
+  if (String(req.query.type || '').toLowerCase() !== 'trend') return next();
+
+  const explicit = await q(
+    `SELECT 1 FROM radar_items
+     WHERE type='trend' AND status='published' AND published_at<=now()
+       AND (ends_at IS NULL OR ends_at>now()) LIMIT 1`
+  );
+  if (explicit.rows[0]) return next();
+
+  const asked = Number(req.query.limit);
+  const limit = Number.isInteger(asked) && asked > 0 ? Math.min(asked, 30) : 20;
+  const { rows } = await q(
+    `WITH recent AS (
+       SELECT ri.id,ri.title,ri.summary,ri.image_url,ri.external_url,ri.source_id,
+              COALESCE(ri.source_name,rs.name) AS source_name,ri.published_at
+       FROM radar_items ri
+       LEFT JOIN radar_sources rs ON rs.id=ri.source_id
+       WHERE ri.type='news' AND ri.status='published'
+         AND ri.published_at BETWEEN now()-interval '40 hours' AND now()
+     ), tokens AS (
+       SELECT r.*,
+              lower(regexp_replace(word, '[^[:alpha:]-]', '', 'g')) AS token
+       FROM recent r,
+            LATERAL regexp_split_to_table(r.title, E'\\s+') AS word
+     ), ranked AS (
+       SELECT token,
+              count(*)::int AS mentions,
+              count(DISTINCT source_id)::int AS sources,
+              max(published_at) AS latest,
+              (array_agg(title ORDER BY published_at DESC))[1] AS latest_title,
+              (array_agg(summary ORDER BY published_at DESC))[1] AS latest_summary,
+              (array_agg(image_url ORDER BY published_at DESC))[1] AS image_url,
+              (array_agg(external_url ORDER BY published_at DESC))[1] AS external_url,
+              (array_agg(source_name ORDER BY published_at DESC))[1] AS source_name
+       FROM tokens
+       WHERE char_length(token) BETWEEN 5 AND 28
+         AND token NOT IN (
+           'sobre','entre','depois','antes','desde','ainda','muito','muita','muitos','muitas','mais','menos',
+           'como','para','pela','pelo','pelas','pelos','este','esta','estes','estas','aquele','aquela',
+           'portugal','português','portuguesa','notícias','noticia','mundo','país','video','vídeo','agora',
+           'ontem','hoje','amanhã','também','quando','onde','porque','contra','durante','primeiro','segunda',
+           'presidente','governo','ministro','disse','afirma','após','nova','novo','novas','novos'
+         )
+       GROUP BY token
+       HAVING count(*) >= 2 AND count(DISTINCT source_id) >= 2
+     )
+     SELECT 'trend:'||md5(token||':'||date_trunc('hour',latest)::text) AS id,
+            'Em alta: '||upper(left(token,1))||substring(token from 2) AS title,
+            mentions||' notícias de '||sources||' fontes estão a falar deste tema nas últimas horas.' AS summary,
+            latest_summary AS body,
+            image_url,external_url,source_name,NULL::text AS source_url,
+            false AS sponsored,NULL::text AS sponsor_label,ARRAY[token]::text[] AS tags,
+            'Portugal'::text AS region,NULL::timestamptz AS starts_at,NULL::timestamptz AS ends_at,
+            latest AS published_at,LEAST(100,mentions*10+sources*5)::int AS priority,'trend'::text AS type
+     FROM ranked
+     ORDER BY sources DESC,mentions DESC,latest DESC
+     LIMIT $1`,
+    [limit]
+  );
+
+  res.json({ items: rows, nextCursor: null, derived: true });
+}));
+
 async function sourceStatus(_req, res) {
   const { rows } = await q(
     `SELECT id, name, kind, url, default_type, active, trusted, config,

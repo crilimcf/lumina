@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { q } from '../db.js';
 import { auth, h, bad, notFound } from '../middleware/auth.js';
-import { vapidPublicKey } from '../lib/webpush.js';
+import { validPushEndpoint, vapidPublicKey } from '../lib/webpush.js';
 
 export const notificationRoutes = Router();
 
@@ -97,10 +97,9 @@ notificationRoutes.get('/push/status', auth, h(async (req, res) => {
 
 notificationRoutes.post('/push/subscribe', auth, h(async (req, res) => {
   const endpoint = String(req.body?.endpoint || '').trim();
-  let parsed;
-  try { parsed = new URL(endpoint); }
-  catch { throw bad('Subscrição push inválida', 'bad_push_subscription'); }
-  if (parsed.protocol !== 'https:' || endpoint.length > 4000) throw bad('Subscrição push inválida', 'bad_push_subscription');
+  if (endpoint.length > 4000 || !validPushEndpoint(endpoint)) {
+    throw bad('Subscrição push inválida', 'bad_push_subscription');
+  }
   const keys = req.body?.keys || {};
   const p256dh = keys.p256dh ? String(keys.p256dh).slice(0, 500) : null;
   const authKey = keys.auth ? String(keys.auth).slice(0, 500) : null;

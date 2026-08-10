@@ -91,8 +91,12 @@ app.use(['/auth/register', '/api/auth/register'], rateLimit({ windowMs: 60 * 60_
 app.use(['/account/forgot-password', '/api/account/forgot-password'], rateLimit({ windowMs: 60 * 60_000, limit: 5, skip: skipInTests }));
 
 const releaseSha = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GITHUB_SHA || '';
+const callRelaySource = env.TURN_CLOUDFLARE_KEY_ID && env.TURN_CLOUDFLARE_API_TOKEN
+  ? 'cloudflare'
+  : env.TURN_URLS ? 'managed' : 'none';
 const health = async (_req, res) => {
   if (releaseSha) res.setHeader('X-Lumina-Release', releaseSha);
+  res.setHeader('X-Lumina-Call-Relay', callRelaySource);
   try {
     const schemaVersion = await getAppliedSchemaVersion();
     const { rows } = await pool.query(
@@ -108,6 +112,9 @@ const health = async (_req, res) => {
          (SELECT string_agg(name, ' | ' ORDER BY name) FROM radar_sources
            WHERE active=true AND (kind='rss' OR (kind='partner' AND config->>'adapter'='headline-links'))
              AND last_fetch_error IS NOT NULL) AS failing_names,
+         (SELECT string_agg(name || ': ' || left(last_fetch_error,120), ' | ' ORDER BY name) FROM radar_sources
+           WHERE active=true AND (kind='rss' OR (kind='partner' AND config->>'adapter'='headline-links'))
+             AND last_fetch_error IS NOT NULL) AS failing_details,
          (SELECT count(*)::int FROM radar_items WHERE status='published' AND published_at >= now() - interval '24 hours') AS items_24h,
          (SELECT CASE
             WHEN bool_or(last_fetch_error ILIKE '%Timeout ao resolver DNS%') THEN 'dns_timeout'
@@ -133,6 +140,7 @@ const health = async (_req, res) => {
     res.setHeader('X-Lumina-Radar-Items-24h', String(radar.items_24h ?? 0));
     if (radar.error_class) res.setHeader('X-Lumina-Radar-Error-Class', String(radar.error_class));
     if (radar.failing_names) res.setHeader('X-Lumina-Radar-Failing-Sources', encodeURIComponent(String(radar.failing_names)));
+    if (radar.failing_details) res.setHeader('X-Lumina-Radar-Failure-Details', encodeURIComponent(String(radar.failing_details)));
     res.json({ ok: true });
   } catch {
     res.status(503).json({ ok: false });

@@ -1,12 +1,3 @@
-/** Cliente único da API Lumina. */
-const BASE = import.meta.env.VITE_API_URL || '/api';
-const SAFE_METHODS = new Set(['GET', 'HEAD']);
-const REQUEST_TIMEOUT_MS = 12_000;
-
-let csrfToken = null;
-let unauthorizedHandler = () => {};
-export const onUnauthorized = (fn) => { unauthorizedHandler = fn; };
-
 export class ApiError extends Error {
   constructor(status, message, code) {
     super(message);
@@ -15,103 +6,83 @@ export class ApiError extends Error {
   }
 }
 
-async function call(path, { method = 'GET', body, auth = true } = {}) {
-  const headers = {};
-  if (body !== undefined) headers['content-type'] = 'application/json';
-  if (!SAFE_METHODS.has(method) && csrfToken) headers['x-csrf-token'] = csrfToken;
+let csrfToken = null;
+let unauthorizedHandler = null;
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  let res;
-  try {
-    res = await fetch(BASE + path, {
-      method, headers, credentials: 'include', signal: controller.signal,
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-  } catch (error) {
-    if (error?.name === 'AbortError') {
-      throw new ApiError(0, 'A Lumina demorou demasiado a responder. Tenta novamente.', 'timeout');
-    }
-    throw new ApiError(0, 'Sem ligação. Verifica a internet.', 'offline');
-  } finally {
-    clearTimeout(timeout);
+export function onUnauthorized(handler) {
+  unauthorizedHandler = handler;
+}
+
+function updateCsrfFromResponse(response) {
+  const token = response.headers.get('x-csrf-token');
+  if (token) csrfToken = token;
+}
+
+async function call(path, options = {}) {
+  const method = options.method || 'GET';
+  const headers = { ...(options.headers || {}) };
+  if (options.body !== undefined && !headers['content-type']) headers['content-type'] = 'application/json';
+  if (!['GET','HEAD','OPTIONS'].includes(method) && csrfToken) headers['x-csrf-token'] = csrfToken;
+  const response = await fetch(`/api${path}`, {
+    method,
+    credentials:'include',
+    cache:'no-store',
+    headers,
+    body: options.body === undefined ? undefined : (headers['content-type']==='application/json' ? JSON.stringify(options.body) : options.body),
+  });
+  updateCsrfFromResponse(response);
+  let data = null;
+  try { data = await response.json(); } catch {}
+  if (!response.ok) {
+    const error = new ApiError(response.status, data?.error || 'Erro de comunicação', data?.code);
+    if (response.status === 401) unauthorizedHandler?.(error);
+    throw error;
   }
-  if (res.status === 401 && auth) {
-    const data = await res.json().catch(() => ({}));
-    unauthorizedHandler();
-    throw new ApiError(401, data.error || 'A sessão expirou', data.code || 'unauthorized');
-  }
-  if (res.status === 204) return null;
-  const data = await res.json().catch(() => ({}));
-  if (typeof data?.csrf === 'string') csrfToken = data.csrf;
-  if (!res.ok) throw new ApiError(res.status, data.error || 'Alguma coisa correu mal', data.code);
   return data;
 }
 
-const followAction = (id) => call(`/users/${id}/follow`, { method: 'POST' });
+async function followAction(id) {
+  try { return await call(`/users/${id}/follow`, { method:'POST' }); }
+  catch (error) {
+    if (error.status !== 409) throw error;
+    return call(`/users/${id}/follow`, { method:'DELETE' });
+  }
+}
 
 export const api = {
   auth: {
-    register: (b) => call('/auth/register', { method: 'POST', body: b, auth: false }),
-    login: (b) => call('/auth/login', { method: 'POST', body: b, auth: false }),
     me: () => call('/auth/me'),
-    update: (b) => call('/auth/me', { method: 'PATCH', body: b }),
-    changePassword: (b) => call('/auth/change-password', { method: 'POST', body: b }),
-    logout: async () => { const r = await call('/auth/logout', { method: 'POST' }); csrfToken = null; return r; },
+    login: (body) => call('/auth/login', { method:'POST', body }),
+    register: (body) => call('/auth/register', { method:'POST', body }),
+    logout: () => call('/auth/logout', { method:'POST' }),
   },
-  account: {
-    forgot: (email) => call('/account/forgot-password', { method: 'POST', body: { email }, auth: false }),
-    reset: (b) => call('/account/reset-password', { method: 'POST', body: b, auth: false }),
-    async download() {
-      const res = await fetch(`${BASE}/account/export`, { credentials: 'include' });
-      if (!res.ok) throw new ApiError(res.status, 'Nao foi possivel descarregar');
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = 'lumina-os-meus-dados.json'; a.click();
-      URL.revokeObjectURL(url);
-    },
-    remove: () => call('/account/delete', { method: 'POST' }),
-    cancelRemoval: () => call('/account/delete/cancel', { method: 'POST' }),
-  },
-  posts: {
-    feed: (cursor) => call(`/posts/feed${cursor ? `?before=${encodeURIComponent(cursor)}` : ''}`),
-    promotions: (cursor) => call(`/posts/promotions${cursor ? `?before=${encodeURIComponent(cursor)}` : ''}`),
-    create: (b) => call('/posts', { method: 'POST', body: b }),
-    edit: (id, body) => call(`/posts/${id}`, { method: 'PATCH', body: { body } }),
-    react: (id, kind) => call(`/posts/${id}/reactions/${kind}`, { method: 'POST' }),
-    repost: (id) => call(`/posts/${id}/repost`, { method: 'POST' }),
+  feed: {
+    list: () => call('/posts'),
+    create: (body) => call('/posts', { method:'POST', body }),
+    remove: (id) => call(`/posts/${id}`, { method:'DELETE' }),
     comments: (id) => call(`/posts/${id}/comments`),
-    comment: (id, body) => call(`/posts/${id}/comments`, { method: 'POST', body: { body } }),
-    editComment: (postId, commentId, body) => call(`/posts/${postId}/comments/${commentId}`, { method: 'PATCH', body: { body } }),
-    removeComment: (postId, commentId) => call(`/posts/${postId}/comments/${commentId}`, { method: 'DELETE' }),
-    remove: (id) => call(`/posts/${id}`, { method: 'DELETE' }),
-  },
-  radar: {
-    list: ({ type, cursor, limit } = {}) => {
-      const params = new URLSearchParams();
-      if (type) params.set('type', type);
-      if (cursor) params.set('before', cursor);
-      if (limit) params.set('limit', String(limit));
-      const suffix = params.size ? `?${params.toString()}` : '';
-      return call(`/radar${suffix}`);
-    },
-    manage: (status) => call(`/radar/manage${status ? `?status=${encodeURIComponent(status)}` : ''}`),
-    create: (body) => call('/radar', { method: 'POST', body }),
-    edit: (id, body) => call(`/radar/${id}`, { method: 'PATCH', body }),
-    archive: (id) => call(`/radar/${id}`, { method: 'DELETE' }),
-    sources: () => call('/radar/sources'),
-    createSource: (body) => call('/radar/sources', { method: 'POST', body }),
-    editSource: (id, body) => call(`/radar/sources/${id}`, { method: 'PATCH', body }),
+    comment: (id, body) => call(`/posts/${id}/comments`, { method:'POST', body:{ body } }),
+    like: (id) => call(`/posts/${id}/like`, { method:'POST' }),
   },
   messages: {
     threads: () => call('/messages/threads'),
-    openThread: (userId) => call('/messages/threads', { method: 'POST', body: { userId } }),
-    list: (tid) => call(`/messages/threads/${tid}/messages`),
-    send: (tid, b) => call(`/messages/threads/${tid}/messages`, { method: 'POST', body: b }),
-    delivered: () => call('/messages/delivered', { method: 'POST' }),
-    edit: (mid, body) => call(`/messages/${mid}`, { method: 'PATCH', body: { body } }),
-    remove: (mid) => call(`/messages/${mid}`, { method: 'DELETE' }),
-    reveal: (mid) => call(`/messages/${mid}/open`, { method: 'POST' }),
+    thread: (id) => call(`/messages/threads/${id}`),
+    createThread: (userId) => call('/messages/threads', { method:'POST', body:{ userId } }),
+    send: (threadId, body) => call(`/messages/threads/${threadId}`, { method:'POST', body }),
+    edit: (threadId, messageId, body) => call(`/messages/threads/${threadId}/${messageId}`, { method:'PATCH', body:{ body } }),
+    remove: (threadId, messageId) => call(`/messages/threads/${threadId}/${messageId}`, { method:'DELETE' }),
+    markRead: (threadId) => call(`/messages/threads/${threadId}/read`, { method:'POST' }),
+    unread: () => call('/messages/unread-count'),
+  },
+  radar: {
+    feed: (params = {}) => {
+      const query = new URLSearchParams();
+      for (const [key,value] of Object.entries(params)) if (value !== undefined && value !== null && value !== '') query.set(key,String(value));
+      return call(`/radar${query.size ? `?${query}` : ''}`);
+    },
+    sources: () => call('/radar/sources'),
+    sourceSync: (id) => call(`/radar/sources/${id}/sync`, { method:'POST' }),
+    sync: () => call('/radar/sync', { method:'POST' }),
   },
   rooms: {
     list: () => call('/rooms'),
@@ -141,6 +112,7 @@ export const api = {
   notifications: {
     list: (cursor) => call(`/notifications${cursor ? `?before=${encodeURIComponent(cursor)}` : ''}`),
     unread: () => call('/notifications/unread-count'),
+    pushStatus: () => call('/notifications/push/status'),
     read: (id) => call(`/notifications/${id}/read`, { method: 'POST' }),
     readAll: () => call('/notifications/read-all', { method: 'POST' }),
   },

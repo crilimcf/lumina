@@ -42,7 +42,7 @@ test('dock global é compacto, baixo, esconde ao descer e volta ao subir em toda
   await expect(nav).toBeVisible();
   const box=await nav.boundingBox();
   expect(box?.width).toBeLessThanOrEqual(350);
-  expect(box?.height).toBeLessThanOrEqual(58);
+  expect(box?.height).toBeLessThanOrEqual(54);
   const bottom=await nav.evaluate(el=>parseFloat(getComputedStyle(el).bottom));
   expect(bottom).toBeLessThanOrEqual(8);
 

@@ -92,10 +92,19 @@ test('um bloqueio posterior corta chamada, incoming e signaling', async () => {
   });
   assert.equal(call.response.status, 201, JSON.stringify(call.data));
   assert.equal(call.data.callee_push_ready, false);
+  assert.equal(call.data.push_attempted, 0);
+  assert.equal(call.data.push_accepted, 0);
 
   const incomingBefore = await request('/calls/incoming', { token: callee.token });
   assert.equal(incomingBefore.response.status, 200);
   assert.equal(incomingBefore.data.id, call.data.id);
+  assert.ok(incomingBefore.data.callee_seen_at);
+
+  const callerSync = await request(`/calls/${call.data.id}/sync?after=0`, { token: caller.token });
+  assert.equal(callerSync.response.status, 200, JSON.stringify(callerSync.data));
+  assert.ok(callerSync.data.calleeSeenAt, 'o chamador deve saber que o outro dispositivo viu a chamada');
+  assert.equal(callerSync.data.pushAttempted, 0);
+  assert.equal(callerSync.data.pushAccepted, 0);
 
   const blocked = await request(`/users/${caller.user.id}/block`, {
     method: 'POST', token: callee.token,

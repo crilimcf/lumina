@@ -108,6 +108,9 @@ export const api = {
     openThread: (userId) => call('/messages/threads', { method: 'POST', body: { userId } }),
     list: (tid) => call(`/messages/threads/${tid}/messages`),
     send: (tid, b) => call(`/messages/threads/${tid}/messages`, { method: 'POST', body: b }),
+    delivered: () => call('/messages/delivered', { method: 'POST' }),
+    edit: (mid, body) => call(`/messages/${mid}`, { method: 'PATCH', body: { body } }),
+    remove: (mid) => call(`/messages/${mid}`, { method: 'DELETE' }),
     reveal: (mid) => call(`/messages/${mid}/open`, { method: 'POST' }),
   },
   rooms: {
@@ -144,7 +147,7 @@ export const api = {
   twoFactor: {
     status: () => call('/2fa/status'),
     setup: (password) => call('/2fa/setup', { method: 'POST', body: { password } }),
-    enable: (code) => call('/2fa/enable', { method: 'POST', body: { code } }),
+    enable: (code) => call('/2fa/enable', { method: 'POST' }),
     disable: (password) => call('/2fa/disable', { method: 'POST', body: { password } }),
   },
   sessions: {

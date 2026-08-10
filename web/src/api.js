@@ -147,7 +147,7 @@ export const api = {
   twoFactor: {
     status: () => call('/2fa/status'),
     setup: (password) => call('/2fa/setup', { method: 'POST', body: { password } }),
-    enable: (code) => call('/2fa/enable', { method: 'POST' }),
+    enable: (code) => call('/2fa/enable', { method: 'POST', body: { code } }),
     disable: (password) => call('/2fa/disable', { method: 'POST', body: { password } }),
   },
   sessions: {
@@ -190,6 +190,7 @@ export const api = {
     view: (id) => call(`/moments/${id}/view`, { method: 'POST' }),
     react: (id, kind) => call(`/moments/${id}/reactions/${kind}`, { method: 'POST' }),
     viewers: (id) => call(`/moments/${id}/viewers`),
+    interactions: (id) => call(`/moments/${id}/interactions`),
     remove: (id) => call(`/moments/${id}`, { method: 'DELETE' }),
   },
   async upload(file) {

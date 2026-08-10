@@ -4,6 +4,7 @@ import { api } from '../../api.js';
 import { Orb } from '../../ui.jsx';
 import { fetchIceConfig, syncCall } from './callSync.js';
 import { callCopy } from './callCopy.js';
+import { preferCallReceiver, prepareCallAudioSession, resetCallAudioSession } from './audioSession.js';
 
 const FALLBACK_ICE_SERVERS = [{
   urls: [
@@ -49,14 +50,15 @@ export function CallOverlay({ call, caller, person, onClosed, ping }) {
   const [networkHint,setNetworkHint]=useState(()=>initialDeliveryHint(call,caller));
   const localVideo=useRef(null),remoteMedia=useRef(null),pcRef=useRef(null),streamRef=useRef(null),pollRef=useRef(null),lastSignalRef=useRef(0),closedRef=useRef(false),pendingIceRef=useRef([]),handlingOfferRef=useRef(false),restartRef=useRef(0),connectedRef=useRef(false),startedAtRef=useRef(Date.now()),relayConfiguredRef=useRef(false),noAnswerRef=useRef(false);
 
-  const cleanup=async({notify=false}={})=>{if(closedRef.current)return;closedRef.current=true;clearInterval(pollRef.current);pollRef.current=null;try{pcRef.current?.close()}catch{}pcRef.current=null;streamRef.current?.getTracks?.().forEach(t=>t.stop());streamRef.current=null;if(notify)await api.calls.end(call.id).catch(()=>{});onClosed?.();};
+  const preferReceiver=()=>{if(call.mode==='audio')preferCallReceiver()};
+  const cleanup=async({notify=false}={})=>{if(closedRef.current)return;closedRef.current=true;clearInterval(pollRef.current);pollRef.current=null;try{pcRef.current?.close()}catch{}pcRef.current=null;streamRef.current?.getTracks?.().forEach(t=>t.stop());streamRef.current=null;if(call.mode==='audio')resetCallAudioSession();if(notify)await api.calls.end(call.id).catch(()=>{});onClosed?.();};
   const flushIce=async()=>{const pc=pcRef.current;if(!pc?.remoteDescription)return;for(const c of pendingIceRef.current.splice(0)){try{await pc.addIceCandidate(new RTCIceCandidate(c))}catch(e){console.debug('[call] ICE rejeitado',e?.message)}}};
   const sendDescription=(kind,d)=>api.calls.signal(call.id,kind,{type:d.type,sdp:d.sdp});
 
   const playRemote=async()=>{
     const node=remoteMedia.current;
     if(!node)return;
-    try{await node.play?.();setNeedsAudioTap(false)}catch{setNeedsAudioTap(true)}
+    try{await node.play?.();preferReceiver();setNeedsAudioTap(false)}catch{setNeedsAudioTap(true)}
   };
 
   const logSelectedRoute=async()=>{
@@ -165,12 +167,14 @@ export function CallOverlay({ call, caller, person, onClosed, ping }) {
 
   useEffect(()=>{let mounted=true;(async()=>{try{
     if(!navigator.mediaDevices?.getUserMedia||typeof RTCPeerConnection==='undefined')throw new Error('Este dispositivo/browser não permite chamadas WebRTC.');
+    if(call.mode==='audio')prepareCallAudioSession();
     const [stream,iceConfig]=await Promise.all([
       navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:call.mode==='video'?{facingMode:'user',width:{ideal:1280},height:{ideal:720}}:false}),
       fetchIceConfig().catch(error=>{console.debug('[call] ICE config fallback',error?.message);return null}),
     ]);
     if(!mounted){stream.getTracks().forEach(t=>t.stop());return;}
     streamRef.current=stream;
+    preferReceiver();
     if(localVideo.current){localVideo.current.srcObject=stream;localVideo.current.play?.().catch(()=>{})}
     const serverIce=Array.isArray(iceConfig?.iceServers)&&iceConfig.iceServers.length?iceConfig.iceServers:FALLBACK_ICE_SERVERS;
     const iceServers=iceConfig?.relayConfigured?serverIce:[...serverIce,...LEGACY_TURN];

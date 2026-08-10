@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test';
+import { callCopy } from '../src/components/calls/callCopy.js';
+import { preferCallReceiver, prepareCallAudioSession, resetCallAudioSession } from '../src/components/calls/audioSession.js';
 
 const PASSWORD = 'lumina-call-webkit-1234';
 
@@ -12,6 +14,27 @@ function registration(handle, name) {
     acceptTerms:true,
   };
 }
+
+test('copy de chamada é neutro ao dispositivo e a sessão de áudio usa modo de chamada', () => {
+  const copy = Object.values(callCopy).join(' ');
+  expect(copy).not.toContain('iPhone');
+  expect(copy).not.toContain('outro amigo');
+  expect(callCopy.waiting).toContain('outro dispositivo');
+
+  const history = [];
+  const audioSession = {};
+  Object.defineProperty(audioSession, 'type', {
+    configurable:true,
+    get:() => history.at(-1) || 'auto',
+    set:value => history.push(value),
+  });
+  const fakeNavigator = { audioSession };
+
+  expect(prepareCallAudioSession(fakeNavigator)).toBe(true);
+  expect(preferCallReceiver(fakeNavigator)).toBe(true);
+  expect(resetCallAudioSession(fakeNavigator)).toBe(true);
+  expect(history).toEqual(['auto', 'play-and-record', 'playback', 'auto']);
+});
 
 test('chamada aberta pelo deep-link do push chega ao destinatário em Mobile Safari', async ({ page, request }) => {
   const suffix = `${Date.now()}${Math.floor(Math.random()*1000)}`;

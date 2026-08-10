@@ -63,7 +63,7 @@ test('chave VAPID pública é P-256 válida e permanece estável', async () => {
 });
 
 test('subscrição push pertence à conta e pode ser removida', async () => {
-  const endpoint = 'https://push.example.test/subscription/lumina-test';
+  const endpoint = 'https://fcm.googleapis.com/fcm/send/lumina-test-subscription';
   const subscribed = await request('/notifications/push/subscribe', {
     method:'POST',
     body:{ endpoint, keys:{ p256dh:'test-p256dh', auth:'test-auth' } },
@@ -85,10 +85,12 @@ test('subscrição push pertence à conta e pode ser removida', async () => {
   assert.equal(finalStatus.data.devices, 0);
 });
 
-test('subscrição rejeita endpoints que não sejam HTTPS', async () => {
-  const bad = await request('/notifications/push/subscribe', {
-    method:'POST', body:{ endpoint:'http://localhost/push', keys:{} },
-  });
-  assert.equal(bad.response.status, 400);
-  assert.equal(bad.data.code, 'bad_push_subscription');
+test('subscrição rejeita HTTP e hosts HTTPS arbitrários', async () => {
+  for (const endpoint of ['http://localhost/push', 'https://example.test/internal']) {
+    const bad = await request('/notifications/push/subscribe', {
+      method:'POST', body:{ endpoint, keys:{} },
+    });
+    assert.equal(bad.response.status, 400);
+    assert.equal(bad.data.code, 'bad_push_subscription');
+  }
 });

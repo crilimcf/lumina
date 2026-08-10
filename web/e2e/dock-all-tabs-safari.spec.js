@@ -28,7 +28,7 @@ async function scrollWindow(page,y) {
   },y);
 }
 
-test('dock global fica baixo, esconde ao descer e volta ao subir em todas as abas principais', async ({page}) => {
+test('dock global é compacto, baixo, esconde ao descer e volta ao subir em todas as abas principais', async ({page}) => {
   await registerAndEnterFeed(page);
   await page.evaluate(()=>{
     const spacer=document.createElement('div');
@@ -40,6 +40,9 @@ test('dock global fica baixo, esconde ao descer e volta ao subir em todas as aba
 
   const nav=page.locator('.nav');
   await expect(nav).toBeVisible();
+  const box=await nav.boundingBox();
+  expect(box?.width).toBeLessThanOrEqual(350);
+  expect(box?.height).toBeLessThanOrEqual(58);
   const bottom=await nav.evaluate(el=>parseFloat(getComputedStyle(el).bottom));
   expect(bottom).toBeLessThanOrEqual(8);
 

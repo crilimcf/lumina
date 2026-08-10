@@ -1,19 +1,17 @@
-/* Adaptive mobile dock: fica junto à zona segura, cede espaço enquanto se lê
-   e regressa assim que o utilizador volta a deslizar para cima. */
+/* Adaptive mobile dock: compacto, baixo e discreto; cede espaço enquanto se lê
+   e regressa assim que o utilizador desliza para cima. */
 .nav {
   left: 50% !important;
   right: auto !important;
-  width: min(calc(100vw - 24px), 420px) !important;
+  width: min(calc(100vw - 64px), 348px) !important;
   max-width: none !important;
   margin: 0 !important;
-  /* No iPhone, safe-area-inset-bottom já reserva uma margem generosa. Subtrair
-     6px aproxima visualmente o dock da base sem o colocar sobre o home indicator. */
-  bottom: max(6px, calc(env(safe-area-inset-bottom) - 6px)) !important;
-  border-radius: 28px !important;
-  padding: 7px 8px 8px !important;
-  background: rgba(249, 248, 255, .82) !important;
+  bottom: max(2px, calc(env(safe-area-inset-bottom) - 18px)) !important;
+  border-radius: 22px !important;
+  padding: 4px 5px 5px !important;
+  background: rgba(249, 248, 255, .84) !important;
   border: 1px solid rgba(255, 255, 255, .9) !important;
-  box-shadow: 0 18px 52px rgba(24, 16, 62, .18), 0 3px 12px rgba(24, 16, 62, .08) !important;
+  box-shadow: 0 13px 36px rgba(24, 16, 62, .16), 0 2px 8px rgba(24, 16, 62, .06) !important;
   -webkit-backdrop-filter: blur(22px) saturate(1.25);
   backdrop-filter: blur(22px) saturate(1.25);
   transform: translate3d(-50%, 0, 0) !important;
@@ -23,35 +21,47 @@
   will-change: transform, opacity;
 }
 
+.nav .nb {
+  padding: 4px 5px 3px !important;
+  gap: 1px !important;
+  font-size: 8px !important;
+  letter-spacing: .055em !important;
+  min-width: 0;
+}
+
+.nav .nb > svg {
+  width: 18px;
+  height: 18px;
+}
+
 .nav.nav-smart-hidden {
   transform: translate3d(-50%, calc(100% + 42px + env(safe-area-inset-bottom)), 0) !important;
   opacity: 0 !important;
   pointer-events: none !important;
 }
 
-/* O + continua a ser a ação principal, mas deixa de levantar toda a composição
-   visualmente tanto como antes. */
+/* O + mantém hierarquia visual sem engrossar/elevar a barra. */
 .nav > .nb:nth-child(3) {
-  transform: translateY(-5px);
+  transform: translateY(-2px);
   overflow: visible;
 }
 
 .nav > .nb:nth-child(3):active {
-  transform: translateY(-5px) scale(.92);
+  transform: translateY(-2px) scale(.92);
 }
 
 .nav > .nb:nth-child(3) > svg {
-  width: 43px;
-  height: 43px;
-  padding: 12px;
+  width: 36px;
+  height: 36px;
+  padding: 10px;
   border-radius: 999px;
   color: #fff;
   background: linear-gradient(145deg, #321BFF 5%, #7548FF 58%, #B45CFF 100%);
-  box-shadow: 0 10px 24px rgba(65, 40, 220, .30), inset 0 1px 0 rgba(255,255,255,.38);
+  box-shadow: 0 7px 18px rgba(65, 40, 220, .28), inset 0 1px 0 rgba(255,255,255,.38);
 }
 
 .nav > .nb:nth-child(3) > span {
-  margin-top: 1px;
+  margin-top: 0;
   font-weight: 760;
 }
 

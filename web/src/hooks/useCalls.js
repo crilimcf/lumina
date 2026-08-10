@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 
+const INCOMING_POLL_MS = 1200;
+
 function createRingtone(audioRef) {
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -11,8 +13,6 @@ function createRingtone(audioRef) {
     const play = () => {
       if (ctx.state !== 'running') { ctx.resume?.().catch(() => {}); return; }
       const now = ctx.currentTime;
-      // Duplo toque curto, mais audível que um tom contínuo e semelhante a
-      // ringtone sem depender de um ficheiro que o Safari possa bloquear.
       for (const offset of [0, .24]) {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
@@ -37,6 +37,7 @@ export function useCalls({ enabled, ping }) {
   const [incoming, setIncoming] = useState(null);
   const [busy, setBusy] = useState(false);
   const audioRef = useRef(null);
+  const checkingRef = useRef(false);
 
   useEffect(() => {
     if (!enabled) return;
@@ -48,8 +49,6 @@ export function useCalls({ enabled, ping }) {
         audioRef.current.resume?.().catch(() => {});
       } catch {}
     };
-    // Não usamos `once`: no iOS um gesto pode acontecer durante uma transição
-    // em que o AudioContext ainda não fica running. Repetir resume é barato.
     document.addEventListener('pointerdown', unlock, { passive:true, capture:true });
     document.addEventListener('touchend', unlock, { passive:true, capture:true });
     document.addEventListener('click', unlock, { passive:true, capture:true });
@@ -63,18 +62,32 @@ export function useCalls({ enabled, ping }) {
   useEffect(() => {
     if (!enabled || activeCall) return;
     let alive = true;
-    const check = async () => {
-      if (document.visibilityState !== 'visible') return;
+    const check = async ({ force = false } = {}) => {
+      if (checkingRef.current) return;
+      if (!force && document.visibilityState !== 'visible') return;
+      checkingRef.current = true;
       try {
         const call = await api.calls.incoming();
-        if (alive) setIncoming(call);
+        if (alive) setIncoming(current => current?.id === call?.id ? current : call);
       } catch {}
+      finally { checkingRef.current = false; }
     };
-    check();
-    const timer = setInterval(check, 3000);
-    const visible = () => { if (document.visibilityState === 'visible') check(); };
+    check({ force:true });
+    const timer = setInterval(check, INCOMING_POLL_MS);
+    const visible = () => { if (document.visibilityState === 'visible') check({ force:true }); };
+    const online = () => check({ force:true });
     document.addEventListener('visibilitychange', visible);
-    return () => { alive=false; clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
+    window.addEventListener('pageshow', online);
+    window.addEventListener('focus', online);
+    window.addEventListener('online', online);
+    return () => {
+      alive=false;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', visible);
+      window.removeEventListener('pageshow', online);
+      window.removeEventListener('focus', online);
+      window.removeEventListener('online', online);
+    };
   }, [enabled, activeCall]);
 
   useEffect(() => {
@@ -90,6 +103,9 @@ export function useCalls({ enabled, ping }) {
     try {
       const call = await api.calls.start(thread.id, mode);
       setActiveCall({ call, caller:true, person:{ name:thread.name, handle:thread.handle, palette:thread.palette, avatar_url:thread.avatar_url } });
+      if (call.callee_push_ready === false) {
+        ping('O outro dispositivo não tem notificações de chamada ativas. Se a Lumina estiver fechada, pode não receber o aviso.');
+      }
     } catch (e) { ping(e.message); }
     finally { setBusy(false); }
   }, [busy, ping]);
@@ -98,8 +114,6 @@ export function useCalls({ enabled, ping }) {
     if (!incoming || busy) return;
     setBusy(true);
     try {
-      // O toque no botão Atender é um gesto válido para o iOS; aproveitamos
-      // esse mesmo gesto para garantir o contexto de áudio antes do WebRTC.
       await audioRef.current?.resume?.().catch(() => {});
       const call = await api.calls.answer(incoming.id);
       setActiveCall({ call, caller:false, person:{ name:incoming.name, handle:incoming.handle, palette:incoming.palette, avatar_url:incoming.avatar_url } });

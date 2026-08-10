@@ -64,8 +64,6 @@ const CSRF_PUBLIC_PATHS = new Set([
   '/auth/register',
   '/account/forgot-password',
   '/account/reset-password',
-  // Estes dois endpoints só aceitam JSON autenticado; um POST cross-site simples
-  // não consegue construir o body e CORS bloqueia fetch credentialed de outra origem.
   '/notifications/push/subscribe',
   '/notifications/push/unsubscribe',
 ]);
@@ -99,9 +97,14 @@ const health = async (_req, res) => {
     const schemaVersion = await getAppliedSchemaVersion();
     const { rows } = await pool.query(
       `SELECT
-         (SELECT count(*)::int FROM radar_sources WHERE active=true AND kind='rss') AS active_sources,
-         (SELECT count(*)::int FROM radar_sources WHERE active=true AND kind='rss' AND last_success_at IS NOT NULL) AS synced_sources,
-         (SELECT count(*)::int FROM radar_sources WHERE active=true AND kind='rss' AND last_fetch_error IS NOT NULL) AS failing_sources,
+         (SELECT count(*)::int FROM radar_sources
+           WHERE active=true AND (kind='rss' OR (kind='partner' AND config->>'adapter'='headline-links'))) AS active_sources,
+         (SELECT count(*)::int FROM radar_sources
+           WHERE active=true AND (kind='rss' OR (kind='partner' AND config->>'adapter'='headline-links'))
+             AND last_success_at IS NOT NULL) AS synced_sources,
+         (SELECT count(*)::int FROM radar_sources
+           WHERE active=true AND (kind='rss' OR (kind='partner' AND config->>'adapter'='headline-links'))
+             AND last_fetch_error IS NOT NULL) AS failing_sources,
          (SELECT count(*)::int FROM radar_items WHERE status='published' AND published_at >= now() - interval '24 hours') AS items_24h,
          (SELECT CASE
             WHEN bool_or(last_fetch_error ILIKE '%Timeout ao resolver DNS%') THEN 'dns_timeout'
@@ -115,7 +118,9 @@ const health = async (_req, res) => {
             ELSE 'other'
           END
           FROM radar_sources
-          WHERE active=true AND kind='rss' AND last_fetch_error IS NOT NULL) AS error_class`
+          WHERE active=true
+            AND (kind='rss' OR (kind='partner' AND config->>'adapter'='headline-links'))
+            AND last_fetch_error IS NOT NULL) AS error_class`
     );
     const radar = rows[0] || {};
     res.setHeader('X-Lumina-Schema', String(schemaVersion));

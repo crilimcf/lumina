@@ -9,7 +9,6 @@ export const callRoutes = Router();
 const BASE_STUN = {
   urls: [
     'stun:stun.cloudflare.com:3478',
-    'stun:stun.cloudflare.com:53',
     'stun:stun.l.google.com:19302',
     'stun:stun1.l.google.com:19302',
   ],
@@ -17,15 +16,20 @@ const BASE_STUN = {
 const TURN_CACHE_MS = 50 * 60_000;
 let turnCache = null;
 
+function browserSafeIceUrl(value) {
+  const url = String(value || '').trim();
+  if (!/^(?:stun|turn|turns):/i.test(url)) return null;
+  if (/^(?:stun|turn|turns):[^?]*:53(?:\?|$)/i.test(url)) return null;
+  return url;
+}
+
 function cleanIceServers(value) {
   if (!Array.isArray(value)) return [];
   const out = [];
   for (const item of value) {
     if (!item || typeof item !== 'object') continue;
     const raw = Array.isArray(item.urls) ? item.urls : [item.urls];
-    const urls = raw
-      .map(v => String(v || '').trim())
-      .filter(v => /^(?:stun|turn|turns):/i.test(v));
+    const urls = raw.map(browserSafeIceUrl).filter(Boolean);
     if (!urls.length) continue;
     const next = { urls };
     if (typeof item.username === 'string' && item.username) next.username = item.username;
@@ -84,11 +88,13 @@ async function cloudflareTurnServers() {
 
 async function rtcIceConfig() {
   const cloudflare = await cloudflareTurnServers();
-  const managed = cloudflare.length ? cloudflare : staticTurnServers();
+  const staticTurn = cloudflare.length ? [] : staticTurnServers();
+  const managed = cloudflare.length ? cloudflare : staticTurn;
   const iceServers = [BASE_STUN, ...managed];
   return {
     iceServers,
     relayConfigured: iceServers.some(server => server.urls.some(url => /^(?:turn|turns):/i.test(url))),
+    relaySource: cloudflare.length ? 'cloudflare' : staticTurn.length ? 'managed' : 'none',
   };
 }
 
@@ -134,7 +140,16 @@ async function callForUser(callId, userId) {
   return call;
 }
 
-// ICE config autenticada. Credenciais TURN de longa duração nunca entram no bundle web.
+async function pushReadyFor(userId) {
+  const { rows } = await q(
+    `SELECT EXISTS(
+       SELECT 1 FROM web_push_subscriptions WHERE user_id=$1
+     ) AS ready`,
+    [userId]
+  );
+  return !!rows[0]?.ready;
+}
+
 callRoutes.get('/ice-config', auth, h(async (_req, res) => {
   res.setHeader('Cache-Control', 'private, no-store');
   res.json(await rtcIceConfig());
@@ -153,14 +168,17 @@ callRoutes.post('/', auth, h(async (req, res) => {
     [threadId, req.user.id]
   );
 
-  const { rows } = await q(
-    `INSERT INTO call_sessions (thread_id,caller_id,callee_id,mode)
-     VALUES ($1,$2,$3,$4)
-     RETURNING id,thread_id,caller_id,callee_id,mode,status,created_at`,
-    [threadId, req.user.id, thread.other_id, mode]
-  );
+  const [{ rows }, calleePushReady] = await Promise.all([
+    q(
+      `INSERT INTO call_sessions (thread_id,caller_id,callee_id,mode)
+       VALUES ($1,$2,$3,$4)
+       RETURNING id,thread_id,caller_id,callee_id,mode,status,created_at`,
+      [threadId, req.user.id, thread.other_id, mode]
+    ),
+    pushReadyFor(thread.other_id),
+  ]);
   sendPushToUser(thread.other_id).catch(error => console.debug('[push] chamada', error?.message));
-  res.status(201).json(rows[0]);
+  res.status(201).json({ ...rows[0], callee_push_ready: calleePushReady });
 }));
 
 callRoutes.get('/incoming', auth, h(async (req, res) => {
@@ -207,8 +225,6 @@ callRoutes.post('/:callId/end', auth, h(async (req, res) => {
   res.json({ ended: true });
 }));
 
-// Um único pedido devolve estado + sinais novos. Isto reduz drasticamente o
-// polling por chamada e evita 429 quando dois telemóveis estão no mesmo Wi-Fi.
 callRoutes.get('/:callId/sync', auth, h(async (req, res) => {
   const call = await callForUser(req.params.callId, req.user.id);
   const rawAfter = req.query.after === undefined ? 0 : Number(req.query.after);

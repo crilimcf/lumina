@@ -3,7 +3,30 @@ import { Pencil, RefreshCw, Send, Trash2, Users, X } from 'lucide-react';
 import { Orb } from '../ui.jsx';
 import { api } from '../api.js';
 
-export function MomentViewer({ group, onClose, onNext, onPrev, onView, onEdit = group.onEdit, onDelete, onReply, onReact, meId }) {
+function momentIsVideo(item) {
+  return !!item && (item.media_mime?.startsWith('video/') || /\.(mp4|mov|webm)(?:$|\?)/i.test(item.media_url || ''));
+}
+
+function SideMomentCard({ group, side }) {
+  if (!group?.items?.length) return null;
+  const item = side < 0 ? group.items.at(-1) : group.items[0];
+  const isVideo = momentIsVideo(item);
+  return <div aria-hidden="true" style={{
+    position:'absolute', top:'9%', bottom:'9%', width:'68%', zIndex:1,
+    left:side < 0 ? '-50%' : '82%', borderRadius:28, overflow:'hidden',
+    transform:`rotateY(${side < 0 ? 48 : -48}deg) scale(.9)`,
+    transformOrigin:side < 0 ? 'right center' : 'left center',
+    background:'#171329', boxShadow:'0 24px 70px rgba(0,0,0,.38)', opacity:.72,
+    border:'1px solid rgba(255,255,255,.16)', pointerEvents:'none',
+  }}>
+    {item?.media_url && !isVideo
+      ? <img src={item.media_url} alt="" loading="eager" decoding="async" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>
+      : <div style={{width:'100%',height:'100%',display:'grid',placeItems:'center',background:'linear-gradient(145deg,#30255D,#0B0914)'}}><Orb p={group.author.palette} avatarUrl={group.author.avatarUrl} s={72}/></div>}
+    <div style={{position:'absolute',inset:'auto 0 0',padding:'34px 18px 18px',background:'linear-gradient(transparent,rgba(0,0,0,.72))',color:'#fff',fontWeight:750,fontSize:13}}>{group.author.name}</div>
+  </div>;
+}
+
+export function MomentViewer({ group, prevGroup, nextGroup, onClose, onNext, onPrev, onView, onEdit = group.onEdit, onDelete, onReply, onReact, meId }) {
   const [i, setI] = useState(0);
   const [reply, setReply] = useState('');
   const [sent, setSent] = useState(false);
@@ -13,15 +36,20 @@ export function MomentViewer({ group, onClose, onNext, onPrev, onView, onEdit = 
   const [burst, setBurst] = useState(null);
   const [interactions, setInteractions] = useState(null);
   const [interactionsBusy, setInteractionsBusy] = useState(false);
+  const [dragX, setDragX] = useState(0);
   const replacementInput = useRef(null);
   const videoRef = useRef(null);
+  const touchStart = useRef(null);
+  const dragged = useRef(false);
   const safeI = Math.min(i, group.items.length - 1);
   const item = group.items[safeI];
+  const leftGroup = prevGroup || group.prevGroup || null;
+  const rightGroup = nextGroup || group.nextGroup || null;
   const isMine = group.author.id === meId;
-  const isVideo = !!item && (item.media_mime?.startsWith('video/') || /\.(mp4|mov|webm)(?:$|\?)/i.test(item.media_url || ''));
-  const paused = replyFocused || !!reply.trim() || replacing || !!interactions;
+  const isVideo = momentIsVideo(item);
+  const paused = replyFocused || !!reply.trim() || replacing || !!interactions || Math.abs(dragX) > 4;
 
-  useEffect(() => { setI(0); setReply(''); setSent(false); setReplyFocused(false); setInteractions(null); }, [group.author.id]);
+  useEffect(() => { setI(0); setReply(''); setSent(false); setReplyFocused(false); setInteractions(null); setDragX(0); }, [group.author.id]);
   useEffect(() => { setVideoProgress(0); setReplyFocused(false); setInteractions(null); }, [item?.id]);
   useEffect(() => { if (item && !isMine) onView(item.id); }, [item?.id]);
   useEffect(() => {
@@ -43,11 +71,34 @@ export function MomentViewer({ group, onClose, onNext, onPrev, onView, onEdit = 
   if (!item) return null;
 
   const advance = (dir) => {
-    if (paused) return;
+    if (paused && Math.abs(dragX) < 4) return;
     if (dir > 0 && safeI < group.items.length - 1) return setI(safeI + 1);
     if (dir < 0 && safeI > 0) return setI(safeI - 1);
     if (dir > 0) return onNext();
     onPrev();
+  };
+
+  const startSwipe = (event) => {
+    const touch = event.touches?.[0];
+    if (!touch || replyFocused || interactions || replacing) return;
+    touchStart.current = touch.clientX;
+    dragged.current = false;
+  };
+  const moveSwipe = (event) => {
+    if (touchStart.current === null) return;
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    const delta = Math.max(-110, Math.min(110, touch.clientX - touchStart.current));
+    if (Math.abs(delta) > 8) dragged.current = true;
+    setDragX(delta);
+  };
+  const endSwipe = () => {
+    const delta = dragX;
+    touchStart.current = null;
+    setDragX(0);
+    if (delta < -58) onNext();
+    else if (delta > 58) onPrev();
+    setTimeout(() => { dragged.current = false; }, 80);
   };
 
   const submitReply = async (e) => {
@@ -90,14 +141,17 @@ export function MomentViewer({ group, onClose, onNext, onPrev, onView, onEdit = 
   );
 
   const interactionCount = (item.likes || 0) + (item.fires || 0);
+  const cardRotate = dragX / -22;
+  const cardScale = 1 - Math.min(.035, Math.abs(dragX) / 3200);
+  const activeTransform = `translateX(${dragX}px) rotateY(${cardRotate}deg) scale(${cardScale})`;
 
-  return <div className="reveal" style={{ position:'fixed', inset:0, zIndex:80, background:'#0B0A17' }}>
-    <div style={{ display:'flex', gap:4, padding:'12px 12px 0', position:'relative', zIndex:4 }}>
+  return <div className="reveal" style={{ position:'fixed', inset:0, zIndex:80, background:'radial-gradient(circle at 50% 25%,#24203E,#07060D 72%)', overflow:'hidden' }}>
+    <div style={{ display:'flex', gap:4, padding:'12px 12px 0', position:'relative', zIndex:14 }}>
       {group.items.map((it, idx) => <div key={it.id} style={{ flex:1, height:3, borderRadius:9, background:'rgba(255,255,255,.28)', overflow:'hidden' }}>
         <div style={{ height:'100%', background:'#fff', width:idx<safeI?'100%':idx>safeI?'0%':(idx===safeI&&isVideo)?`${videoProgress}%`:'100%', transition:idx===safeI&&!isVideo&&!paused?'width 5s linear':'none' }} />
       </div>)}
     </div>
-    <div style={{ position:'relative', zIndex:4, display:'flex', alignItems:'center', gap:6, padding:'12px 16px' }}>
+    <div style={{ position:'relative', zIndex:14, display:'flex', alignItems:'center', gap:6, padding:'12px 16px' }}>
       <Orb p={group.author.palette} avatarUrl={group.author.avatarUrl} s={30}/>
       <span style={{ color:'#fff', fontWeight:600, fontSize:14 }}>{isMine?'Tu':group.author.name}</span>
       <span style={{ color:'rgba(255,255,255,.6)', fontSize:11 }}>{new Date(item.created_at).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</span>
@@ -107,23 +161,37 @@ export function MomentViewer({ group, onClose, onNext, onPrev, onView, onEdit = 
       <button onClick={onClose} aria-label="Fechar" style={{ marginLeft:isMine?0:'auto', background:'none', border:0, color:'#fff', padding:8 }}><X size={20}/></button>
     </div>
 
-    <div style={{ position:'absolute', inset:0, display:'grid', placeItems:'center' }}>
-      {item.media_url ? (isVideo ? <video ref={videoRef} src={item.media_url} autoPlay controls playsInline preload="metadata" aria-label={`Vídeo do momento de ${group.author.name}`} onTimeUpdate={e=>{const m=e.currentTarget;if(Number.isFinite(m.duration)&&m.duration>0)setVideoProgress(Math.min(100,(m.currentTime/m.duration)*100));}} onEnded={()=>advance(1)} style={{width:'100%',height:'100%',objectFit:'contain',background:'#05040A'}}/> : <img src={item.media_url} alt="" style={{width:'100%',height:'100%',objectFit:'contain'}}/>) : <div style={{width:'100%',height:'100%',background:'linear-gradient(160deg,#171329,#090811)'}}/>}
+    <div onTouchStart={startSwipe} onTouchMove={moveSwipe} onTouchEnd={endSwipe} onTouchCancel={endSwipe}
+      style={{ position:'absolute', inset:'64px 0 82px', perspective:'820px', touchAction:'pan-y', zIndex:1 }}>
+      <SideMomentCard group={leftGroup} side={-1}/>
+      <SideMomentCard group={rightGroup} side={1}/>
+      <div style={{
+        position:'absolute', inset:'2% 6%', zIndex:4, borderRadius:30, overflow:'hidden', background:'#05040A',
+        transform:activeTransform, WebkitTransform:activeTransform,
+        transition:touchStart.current === null ? 'transform .28s cubic-bezier(.2,.8,.2,1)' : 'none',
+        boxShadow:'0 26px 90px rgba(0,0,0,.52)', border:'1px solid rgba(255,255,255,.14)',
+        willChange:'transform', backfaceVisibility:'visible', WebkitBackfaceVisibility:'visible',
+      }}>
+        {item.media_url ? (isVideo
+          ? <video ref={videoRef} src={item.media_url} autoPlay controls playsInline preload="metadata" aria-label={`Vídeo do momento de ${group.author.name}`} onTimeUpdate={e=>{const m=e.currentTarget;if(Number.isFinite(m.duration)&&m.duration>0)setVideoProgress(Math.min(100,(m.currentTime/m.duration)*100));}} onEnded={()=>advance(1)} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',background:'#05040A',display:'block'}}/>
+          : <img src={item.media_url} alt="" decoding="async" style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>)
+          : <div style={{width:'100%',height:'100%',background:'linear-gradient(160deg,#171329,#090811)'}}/>}
+      </div>
     </div>
 
-    {!isVideo ? <div style={{position:'absolute',inset:0,display:'flex',zIndex:2}}><div style={{flex:1,cursor:'pointer'}} onClick={()=>advance(-1)}/><div style={{flex:1,cursor:'pointer'}} onClick={()=>advance(1)}/></div> : <><button onClick={()=>advance(-1)} aria-label="Momento anterior" style={{position:'absolute',zIndex:3,left:0,top:86,bottom:94,width:'15%',border:0,background:'transparent'}}/><button onClick={()=>advance(1)} aria-label="Momento seguinte" style={{position:'absolute',zIndex:3,right:0,top:86,bottom:94,width:'15%',border:0,background:'transparent'}}/></>}
+    {!isVideo ? <div style={{position:'absolute',inset:'82px 0 94px',display:'flex',zIndex:5}}><div style={{flex:1,cursor:'pointer'}} onClick={()=>{if(!dragged.current)advance(-1)}}/><div style={{flex:1,cursor:'pointer'}} onClick={()=>{if(!dragged.current)advance(1)}}/></div> : <><button onClick={()=>advance(-1)} aria-label="Momento anterior" style={{position:'absolute',zIndex:6,left:0,top:86,bottom:94,width:'12%',border:0,background:'transparent'}}/><button onClick={()=>advance(1)} aria-label="Momento seguinte" style={{position:'absolute',zIndex:6,right:0,top:86,bottom:94,width:'12%',border:0,background:'transparent'}}/></>}
 
-    {burst && <div key={burst.n} style={{ position:'absolute', zIndex:8, left:'50%', top:'50%', transform:'translate(-50%,-50%)', fontSize:76, animation:'pop .65s ease forwards', pointerEvents:'none', filter:'drop-shadow(0 12px 20px rgba(0,0,0,.28))' }}>{burst.emoji}</div>}
+    {burst && <div key={burst.n} style={{ position:'absolute', zIndex:18, left:'50%', top:'50%', transform:'translate(-50%,-50%)', fontSize:76, animation:'pop .65s ease forwards', pointerEvents:'none', filter:'drop-shadow(0 12px 20px rgba(0,0,0,.28))' }}>{burst.emoji}</div>}
 
-    {!isMine && <form onSubmit={submitReply} style={{ position:'absolute', zIndex:5, left:0, right:0, bottom:0, padding:'14px 14px calc(14px + env(safe-area-inset-bottom))', display:'flex', gap:8, alignItems:'center', background:'linear-gradient(0deg,rgba(0,0,0,.62),transparent)' }}>
+    {!isMine && <form onSubmit={submitReply} style={{ position:'absolute', zIndex:16, left:0, right:0, bottom:0, padding:'14px 14px calc(14px + env(safe-area-inset-bottom))', display:'flex', gap:8, alignItems:'center', background:'linear-gradient(0deg,rgba(0,0,0,.82),transparent)' }}>
       {reactionButton('like','👍',item.likes||0)}
       {reactionButton('fire','🔥',item.fires||0)}
       <input value={reply} onChange={e=>setReply(e.target.value)} onFocus={()=>setReplyFocused(true)} onBlur={()=>setReplyFocused(false)} placeholder={sent?'Enviado ✓':`Responder a ${group.author.name.split(' ')[0]}…`} style={{minWidth:0,background:'rgba(255,255,255,.14)',border:'1.5px solid rgba(255,255,255,.3)',color:'#fff'}}/>
       <button type="submit" aria-label="Enviar resposta" disabled={!reply.trim()} className="p p-brand" style={{padding:'12px 14px',flexShrink:0}}><Send size={16}/></button>
     </form>}
 
-    {isMine && <div style={{ position:'absolute', zIndex:6, left:0, right:0, bottom:0, padding:'12px 14px calc(14px + env(safe-area-inset-bottom))', display:'flex', justifyContent:'center', background:'linear-gradient(0deg,rgba(0,0,0,.62),transparent)' }}>
-      <button onClick={openInteractions} className="p" style={{ background:'rgba(12,10,29,.62)', border:'1px solid rgba(255,255,255,.24)', color:'#fff', display:'flex', alignItems:'center', gap:8, padding:'10px 14px' }}><Users size={16}/>{interactionsBusy?'A carregar…':`Interações ${interactionCount}`}</button>
+    {isMine && <div style={{ position:'absolute', zIndex:16, left:0, right:0, bottom:0, padding:'12px 14px calc(14px + env(safe-area-inset-bottom))', display:'flex', justifyContent:'center', background:'linear-gradient(0deg,rgba(0,0,0,.82),transparent)' }}>
+      <button onClick={openInteractions} className="p" style={{ background:'rgba(12,10,29,.72)', border:'1px solid rgba(255,255,255,.24)', color:'#fff', display:'flex', alignItems:'center', gap:8, padding:'10px 14px' }}><Users size={16}/>{interactionsBusy?'A carregar…':`Interações ${interactionCount}`}</button>
     </div>}
 
     {interactions && <div onClick={()=>setInteractions(null)} style={{ position:'fixed', inset:0, zIndex:230, background:'rgba(6,5,14,.72)', display:'flex', alignItems:'flex-end' }}>

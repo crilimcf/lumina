@@ -3,6 +3,7 @@ import { q, tx } from '../db.js';
 
 const SECRET_NAME = 'web_push_vapid_v1';
 const VAPID_SUBJECT = 'https://lumina-snowy-ten.vercel.app';
+const CALL_RETRY_DELAYS = [2600, 7600, 15000];
 
 const b64url = (value) => Buffer.from(value).toString('base64url');
 const decode64 = (value) => Buffer.from(String(value || ''), 'base64url');
@@ -92,16 +93,19 @@ async function sendWake(endpoint, key) {
   }
 }
 
-export async function sendPushToUser(userId) {
-  if (!userId) return { attempted:0, accepted:0 };
+async function subscriptionsFor(userId) {
   const { rows } = await q(
     `SELECT endpoint FROM web_push_subscriptions
      WHERE user_id=$1 ORDER BY updated_at DESC LIMIT 8`,
     [userId]
   );
+  return rows;
+}
+
+async function deliverWake(userId, key, subscriptions = null) {
+  const rows = subscriptions || await subscriptionsFor(userId);
   if (!rows.length) return { attempted:0, accepted:0 };
 
-  const key = await getOrCreateVapid();
   const results = await Promise.all(rows.map(async ({ endpoint }) => ({ endpoint, ...(await sendWake(endpoint, key)) })));
   const stale = results.filter(r => r.stale).map(r => r.endpoint);
   if (stale.length) await q('DELETE FROM web_push_subscriptions WHERE endpoint = ANY($1::text[])', [stale]);
@@ -109,4 +113,53 @@ export async function sendPushToUser(userId) {
     attempted: results.length,
     accepted: results.filter(r => r.status >= 200 && r.status < 300).length,
   };
+}
+
+function scheduleIncomingCallRetries(userId, callId, key) {
+  if (!callId) return;
+  for (const delay of CALL_RETRY_DELAYS) {
+    const timer = setTimeout(async () => {
+      try {
+        const { rows } = await q(
+          `SELECT 1 FROM call_sessions
+           WHERE id=$1 AND callee_id=$2 AND status='ringing'
+             AND created_at > now()-interval '2 minutes'`,
+          [callId, userId]
+        );
+        if (!rows[0]) return;
+        await deliverWake(userId, key);
+      } catch (error) {
+        console.debug('[push] retry chamada', error?.message);
+      }
+    }, delay);
+    timer.unref?.();
+  }
+}
+
+async function latestIncomingCallId(userId) {
+  const { rows } = await q(
+    `SELECT data->>'callId' AS call_id
+     FROM notifications
+     WHERE user_id=$1 AND read_at IS NULL AND type='incoming_call'
+     ORDER BY created_at DESC LIMIT 1`,
+    [userId]
+  );
+  return rows[0]?.call_id || null;
+}
+
+export async function sendPushToUser(userId) {
+  if (!userId) return { attempted:0, accepted:0 };
+  const subscriptions = await subscriptionsFor(userId);
+  if (!subscriptions.length) return { attempted:0, accepted:0 };
+
+  const key = await getOrCreateVapid();
+  const result = await deliverWake(userId, key, subscriptions);
+
+  // Uma chamada não pode depender de um único wake-up. iOS pode atrasar um
+  // push pontual em redes móveis; repetimos apenas enquanto a sessão continua
+  // realmente a tocar. Mensagens normais continuam a gerar um único push.
+  const callId = await latestIncomingCallId(userId).catch(() => null);
+  if (callId) scheduleIncomingCallRetries(userId, callId, key);
+
+  return result;
 }

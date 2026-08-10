@@ -17,11 +17,10 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('push', (event) => {
   event.waitUntil((async () => {
-    // Com a Lumina visível, os próprios fluxos de chat/chamada mostram o alerta.
-    const windows = await self.clients.matchAll({ type:'window', includeUncontrolled:true });
-    const visible = windows.some((client) => client.visibilityState === 'visible' || client.focused === true);
-    if (visible) return;
-
+    // WebKit/iOS não permite silent Web Push. Mesmo que a Lumina esteja aberta,
+    // cada push tem de resultar numa notificação user-visible; caso contrário o
+    // browser pode penalizar/revogar a subscrição. O overlay dentro da app continua
+    // a aparecer em paralelo quando a janela está visível.
     let data = null;
     try {
       const response = await fetch('/api/notifications/push/latest', {
@@ -29,9 +28,6 @@ self.addEventListener('push', (event) => {
         cache: 'no-store',
         headers: { 'cache-control': 'no-cache' },
       });
-      // Um endpoint antigo pode sobreviver ao logout no serviço push. Sem uma
-      // sessão válida nunca mostramos qualquer notificação dessa conta anterior.
-      if (response.status === 401 || response.status === 403) return;
       if (response.ok) data = await response.json();
     } catch {}
 
@@ -50,6 +46,7 @@ self.addEventListener('push', (event) => {
       badge: '/icon-192.png',
       data: { url: notification.url || '/?tab=alerts' },
       renotify: true,
+      silent: false,
       requireInteraction: notification.type === 'incoming_call',
     };
     await self.registration.showNotification(notification.title || 'Lumina', options);

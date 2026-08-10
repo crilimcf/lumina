@@ -73,7 +73,9 @@ test('ICE config exige sessão e fornece STUN seguro como fallback', async () =>
   assert.equal(out.response.headers.get('cache-control'), 'private, no-store');
   assert.equal(Array.isArray(out.data.iceServers), true);
   assert.equal(out.data.iceServers.some(server => server.urls.some(url => url.startsWith('stun:'))), true);
+  assert.equal(out.data.iceServers.some(server => server.urls.some(url => /:53(?:\?|$)/.test(url))), false);
   assert.equal(out.data.relayConfigured, false);
+  assert.equal(out.data.relaySource, 'none');
 });
 
 test('um bloqueio posterior corta chamada, incoming e signaling', async () => {
@@ -89,6 +91,7 @@ test('um bloqueio posterior corta chamada, incoming e signaling', async () => {
     method: 'POST', token: caller.token, body: { threadId: thread.data.id, mode: 'video' },
   });
   assert.equal(call.response.status, 201, JSON.stringify(call.data));
+  assert.equal(call.data.callee_push_ready, false);
 
   const incomingBefore = await request('/calls/incoming', { token: callee.token });
   assert.equal(incomingBefore.response.status, 200);

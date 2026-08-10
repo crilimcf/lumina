@@ -3,6 +3,7 @@ import { Camera, CameraOff, Mic, MicOff, PhoneOff, Volume2 } from 'lucide-react'
 import { api } from '../../api.js';
 import { Orb } from '../../ui.jsx';
 import { fetchIceConfig, syncCall } from './callSync.js';
+import { callCopy } from './callCopy.js';
 
 const FALLBACK_ICE_SERVERS = [{
   urls: [
@@ -31,10 +32,10 @@ const NO_ANSWER_MS = 45_000;
 
 function initialDeliveryHint(call, caller) {
   if (!caller) return '';
-  if (call?.callee_seen_at) return 'O outro dispositivo recebeu a chamada.';
-  if (Number(call?.push_accepted || 0) > 0) return 'Aviso aceite pelo serviço de notificações; à espera do outro iPhone…';
+  if (call?.callee_seen_at) return callCopy.received;
+  if (Number(call?.push_accepted || 0) > 0) return callCopy.waiting;
   if (Number(call?.push_attempted || 0) > 0) return 'O serviço de notificações não aceitou o aviso desta chamada.';
-  if (call?.callee_push_ready === false) return 'O outro dispositivo não tem chamadas em segundo plano ativas.';
+  if (call?.callee_push_ready === false) return callCopy.backgroundDisabled;
   return '';
 }
 
@@ -142,15 +143,15 @@ export function CallOverlay({ call, caller, person, onClosed, ping }) {
         if(caller&&state.status==='ringing'){
           if(state.calleeSeenAt){
             setPhase('A tocar…');
-            setNetworkHint('O outro dispositivo recebeu a chamada.');
+            setNetworkHint(callCopy.received);
           }else if(Number(state.pushAccepted||0)>0){
-            setNetworkHint('Aviso aceite pelo serviço de notificações; à espera do outro iPhone…');
+            setNetworkHint(callCopy.waiting);
           }else if(Number(state.pushAttempted||0)>0){
             setNetworkHint('O serviço de notificações não aceitou o aviso desta chamada.');
           }else if(call?.callee_push_ready===false){
-            setNetworkHint('O outro dispositivo não tem chamadas em segundo plano ativas.');
+            setNetworkHint(callCopy.backgroundDisabled);
           }else if(elapsed>12000){
-            setNetworkHint('A tentar chegar ao outro dispositivo…');
+            setNetworkHint(callCopy.reaching);
           }
           if(elapsed>NO_ANSWER_MS)return finishNoAnswer();
         }

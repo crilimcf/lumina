@@ -117,7 +117,7 @@ test('Chat mostra ações de chamada áudio e vídeo', async ({ page }) => {
   await page.getByRole('button', { name: /Pessoa Chamada/ }).click();
   await expect(page.getByRole('button', { name: 'Ligar por áudio a Pessoa Chamada' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Fazer videochamada com Pessoa Chamada' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Enviar mensagem' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Enviar', exact: true })).toBeVisible();
 });
 
 test('Alertas aceita pedido e Pessoas & privacidade muda o perfil', async ({ page }) => {

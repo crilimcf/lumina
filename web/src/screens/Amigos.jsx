@@ -3,7 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import { api } from '../api.js';
 import { Empty, Orb, Skeleton } from '../ui.jsx';
 
-export function Amigos({ onBack, ping }) {
+export function Amigos({ onBack, ping, onOpenProfile }) {
   const [q, setQ] = useState('');
   const [following, setFollowing] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
@@ -42,11 +42,11 @@ export function Amigos({ onBack, ping }) {
 
   const Row = ({ p }) => (
     <div className="card in" style={{ padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
-      <Orb p={p.palette} avatarUrl={p.avatar_url} s={42} />
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <button type="button" onClick={() => onOpenProfile?.(p)} aria-label={`Abrir perfil de ${p.name}`} style={{border:0,background:'transparent',padding:0,cursor:'pointer',display:'grid',placeItems:'center'}}><Orb p={p.palette} avatarUrl={p.avatar_url} s={42} /></button>
+      <button type="button" onClick={() => onOpenProfile?.(p)} style={{ flex: 1, minWidth: 0, border:0, background:'transparent', padding:0, textAlign:'left', cursor:'pointer', color:'inherit' }}>
         <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-.02em' }}>{p.name}</div>
         <div className="m" style={{ marginTop: 2 }}>@{p.handle} · {p.followers} seguidores</div>
-      </div>
+      </button>
       <button className={p.following || p.requested ? 'p p-sm' : 'p p-sm p-brand'} onClick={() => toggleFollow(p)}>
         {p.following ? 'A seguir' : p.requested ? 'Pendente' : 'Seguir'}
       </button>

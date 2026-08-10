@@ -6,9 +6,10 @@ import { migrate, pool, q } from '../src/db.js';
 let server;
 let baseUrl;
 let token;
+let userId;
 
-async function request(path, { method='GET', body } = {}) {
-  const headers = { authorization:`Bearer ${token}` };
+async function requestAs(authToken, path, { method='GET', body } = {}) {
+  const headers = authToken ? { authorization:`Bearer ${authToken}` } : {};
   if (body !== undefined) headers['content-type'] = 'application/json';
   const response = await fetch(`${baseUrl}${path}`, {
     method,
@@ -21,6 +22,20 @@ async function request(path, { method='GET', body } = {}) {
   return { response, data };
 }
 
+const request = (path, options) => requestAs(token, path, options);
+
+async function register(handle, name = handle) {
+  const out = await requestAs(null, '/auth/register', {
+    method:'POST',
+    body:{
+      handle, email:`${handle}@example.test`, password:'lumina-test-1234',
+      name, birthDate:'1990-01-01', acceptTerms:true,
+    },
+  });
+  assert.equal(out.response.status, 201, JSON.stringify(out.data));
+  return out.data;
+}
+
 before(async () => {
   await migrate();
   const { rows } = await q(`SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename<>'schema_migrations'`);
@@ -30,16 +45,11 @@ before(async () => {
   await new Promise((resolve,reject)=>{ server.once('listening',resolve); server.once('error',reject); });
   baseUrl = `http://127.0.0.1:${server.address().port}`;
 
-  const registration = await fetch(`${baseUrl}/auth/register`, {
-    method:'POST', headers:{ 'content-type':'application/json' },
-    body:JSON.stringify({
-      handle:'push.qa', email:'push.qa@example.test', password:'lumina-test-1234',
-      name:'Push QA', birthDate:'1990-01-01', acceptTerms:true,
-    }),
-  });
-  assert.equal(registration.status, 201);
-  token = (await registration.json()).token;
+  const registration = await register('push.qa', 'Push QA');
+  token = registration.token;
+  userId = registration.user.id;
   assert.ok(token);
+  assert.ok(userId);
 });
 
 after(async () => {
@@ -93,4 +103,25 @@ test('subscrição rejeita HTTP e hosts HTTPS arbitrários', async () => {
     assert.equal(bad.response.status, 400);
     assert.equal(bad.data.code, 'bad_push_subscription');
   }
+});
+
+test('push de mensagem identifica remetente sem expor o texto privado', async () => {
+  const sender = await register('push.sender', 'Remetente Push');
+  const thread = await requestAs(sender.token, '/messages/threads', {
+    method:'POST', body:{ userId },
+  });
+  assert.equal(thread.response.status, 201, JSON.stringify(thread.data));
+
+  const secretText = 'conteúdo privado que nunca deve sair no push';
+  const message = await requestAs(sender.token, `/messages/threads/${thread.data.id}/messages`, {
+    method:'POST', body:{ kind:'text', mode:'normal', body:secretText, palette:0 },
+  });
+  assert.equal(message.response.status, 201, JSON.stringify(message.data));
+
+  const latest = await request('/notifications/push/latest');
+  assert.equal(latest.response.status, 200, JSON.stringify(latest.data));
+  assert.equal(latest.data.notification.type, 'message');
+  assert.equal(latest.data.notification.title, 'Remetente Push');
+  assert.equal(latest.data.notification.body, 'Enviou-te uma mensagem');
+  assert.equal(JSON.stringify(latest.data).includes(secretText), false);
 });

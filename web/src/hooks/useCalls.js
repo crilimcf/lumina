@@ -61,7 +61,7 @@ export function useCalls({ enabled, ping }) {
       } catch {}
     };
     check();
-    const timer = setInterval(check, 1400);
+    const timer = setInterval(check, 2000);
     const visible = () => { if (document.visibilityState === 'visible') check(); };
     document.addEventListener('visibilitychange', visible);
     return () => { alive=false; clearInterval(timer); document.removeEventListener('visibilitychange', visible); };

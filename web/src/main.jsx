@@ -98,7 +98,11 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
 
   // Web Push standards-based. Em iOS o prompt só aparece numa web app instalada
   // no ecrã principal e é sempre iniciado por um toque explícito em "Ativar".
-  const supportsPush = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  // Safari 18.4+ expõe window.pushManager: essa subscrição sobrevive mesmo se o
+  // Service Worker for removido pelo sistema, e é partilhada com o SW de raiz.
+  const supportsPush = 'Notification' in window && (
+    'pushManager' in window || ('serviceWorker' in navigator && 'PushManager' in window)
+  );
   const standalone = window.matchMedia?.('(display-mode: standalone)')?.matches || window.navigator.standalone === true;
   let pushBanner = null;
   let pushBusy = false;
@@ -110,22 +114,32 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
     return Uint8Array.from(raw, (char) => char.charCodeAt(0));
   };
 
+  const getRegistration = async () => {
+    if (!('serviceWorker' in navigator)) return null;
+    const registration = await navigator.serviceWorker.register('/sw.js', { updateViaCache:'none' });
+    await navigator.serviceWorker.ready;
+    return registration;
+  };
+
+  const getPushManager = (registration) => window.pushManager || registration?.pushManager || null;
+
   const registerPush = async ({ ask = false } = {}) => {
     if (!supportsPush || pushBusy) return false;
     pushBusy = true;
     try {
-      const registration = await navigator.serviceWorker.register('/sw.js', { updateViaCache:'none' });
-      await navigator.serviceWorker.ready;
+      const registration = await getRegistration().catch(() => null);
+      const manager = getPushManager(registration);
+      if (!manager) return false;
       let permission = Notification.permission;
       if (permission === 'default' && ask) permission = await Notification.requestPermission();
       if (permission !== 'granted') return false;
 
-      let subscription = await registration.pushManager.getSubscription();
+      let subscription = await manager.getSubscription();
       if (!subscription) {
         const keyResponse = await fetch('/api/notifications/push/key', { credentials:'include', cache:'no-store' });
         if (!keyResponse.ok) return false;
         const { publicKey } = await keyResponse.json();
-        subscription = await registration.pushManager.subscribe({
+        subscription = await manager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: b64ToBytes(publicKey),
         });
@@ -137,6 +151,8 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
       if (!save.ok) return false;
       pushConfigured = true;
       pushBanner?.remove(); pushBanner = null;
+      sessionStorage.removeItem('lumina-push-later');
+      window.dispatchEvent(new CustomEvent('lumina:push-state'));
       return true;
     } catch (error) {
       console.debug('[push] subscrição', error?.message);
@@ -144,12 +160,26 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
     } finally { pushBusy = false; }
   };
 
+  window.__luminaEnablePush = () => registerPush({ ask:true });
+  window.__luminaPushSnapshot = async () => {
+    if (!supportsPush) return { supported:false, standalone, permission:'unsupported', subscribed:false };
+    try {
+      const registration = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration('/') : null;
+      const manager = getPushManager(registration);
+      const subscription = await manager?.getSubscription?.();
+      return { supported:true, standalone, permission:Notification.permission, subscribed:!!subscription };
+    } catch {
+      return { supported:true, standalone, permission:Notification.permission, subscribed:false };
+    }
+  };
+
   // Usado no logout para não deixar um dispositivo partilhado associado à conta anterior.
   window.__luminaDisablePush = async () => {
     if (!supportsPush) return;
     try {
-      const registration = await navigator.serviceWorker.getRegistration('/');
-      const subscription = await registration?.pushManager?.getSubscription();
+      const registration = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration('/') : null;
+      const manager = getPushManager(registration);
+      const subscription = await manager?.getSubscription?.();
       if (subscription) {
         await fetch('/api/notifications/push/unsubscribe', {
           method:'POST', credentials:'include', headers:{ 'content-type':'application/json' },
@@ -157,7 +187,10 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
         }).catch(() => null);
         await subscription.unsubscribe().catch(() => false);
       }
-    } finally { pushConfigured = false; }
+    } finally {
+      pushConfigured = false;
+      window.dispatchEvent(new CustomEvent('lumina:push-state'));
+    }
   };
 
   const showPushBanner = () => {
@@ -196,7 +229,7 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
 
   const maybeSetupPush = async () => {
     if (!supportsPush || pushConfigured) return;
-    await navigator.serviceWorker.register('/sw.js', { updateViaCache:'none' }).catch(() => null);
+    await getRegistration().catch(() => null);
     const session = await fetch('/api/auth/me', { credentials:'include', cache:'no-store' }).catch(() => null);
     if (!session?.ok) return;
     if (Notification.permission === 'granted') await registerPush();
@@ -222,6 +255,7 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
       setDockHidden(false);
       checkForNewDeployment();
       if (supportsPush && !pushConfigured) maybeSetupPush().catch(() => {});
+      window.dispatchEvent(new CustomEvent('lumina:push-state'));
     }
   });
   window.addEventListener('pageshow', checkForNewDeployment);

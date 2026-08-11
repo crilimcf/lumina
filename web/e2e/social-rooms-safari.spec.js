@@ -101,8 +101,8 @@ test('Sala pública cria, edita, conversa e apaga em Mobile Safari', async ({ pa
   await expect(page.getByRole('heading', { name: /Salas/i })).toBeVisible();
   await page.getByRole('button', { name: /Criar/ }).click();
 
-  const publicChoice = page.getByRole('button', { name: /^Pública/ });
-  const privateChoice = page.getByRole('button', { name: /^Privada/ });
+  const publicChoice = page.locator('.room-privacy-option.is-public');
+  const privateChoice = page.locator('.room-privacy-option.is-private');
   await expect(publicChoice).toHaveAttribute('aria-pressed', 'true');
   await privateChoice.click();
   await expect(privateChoice).toHaveAttribute('aria-pressed', 'true');

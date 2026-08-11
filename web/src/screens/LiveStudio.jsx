@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, CheckCircle2, Eye, Flame, Mic, MicOff, Radio, Send, Users, Video, VideoOff } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Eye, Flame, Mic, MicOff, Radio, Send, SwitchCamera, Users, Video, VideoOff } from 'lucide-react';
 import { api } from '../api.js';
+import { createLiveCapture } from '../live/liveCapture.js';
 import { createWhipPublisher } from '../live/webrtcLive.js';
 import '../live-facelift.css';
 
@@ -51,12 +52,16 @@ export function LiveStudio({ me, onBack, ping }) {
   const [commentBody, setCommentBody] = useState('');
   const [micOn, setMicOn] = useState(true);
   const [cameraOn, setCameraOn] = useState(true);
+  const [cameraFacing, setCameraFacing] = useState('user');
+  const [switchingCamera, setSwitchingCamera] = useState(false);
+  const [liveOrientation, setLiveOrientation] = useState('portrait');
   const [elapsed, setElapsed] = useState(0);
   const [replayBlob, setReplayBlob] = useState(null);
   const [replayMime, setReplayMime] = useState('');
   const [replayError, setReplayError] = useState('');
 
   const videoRef = useRef(null);
+  const captureRef = useRef(null);
   const localStreamRef = useRef(null);
   const publisherRef = useRef(null);
   const recorderRef = useRef(null);
@@ -74,6 +79,8 @@ export function LiveStudio({ me, onBack, ping }) {
   }, []);
 
   const stopLocalMedia = useCallback(() => {
+    captureRef.current?.stop?.();
+    captureRef.current = null;
     const stream = localStreamRef.current;
     if (stream) stream.getTracks().forEach(track => track.stop());
     localStreamRef.current = null;
@@ -133,7 +140,7 @@ export function LiveStudio({ me, onBack, ping }) {
     if (!title.trim() || phase !== 'setup') return;
     setError('');
     if (!configured) {
-      setError('Os Diretos ainda não estão configurados neste ambiente.');
+      setError('Os Diretos estão temporariamente indisponíveis. Tenta novamente dentro de momentos.');
       return;
     }
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -147,25 +154,26 @@ export function LiveStudio({ me, onBack, ping }) {
     }
 
     setPhase('preparing');
-    let media = null;
     let created = null;
     try {
-      media = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } },
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      });
-      localStreamRef.current = media;
+      const capture = await createLiveCapture({ facingMode: 'user' });
+      captureRef.current = capture;
+      localStreamRef.current = capture.stream;
+      setCameraFacing('user');
+      setCameraOn(true);
+      setMicOn(true);
+      setLiveOrientation(capture.orientation);
 
       created = await api.live.create({ title: title.trim(), privacy });
       activeLiveIdRef.current = created.id;
       endedRef.current = false;
-      const publisher = await createWhipPublisher(created.publishUrl, media);
+      const publisher = await createWhipPublisher(created.publishUrl, capture.stream);
       publisherRef.current = publisher;
 
       chunksRef.current = [];
       const recorder = mime
-        ? new MediaRecorder(media, { mimeType: mime, videoBitsPerSecond: 850_000, audioBitsPerSecond: 64_000 })
-        : new MediaRecorder(media, { videoBitsPerSecond: 850_000, audioBitsPerSecond: 64_000 });
+        ? new MediaRecorder(capture.stream, { mimeType: mime, videoBitsPerSecond: 1_200_000, audioBitsPerSecond: 64_000 })
+        : new MediaRecorder(capture.stream, { videoBitsPerSecond: 1_200_000, audioBitsPerSecond: 64_000 });
       recorderRef.current = recorder;
       recorder.addEventListener('dataavailable', event => {
         if (event.data?.size) chunksRef.current.push(event.data);
@@ -277,6 +285,21 @@ export function LiveStudio({ me, onBack, ping }) {
     setCameraOn(next);
   };
 
+  const switchCamera = async () => {
+    if (phase !== 'live' || switchingCamera || !captureRef.current) return;
+    const nextFacing = cameraFacing === 'user' ? 'environment' : 'user';
+    setSwitchingCamera(true);
+    try {
+      await captureRef.current.switchCamera(nextFacing);
+      setCameraFacing(nextFacing);
+      ping?.(nextFacing === 'environment' ? 'Câmara traseira ativa' : 'Câmara frontal ativa');
+    } catch (failure) {
+      ping?.(failure.message || 'Não foi possível trocar de câmara');
+    } finally {
+      setSwitchingCamera(false);
+    }
+  };
+
   const sendComment = async (event) => {
     event.preventDefault();
     const body = commentBody.trim();
@@ -320,12 +343,12 @@ export function LiveStudio({ me, onBack, ping }) {
             <option value="followers">Só quem te segue</option>
           </select>
         </label>
-        {configured === false && <div className="live-provider-note">Os Diretos usam Amazon IVS Real-Time e este ambiente ainda não tem a configuração de emissão ativa.</div>}
+        {configured === false && <div className="live-provider-note">Os Diretos estão temporariamente indisponíveis. Tenta novamente dentro de momentos.</div>}
         {error && <div className="live-provider-note" role="alert">{error}</div>}
         <button className="live-primary" onClick={begin} disabled={!title.trim() || configured !== true}>
           <Radio size={17} style={{verticalAlign:-3,marginRight:8}}/>Começar direto
         </button>
-        <div className="live-hint">Ao começar, a Lumina pede acesso à câmara e ao microfone. Os teus seguidores recebem um alerta quando o direto fica ativo.</div>
+        <div className="live-hint">A orientação em que iniciares define o formato do Direto e do replay: vertical em retrato, horizontal em paisagem. Podes trocar entre a câmara frontal e a traseira sem interromper a emissão.</div>
       </section>}
 
       {phase === 'preparing' && <section className="live-card live-replay-card">
@@ -335,8 +358,8 @@ export function LiveStudio({ me, onBack, ping }) {
       </section>}
 
       {['live','ending'].includes(phase) && <>
-        <section className="live-stage">
-          <video ref={videoRef} autoPlay muted playsInline aria-label="Pré-visualização do teu direto"/>
+        <section className={`live-stage live-stage-${liveOrientation}`}>
+          <video ref={videoRef} className={cameraFacing==='user'?'live-preview-mirrored':''} autoPlay muted playsInline aria-label="Pré-visualização do teu direto"/>
           <div className="live-stage-top">
             <span className="live-badge live-badge-live"><span className="live-dot"/>AO VIVO</span>
             <span className="live-badge">{formatDuration(elapsed)}</span>
@@ -346,6 +369,7 @@ export function LiveStudio({ me, onBack, ping }) {
             <div className="live-control-row">
               <button className={`live-control${micOn?'':' live-control-off'}`} onClick={toggleMic} aria-label={micOn?'Desligar microfone':'Ligar microfone'}>{micOn?<Mic size={18}/>:<MicOff size={18}/>}</button>
               <button className={`live-control${cameraOn?'':' live-control-off'}`} onClick={toggleCamera} aria-label={cameraOn?'Desligar câmara':'Ligar câmara'}>{cameraOn?<Video size={18}/>:<VideoOff size={18}/>}</button>
+              <button className="live-control" onClick={switchCamera} disabled={switchingCamera || phase==='ending'} aria-label={cameraFacing==='user'?'Usar câmara traseira':'Usar câmara frontal'}><SwitchCamera size={18}/></button>
             </div>
             <button className="live-end" onClick={endLive} disabled={phase==='ending'}>{phase==='ending'?'A terminar…':'Terminar'}</button>
           </div>

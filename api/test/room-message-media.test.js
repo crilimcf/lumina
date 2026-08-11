@@ -67,7 +67,7 @@ after(async () => {
 
 for (const [visibility, mime] of [['public', 'image/jpeg'], ['private', 'video/mp4']]) {
   test(`sala ${visibility} aceita mensagem ${mime.startsWith('video/') ? 'de vídeo' : 'de fotografia'} sem texto`, async () => {
-    const owner = await register(`room.${visibility}.${Date.now()}`.slice(0, 28));
+    const owner = await register(`room.${visibility}.${Date.now()}`.slice(0, 22));
     const created = await request('/rooms', {
       method: 'POST', token: owner.token,
       body: { name:`Sala ${visibility}`, topic:'Media na sala', description:'', visibility },

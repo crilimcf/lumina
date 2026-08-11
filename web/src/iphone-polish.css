@@ -36,6 +36,29 @@
   margin-right: -.02em;
 }
 
+/* Safari can clip the first/last overhanging glyph of the mixed display title. */
+.lumina-rooms .rooms-header,
+.lumina-rooms .rooms-header > div:first-child {
+  overflow: visible !important;
+}
+
+.lumina-rooms .rooms-header h2.d {
+  display: inline-block;
+  max-width: 100%;
+  box-sizing: border-box;
+  line-height: 1.08 !important;
+  padding-left: .08em;
+  padding-right: .14em;
+  margin-left: -.08em !important;
+  overflow: visible !important;
+}
+
+.lumina-rooms .rooms-header h2.d .it {
+  display: inline-block;
+  padding-right: .12em;
+  margin-right: -.02em;
+}
+
 /* Comments must look writable, not disabled, on dark post surfaces. */
 .lumina-comments-inner input {
   flex: 1;

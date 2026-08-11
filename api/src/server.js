@@ -26,6 +26,7 @@ import { paymentRoutes } from './routes/payments.js';
 import { notificationRoutes } from './routes/notifications.js';
 import { radarRoutes } from './routes/radar.js';
 import { radarSyncRoutes } from './routes/radar-sync.js';
+import { radarImageRoutes } from './routes/radar-images.js';
 import { liveRoutes } from './routes/live.js';
 
 const app = express();
@@ -88,7 +89,21 @@ const localE2E = (() => {
   } catch { return false; }
 })();
 const skipInTests = () => env.NODE_ENV === 'test' || localE2E;
-app.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-7', legacyHeaders: false, skip: skipInTests }));
+const isRadarImageRequest = req => req.method === 'GET' && /^\/(?:api\/)?radar-images\/[^/]+$/.test(req.path);
+app.use(rateLimit({
+  windowMs: 60_000,
+  limit: 120,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skip: req => skipInTests() || isRadarImageRequest(req),
+}));
+app.use(['/radar-images/:itemId', '/api/radar-images/:itemId'], rateLimit({
+  windowMs: 60_000,
+  limit: 240,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skip: skipInTests,
+}));
 app.use(['/auth/login', '/api/auth/login'], rateLimit({
   windowMs: 15 * 60_000, limit: 10,
   keyGenerator: (req) => `${req.ip}:${String(req.body?.email || '').toLowerCase()}`,
@@ -158,6 +173,7 @@ app.get(['/health', '/api/health'], health);
 const mountApi = (prefix = '') => {
   app.use(`${prefix}/auth`, authRoutes);
   app.use(`${prefix}/posts`, postRoutes);
+  app.use(`${prefix}/radar-images`, radarImageRoutes);
   app.use(`${prefix}/radar`, radarSyncRoutes);
   app.use(`${prefix}/radar`, radarRoutes);
   app.use(`${prefix}/messages`, messageRoutes);

@@ -41,6 +41,7 @@
 }
 
 .composer-close {
+  color: #F0EFFB !important;
   border-radius: 18px !important;
   background: rgba(255,255,255,.055) !important;
   border-color: rgba(255,255,255,.09) !important;
@@ -50,6 +51,7 @@
   position: relative;
   overflow: hidden;
   min-height: 124px !important;
+  color: #F4F2FF !important;
   border-style: solid !important;
   border-color: rgba(157,137,255,.18) !important;
   background:
@@ -62,8 +64,12 @@
 .composer-media-picker > span:first-child {
   width: 44px !important;
   height: 44px !important;
+  color: #E8E3FF;
+  background: rgba(123,97,255,.15) !important;
   box-shadow: 0 10px 24px rgba(76,54,170,.18);
 }
+
+.composer-media-picker .m { color: #8F97B0 !important; }
 
 .composer-media-picker:active {
   transform: scale(.985);
@@ -75,6 +81,7 @@
   min-height: 82px !important;
   margin-top: 11px !important;
   padding: 14px 15px !important;
+  color: #F5F3FF !important;
   border-color: rgba(180,132,255,.29) !important;
   background:
     radial-gradient(circle at 8% 0%, rgba(156,94,255,.22), transparent 56%),
@@ -83,12 +90,14 @@
   transition: transform .16s ease, border-color .16s ease;
 }
 
+.composer-live-picker .m { color: #9BA2B8 !important; }
 .composer-live-picker:active { transform: scale(.988); }
 
 .composer-sheet textarea {
   min-height: 132px;
   padding: 17px 17px 34px !important;
   border-radius: 22px !important;
+  color: #F7F5FF !important;
   font-size: 17px !important;
   line-height: 1.42;
   background: rgba(255,255,255,.045) !important;

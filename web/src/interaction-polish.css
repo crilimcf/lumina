@@ -191,6 +191,7 @@
   left: 0;
   right: 0;
   width: 100%;
+  min-height: 0 !important;
   max-width: 620px;
   margin: 0 auto;
 }

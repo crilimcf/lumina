@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Edit3, Flag, MoreHorizontal, Plus, Repeat2, Search, Send, Trash2, X } from 'lucide-react';
 import { api } from '../api.js';
 import { Orb, Skeleton, ErrorNote, Empty } from '../ui.jsx';
@@ -12,12 +12,44 @@ import '../mediaOrientation.css';
 function EditPostSheet({ post, onClose, onSave }) {
   const [body, setBody] = useState(post.body || '');
   const [busy, setBusy] = useState(false);
-  return <div className="edit-post-backdrop" onClick={() => !busy && onClose()} style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(15,9,40,.54)', backdropFilter: 'blur(7px)', display: 'flex', alignItems: 'flex-end' }}>
-    <div onClick={e => e.stopPropagation()} className="in edit-post-sheet" style={{ width: '100%', maxWidth: 560, margin: '0 auto', background: '#F5F3FF', borderRadius: '28px 28px 0 0', padding: '20px 18px calc(22px + env(safe-area-inset-bottom))' }}>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 13 }}><div className="d" style={{ fontSize: 26, flex: 1 }}>Editar publicação</div><button className="p edit-post-close" onClick={onClose} aria-label="Fechar edição"><X size={16} /></button></div>
-      <textarea autoFocus rows={5} maxLength={2000} value={body} onChange={e => setBody(e.target.value)} style={{ width: '100%', resize: 'none', marginBottom: 8 }} />
-      <div className="m" style={{ textAlign: 'right', marginBottom: 12 }}>{body.length}/2000</div>
-      <button className="p p-brand" disabled={busy || !body.trim()} onClick={async () => { setBusy(true); const ok = await onSave(body.trim()); setBusy(false); if (ok) onClose(); }} style={{ width: '100%', justifyContent: 'center', padding: 13 }}>{busy ? 'A guardar…' : 'Guardar edição'}</button>
+  const [visualFrame, setVisualFrame] = useState(null);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return undefined;
+    let raf = 0;
+    const sync = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => setVisualFrame({ top:viewport.offsetTop, height:viewport.height }));
+    };
+    sync();
+    viewport.addEventListener('resize', sync);
+    viewport.addEventListener('scroll', sync);
+    return () => {
+      cancelAnimationFrame(raf);
+      viewport.removeEventListener('resize', sync);
+      viewport.removeEventListener('scroll', sync);
+    };
+  }, []);
+
+  const frameStyle = visualFrame
+    ? { top:`${visualFrame.top}px`, height:`${visualFrame.height}px`, bottom:'auto' }
+    : { inset:0 };
+
+  return <div className="edit-post-backdrop" onClick={() => !busy && onClose()} style={{ position:'fixed', left:0, right:0, zIndex:90, background:'rgba(15,9,40,.54)', backdropFilter:'blur(7px)', display:'flex', alignItems:'flex-end', ...frameStyle }}>
+    <div onClick={e => e.stopPropagation()} className="in edit-post-sheet" style={{ width:'100%', maxWidth:560, maxHeight:'calc(100% - 8px)', overflowY:'auto', margin:'0 auto', background:'#F5F3FF', borderRadius:'28px 28px 0 0', padding:'20px 18px calc(22px + env(safe-area-inset-bottom))' }}>
+      <div style={{ display:'flex', gap:10, alignItems:'center', marginBottom:13 }}><div className="d" style={{ fontSize:26, flex:1 }}>Editar publicação</div><button className="p edit-post-close" onClick={onClose} aria-label="Fechar edição"><X size={16}/></button></div>
+      <textarea
+        autoFocus
+        rows={5}
+        maxLength={2000}
+        value={body}
+        onChange={e => setBody(e.target.value)}
+        onFocus={e => requestAnimationFrame(() => e.currentTarget.scrollIntoView({ block:'center', behavior:'smooth' }))}
+        style={{ width:'100%', resize:'none', marginBottom:8 }}
+      />
+      <div className="m" style={{ textAlign:'right', marginBottom:12 }}>{body.length}/2000</div>
+      <button className="p p-brand" disabled={busy || !body.trim()} onClick={async () => { setBusy(true); const ok = await onSave(body.trim()); setBusy(false); if (ok) onClose(); }} style={{ width:'100%', justifyContent:'center', padding:13 }}>{busy ? 'A guardar…' : 'Guardar edição'}</button>
     </div>
   </div>;
 }

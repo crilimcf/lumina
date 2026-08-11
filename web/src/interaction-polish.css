@@ -1,0 +1,210 @@
+/* Rooms + mobile interaction polish */
+.room-privacy-grid {
+  display: grid;
+  gap: 9px;
+  margin-bottom: 15px;
+}
+
+.room-privacy-option {
+  position: relative;
+  width: 100%;
+  min-height: 78px;
+  padding: 13px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.085) !important;
+  border-radius: 20px !important;
+  color: #EDEFFC !important;
+  background: rgba(255,255,255,.045) !important;
+  text-align: left;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.025);
+  transition: transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
+}
+
+.room-privacy-option:active { transform: scale(.988); }
+
+.room-privacy-option.is-public.is-selected {
+  border-color: rgba(72,224,156,.48) !important;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(61,210,139,.19), transparent 68%),
+    rgba(45,172,116,.08) !important;
+  box-shadow: 0 0 0 3px rgba(61,210,139,.07), inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+.room-privacy-option.is-private.is-selected {
+  border-color: rgba(157,130,255,.52) !important;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(123,97,255,.25), transparent 68%),
+    rgba(123,97,255,.09) !important;
+  box-shadow: 0 0 0 3px rgba(123,97,255,.08), inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+.room-privacy-icon {
+  width: 43px;
+  height: 43px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 15px;
+  color: #B9BFD2;
+  background: rgba(255,255,255,.06);
+}
+
+.room-privacy-option.is-public.is-selected .room-privacy-icon {
+  color: #8EF1C0;
+  background: rgba(61,210,139,.14);
+}
+
+.room-privacy-option.is-private.is-selected .room-privacy-icon {
+  color: #C9BDFF;
+  background: rgba(123,97,255,.17);
+}
+
+.room-privacy-copy { flex: 1; min-width: 0; }
+.room-privacy-copy strong { display: block; color: #F7F7FF; font-size: 14px; }
+.room-privacy-copy small { display: block; margin-top: 4px; color: #8F97AE; font-size: 11px; line-height: 1.38; }
+.room-privacy-selected {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  color: #F5F4FF;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.room-sheet {
+  color: #F6F5FF !important;
+  background:
+    radial-gradient(circle at 12% -6%, rgba(123,97,255,.24), transparent 21rem),
+    linear-gradient(180deg,#171C31,#0C101E) !important;
+  border: 1px solid rgba(255,255,255,.08);
+  box-shadow: 0 -22px 62px rgba(0,0,0,.45);
+}
+
+.room-sheet .d { color: #fff; }
+.room-sheet .m { color: #9299B0; }
+.room-sheet input,
+.room-sheet textarea {
+  color: #F5F4FC !important;
+  background: rgba(255,255,255,.05) !important;
+  border-color: rgba(255,255,255,.09) !important;
+}
+.room-sheet input::placeholder,
+.room-sheet textarea::placeholder { color: #7F879F !important; }
+
+.room-message-media {
+  display: block;
+  width: min(100%, 300px);
+  max-height: 360px;
+  margin-top: 6px;
+  border-radius: 16px;
+  object-fit: cover;
+  background: #080A12;
+  border: 1px solid rgba(255,255,255,.09);
+}
+
+.room-message-media.is-video { object-fit: contain; }
+
+.room-composer-wrap {
+  flex: 0 0 auto;
+  padding: 8px 10px max(9px, env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(255,255,255,.07);
+  background: rgba(10,13,25,.96);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  backdrop-filter: blur(22px) saturate(140%);
+}
+
+.room-media-ready {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+  color: #D9DBE8;
+  background: rgba(255,255,255,.045);
+}
+
+.room-media-ready-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-composer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.room-media-picker,
+.room-send-button {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 15px;
+}
+
+.room-media-picker {
+  border: 1px solid rgba(255,255,255,.08);
+  color: #D8D3FF;
+  background: rgba(123,97,255,.10);
+}
+
+.room-send-button {
+  border: 0;
+  color: #fff;
+  background: linear-gradient(145deg,#7259EF,#536FF1);
+  box-shadow: 0 9px 24px rgba(82,64,222,.28);
+}
+
+.room-send-button:disabled { opacity: .38; box-shadow: none; }
+
+.room-composer-row input {
+  flex: 1;
+  min-width: 0;
+  height: 44px !important;
+  padding: 0 14px !important;
+  border: 1px solid rgba(255,255,255,.08) !important;
+  border-radius: 15px !important;
+  color: #F5F4FC !important;
+  background: rgba(255,255,255,.055) !important;
+}
+
+.room-composer-row input::placeholder { color: #727A93 !important; }
+
+/* Direct messages: keep the composer inside the iPhone visual viewport. */
+.lumina-messages-thread.messages-visual-viewport {
+  position: fixed;
+  left: 0;
+  right: 0;
+  width: 100%;
+  max-width: 620px;
+  margin: 0 auto;
+}
+
+.messages-composer-shell {
+  padding-bottom: max(9px, env(safe-area-inset-bottom)) !important;
+}
+
+@media (max-width: 430px) {
+  .room-sheet { padding-inline: 16px !important; }
+  .room-privacy-option { padding: 12px; }
+  .room-message-media { max-height: 310px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .room-privacy-option { transition: none; }
+}

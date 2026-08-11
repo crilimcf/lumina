@@ -10,6 +10,7 @@ A aplicação é composta por:
 - **API:** Node.js 20 + Express, publicada no Railway.
 - **Base de dados:** PostgreSQL.
 - **Media:** armazenamento S3 compatível / Cloudflare R2.
+- **Diretos:** Amazon IVS Real-Time, com Stages efémeros, tokens emitidos pelo backend e gravação individual server-side para S3.
 - **Email:** Resend.
 - **CI:** GitHub Actions com testes de integração da API, build e end-to-end Mobile Safari/WebKit.
 
@@ -50,6 +51,7 @@ A navegação principal é **Feed · Salas · Novo · Radar · Chat**. Alertas e
 - **Radar:** descoberta, campanhas e conteúdos patrocinados, separados do Feed social.
 - **Chat:** mensagens privadas, conteúdos efémeros e chamadas.
 - **Momentos:** fotografia/vídeo durante 24 horas, visível segundo o mesmo grafo social do Feed.
+- **Diretos:** vídeo em tempo real via Amazon IVS Real-Time; a API cria um Stage por sessão, emite tokens de publicação/subscrição e elimina o Stage no fim. A experiência social, alertas e replay continuam integrados no Feed e Perfil.
 
 ## Desenvolvimento local
 

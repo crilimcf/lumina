@@ -8,12 +8,14 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-html, body, #root { height: 100%; }
+html, body, #root { min-height: 100%; background: #070914; }
+#root { min-height: 100dvh; }
 /* overflow-x no body sozinho não chega: o scroll raiz é do html. */
-html { overflow-x: hidden; }
+html { overflow-x: hidden; background: #070914; }
 
 body {
-  background: var(--paper2);
+  min-height: 100dvh;
+  background: #070914;
   color: var(--ink);
   font-family: 'Manrope', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-weight: 500;
@@ -21,7 +23,7 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overflow-x: hidden;
-  /* iPhone: respeita o entalhe e a barra de gestos */
+  /* iPhone: respeita o entalhe; cada ecrã pinta a safe-area inferior. */
   padding: env(safe-area-inset-top) 0 0;
 }
 

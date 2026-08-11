@@ -5,6 +5,7 @@ import { Orb, Skeleton, ErrorNote, Empty } from '../ui.jsx';
 import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
 import { MomentComposer, MomentRing } from '../components/Moments.jsx';
 import { MomentViewer } from '../components/MomentViewer.jsx';
+import { LiveNow } from '../components/live/LiveNow.jsx';
 import '../facelift.css';
 
 function EditPostSheet({ post, onClose, onSave }) {
@@ -45,6 +46,7 @@ export function Feed({
   viewMoment, deleteMoment, replyToMoment, reactMoment,
   momentComposer, setMomentComposer, momentFile, setMomentFile,
   momentPalette, setMomentPalette, momentBusy, publishMoment,
+  onOpenLive,
 }) {
   const [editingPost, setEditingPost] = useState(null);
 
@@ -73,6 +75,7 @@ export function Feed({
       </section>
 
       <main className="lumina-feed-content">
+        <LiveNow onOpen={onOpenLive} />
         <ErrorNote error={feedErr} onRetry={loadFeed} />
         {loadingFeed ? <div className="lumina-feed-list">{[0,1].map(i => <div key={i} className="lumina-post" style={{ padding: '13px 0' }}><div style={{ display: 'flex', gap: 11, padding: '0 14px 13px', alignItems: 'center' }}><Skeleton w={38} h={38} r={99} /><div style={{ flex: 1 }}><Skeleton w="45%" h={13} /></div></div><Skeleton w="calc(100% - 16px)" h={280} r={19} /><div style={{ padding: '14px' }}><Skeleton w="70%" h={13} /></div></div>)}</div> : feed.length === 0 ? <div className="lumina-feed-empty"><Empty>O teu Feed está vazio.<br />Segue pessoas ou publica algo novo.</Empty></div> : (
           <div className="lumina-feed-list">

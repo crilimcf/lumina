@@ -1,7 +1,18 @@
 function currentOrientation() {
-  const viewport = globalThis.visualViewport;
-  const width = viewport?.width || globalThis.innerWidth || 0;
-  const height = viewport?.height || globalThis.innerHeight || 0;
+  const screenOrientation = globalThis.screen?.orientation?.type;
+  if (typeof screenOrientation === 'string') {
+    if (screenOrientation.startsWith('landscape')) return 'landscape';
+    if (screenOrientation.startsWith('portrait')) return 'portrait';
+  }
+
+  if (typeof globalThis.orientation === 'number') {
+    return Math.abs(globalThis.orientation) % 180 === 90 ? 'landscape' : 'portrait';
+  }
+
+  if (globalThis.matchMedia?.('(orientation: landscape)')?.matches) return 'landscape';
+
+  const width = globalThis.innerWidth || globalThis.screen?.width || 0;
+  const height = globalThis.innerHeight || globalThis.screen?.height || 0;
   return width > height ? 'landscape' : 'portrait';
 }
 
@@ -93,8 +104,8 @@ export async function createLiveCapture({ facingMode = 'user' } = {}) {
   let animationFrame = 0;
   const render = () => {
     if (stopped) return;
-    if (sourceVideo.readyState >= 2) {
-      context.fillRect(0, 0, width, height);
+    context.fillRect(0, 0, width, height);
+    if (sourceVideo.readyState >= 2 && sourceVideo.srcObject) {
       drawCover(context, sourceVideo, width, height);
     }
     animationFrame = requestAnimationFrame(render);
@@ -116,6 +127,12 @@ export async function createLiveCapture({ facingMode = 'user' } = {}) {
     ...(audioTrack ? [audioTrack] : []),
   ]);
 
+  const attachCameraTrack = async (track) => {
+    cameraTrack = track;
+    sourceVideo.srcObject = new MediaStream([track]);
+    await sourceVideo.play();
+  };
+
   return {
     stream: outputStream,
     orientation,
@@ -124,21 +141,39 @@ export async function createLiveCapture({ facingMode = 'user' } = {}) {
     height,
     async switchCamera(nextFacingMode) {
       if (stopped || nextFacingMode === facingMode) return facingMode;
-      const nextStream = await openCamera(nextFacingMode, orientation, false);
-      const nextTrack = nextStream.getVideoTracks()[0] || null;
-      if (!nextTrack) {
-        nextStream.getTracks().forEach(track => track.stop());
-        throw new Error('Não foi possível trocar de câmara.');
-      }
 
+      const previousFacingMode = facingMode;
       const previousTrack = cameraTrack;
-      cameraTrack = nextTrack;
-      facingMode = nextFacingMode;
-      sourceVideo.srcObject = new MediaStream([nextTrack]);
-      await sourceVideo.play();
+      sourceVideo.srcObject = null;
       previousTrack?.stop();
-      nextStream.getAudioTracks().forEach(track => track.stop());
-      return facingMode;
+      cameraTrack = null;
+
+      try {
+        const nextStream = await openCamera(nextFacingMode, orientation, false);
+        const nextTrack = nextStream.getVideoTracks()[0] || null;
+        if (!nextTrack) {
+          nextStream.getTracks().forEach(track => track.stop());
+          throw new Error('Não foi possível abrir a outra câmara.');
+        }
+
+        await attachCameraTrack(nextTrack);
+        nextStream.getAudioTracks().forEach(track => track.stop());
+        facingMode = nextFacingMode;
+        return facingMode;
+      } catch (switchError) {
+        try {
+          const rollbackStream = await openCamera(previousFacingMode, orientation, false);
+          const rollbackTrack = rollbackStream.getVideoTracks()[0] || null;
+          if (rollbackTrack) {
+            await attachCameraTrack(rollbackTrack);
+            rollbackStream.getAudioTracks().forEach(track => track.stop());
+            facingMode = previousFacingMode;
+          } else {
+            rollbackStream.getTracks().forEach(track => track.stop());
+          }
+        } catch {}
+        throw new Error('Não foi possível trocar de câmara. Tenta novamente.');
+      }
     },
     stop() {
       if (stopped) return;

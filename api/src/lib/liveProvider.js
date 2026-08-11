@@ -99,8 +99,7 @@ export async function createLiveInput({ liveId, creatorId, title }) {
       return {
         configured: false,
         inputId: `local-${liveId}`,
-        publishUrl: null,
-        playbackUrl: null,
+        publisherToken: null,
       };
     }
     throw new Error('Amazon IVS Real-Time não configurado');
@@ -113,6 +112,11 @@ export async function createLiveInput({ liveId, creatorId, title }) {
       mediaTypes: ['AUDIO_VIDEO'],
       recordingReconnectWindowSeconds: 30,
       thumbnailConfiguration: { recordingMode: 'DISABLED' },
+    },
+    tags: {
+      Project: 'Lumina',
+      Purpose: 'Live',
+      LiveId: String(liveId),
     },
   });
 
@@ -128,8 +132,7 @@ export async function createLiveInput({ liveId, creatorId, title }) {
     return {
       configured: true,
       inputId: stageArn,
-      publishUrl: publisherToken,
-      playbackUrl: null,
+      publisherToken,
     };
   } catch (error) {
     await ivs('/DeleteStage', { arn: stageArn }).catch(() => {});

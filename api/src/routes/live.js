@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import { q, tx } from '../db.js';
-import { auth, h, bad, notFound, forbidden, HttpError } from '../middleware/auth.js';
+import { auth, h, bad, notFound, HttpError } from '../middleware/auth.js';
 import { claimUpload, removeUploadIfUnreferenced } from '../lib/uploads.js';
 import { createLiveInput, deleteLiveInput, liveProviderConfigured } from '../lib/liveProvider.js';
+import { sendPushToUser } from '../lib/webpush.js';
 
 export const liveRoutes = Router();
 
@@ -103,7 +104,7 @@ liveRoutes.post('/:streamId/start', auth, h(async (req, res) => {
   if (!rows[0]) throw notFound('Direto não encontrado ou já iniciado');
   const stream = rows[0];
 
-  await q(
+  const notices = await q(
     `INSERT INTO notifications (user_id,type,actor_id,data,dedupe_key)
      SELECT f.follower_id, 'live_started', $1,
             jsonb_build_object('liveId',$2::uuid,'title',$3::text,'privacy',$4::text),
@@ -111,11 +112,24 @@ liveRoutes.post('/:streamId/start', auth, h(async (req, res) => {
        FROM follows f
       WHERE f.following_id=$1
      ON CONFLICT (dedupe_key) DO UPDATE
-       SET data=EXCLUDED.data, actor_id=EXCLUDED.actor_id, read_at=NULL, created_at=now()`,
+       SET data=EXCLUDED.data, actor_id=EXCLUDED.actor_id, read_at=NULL, created_at=now()
+     RETURNING id,user_id`,
     [req.user.id, stream.id, stream.title, stream.privacy]
   );
 
   res.json(stream);
+
+  if (notices.rows.length) {
+    const actorName = req.user.name || req.user.handle || 'Alguém';
+    void Promise.allSettled(notices.rows.map(notice => sendPushToUser(notice.user_id, {
+      notification: {
+        title: `${actorName} está em direto`,
+        body: stream.title,
+        tag: `lumina:live:${stream.id}`,
+        url: `/?live=${encodeURIComponent(stream.id)}&notification=${encodeURIComponent(notice.id)}`,
+      },
+    }))).catch(() => {});
+  }
 }));
 
 liveRoutes.get('/:streamId', auth, h(async (req, res) => {

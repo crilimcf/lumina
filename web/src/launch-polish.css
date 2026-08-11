@@ -1,0 +1,155 @@
+.lumina-launch {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  position: relative;
+  color: #f8f6ff;
+  background:
+    radial-gradient(circle at 72% 18%, rgba(123,97,255,.3), transparent 34%),
+    radial-gradient(circle at 22% 80%, rgba(76,117,255,.13), transparent 30%),
+    linear-gradient(180deg,#090c19,#050711 62%,#050711);
+  padding: max(22px, env(safe-area-inset-top)) 20px calc(22px + env(safe-area-inset-bottom));
+}
+
+.lumina-launch::before,
+.lumina-launch::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(1px);
+}
+
+.lumina-launch::before {
+  width: 260px;
+  height: 260px;
+  top: 15%;
+  right: -120px;
+  background: radial-gradient(circle, rgba(255,111,184,.14), transparent 68%);
+  animation: launchAura 3s ease-in-out infinite alternate;
+}
+
+.lumina-launch::after {
+  width: 8px;
+  height: 8px;
+  left: 19%;
+  top: 29%;
+  background: #c9c1ff;
+  box-shadow:
+    38vw 7vh 0 -2px rgba(255,255,255,.48),
+    55vw 38vh 0 -2px rgba(152,132,255,.46),
+    12vw 52vh 0 -3px rgba(255,255,255,.5),
+    63vw 58vh 0 -3px rgba(255,111,184,.38);
+  animation: launchStars 2.6s ease-in-out infinite alternate;
+}
+
+.lumina-launch-lockup {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  text-align: center;
+}
+
+.lumina-launch-mark {
+  width: 58px;
+  height: 58px;
+  border-radius: 20px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg,rgba(123,97,255,.28),rgba(255,111,184,.16));
+  border: 1px solid rgba(255,255,255,.11);
+  box-shadow: 0 18px 46px rgba(70,48,190,.28), inset 0 1px 0 rgba(255,255,255,.08);
+  animation: launchMarkIn .72s cubic-bezier(.2,.8,.2,1) both;
+}
+
+.lumina-launch-mark::before,
+.lumina-launch-mark::after {
+  content: '';
+  position: absolute;
+  width: 29px;
+  height: 5px;
+  border-radius: 999px;
+  background: linear-gradient(90deg,#8f78ff,#ff82c6);
+  box-shadow: 0 0 16px rgba(170,112,255,.58);
+}
+.lumina-launch-mark::after { transform: rotate(90deg); }
+
+.lumina-launch-word {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  line-height: 1;
+  font-size: clamp(48px,14vw,72px);
+  font-weight: 800;
+  letter-spacing: -.075em;
+  padding-right: .07em;
+}
+
+.lumina-launch-letter {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(22px) scale(.92) rotateX(24deg);
+  filter: blur(7px);
+  text-shadow: 0 0 0 rgba(123,97,255,0);
+  animation: launchLetter .64s cubic-bezier(.18,.88,.26,1.12) forwards;
+  animation-delay: calc(.12s + var(--i) * .09s);
+}
+
+.lumina-launch-letter:nth-child(4),
+.lumina-launch-letter:nth-child(5),
+.lumina-launch-letter:nth-child(6) {
+  background: linear-gradient(135deg,#fff 5%,#b8adff 46%,#ff88c8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.lumina-launch-tagline {
+  opacity: 0;
+  transform: translateY(9px);
+  color: #a8aec2;
+  font-size: 12px;
+  font-weight: 720;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  animation: launchTagline .55s ease forwards .78s;
+}
+
+.lumina-launch-glint {
+  width: 48px;
+  height: 2px;
+  border-radius: 999px;
+  opacity: 0;
+  background: linear-gradient(90deg,transparent,#9b86ff,#ff7fc4,transparent);
+  box-shadow: 0 0 16px rgba(146,111,255,.62);
+  animation: launchGlint .58s ease forwards .72s;
+}
+
+@keyframes launchLetter {
+  0% { opacity:0; transform:translateY(22px) scale(.92) rotateX(24deg); filter:blur(7px); }
+  68% { opacity:1; transform:translateY(-2px) scale(1.025) rotateX(0); filter:blur(0); text-shadow:0 0 24px rgba(123,97,255,.18); }
+  100% { opacity:1; transform:translateY(0) scale(1) rotateX(0); filter:blur(0); }
+}
+@keyframes launchTagline { to { opacity:1; transform:translateY(0); } }
+@keyframes launchGlint { 0% { opacity:0; transform:scaleX(.2); } 100% { opacity:.9; transform:scaleX(1); } }
+@keyframes launchMarkIn { 0% { opacity:0; transform:scale(.72) rotate(-8deg); filter:blur(5px); } 100% { opacity:1; transform:scale(1) rotate(0); filter:blur(0); } }
+@keyframes launchAura { to { transform:translate(-20px,18px) scale(1.1); opacity:.72; } }
+@keyframes launchStars { to { opacity:.55; transform:translateY(-3px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .lumina-launch::before,
+  .lumina-launch::after,
+  .lumina-launch-mark,
+  .lumina-launch-letter,
+  .lumina-launch-tagline,
+  .lumina-launch-glint {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+}

@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Lock, MessageCircle, UserMinus, UserPlus } from 'lucide-react';
 import { api } from '../api.js';
 import { Empty, Orb, Skeleton } from '../ui.jsx';
+import '../mediaOrientation.css';
 
 function PostMedia({ post }) {
   if (!post.media_url) return null;
   const video = String(post.media_mime || '').startsWith('video/');
-  if (video) return <video src={post.media_url} controls playsInline preload="metadata" style={{ width:'100%',maxHeight:520,objectFit:'cover',display:'block',background:'#111' }}/>;
+  if (video) return <video className="public-profile-adaptive-video" src={post.media_url} controls playsInline preload="metadata"/>;
   return <img src={post.media_url} alt="" loading="lazy" style={{ width:'100%',maxHeight:560,objectFit:'cover',display:'block',background:'#DDD8F2' }}/>;
 }
 

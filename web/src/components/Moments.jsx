@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pencil, RefreshCw, Send, Trash2, Video, X } from 'lucide-react';
 import { Orb } from '../ui.jsx';
 import { MomentImageEditor } from './moments/MomentImageEditor.jsx';
+import '../publishing-polish.css';
 
 /** O anel à volta do avatar: gradiente para quem tem algo por ver, cinza para quem já viste tudo. */
 export function MomentRing({ palette, avatarUrl, allSeen, size = 52, children }) {
@@ -202,18 +203,19 @@ export function MomentComposer({ onClose, onPublish, file, setFile, busy }) {
 
   return (
     <>
-      <div onClick={() => !busy && onClose()} style={{ position: 'fixed', inset: 0, background: 'rgba(24,18,60,.38)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'flex-end', zIndex: 60 }}>
-        <div onClick={e => e.stopPropagation()} className="in" style={{
+      <div className="moment-composer-backdrop" onClick={() => !busy && onClose()} style={{ position: 'fixed', inset: 0, background: 'rgba(24,18,60,.38)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'flex-end', zIndex: 60 }}>
+        <div onClick={e => e.stopPropagation()} className="in moment-composer-sheet" style={{
           background: 'linear-gradient(180deg,#F7F5FF,#E9E7F8)', borderRadius: '30px 30px 0 0', width: '100%', maxWidth: 560,
           maxHeight: '94dvh', overflowY: 'auto', margin: '0 auto', padding: '22px 20px calc(26px + env(safe-area-inset-bottom))',
           boxShadow: '0 -18px 60px rgba(30,22,70,.16)',
         }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
+          <div className="moment-composer-head" style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
             <div style={{ flex: 1 }}>
-              <h3 className="d" style={{ fontSize: 28, lineHeight: 1, margin: 0 }}>Momento</h3>
-              <div className="m" style={{ marginTop: 6 }}>Cria algo vertical para ficar visível durante 24 horas</div>
+              <div className="moment-composer-kicker">24 HORAS · VERTICAL</div>
+              <h3 className="d" style={{ fontSize: 28, lineHeight: 1, margin: 0 }}>Criar momento</h3>
+              <div className="m" style={{ marginTop: 6 }}>Partilha um instante em ecrã inteiro. Fica visível durante 24 horas.</div>
             </div>
-            <button className="p" onClick={onClose} aria-label="Fechar" style={{ padding: 10 }}><X size={16} /></button>
+            <button className="p moment-composer-close" onClick={onClose} aria-label="Fechar" style={{ padding: 10 }}><X size={16} /></button>
           </div>
 
           <input ref={imageInput} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
@@ -231,7 +233,7 @@ export function MomentComposer({ onClose, onPublish, file, setFile, busy }) {
 
           {preview && file ? (
             <div style={{ marginBottom: 15 }}>
-              <div style={{
+              <div className="moment-composer-preview" style={{
                 position: 'relative', width: '100%', aspectRatio: '9 / 16', maxHeight: '61dvh', overflow: 'hidden',
                 borderRadius: 25, background: '#080711', boxShadow: '0 16px 38px rgba(30,22,70,.18)',
               }}>
@@ -268,21 +270,21 @@ export function MomentComposer({ onClose, onPublish, file, setFile, busy }) {
             <div style={{ marginBottom: 16 }}>
               <div className="m" style={{ margin: '0 0 9px 2px' }}>Escolher formato</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
-                <button type="button" onClick={() => imageInput.current?.click()} aria-label="Adicionar fotografia ao momento"
+                <button className="moment-composer-picker" type="button" onClick={() => imageInput.current?.click()} aria-label="Adicionar fotografia ao momento"
                   style={{
                     minHeight: 128, padding: 15, border: '1.5px dashed #C8C2E4', borderRadius: 23, cursor: 'pointer',
                     background: 'rgba(255,255,255,.7)', color: 'var(--ink)', display: 'grid', placeItems: 'center', gap: 7,
                   }}>
-                  <span style={{ width: 42, height: 42, borderRadius: 99, display: 'grid', placeItems: 'center', background: '#fff', boxShadow: '0 6px 18px rgba(30,22,70,.09)' }}><Image size={19} /></span>
+                  <span className="moment-composer-picker-icon" style={{ width: 42, height: 42, borderRadius: 99, display: 'grid', placeItems: 'center', background: '#fff', boxShadow: '0 6px 18px rgba(30,22,70,.09)' }}><Image size={19} /></span>
                   <span style={{ fontSize: 14, fontWeight: 700 }}>Fotografia</span>
-                  <span className="m" style={{ fontSize: 9.5 }}>9:16 · texto · edição</span>
+                  <span className="m" style={{ fontSize: 9.5 }}>9:16 · recorta e personaliza</span>
                 </button>
-                <button type="button" onClick={() => videoInput.current?.click()} aria-label="Adicionar vídeo ao momento"
+                <button className="moment-composer-picker" type="button" onClick={() => videoInput.current?.click()} aria-label="Adicionar vídeo ao momento"
                   style={{
                     minHeight: 128, padding: 15, border: '1.5px dashed #C8C2E4', borderRadius: 23, cursor: 'pointer',
                     background: 'rgba(255,255,255,.7)', color: 'var(--ink)', display: 'grid', placeItems: 'center', gap: 7,
                   }}>
-                  <span style={{ width: 42, height: 42, borderRadius: 99, display: 'grid', placeItems: 'center', background: '#fff', boxShadow: '0 6px 18px rgba(30,22,70,.09)' }}><Video size={19} /></span>
+                  <span className="moment-composer-picker-icon" style={{ width: 42, height: 42, borderRadius: 99, display: 'grid', placeItems: 'center', background: '#fff', boxShadow: '0 6px 18px rgba(30,22,70,.09)' }}><Video size={19} /></span>
                   <span style={{ fontSize: 14, fontWeight: 700 }}>Vídeo</span>
                   <span className="m" style={{ fontSize: 9.5 }}>MP4, MOV ou WebM</span>
                 </button>
@@ -291,8 +293,8 @@ export function MomentComposer({ onClose, onPublish, file, setFile, busy }) {
             </div>
           )}
 
-          <button className="p p-brand" onClick={onPublish} disabled={busy || !file} style={{ width: '100%', padding: 15, fontSize: 15 }}>
-            {busy ? 'A publicar…' : 'Publicar momento'}
+          <button className="p p-brand moment-composer-publish" onClick={onPublish} disabled={busy || !file} style={{ width: '100%', padding: 15, fontSize: 15 }}>
+            {busy ? 'A publicar…' : 'Partilhar momento'}
           </button>
         </div>
       </div>

@@ -105,7 +105,7 @@ export default function App() {
   useEffect(() => {
     if (!me) return;
     refreshUnread();
-    const id = setInterval(refreshUnread, 15_000);
+    const id = setInterval(refreshUnread, 60_000);
     const onVisible = () => { if (document.visibilityState === 'visible') refreshUnread(); };
     const onNotificationsChanged = () => refreshUnread();
     document.addEventListener('visibilitychange', onVisible);

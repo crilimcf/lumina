@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { q } from '../db.js';
 import { auth, h, bad, notFound } from '../middleware/auth.js';
 import { validPushEndpoint, vapidPublicKey } from '../lib/webpush.js';
+import { subscribeRealtime } from '../realtime.js';
 
 export const notificationRoutes = Router();
 
@@ -84,6 +85,45 @@ notificationRoutes.get('/unread-count', auth, h(async (req, res) => {
     [req.user.id]
   );
   res.json({ count: rows[0].count });
+}));
+
+notificationRoutes.get('/events', auth, h(async (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.socket?.setTimeout(0);
+  res.socket?.setKeepAlive(true);
+
+  const unsubscribe = await subscribeRealtime(req.user.id, event => {
+    if (event.type !== 'notification_changed' || res.writableEnded || res.destroyed) return;
+    res.write(`data: ${JSON.stringify({
+      id:event.id,
+      type:event.type,
+      at:event.at,
+      notificationId:event.notificationId || null,
+    })}\n\n`);
+  });
+
+  res.flushHeaders?.();
+  res.write('retry: 5000\n');
+  res.write(`event: ready\ndata: ${JSON.stringify({ ok:true, at:new Date().toISOString() })}\n\n`);
+
+  const heartbeat = setInterval(() => {
+    if (!res.writableEnded && !res.destroyed) res.write(': keep-alive\n\n');
+  }, 25_000);
+  heartbeat.unref?.();
+
+  let closed = false;
+  const cleanup = () => {
+    if (closed) return;
+    closed = true;
+    clearInterval(heartbeat);
+    unsubscribe();
+  };
+  req.once('aborted', cleanup);
+  req.once('close', cleanup);
+  res.once('close', cleanup);
 }));
 
 notificationRoutes.get('/push/key', auth, h(async (_req, res) => {

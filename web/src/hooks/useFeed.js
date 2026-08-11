@@ -45,14 +45,44 @@ export function useFeed({ me, ping }) {
   };
 
   const deletePost = async (post) => {
+    const removed = new Set([post.id]);
+    let expanded = true;
+    while (expanded) {
+      expanded = false;
+      for (const candidate of feed) {
+        if (candidate.repost_of && removed.has(candidate.repost_of) && !removed.has(candidate.id)) {
+          removed.add(candidate.id);
+          expanded = true;
+        }
+      }
+    }
+
+    const clearLocally = () => {
+      setFeed(current => current.filter(p => !removed.has(p.id)));
+      setComments(current => {
+        const next = { ...current };
+        for (const id of removed) delete next[id];
+        return next;
+      });
+      if (removed.has(open)) setOpen(null);
+    };
+
     try {
       await api.posts.remove(post.id);
-      setFeed(current => current.filter(p => p.id !== post.id));
-      setComments(current => { const next = { ...current }; delete next[post.id]; return next; });
-      if (open === post.id) setOpen(null);
+      clearLocally();
       ping('Publicação apagada');
       return true;
-    } catch (e) { ping(e.message); return false; }
+    } catch (e) {
+      // A FK de reposts usa ON DELETE CASCADE. Se a publicação original já apagou
+      // este repost no servidor, um cartão antigo não deve ficar preso no cliente.
+      if (e?.status === 404 || e?.code === 'not_found') {
+        clearLocally();
+        ping('Publicação removida');
+        return true;
+      }
+      ping(e.message);
+      return false;
+    }
   };
 
   const loadComments = async (id) => {

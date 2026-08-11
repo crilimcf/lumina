@@ -54,15 +54,36 @@ function SourceLine({ item }) {
   </div>;
 }
 
+function RadarImage({ item }) {
+  const [source, setSource] = useState(item.image_url ? 'proxy' : 'none');
+
+  useEffect(() => {
+    setSource(item.image_url ? 'proxy' : 'none');
+  }, [item.id, item.image_url]);
+
+  if (!item.image_url || source === 'none') return null;
+  const src = source === 'proxy'
+    ? `/api/radar-images/${encodeURIComponent(item.id)}`
+    : item.image_url;
+
+  return <div className="explore-media">
+    <img
+      src={src}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      onError={()=>setSource(current => current === 'proxy' ? 'direct' : 'none')}
+    />
+  </div>;
+}
+
 function RadarCard({ item, hero = false }) {
   const displayDate = item.type === 'event' ? item.starts_at : item.published_at;
   const titleTag = hero ? 'h2' : 'h3';
   const Title = titleTag;
 
   return <article className={`explore-card in${hero ? ' is-hero' : ''}`}>
-    {item.image_url && <div className="explore-media">
-      <img src={item.image_url} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer"/>
-    </div>}
+    <RadarImage item={item}/>
     <div className="explore-card-body">
       <div className="explore-card-meta">
         <span className="explore-type-badge"><ItemIcon type={item.type}/>{TYPE_LABEL[item.type] || 'Radar'}</span>

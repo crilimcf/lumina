@@ -27,9 +27,9 @@
   overflow: visible;
 }
 
-/* Keep Feed chrome below the iOS status bar in standalone/PWA mode. */
+/* body already owns the top safe-area; sticky Feed chrome must stop at it. */
 .lumina-feed-header {
-  padding-top: env(safe-area-inset-top);
+  top: env(safe-area-inset-top);
 }
 
 .lumina-feed-bar {

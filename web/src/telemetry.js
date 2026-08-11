@@ -47,7 +47,7 @@ export async function reportClientError(value, { kind = 'window_error', componen
   };
 
   try {
-    const response = await fetch('/api/telemetry/errors', {
+    const response = await fetch('/api/reports/client-error', {
       method: 'POST',
       credentials: 'include',
       keepalive: true,

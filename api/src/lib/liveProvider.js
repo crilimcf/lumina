@@ -42,7 +42,6 @@ export async function createLiveInput({ liveId, creatorId, title }) {
         liveId: String(liveId),
         creatorId: String(creatorId),
       },
-      recording: { mode: 'off' },
     }),
   });
 

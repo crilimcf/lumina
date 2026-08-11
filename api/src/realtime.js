@@ -30,6 +30,10 @@ function parseNotification(message) {
   }
 }
 
+function onListenerError(error) {
+  console.error('[realtime] postgres listener:', error.message);
+}
+
 async function stopListenerIfIdle() {
   if (subscribers.size > 0 || !listenerClient || listenerStopping) return;
   const client = listenerClient;
@@ -39,6 +43,7 @@ async function stopListenerIfIdle() {
     catch (error) { console.debug('[realtime] unlisten', error?.message); }
     finally {
       client.removeListener('notification', parseNotification);
+      client.removeListener('error', onListenerError);
       client.release();
       listenerStopping = null;
     }
@@ -55,12 +60,13 @@ async function ensureListener() {
     const client = await pool.connect();
     try {
       client.on('notification', parseNotification);
-      client.on('error', error => console.error('[realtime] postgres listener:', error.message));
+      client.on('error', onListenerError);
       await client.query(`LISTEN ${CHANNEL}`);
       listenerClient = client;
       return client;
     } catch (error) {
       client.removeListener('notification', parseNotification);
+      client.removeListener('error', onListenerError);
       client.release(true);
       throw error;
     } finally {

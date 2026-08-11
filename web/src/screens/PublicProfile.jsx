@@ -46,25 +46,25 @@ export function PublicProfile({ handle, onBack, onMessage, ping }) {
     finally { setBusy(false); }
   };
 
-  if (loading) return <div style={{minHeight:'100dvh',background:'linear-gradient(180deg,#EFEDFB,#E8E5F7)',padding:20}}><div style={{maxWidth:620,margin:'0 auto'}}><Skeleton h={220}/></div></div>;
-  if (!person) return <div style={{minHeight:'100dvh',display:'grid',placeItems:'center'}}><Empty>Perfil indisponível.</Empty></div>;
+  if (loading) return <div className="lumina-public-profile public-profile-loading" style={{minHeight:'100dvh',background:'linear-gradient(180deg,#EFEDFB,#E8E5F7)',padding:20}}><div style={{maxWidth:620,margin:'0 auto'}}><Skeleton h={220}/></div></div>;
+  if (!person) return <div className="lumina-public-profile public-profile-unavailable" style={{minHeight:'100dvh',display:'grid',placeItems:'center'}}><Empty>Perfil indisponível.</Empty></div>;
 
-  return <div style={{minHeight:'100dvh',background:'linear-gradient(180deg,#EFEDFB,#E8E5F7)',paddingBottom:34}}>
-    <main style={{maxWidth:620,margin:'0 auto',padding:'18px 16px 32px'}}>
-      <button className="p" onClick={onBack} aria-label="Voltar" style={{padding:10,marginBottom:14}}><ArrowLeft size={16}/></button>
+  return <div className="lumina-facelift lumina-public-profile" style={{minHeight:'100dvh',background:'linear-gradient(180deg,#EFEDFB,#E8E5F7)',paddingBottom:34}}>
+    <main className="public-profile-shell" style={{maxWidth:620,margin:'0 auto',padding:'18px 16px 32px'}}>
+      <button className="p public-profile-back" onClick={onBack} aria-label="Voltar" style={{padding:10,marginBottom:14}}><ArrowLeft size={16}/></button>
 
-      <section className="card" style={{padding:20}}>
-        <div style={{display:'flex',gap:14,alignItems:'center'}}>
+      <section className="card public-profile-hero" style={{padding:20}}>
+        <div className="public-profile-identity" style={{display:'flex',gap:14,alignItems:'center'}}>
           <Orb p={person.palette} avatarUrl={person.avatar_url} s={82}/>
-          <div style={{flex:1,minWidth:0}}><div className="d" style={{fontSize:30,lineHeight:1}}>{person.name}</div><div className="m" style={{marginTop:6}}>@{person.handle}</div></div>
+          <div style={{flex:1,minWidth:0}}><div className="d public-profile-name" style={{fontSize:30,lineHeight:1}}>{person.name}</div><div className="m public-profile-handle" style={{marginTop:6}}>@{person.handle}</div></div>
         </div>
-        {person.bio && <p style={{margin:'16px 0 0',lineHeight:1.5}}>{person.bio}</p>}
-        {person.stars?.length>0 && <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:13}}>{person.stars.map(star=><span key={star} className="p p-sm" style={{pointerEvents:'none'}}>{star}</span>)}</div>}
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:16}}>
+        {person.bio && <p className="public-profile-bio" style={{margin:'16px 0 0',lineHeight:1.5}}>{person.bio}</p>}
+        {person.stars?.length>0 && <div className="public-profile-stars" style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:13}}>{person.stars.map(star=><span key={star} className="p p-sm" style={{pointerEvents:'none'}}>{star}</span>)}</div>}
+        <div className="public-profile-stats" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:16}}>
           <div className="p" style={{justifyContent:'center',pointerEvents:'none'}}><b>{person.followers || 0}</b>&nbsp;seguidores</div>
           <div className="p" style={{justifyContent:'center',pointerEvents:'none'}}><b>{person.following_count || 0}</b>&nbsp;a seguir</div>
         </div>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:9}}>
+        <div className="public-profile-actions" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:9}}>
           <button className={person.following || person.requested ? 'p' : 'p p-brand'} onClick={toggleFollow} disabled={busy} style={{justifyContent:'center'}}>
             {person.following ? <><UserMinus size={15}/>A seguir</> : person.requested ? <><UserPlus size={15}/>Pendente</> : <><UserPlus size={15}/>Seguir</>}
           </button>
@@ -72,12 +72,12 @@ export function PublicProfile({ handle, onBack, onMessage, ping }) {
         </div>
       </section>
 
-      <div className="m" style={{margin:'22px 4px 10px'}}>PUBLICAÇÕES</div>
-      {!person.can_view_posts ? <section className="card" style={{padding:28,textAlign:'center'}}><Lock size={24} style={{marginBottom:9}}/><div style={{fontWeight:800}}>Perfil privado</div><div className="m" style={{marginTop:5}}>Segue esta pessoa para veres as publicações.</div></section>
+      <div className="m public-profile-section-label" style={{margin:'22px 4px 10px'}}>PUBLICAÇÕES</div>
+      {!person.can_view_posts ? <section className="card public-profile-private" style={{padding:28,textAlign:'center'}}><Lock size={24} style={{marginBottom:9}}/><div style={{fontWeight:800}}>Perfil privado</div><div className="m" style={{marginTop:5}}>Segue esta pessoa para veres as publicações.</div></section>
         : posts.length===0 ? <Empty>Ainda não há publicações.</Empty>
-        : <div style={{display:'grid',gap:13}}>{posts.map(post=><article key={post.id} className="card" style={{overflow:'hidden',padding:0}}>
+        : <div className="public-profile-posts" style={{display:'grid',gap:13}}>{posts.map(post=><article key={post.id} className="card public-profile-post" style={{overflow:'hidden',padding:0}}>
             <PostMedia post={post}/>
-            <div style={{padding:15}}>{post.body && <div style={{fontSize:14.5,lineHeight:1.5,whiteSpace:'pre-wrap'}}>{post.body}</div>}<div className="m" style={{marginTop:10}}>♥ {post.likes || 0} · 🔥 {post.fires || 0} · {post.comments || 0} comentários</div></div>
+            <div className="public-profile-post-copy" style={{padding:15}}>{post.body && <div style={{fontSize:14.5,lineHeight:1.5,whiteSpace:'pre-wrap'}}>{post.body}</div>}<div className="m" style={{marginTop:10}}>♥ {post.likes || 0} · 🔥 {post.fires || 0} · {post.comments || 0} comentários</div></div>
           </article>)}</div>}
     </main>
   </div>;

@@ -10,9 +10,9 @@ import '../facelift.css';
 function EditPostSheet({ post, onClose, onSave }) {
   const [body, setBody] = useState(post.body || '');
   const [busy, setBusy] = useState(false);
-  return <div onClick={() => !busy && onClose()} style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(15,9,40,.54)', backdropFilter: 'blur(7px)', display: 'flex', alignItems: 'flex-end' }}>
-    <div onClick={e => e.stopPropagation()} className="in" style={{ width: '100%', maxWidth: 560, margin: '0 auto', background: '#F5F3FF', borderRadius: '28px 28px 0 0', padding: '20px 18px calc(22px + env(safe-area-inset-bottom))' }}>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 13 }}><div className="d" style={{ fontSize: 26, flex: 1 }}>Editar publicação</div><button className="p" onClick={onClose}><X size={16} /></button></div>
+  return <div className="edit-post-backdrop" onClick={() => !busy && onClose()} style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(15,9,40,.54)', backdropFilter: 'blur(7px)', display: 'flex', alignItems: 'flex-end' }}>
+    <div onClick={e => e.stopPropagation()} className="in edit-post-sheet" style={{ width: '100%', maxWidth: 560, margin: '0 auto', background: '#F5F3FF', borderRadius: '28px 28px 0 0', padding: '20px 18px calc(22px + env(safe-area-inset-bottom))' }}>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 13 }}><div className="d" style={{ fontSize: 26, flex: 1 }}>Editar publicação</div><button className="p edit-post-close" onClick={onClose} aria-label="Fechar edição"><X size={16} /></button></div>
       <textarea autoFocus rows={5} maxLength={2000} value={body} onChange={e => setBody(e.target.value)} style={{ width: '100%', resize: 'none', marginBottom: 8 }} />
       <div className="m" style={{ textAlign: 'right', marginBottom: 12 }}>{body.length}/2000</div>
       <button className="p p-brand" disabled={busy || !body.trim()} onClick={async () => { setBusy(true); const ok = await onSave(body.trim()); setBusy(false); if (ok) onClose(); }} style={{ width: '100%', justifyContent: 'center', padding: 13 }}>{busy ? 'A guardar…' : 'Guardar edição'}</button>

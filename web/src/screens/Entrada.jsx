@@ -36,26 +36,26 @@ export function Entrada({ onIn }) {
   };
 
   return (
-    <div style={{ minHeight: '100dvh', position: 'relative', background: 'linear-gradient(180deg,#EFEDFB,#DFDCF2)' }}>
+    <div className="lumina-auth" style={{ minHeight: '100dvh', position: 'relative', background: 'linear-gradient(180deg,#EFEDFB,#DFDCF2)' }}>
       <div style={{ position: 'absolute', top: -90, right: -70, width: 260, height: 260, borderRadius: '50%', background: 'radial-gradient(circle at 35% 30%,#FFE9A8,#FF5442 70%)', filter: 'blur(3px)', opacity: .4 }} />
       <div style={{ position: 'absolute', bottom: -60, left: -70, width: 220, height: 220, borderRadius: '50%', background: 'radial-gradient(circle at 40% 35%,#DCD8FF,#2B2BF7 75%)', filter: 'blur(3px)', opacity: .32 }} />
 
-      <div style={{ position: 'relative', maxWidth: 440, margin: '0 auto', padding: '52px 22px 40px' }}>
+      <div className="auth-shell" style={{ position: 'relative', maxWidth: 440, margin: '0 auto', padding: '52px 22px 40px' }}>
         <div className="up" style={{ marginBottom: 18 }}>
-          <span className="m" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+          <span className="m auth-kicker" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
             <span style={{ width: 6, height: 6, borderRadius: 9, background: 'var(--coral)' }} />
             Rede de amigos
           </span>
         </div>
-        <h1 className="d up" style={{ fontSize: 'clamp(58px,17vw,84px)', animationDelay: '.06s' }}>
+        <h1 className="d up auth-title" style={{ fontSize: 'clamp(58px,17vw,84px)', animationDelay: '.06s' }}>
           Lumi<span className="it it-brand">na</span>
         </h1>
-        <p className="up" style={{ fontSize: 16.5, lineHeight: 1.42, color: 'var(--grey)', margin: '20px 0 34px', maxWidth: 330, animationDelay: '.12s' }}>
+        <p className="up auth-lede" style={{ fontSize: 16.5, lineHeight: 1.42, color: 'var(--grey)', margin: '20px 0 34px', maxWidth: 330, animationDelay: '.12s' }}>
           Feed, Salas, Momentos e conversas num só espaço. Partilha, descobre temas e fala com a tua rede ao teu ritmo.
         </p>
 
         {sent ? (
-          <div className="card in" style={{ padding: 22 }}>
+          <div className="card in auth-card" style={{ padding: 22 }}>
             <h2 className="d" style={{ fontSize: 22, marginBottom: 10 }}>Vê o teu email</h2>
             <p style={{ fontSize: 15, lineHeight: 1.45, color: 'var(--grey)' }}>
               Se essa conta existir, enviámos uma ligação para escolheres uma password nova.
@@ -64,7 +64,7 @@ export function Entrada({ onIn }) {
             <button className="p" style={{ marginTop: 18 }} onClick={() => { setSent(false); setMode('login'); }}>Voltar</button>
           </div>
         ) : (
-          <form onSubmit={submit} className="card in" style={{ padding: 22, display: 'grid', gap: 12, animationDelay: '.18s' }}>
+          <form onSubmit={submit} className="card in auth-card" style={{ padding: 22, display: 'grid', gap: 12, animationDelay: '.18s' }}>
             {mode === 'registo' && (
               <>
                 <input placeholder="Como te chamas" value={f.name} onChange={set('name')} autoComplete="name" required />
@@ -113,7 +113,7 @@ export function Entrada({ onIn }) {
               {busy ? 'Um momento…' : mode === 'login' ? 'Entrar' : mode === 'registo' ? 'Criar conta' : 'Enviar ligação'}
             </button>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+            <div className="auth-mode-row" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
               <button type="button" className="m" style={{ background: 'none', border: 0, cursor: 'pointer', padding: 0 }}
                 onClick={() => { setErr(null); setMode(mode === 'login' ? 'registo' : 'login'); }}>
                 {mode === 'login' ? 'Criar conta' : 'Já tenho conta'}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowUpRight, DoorOpen, Home, LockKeyhole } from 'lucide-react';
+import { ArrowUpRight, DoorOpen, Home } from 'lucide-react';
 import { Orb, Skeleton } from '../ui.jsx';
 
 /** Entrada visual curta depois do login/registo, alinhada com Feed + Salas. */
@@ -30,24 +30,18 @@ export function Abertura({ me, onSkip, onRooms }) {
           {step===0?<><Skeleton w="58%" h={15} st={{marginBottom:18}}/><Skeleton w="90%" h={44} st={{marginBottom:12}}/><Skeleton w="62%" h={44}/></> : <>
             <div className="m up opening-kicker" style={{color:'var(--cobalt)',marginBottom:16}}>O teu espaço está pronto</div>
             <h1 className="d up opening-title" style={{fontSize:'clamp(38px,10.5vw,54px)',lineHeight:.98}}>Pessoas no <span className="it">Feed</span>.<br/>Tópicos nas <span className="it">Salas</span>.</h1>
-            <p className="up opening-copy" style={{fontSize:15,lineHeight:1.5,color:'var(--grey)',marginTop:18}}>Segue pessoas para construíres o teu Feed cronológico. Nas Salas podes descobrir temas, criar espaços públicos ou privados e conversar com quem quiseres.</p>
+            <p className="up opening-copy" style={{fontSize:15,lineHeight:1.5,color:'var(--grey)',marginTop:18}}>O Feed é o teu ponto de partida para veres quem segues. Se preferires começar por uma conversa sobre um tema, podes abrir diretamente as Salas.</p>
           </>}
         </div>
 
-        {step>=2&&<div className="up" style={{animationDelay:'.2s',marginBottom:'auto',display:'grid',gap:10}}>
-          <div className="card opening-card" style={{padding:16,display:'flex',gap:12,alignItems:'center'}}>
-            <div className="opening-card-icon" style={{width:42,height:42,borderRadius:16,display:'grid',placeItems:'center',background:'#ECE9FF',color:'var(--cobalt)',flexShrink:0}}><Home size={19}/></div>
-            <div><b style={{display:'block',fontSize:14.5}}>Feed</b><span style={{fontSize:12.5,lineHeight:1.4,color:'var(--grey)'}}>Publicações da tua rede por ordem cronológica.</span></div>
-          </div>
-          <div className="card opening-card" style={{padding:16,display:'flex',gap:12,alignItems:'center'}}>
-            <div className="opening-card-icon" style={{width:42,height:42,borderRadius:16,display:'grid',placeItems:'center',background:'#ECE9FF',color:'var(--cobalt)',flexShrink:0}}><DoorOpen size={19}/></div>
-            <div style={{flex:1}}><b style={{display:'block',fontSize:14.5}}>Salas</b><span style={{fontSize:12.5,lineHeight:1.4,color:'var(--grey)'}}>Espaços para temas, públicos ou privados por convite.</span></div>
-            <LockKeyhole size={15} color="var(--grey)"/>
-          </div>
-        </div>}
+        <div style={{flex:1,minHeight:34}} />
 
-        <div style={{marginTop:34,paddingBottom:'max(8px, env(safe-area-inset-bottom))'}}>
-          {step===0?<Skeleton w="100%" h={52} r={99}/>:step>=2&&<><button className="p p-brand up" onClick={onRooms} style={{width:'100%',minHeight:52,padding:15,fontSize:15,display:'flex',alignItems:'center',justifyContent:'center',gap:9}}><DoorOpen size={17}/>Explorar Salas <ArrowUpRight size={17}/></button><button className="p up" onClick={onSkip} style={{width:'100%',minHeight:50,marginTop:10,padding:'13px 16px',fontSize:15,background:'rgba(255,255,255,.06)',border:'1px solid rgba(255,255,255,.1)',color:'#F7F5FF',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><Home size={16}/>Ir para o Feed</button></>}
+        <div className="opening-actions" style={{marginTop:24,paddingBottom:'max(8px, env(safe-area-inset-bottom))'}}>
+          {step===0?<Skeleton w="100%" h={52} r={99}/>:step>=2&&<>
+            <div className="m up opening-choice-label" style={{textAlign:'center',marginBottom:11,letterSpacing:'.08em'}}>Escolhe onde queres começar</div>
+            <button className="p p-brand up opening-primary-action" onClick={onSkip} style={{width:'100%',minHeight:54,padding:15,fontSize:15,display:'flex',alignItems:'center',justifyContent:'center',gap:9}}><Home size={17}/>Entrar no Feed</button>
+            <button className="p up opening-secondary-action" onClick={onRooms} style={{width:'100%',minHeight:48,marginTop:10,padding:'12px 16px',fontSize:14.5,background:'rgba(255,255,255,.045)',border:'1px solid rgba(255,255,255,.085)',color:'#D9D8E8',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><DoorOpen size={16}/>Explorar Salas <ArrowUpRight size={16}/></button>
+          </>}
         </div>
       </div>
     </div>

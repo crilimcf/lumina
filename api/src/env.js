@@ -36,10 +36,15 @@ export const env = {
   TURN_USERNAME: process.env.TURN_USERNAME || '',
   TURN_CREDENTIAL: process.env.TURN_CREDENTIAL || '',
 
-  // Lumina Live. O token Stream nunca é exposto ao browser; a API cria um
-  // Live Input e devolve apenas os endpoints WHIP/WHEP necessários à sessão.
-  CF_STREAM_ACCOUNT_ID: process.env.CF_STREAM_ACCOUNT_ID || '',
-  CF_STREAM_API_TOKEN: process.env.CF_STREAM_API_TOKEN || '',
+  // Lumina Live usa Amazon IVS Real-Time. Estas credenciais ficam apenas na API
+  // (Railway) e nunca são expostas ao browser. O browser recebe somente tokens
+  // temporários de participante emitidos pela API para cada Stage.
+  AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID || '',
+  AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY || '',
+  AWS_SESSION_TOKEN: process.env.AWS_SESSION_TOKEN || '',
+  AWS_REGION: process.env.AWS_REGION || 'eu-west-1',
+  AWS_IVS_STORAGE_CONFIGURATION_ARN: process.env.AWS_IVS_STORAGE_CONFIGURATION_ARN || '',
+  AWS_IVS_RECORDINGS_BUCKET: process.env.AWS_IVS_RECORDINGS_BUCKET || '',
 
   FEATURE_SUBSCRIPTIONS: process.env.FEATURE_SUBSCRIPTIONS === 'true',
 

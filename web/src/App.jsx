@@ -13,6 +13,7 @@ import { useComposer } from './hooks/useComposer.js';
 import { useMoments } from './hooks/useMoments.js';
 import { useCalls } from './hooks/useCalls.js';
 import './design-system-consolidation.css';
+import './iphone-polish.css';
 
 const namedLazy = (loader, name) => lazy(() => loader().then(module => ({ default:module[name] })));
 const EditarPerfil = namedLazy(() => import('./screens/EditarPerfil.jsx'), 'EditarPerfil');
@@ -77,7 +78,7 @@ export default function App() {
 
   useEffect(() => {
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
-    const timer = setTimeout(() => setLaunchReady(true), reduced ? 120 : 1200);
+    const timer = setTimeout(() => setLaunchReady(true), reduced ? 120 : 2300);
     return () => clearTimeout(timer);
   }, []);
 

@@ -22,42 +22,55 @@ function outputSize(orientation) {
     : { width: 720, height: 1280 };
 }
 
-function cameraConstraints(facingMode, orientation) {
-  const { width, height } = outputSize(orientation);
+function cameraConstraints(facingMode) {
   return {
     facingMode: { ideal: facingMode },
-    width: { ideal: width },
-    height: { ideal: height },
-    aspectRatio: { ideal: width / height },
+    width: { ideal: 1280 },
     frameRate: { ideal: 30, max: 30 },
   };
 }
 
-function drawCover(context, source, width, height) {
-  const sourceWidth = source.videoWidth || width;
-  const sourceHeight = source.videoHeight || height;
-  const sourceRatio = sourceWidth / sourceHeight;
-  const targetRatio = width / height;
-
-  let sx = 0;
-  let sy = 0;
-  let sw = sourceWidth;
-  let sh = sourceHeight;
-
-  if (sourceRatio > targetRatio) {
-    sw = sourceHeight * targetRatio;
-    sx = (sourceWidth - sw) / 2;
-  } else if (sourceRatio < targetRatio) {
-    sh = sourceWidth / targetRatio;
-    sy = (sourceHeight - sh) / 2;
-  }
-
-  context.drawImage(source, sx, sy, sw, sh, 0, 0, width, height);
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, Number(value) || min));
 }
 
-async function openCamera(facingMode, orientation, includeAudio) {
+function drawCentered(context, source, width, height, scale) {
+  const sourceWidth = source.videoWidth || width;
+  const sourceHeight = source.videoHeight || height;
+  const drawWidth = sourceWidth * scale;
+  const drawHeight = sourceHeight * scale;
+  context.drawImage(
+    source,
+    (width - drawWidth) / 2,
+    (height - drawHeight) / 2,
+    drawWidth,
+    drawHeight,
+  );
+}
+
+function drawProfessionalFrame(context, source, width, height, zoom) {
+  const sourceWidth = source.videoWidth || width;
+  const sourceHeight = source.videoHeight || height;
+  if (!sourceWidth || !sourceHeight) return;
+
+  const containScale = Math.min(width / sourceWidth, height / sourceHeight);
+  const coverScale = Math.max(width / sourceWidth, height / sourceHeight);
+
+  context.save();
+  context.filter = 'blur(22px) brightness(.55) saturate(.9)';
+  drawCentered(context, source, width, height, coverScale * 1.08);
+  context.restore();
+
+  const foregroundScale = containScale * clamp(zoom, 1, 3);
+  context.save();
+  context.filter = 'none';
+  drawCentered(context, source, width, height, foregroundScale);
+  context.restore();
+}
+
+async function openCamera(facingMode, includeAudio) {
   return navigator.mediaDevices.getUserMedia({
-    video: cameraConstraints(facingMode, orientation),
+    video: cameraConstraints(facingMode),
     audio: includeAudio
       ? { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
       : false,
@@ -71,7 +84,7 @@ export async function createLiveCapture({ facingMode = 'user' } = {}) {
 
   const orientation = currentOrientation();
   const { width, height } = outputSize(orientation);
-  const sourceStream = await openCamera(facingMode, orientation, true);
+  const sourceStream = await openCamera(facingMode, true);
   let cameraTrack = sourceStream.getVideoTracks()[0] || null;
   const audioTrack = sourceStream.getAudioTracks()[0] || null;
 
@@ -102,11 +115,14 @@ export async function createLiveCapture({ facingMode = 'user' } = {}) {
 
   let stopped = false;
   let animationFrame = 0;
+  let zoom = 1;
+
   const render = () => {
     if (stopped) return;
+    context.fillStyle = '#000';
     context.fillRect(0, 0, width, height);
     if (sourceVideo.readyState >= 2 && sourceVideo.srcObject) {
-      drawCover(context, sourceVideo, width, height);
+      drawProfessionalFrame(context, sourceVideo, width, height, zoom);
     }
     animationFrame = requestAnimationFrame(render);
   };
@@ -139,6 +155,14 @@ export async function createLiveCapture({ facingMode = 'user' } = {}) {
     facingMode,
     width,
     height,
+    zoomRange: { min: 1, max: 3, step: 0.1 },
+    getZoom() {
+      return zoom;
+    },
+    setZoom(nextZoom) {
+      zoom = Math.round(clamp(nextZoom, 1, 3) * 10) / 10;
+      return zoom;
+    },
     async switchCamera(nextFacingMode) {
       if (stopped || nextFacingMode === facingMode) return facingMode;
 
@@ -149,7 +173,7 @@ export async function createLiveCapture({ facingMode = 'user' } = {}) {
       cameraTrack = null;
 
       try {
-        const nextStream = await openCamera(nextFacingMode, orientation, false);
+        const nextStream = await openCamera(nextFacingMode, false);
         const nextTrack = nextStream.getVideoTracks()[0] || null;
         if (!nextTrack) {
           nextStream.getTracks().forEach(track => track.stop());
@@ -159,10 +183,11 @@ export async function createLiveCapture({ facingMode = 'user' } = {}) {
         await attachCameraTrack(nextTrack);
         nextStream.getAudioTracks().forEach(track => track.stop());
         facingMode = nextFacingMode;
+        zoom = 1;
         return facingMode;
       } catch (switchError) {
         try {
-          const rollbackStream = await openCamera(previousFacingMode, orientation, false);
+          const rollbackStream = await openCamera(previousFacingMode, false);
           const rollbackTrack = rollbackStream.getVideoTracks()[0] || null;
           if (rollbackTrack) {
             await attachCameraTrack(rollbackTrack);

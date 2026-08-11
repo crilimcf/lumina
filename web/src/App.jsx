@@ -11,6 +11,7 @@ import { useMessages } from './hooks/useMessages.js';
 import { useComposer } from './hooks/useComposer.js';
 import { useMoments } from './hooks/useMoments.js';
 import { useCalls } from './hooks/useCalls.js';
+import './design-system-consolidation.css';
 
 const namedLazy = (loader, name) => lazy(() => loader().then(module => ({ default:module[name] })));
 const EditarPerfil = namedLazy(() => import('./screens/EditarPerfil.jsx'), 'EditarPerfil');
@@ -33,6 +34,7 @@ const initialTab = () => {
 };
 
 const ScreenFallback = () => <div style={{minHeight:'78dvh',display:'grid',placeItems:'center'}}><div className="d" style={{fontSize:26,opacity:.24}}>Lumi<span className="it">na</span></div></div>;
+const LegacySurface = ({ kind, children }) => <div className={`lumina-consolidated lumina-legacy-${kind}`}>{children}</div>;
 
 const syncAppBadge = async (count) => {
   const value = Math.max(0, Number(count) || 0);
@@ -176,15 +178,15 @@ useEffect(() => {
 
   if (booting) return <div style={{minHeight:'100dvh',display:'grid',placeItems:'center'}}><div className="d" style={{fontSize:34,opacity:.25}}>Lumi<span className="it">na</span></div></div>;
   if (!me) return <Entrada onIn={afterLogin}/>;
-  if (showWelcome) return withCalls(<Welcome onContinue={()=>setShowWelcome(false)}/>);
+  if (showWelcome) return withCalls(<LegacySurface kind="welcome"><Welcome onContinue={()=>setShowWelcome(false)}/></LegacySurface>);
   if (opening) return withCalls(<Abertura me={me} onSkip={()=>setOpening(false)} onRooms={()=>{setOpening(false);setTab('rooms')}}/>);
 
-  if (screen==='seguranca') return withCalls(<Seguranca onBack={()=>setScreen(null)} ping={ping}/>);
-  if (screen==='moderacao') return withCalls(<Moderacao onBack={()=>setScreen(null)} ping={ping}/>);
-  if (screen==='radar-admin' && me.is_staff) return withCalls(<RadarAdmin onBack={()=>setScreen(null)} ping={ping}/>);
-  if (screen==='TERMOS'||screen==='PRIVACIDADE') return withCalls(<Legal page={screen} onBack={()=>setScreen(null)}/>);
-  if (screen==='editar-perfil') return withCalls(<EditarPerfil me={me} onSave={setMe} onBack={()=>setScreen(null)} ping={ping}/>);
-  if (screen==='amigos') return withCalls(<Amigos onBack={()=>setScreen(null)} ping={ping} onOpenProfile={openProfile}/>);
+  if (screen==='seguranca') return withCalls(<LegacySurface kind="security"><Seguranca onBack={()=>setScreen(null)} ping={ping}/></LegacySurface>);
+  if (screen==='moderacao') return withCalls(<LegacySurface kind="moderation"><Moderacao onBack={()=>setScreen(null)} ping={ping}/></LegacySurface>);
+  if (screen==='radar-admin' && me.is_staff) return withCalls(<LegacySurface kind="radar-admin"><RadarAdmin onBack={()=>setScreen(null)} ping={ping}/></LegacySurface>);
+  if (screen==='TERMOS'||screen==='PRIVACIDADE') return withCalls(<LegacySurface kind="legal"><Legal page={screen} onBack={()=>setScreen(null)}/></LegacySurface>);
+  if (screen==='editar-perfil') return withCalls(<LegacySurface kind="edit-profile"><EditarPerfil me={me} onSave={setMe} onBack={()=>setScreen(null)} ping={ping}/></LegacySurface>);
+  if (screen==='amigos') return withCalls(<LegacySurface kind="people"><Amigos onBack={()=>setScreen(null)} ping={ping} onOpenProfile={openProfile}/></LegacySurface>);
   if (screen==='public-profile' && profileHandle) return withCalls(<PublicProfile handle={profileHandle} onBack={()=>{setProfileHandle(null);setScreen(null)}} onMessage={messageFromProfile} ping={ping}/>);
 
   const { comp, ...composerWithoutComp } = composerState;

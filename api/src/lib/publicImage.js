@@ -7,10 +7,13 @@ const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
 const MAX_REDIRECTS = 3;
 const SAFE_IMAGE_TYPES = new Set([
   'image/jpeg',
+  'image/jpg',
   'image/png',
+  'image/x-png',
   'image/webp',
   'image/gif',
   'image/avif',
+  'image/apng',
 ]);
 
 function remainingMs(deadlineAt) {
@@ -73,7 +76,13 @@ export async function fetchPublicImage(input, {
       }, response => {
         const status = response.statusCode || 0;
         if (status >= 300 && status < 400 && response.headers.location) {
-          const next = new URL(response.headers.location, target.url).toString();
+          let next;
+          try { next = new URL(response.headers.location, target.url).toString(); }
+          catch {
+            response.resume();
+            done(reject, new Error('Redirect inválido na imagem Radar'));
+            return;
+          }
           response.resume();
           fetchPublicImage(next, {
             referer: requestReferer || target.url.toString(),

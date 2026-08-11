@@ -1,5 +1,8 @@
 import React from 'react';
 import './adaptiveDock.js';
+import { installGlobalErrorTelemetry, reportClientError } from './telemetry.js';
+
+installGlobalErrorTelemetry();
 
 export const PAL = [
   { o1: '#FFB3A6', o2: '#FF5442', bg: 'linear-gradient(155deg,#FFD9CE,#FF7A63 60%,#E8341C)', chip: '#FFD9CE' },
@@ -48,7 +51,10 @@ export const Empty = ({ children }) => (
 export class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null }; }
   static getDerivedStateFromError(error) { return { error }; }
-  componentDidCatch(error, info) { console.error('[erro fatal]', error, info.componentStack); }
+  componentDidCatch(error, info) {
+    console.error('[erro fatal]', error, info.componentStack);
+    reportClientError(error, { kind:'react_boundary', componentStack:info.componentStack });
+  }
 
   render() {
     if (!this.state.error) return this.props.children;

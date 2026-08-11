@@ -65,7 +65,7 @@ test('a assinatura aceita formatos de vídeo suportados e aplica o limite', asyn
 
   const tooBig = await request('/uploads/sign', {
     method: 'POST', token: alice.token,
-    body: { mime: 'video/mp4', bytes: 101 * 1024 * 1024 },
+    body: { mime: 'video/mp4', bytes: 513 * 1024 * 1024 },
   });
   assert.equal(tooBig.response.status, 400);
   assert.equal(tooBig.data.code, 'too_big');

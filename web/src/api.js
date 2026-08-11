@@ -104,6 +104,7 @@ export const api = {
     editSource: (id, body) => call(`/radar/sources/${id}`, { method: 'PATCH', body }),
   },
   messages: {
+    eventsUrl: () => `${BASE}/messages/events`,
     threads: () => call('/messages/threads'),
     openThread: (userId) => call('/messages/threads', { method: 'POST', body: { userId } }),
     list: (tid) => call(`/messages/threads/${tid}/messages`),

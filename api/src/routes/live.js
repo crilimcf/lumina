@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { q, tx } from '../db.js';
 import { auth, h, bad, notFound, HttpError } from '../middleware/auth.js';
 import { claimUpload, removeUploadIfUnreferenced } from '../lib/uploads.js';
-import { createLiveInput, deleteLiveInput, liveProviderConfigured } from '../lib/liveProvider.js';
+import { createLiveInput, deleteLiveInput, getLiveSubscriberToken, liveProviderConfigured } from '../lib/liveProvider.js';
 import { sendPushToUser } from '../lib/webpush.js';
 
 export const liveRoutes = Router();
@@ -47,7 +47,7 @@ async function getVisibleStream(userId, streamId) {
 }
 
 liveRoutes.get('/config', auth, h(async (_req, res) => {
-  res.json({ configured: liveProviderConfigured() });
+  res.json({ configured: liveProviderConfigured(), provider: 'amazon-ivs-realtime' });
 }));
 
 liveRoutes.get('/', auth, h(async (req, res) => {
@@ -86,15 +86,16 @@ liveRoutes.post('/', auth, h(async (req, res) => {
     const provider = await createLiveInput({ liveId: stream.id, creatorId: req.user.id, title });
     await q(
       `UPDATE live_streams
-          SET provider_input_id=$2, playback_url=$3, updated_at=now()
+          SET provider_input_id=$2, playback_url=NULL, updated_at=now()
         WHERE id=$1`,
-      [stream.id, provider.inputId, provider.playbackUrl]
+      [stream.id, provider.inputId]
     );
     res.status(201).json({
       ...stream,
       configured: provider.configured,
-      publishUrl: provider.publishUrl,
-      playbackUrl: provider.playbackUrl,
+      publisherToken: provider.publisherToken,
+      publishUrl: provider.publisherToken,
+      playbackUrl: null,
     });
   } catch (error) {
     await q('DELETE FROM live_streams WHERE id=$1', [stream.id]);
@@ -107,7 +108,7 @@ liveRoutes.post('/:streamId/start', auth, h(async (req, res) => {
     `UPDATE live_streams
         SET status='live', started_at=COALESCE(started_at,now()), updated_at=now()
       WHERE id=$1 AND creator_id=$2 AND status='preparing'
-      RETURNING id,title,privacy,started_at,playback_url`,
+      RETURNING id,title,privacy,started_at`,
     [req.params.streamId, req.user.id]
   );
   if (!rows[0]) throw notFound('Direto não encontrado ou já iniciado');
@@ -149,7 +150,17 @@ liveRoutes.post('/:streamId/start', auth, h(async (req, res) => {
 liveRoutes.get('/:streamId', auth, h(async (req, res) => {
   const stream = await getVisibleStream(req.user.id, req.params.streamId);
   if (!stream) throw notFound('Direto não encontrado');
-  res.json(stream);
+
+  let subscriberToken = null;
+  if (stream.status === 'live') {
+    const { rows } = await q('SELECT provider_input_id FROM live_streams WHERE id=$1', [stream.id]);
+    subscriberToken = await getLiveSubscriberToken({
+      stageArn: rows[0]?.provider_input_id,
+      userId: req.user.id,
+    });
+  }
+
+  res.json({ ...stream, subscriberToken, playback_url: subscriberToken || stream.playback_url });
 }));
 
 liveRoutes.post('/:streamId/heartbeat', auth, h(async (req, res) => {

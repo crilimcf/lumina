@@ -265,6 +265,7 @@ export function LiveStudio({ me, onBack, ping }) {
     const tracks = localStreamRef.current?.getAudioTracks() || [];
     const next = !micOn;
     tracks.forEach(track => { track.enabled = next; });
+    publisherRef.current?.setMuted?.('audio', !next);
     setMicOn(next);
   };
 
@@ -272,6 +273,7 @@ export function LiveStudio({ me, onBack, ping }) {
     const tracks = localStreamRef.current?.getVideoTracks() || [];
     const next = !cameraOn;
     tracks.forEach(track => { track.enabled = next; });
+    publisherRef.current?.setMuted?.('video', !next);
     setCameraOn(next);
   };
 
@@ -318,7 +320,7 @@ export function LiveStudio({ me, onBack, ping }) {
             <option value="followers">Só quem te segue</option>
           </select>
         </label>
-        {configured === false && <div className="live-provider-note">Os Diretos já estão implementados na Lumina, mas este ambiente ainda precisa das credenciais Cloudflare Stream para emitir vídeo.</div>}
+        {configured === false && <div className="live-provider-note">Os Diretos usam Amazon IVS Real-Time e este ambiente ainda não tem a configuração de emissão ativa.</div>}
         {error && <div className="live-provider-note" role="alert">{error}</div>}
         <button className="live-primary" onClick={begin} disabled={!title.trim() || configured !== true}>
           <Radio size={17} style={{verticalAlign:-3,marginRight:8}}/>Começar direto

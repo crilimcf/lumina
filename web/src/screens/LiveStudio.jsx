@@ -90,6 +90,16 @@ export function LiveStudio({ me, onBack, ping }) {
   }, [stopLocalMedia]);
 
   useEffect(() => {
+    if (!['live', 'ending'].includes(phase)) return;
+    const video = videoRef.current;
+    const media = localStreamRef.current;
+    if (!video || !media) return;
+    if (video.srcObject !== media) video.srcObject = media;
+    video.muted = true;
+    video.play().catch(() => {});
+  }, [phase]);
+
+  useEffect(() => {
     if (phase !== 'live' || !streamInfo?.started_at) return;
     const update = () => setElapsed((Date.now() - new Date(streamInfo.started_at).getTime()) / 1000);
     update();
@@ -145,11 +155,6 @@ export function LiveStudio({ me, onBack, ping }) {
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
       localStreamRef.current = media;
-      if (videoRef.current) {
-        videoRef.current.srcObject = media;
-        videoRef.current.muted = true;
-        await videoRef.current.play().catch(() => {});
-      }
 
       created = await api.live.create({ title: title.trim(), privacy });
       activeLiveIdRef.current = created.id;
@@ -199,14 +204,35 @@ export function LiveStudio({ me, onBack, ping }) {
     ping?.('Direto guardado no teu perfil');
   }, [streamInfo?.id, ping]);
 
+  const retryReplay = useCallback(async () => {
+    if (!streamInfo?.id || !replayBlob) return;
+    setReplayError('');
+    try {
+      if (!endedRef.current) {
+        setPhase('ending');
+        await api.live.end(streamInfo.id);
+        endedRef.current = true;
+        activeLiveIdRef.current = null;
+      }
+      await uploadReplay(replayBlob, replayMime);
+    } catch (failure) {
+      setPhase('replay-failed');
+      setReplayError(failure.message || 'Não foi possível publicar a gravação');
+    }
+  }, [streamInfo?.id, replayBlob, replayMime, uploadReplay]);
+
   const endLive = async () => {
     if (phase !== 'live' || !streamInfo?.id) return;
     setPhase('ending');
     setError('');
-    endedRef.current = true;
+    let endConfirmed = false;
     try {
       await api.live.end(streamInfo.id);
+      endConfirmed = true;
+      endedRef.current = true;
+      activeLiveIdRef.current = null;
     } catch (failure) {
+      endedRef.current = false;
       setError(failure.message || 'O direto terminou no dispositivo, mas a Lumina não confirmou o fecho.');
     }
 
@@ -214,13 +240,19 @@ export function LiveStudio({ me, onBack, ping }) {
     publisherRef.current = null;
     await stopRecorder(recorderRef.current);
     stopLocalMedia();
-    activeLiveIdRef.current = null;
 
     const effectiveMime = replayMime || recorderRef.current?.mimeType || 'video/mp4';
     const blob = new Blob(chunksRef.current, { type: effectiveMime });
     chunksRef.current = [];
     recorderRef.current = null;
     setReplayBlob(blob);
+
+    if (!endConfirmed) {
+      setPhase('replay-failed');
+      setReplayError('A transmissão parou neste dispositivo, mas falta confirmar o fecho no servidor antes de guardar o replay. Tenta novamente.');
+      return;
+    }
+
     try {
       await uploadReplay(blob, effectiveMime);
     } catch (failure) {
@@ -350,7 +382,7 @@ export function LiveStudio({ me, onBack, ping }) {
         <div className="live-replay-orb"><Video size={25}/></div>
         <div className="live-replay-title">O direto terminou.</div>
         <div className="live-replay-copy">{replayError || 'A gravação ainda não conseguiu chegar ao teu perfil.'}</div>
-        <button className="live-primary" onClick={()=>uploadReplay(replayBlob,replayMime).catch(failure=>{setPhase('replay-failed');setReplayError(failure.message||'Não foi possível publicar a gravação')})} disabled={!replayBlob}>Tentar guardar novamente</button>
+        <button className="live-primary" onClick={retryReplay} disabled={!replayBlob}>Tentar guardar novamente</button>
         <button className="live-secondary" onClick={onBack}>Voltar à Lumina</button>
       </section>}
 

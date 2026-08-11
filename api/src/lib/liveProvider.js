@@ -1,24 +1,96 @@
+import crypto from 'node:crypto';
 import { env } from '../env.js';
 
-const endpoint = () => `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(env.CF_STREAM_ACCOUNT_ID)}/stream/live_inputs`;
+const SERVICE = 'ivs';
+const tokenCache = new Map();
 
-export const liveProviderConfigured = () => Boolean(env.CF_STREAM_ACCOUNT_ID && env.CF_STREAM_API_TOKEN);
+const endpointHost = () => `ivsrealtime.${env.AWS_REGION}.amazonaws.com`;
+const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex');
+const hmac = (key, value) => crypto.createHmac('sha256', key).update(value).digest();
 
-async function cf(path = '', options = {}) {
-  const response = await fetch(`${endpoint()}${path}`, {
-    ...options,
-    headers: {
-      authorization: `Bearer ${env.CF_STREAM_API_TOKEN}`,
-      'content-type': 'application/json',
-      ...(options.headers || {}),
-    },
+function awsDate(date = new Date()) {
+  const iso = date.toISOString().replace(/[:-]|\.\d{3}/g, '');
+  return { amz: iso, short: iso.slice(0, 8) };
+}
+
+function signingKey(secret, shortDate, region) {
+  const kDate = hmac(Buffer.from(`AWS4${secret}`, 'utf8'), shortDate);
+  const kRegion = hmac(kDate, region);
+  const kService = hmac(kRegion, SERVICE);
+  return hmac(kService, 'aws4_request');
+}
+
+export const liveProviderConfigured = () => Boolean(
+  env.AWS_ACCESS_KEY_ID &&
+  env.AWS_SECRET_ACCESS_KEY &&
+  env.AWS_REGION &&
+  env.AWS_IVS_STORAGE_CONFIGURATION_ARN
+);
+
+async function ivs(path, body = {}) {
+  if (!liveProviderConfigured()) throw new Error('Amazon IVS Real-Time não configurado');
+
+  const host = endpointHost();
+  const payload = JSON.stringify(body);
+  const payloadHash = sha256(payload);
+  const { amz, short } = awsDate();
+
+  const headers = {
+    'content-type': 'application/json',
+    host,
+    'x-amz-content-sha256': payloadHash,
+    'x-amz-date': amz,
+  };
+  if (env.AWS_SESSION_TOKEN) headers['x-amz-security-token'] = env.AWS_SESSION_TOKEN;
+
+  const signedHeaderNames = Object.keys(headers).sort();
+  const canonicalHeaders = signedHeaderNames.map(name => `${name}:${String(headers[name]).trim()}\n`).join('');
+  const signedHeaders = signedHeaderNames.join(';');
+  const canonicalRequest = [
+    'POST',
+    path,
+    '',
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash,
+  ].join('\n');
+
+  const scope = `${short}/${env.AWS_REGION}/${SERVICE}/aws4_request`;
+  const stringToSign = [
+    'AWS4-HMAC-SHA256',
+    amz,
+    scope,
+    sha256(canonicalRequest),
+  ].join('\n');
+  const signature = crypto
+    .createHmac('sha256', signingKey(env.AWS_SECRET_ACCESS_KEY, short, env.AWS_REGION))
+    .update(stringToSign)
+    .digest('hex');
+
+  const authorization = `AWS4-HMAC-SHA256 Credential=${env.AWS_ACCESS_KEY_ID}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+  const response = await fetch(`https://${host}${path}`, {
+    method: 'POST',
+    headers: { ...headers, authorization },
+    body: payload,
   });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.success === false) {
-    const detail = payload?.errors?.[0]?.message || `Cloudflare Stream ${response.status}`;
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = result?.exceptionMessage || result?.message || result?.Message || `Amazon IVS ${response.status}`;
     throw new Error(detail);
   }
-  return payload.result;
+  return result;
+}
+
+async function createParticipantToken({ stageArn, userId, capabilities }) {
+  const result = await ivs('/CreateParticipantToken', {
+    stageArn,
+    userId: `lumina-${String(userId).slice(0, 80)}`,
+    capabilities,
+    duration: 720,
+  });
+  const token = result?.participantToken?.token;
+  if (!token) throw new Error('Amazon IVS não devolveu um participant token válido');
+  return token;
 }
 
 export async function createLiveInput({ liveId, creatorId, title }) {
@@ -31,35 +103,59 @@ export async function createLiveInput({ liveId, creatorId, title }) {
         playbackUrl: null,
       };
     }
-    throw new Error('Cloudflare Stream não configurado');
+    throw new Error('Amazon IVS Real-Time não configurado');
   }
 
-  const result = await cf('', {
-    method: 'POST',
-    body: JSON.stringify({
-      meta: {
-        name: `Lumina Live · ${String(title).slice(0, 80)}`,
-        liveId: String(liveId),
-        creatorId: String(creatorId),
-      },
-    }),
+  const result = await ivs('/CreateStage', {
+    name: `lumina-${String(liveId).slice(0, 64)}`,
+    autoParticipantRecordingConfiguration: {
+      storageConfigurationArn: env.AWS_IVS_STORAGE_CONFIGURATION_ARN,
+      mediaTypes: ['AUDIO_VIDEO'],
+      recordingReconnectWindowSeconds: 30,
+      thumbnailConfiguration: { recordingMode: 'DISABLED' },
+    },
   });
 
-  const publishUrl = result?.webRTC?.url || null;
-  const playbackUrl = result?.webRTCPlayback?.url || null;
-  if (!result?.uid || !publishUrl || !playbackUrl) {
-    throw new Error('Cloudflare Stream não devolveu endpoints WebRTC válidos');
-  }
+  const stageArn = result?.stage?.arn;
+  if (!stageArn) throw new Error('Amazon IVS não devolveu um Stage ARN válido');
 
-  return {
-    configured: true,
-    inputId: result.uid,
-    publishUrl,
-    playbackUrl,
-  };
+  try {
+    const publisherToken = await createParticipantToken({
+      stageArn,
+      userId: `creator-${creatorId}`,
+      capabilities: ['PUBLISH'],
+    });
+    return {
+      configured: true,
+      inputId: stageArn,
+      publishUrl: publisherToken,
+      playbackUrl: null,
+    };
+  } catch (error) {
+    await ivs('/DeleteStage', { arn: stageArn }).catch(() => {});
+    throw error;
+  }
+}
+
+export async function getLiveSubscriberToken({ stageArn, userId }) {
+  if (!stageArn || String(stageArn).startsWith('local-') || !liveProviderConfigured()) return null;
+  const cacheKey = `${stageArn}:${userId}`;
+  const cached = tokenCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now() + 60_000) return cached.token;
+
+  const token = await createParticipantToken({
+    stageArn,
+    userId: `viewer-${userId}`,
+    capabilities: ['SUBSCRIBE'],
+  });
+  tokenCache.set(cacheKey, { token, expiresAt: Date.now() + 11 * 60 * 60_000 });
+  return token;
 }
 
 export async function deleteLiveInput(inputId) {
   if (!inputId || String(inputId).startsWith('local-') || !liveProviderConfigured()) return;
-  await cf(`/${encodeURIComponent(inputId)}`, { method: 'DELETE' });
+  for (const key of tokenCache.keys()) {
+    if (key.startsWith(`${inputId}:`)) tokenCache.delete(key);
+  }
+  await ivs('/DeleteStage', { arn: inputId });
 }

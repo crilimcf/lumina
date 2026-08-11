@@ -143,8 +143,9 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
 
   useEffect(() => {
     if (!enabled || tab !== 'dms') return;
+    loadThreads({ announce:false }).catch(() => {});
     loadContacts().catch(() => {});
-  }, [enabled, tab, loadContacts]);
+  }, [enabled, tab, loadContacts, loadThreads]);
 
   useEffect(() => {
     if (!thread) { setMsgs([]); return; }

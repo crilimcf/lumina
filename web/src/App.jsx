@@ -2,6 +2,7 @@ import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 
 import { api, onUnauthorized } from './api.js';
 import { Composer } from './components/AppChrome.jsx';
 import { Welcome } from './components/Milestones.jsx';
+import { LaunchScreen } from './components/LaunchScreen.jsx';
 import { IncomingCall } from './components/calls/IncomingCall.jsx';
 import { CallOverlay } from './components/calls/CallOverlay.jsx';
 import { Entrada } from './screens/Entrada.jsx';
@@ -24,6 +25,8 @@ const Salas = namedLazy(() => import('./screens/Salas.jsx'), 'Salas');
 const Promocoes = namedLazy(() => import('./screens/Promocoes.jsx'), 'Promocoes');
 const RadarAdmin = namedLazy(() => import('./screens/RadarAdmin.jsx'), 'RadarAdmin');
 const Atividade = namedLazy(() => import('./screens/Atividade.jsx'), 'Atividade');
+const LiveStudio = namedLazy(() => import('./screens/LiveStudio.jsx'), 'LiveStudio');
+const LiveViewer = namedLazy(() => import('./screens/LiveViewer.jsx'), 'LiveViewer');
 const Seguranca = namedLazy(() => import('./Seguranca.jsx'), 'Seguranca');
 const Moderacao = namedLazy(() => import('./Seguranca.jsx'), 'Moderacao');
 const Legal = namedLazy(() => import('./Seguranca.jsx'), 'Legal');
@@ -47,6 +50,7 @@ const syncAppBadge = async (count) => {
 export default function App() {
   const [me, setMe] = useState(null);
   const [booting, setBooting] = useState(true);
+  const [launchReady, setLaunchReady] = useState(false);
   const [opening, setOpening] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [tab, setTab] = useState(initialTab);
@@ -54,6 +58,7 @@ export default function App() {
   const [blocked, setBlocked] = useState([]);
   const [screen, setScreen] = useState(null);
   const [profileHandle, setProfileHandle] = useState(null);
+  const [liveId, setLiveId] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
   const ping = useCallback((text) => {
@@ -71,12 +76,20 @@ export default function App() {
   useEffect(() => { meRef.current = me; }, [me]);
 
   useEffect(() => {
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    const timer = setTimeout(() => setLaunchReady(true), reduced ? 120 : 1200);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
     onUnauthorized(() => {
       if (meRef.current) {
         setMe(null);
         setTab('feed');
         setUnreadCount(0);
         setProfileHandle(null);
+        setLiveId(null);
+        setScreen(null);
         messageState.setThread(null);
         ping('A sessão expirou. Entra outra vez.');
       }
@@ -89,36 +102,47 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-  if (!me) return;
-  refreshUnread();
-  const id = setInterval(refreshUnread, 15_000);
-  const onVisible = () => { if (document.visibilityState === 'visible') refreshUnread(); };
-  const onNotificationsChanged = () => refreshUnread();
-  document.addEventListener('visibilitychange', onVisible);
-  window.addEventListener('lumina:notifications-changed', onNotificationsChanged);
-  return () => {
-    clearInterval(id);
-    document.removeEventListener('visibilitychange', onVisible);
-    window.removeEventListener('lumina:notifications-changed', onNotificationsChanged);
-  };
-}, [me, refreshUnread]);
-
-useEffect(() => { syncAppBadge(me ? unreadCount : 0); }, [me, unreadCount]);
-
-useEffect(() => {
-  if (!me) return;
-  const url = new URL(window.location.href);
-  const notificationId = url.searchParams.get('notification');
-  if (!notificationId) return;
-  let alive = true;
-  api.notifications.read(notificationId).catch(() => {}).finally(() => {
-    if (!alive) return;
-    url.searchParams.delete('notification');
-    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    if (!me) return;
     refreshUnread();
-  });
-  return () => { alive = false; };
-}, [me, refreshUnread]);
+    const id = setInterval(refreshUnread, 15_000);
+    const onVisible = () => { if (document.visibilityState === 'visible') refreshUnread(); };
+    const onNotificationsChanged = () => refreshUnread();
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('lumina:notifications-changed', onNotificationsChanged);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('lumina:notifications-changed', onNotificationsChanged);
+    };
+  }, [me, refreshUnread]);
+
+  useEffect(() => { syncAppBadge(me ? unreadCount : 0); }, [me, unreadCount]);
+
+  useEffect(() => {
+    if (!me) return;
+    const url = new URL(window.location.href);
+    const notificationId = url.searchParams.get('notification');
+    if (!notificationId) return;
+    let alive = true;
+    api.notifications.read(notificationId).catch(() => {}).finally(() => {
+      if (!alive) return;
+      url.searchParams.delete('notification');
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+      refreshUnread();
+    });
+    return () => { alive = false; };
+  }, [me, refreshUnread]);
+
+  useEffect(() => {
+    if (!me) return;
+    const url = new URL(window.location.href);
+    const requestedLive = url.searchParams.get('live');
+    if (!requestedLive) return;
+    setLiveId(requestedLive);
+    setScreen('live-viewer');
+    setOpening(false);
+    setShowWelcome(false);
+  }, [me]);
 
   async function afterLogin(user, isNewAccount = false) {
     setMe(user);
@@ -152,6 +176,8 @@ useEffect(() => {
     setMe(null);
     setUnreadCount(0);
     setProfileHandle(null);
+    setLiveId(null);
+    setScreen(null);
     setTab('feed');
     messageState.setThread(null);
   };
@@ -170,17 +196,32 @@ useEffect(() => {
     setTab('dms');
   }, [messageState.openContact]);
 
+  const openLive = useCallback((id) => {
+    if (!id) return;
+    setLiveId(id);
+    setScreen('live-viewer');
+  }, []);
+
+  const closeLive = useCallback(() => {
+    setLiveId(null);
+    setScreen(null);
+    setTab('feed');
+    feedState.loadFeed();
+  }, [feedState.loadFeed]);
+
   const withCalls = (content) => <>
     <Suspense fallback={<ScreenFallback/>}>{content}</Suspense>
     {callState.incoming && !callState.activeCall && <IncomingCall call={callState.incoming} busy={callState.busy} onAccept={callState.acceptIncoming} onDecline={callState.declineIncoming}/>} 
     {callState.activeCall && <CallOverlay {...callState.activeCall} ping={ping} onClosed={callState.closeActiveCall}/>} 
   </>;
 
-  if (booting) return <div style={{minHeight:'100dvh',display:'grid',placeItems:'center'}}><div className="d" style={{fontSize:34,opacity:.25}}>Lumi<span className="it">na</span></div></div>;
+  if (booting || !launchReady) return <LaunchScreen/>;
   if (!me) return <Entrada onIn={afterLogin}/>;
   if (showWelcome) return withCalls(<LegacySurface kind="welcome"><Welcome onContinue={()=>setShowWelcome(false)}/></LegacySurface>);
   if (opening) return withCalls(<Abertura me={me} onSkip={()=>setOpening(false)} onRooms={()=>{setOpening(false);setTab('rooms')}}/>);
 
+  if (screen==='live-studio') return withCalls(<LiveStudio me={me} onBack={closeLive} ping={ping}/>);
+  if (screen==='live-viewer' && liveId) return withCalls(<LiveViewer streamId={liveId} onBack={closeLive} ping={ping}/>);
   if (screen==='seguranca') return withCalls(<LegacySurface kind="security"><Seguranca onBack={()=>setScreen(null)} ping={ping}/></LegacySurface>);
   if (screen==='moderacao') return withCalls(<LegacySurface kind="moderation"><Moderacao onBack={()=>setScreen(null)} ping={ping}/></LegacySurface>);
   if (screen==='radar-admin' && me.is_staff) return withCalls(<LegacySurface kind="radar-admin"><RadarAdmin onBack={()=>setScreen(null)} ping={ping}/></LegacySurface>);
@@ -205,9 +246,9 @@ useEffect(() => {
   if (tab==='dms') activeScreen=<Conversas me={me} {...navProps} comp={comp} {...messageState} startCall={callState.startCall} callBusy={callState.busy}/>;
   else if (tab==='rooms') activeScreen=<Salas me={me} {...navProps}/>;
   else if (tab==='promos') activeScreen=<Promocoes me={me} setScreen={setScreen} {...navProps}/>;
-  else if (tab==='alerts') activeScreen=<Atividade {...navProps} onUnreadChange={setUnreadCount}/>;
+  else if (tab==='alerts') activeScreen=<Atividade {...navProps} onUnreadChange={setUnreadCount} onOpenLive={openLive}/>;
   else if (tab==='me') activeScreen=<Perfil me={me} blocked={blocked} setBlocked={setBlocked} setScreen={setScreen} onOpenProfile={openProfile} logout={logout} tab={tab} setTab={setTab} setThread={messageState.setThread} setComp={composerState.setComp} threads={messageState.threads} ping={ping} toast={toast} unreadCount={unreadCount}/>;
-  else activeScreen=<Feed me={me} tab={tab} setTab={setTab} setScreen={setScreen} {...feedState} report={report} comp={null} {...composerWithoutComp} threads={messageState.threads} setThread={messageState.setThread} ping={ping} toast={toast} unreadCount={unreadCount} {...momentState}/>;
+  else activeScreen=<Feed me={me} tab={tab} setTab={setTab} setScreen={setScreen} {...feedState} report={report} comp={null} {...composerWithoutComp} threads={messageState.threads} setThread={messageState.setThread} ping={ping} toast={toast} unreadCount={unreadCount} {...momentState} onOpenLive={openLive}/>;
 
   return withCalls(<>
     {activeScreen}
@@ -220,6 +261,7 @@ useEffect(() => {
       setBody={composerState.setBody}
       busy={composerState.busy}
       publish={composerState.publish}
+      onLive={()=>setScreen('live-studio')}
     />
   </>);
 }

@@ -10,7 +10,10 @@ import { env } from '../env.js';
  */
 
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
-export const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+// Replays de diretos podem ser bastante maiores do que um vídeo curto de Feed.
+// 512 MiB dá margem para ~60–90 min com o bitrate móvel usado pelo Lumina Live,
+// continuando a existir um limite explícito no servidor.
+export const MAX_VIDEO_BYTES = 512 * 1024 * 1024;
 
 export function maxUploadBytes(mime) {
   return String(mime || '').startsWith('video/') ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;

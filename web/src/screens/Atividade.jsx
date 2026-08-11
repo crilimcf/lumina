@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   ArrowLeft, Bell, Check, DoorOpen, FileText, Globe2, Lock, MessageCircle,
-  Phone, Search, Sparkles, UserPlus, X,
+  Phone, Radio, Search, Sparkles, UserPlus, X,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { Orb } from '../ui.jsx';
@@ -21,6 +21,7 @@ const relativeTime = (value) => {
 };
 
 const iconFor = (type) => {
+  if (type === 'live_started') return Radio;
   if (type === 'new_post') return FileText;
   if (type === 'new_room' || type === 'room_invite') return DoorOpen;
   if (type === 'follow_request' || type === 'follow_accepted' || type === 'new_follower') return UserPlus;
@@ -35,6 +36,7 @@ function notificationText(n) {
   if (n.type === 'follow_accepted') return `${name} aceitou o teu pedido`;
   if (n.type === 'new_follower') return `${name} começou a seguir-te`;
   if (n.type === 'new_post') return `${name} publicou algo novo`;
+  if (n.type === 'live_started') return `${name} está em direto${n.data?.title ? ` · ${n.data.title}` : ''}`;
   if (n.type === 'new_room') return `${name} criou a sala ${n.room_name || ''}`.trim();
   if (n.type === 'room_invite') return `${name} convidou-te para ${n.room_name || 'uma sala'}`;
   if (n.type === 'message') return `${name} enviou-te uma mensagem`;
@@ -113,7 +115,7 @@ function ProfileView({ person, posts, loadingPosts, onBack, onToggleFollow }) {
 }
 
 export function Atividade({
-  tab, setTab, setThread, setComp, threads, ping, toast, unreadCount = 0, onUnreadChange,
+  tab, setTab, setThread, setComp, threads, ping, toast, unreadCount = 0, onUnreadChange, onOpenLive,
 }) {
   const [section, setSection] = useState('alerts');
   const [items, setItems] = useState([]);
@@ -254,6 +256,7 @@ export function Atividade({
 
   const openNotification = async n => {
     await markRead(n);
+    if (n.type === 'live_started' && n.data?.liveId) return onOpenLive?.(n.data.liveId);
     if (n.type === 'message' || n.type === 'incoming_call') return openConversation(n);
     if (n.type === 'new_room' || n.type === 'room_invite') return setTab('rooms');
     if (n.actor_handle) return openPerson(n.actor_handle);
@@ -346,7 +349,7 @@ export function Atividade({
         {!loading && items.length === 0 && <div className="activity-empty">
           <span className="activity-empty-icon"><Bell size={24}/></span>
           <strong>Ainda não tens alertas.</strong>
-          <p>Pedidos, mensagens, publicações e Salas vão aparecer aqui.</p>
+          <p>Pedidos, mensagens, publicações, Diretos e Salas vão aparecer aqui.</p>
         </div>}
 
         <div className="activity-list">

@@ -7,7 +7,7 @@ export function Abertura({ me, onSkip, onRooms }) {
   const [step, setStep] = useState(0);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.has('tab') || params.has('notification')) {
+    if (params.has('tab') || params.has('notification') || params.has('live')) {
       onSkip();
       return undefined;
     }
@@ -17,9 +17,9 @@ export function Abertura({ me, onSkip, onRooms }) {
   }, []);
 
   return (
-    <div className="lumina-opening" style={{ minHeight:'100dvh', position:'relative', background:'linear-gradient(180deg,#EFEDFB,#DFDCF2)' }}>
-      {step>=1&&<><div className="halo" style={{top:-70,right:-60,width:240,height:240,background:'#B99BFF'}}/><div className="halo" style={{bottom:130,left:-80,width:220,height:220,background:'#8F86F6',animationDelay:'.3s'}}/></>}
-      <div className="opening-shell" style={{position:'relative',maxWidth:460,margin:'0 auto',padding:'26px 20px 40px',minHeight:'100dvh',display:'flex',flexDirection:'column'}}>
+    <div className="lumina-opening" style={{ minHeight:'100dvh', position:'relative', background:'linear-gradient(180deg,#151833,#090D1D 52%,#070914)' }}>
+      {step>=1&&<><div className="halo" style={{top:-70,right:-60,width:240,height:240,background:'#7B61FF'}}/><div className="halo" style={{bottom:130,left:-80,width:220,height:220,background:'#4C75FF',animationDelay:'.3s'}}/></>}
+      <div className="opening-shell" style={{position:'relative',maxWidth:460,margin:'0 auto',padding:'26px 20px calc(28px + env(safe-area-inset-bottom))',minHeight:'100dvh',display:'flex',flexDirection:'column'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:38}}>
           {step===0?<Skeleton w={38} h={38} r={99}/>:<div className="pill"><Orb p={me.palette} avatarUrl={me.avatar_url} s={38}/></div>}
           <div style={{flex:1}}>{step===0?<Skeleton w={96} h={11}/>:<div className="m up opening-kicker">Olá, {me.name.split(' ')[0]}</div>}</div>
@@ -46,8 +46,8 @@ export function Abertura({ me, onSkip, onRooms }) {
           </div>
         </div>}
 
-        <div style={{marginTop:34}}>
-          {step===0?<Skeleton w="100%" h={52} r={99}/>:step>=2&&<><button className="p p-brand up" onClick={onRooms} style={{width:'100%',padding:15,fontSize:15,display:'flex',alignItems:'center',justifyContent:'center',gap:9}}><DoorOpen size={17}/>Explorar Salas <ArrowUpRight size={17}/></button><button className="p up" onClick={onSkip} style={{width:'100%',marginTop:10,padding:'13px 16px',fontSize:15,background:'rgba(255,255,255,.45)',color:'var(--ink)',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><Home size={16}/>Ir para o Feed</button></>}
+        <div style={{marginTop:34,paddingBottom:'max(8px, env(safe-area-inset-bottom))'}}>
+          {step===0?<Skeleton w="100%" h={52} r={99}/>:step>=2&&<><button className="p p-brand up" onClick={onRooms} style={{width:'100%',minHeight:52,padding:15,fontSize:15,display:'flex',alignItems:'center',justifyContent:'center',gap:9}}><DoorOpen size={17}/>Explorar Salas <ArrowUpRight size={17}/></button><button className="p up" onClick={onSkip} style={{width:'100%',minHeight:50,marginTop:10,padding:'13px 16px',fontSize:15,background:'rgba(255,255,255,.06)',border:'1px solid rgba(255,255,255,.1)',color:'#F7F5FF',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><Home size={16}/>Ir para o Feed</button></>}
         </div>
       </div>
     </div>

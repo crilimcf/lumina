@@ -26,6 +26,7 @@ import { paymentRoutes } from './routes/payments.js';
 import { notificationRoutes } from './routes/notifications.js';
 import { radarRoutes } from './routes/radar.js';
 import { radarSyncRoutes } from './routes/radar-sync.js';
+import { liveRoutes } from './routes/live.js';
 
 const app = express();
 const webDir = path.resolve(process.cwd(), 'public');
@@ -41,7 +42,7 @@ app.use(helmet({
       fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
       imgSrc: ["'self'", 'https:', 'data:', 'blob:'],
       mediaSrc: ["'self'", 'https:', 'blob:'],
-      connectSrc: ["'self'", 'https://4aee2609d2471ffc4def078dcd41d9a7.r2.cloudflarestorage.com'],
+      connectSrc: ["'self'", 'https://4aee2609d2471ffc4def078dcd41d9a7.r2.cloudflarestorage.com', 'https://*.cloudflarestream.com'],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
       formAction: ["'self'"],
@@ -156,6 +157,7 @@ const mountApi = (prefix = '') => {
   app.use(`${prefix}/messages`, messageRoutes);
   app.use(`${prefix}/rooms`, roomRoutes);
   app.use(`${prefix}/calls`, callRoutes);
+  app.use(`${prefix}/live`, liveRoutes);
   app.use(`${prefix}/payments`, paymentRoutes);
   app.use(`${prefix}/notifications`, notificationRoutes);
   app.use(`${prefix}/reports`, reportRoutes);

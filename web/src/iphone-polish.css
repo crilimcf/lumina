@@ -57,8 +57,8 @@
   overflow: visible !important;
 }
 
+/* Keep the italic span inline so WebKit exposes the heading as "Salas", not "Sa las". */
 .lumina-rooms .rooms-header h2.d .it {
-  display: inline-block;
   padding-right: .16em;
   margin-right: -.02em;
 }

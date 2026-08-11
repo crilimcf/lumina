@@ -12,6 +12,7 @@ export function LiveViewer({ streamId, onBack, ping }) {
   const [counts, setCounts] = useState({ viewers: 0, likes: 0, fires: 0 });
   const [commentBody, setCommentBody] = useState('');
   const [needsPlay, setNeedsPlay] = useState(false);
+  const [videoOrientation, setVideoOrientation] = useState('auto');
   const videoRef = useRef(null);
   const viewerRef = useRef(null);
   const activityCursorRef = useRef(null);
@@ -103,6 +104,12 @@ export function LiveViewer({ streamId, onBack, ping }) {
     };
   }, [streamId]);
 
+  const syncVideoOrientation = () => {
+    const video = videoRef.current;
+    if (!video?.videoWidth || !video?.videoHeight) return;
+    setVideoOrientation(video.videoWidth >= video.videoHeight ? 'landscape' : 'portrait');
+  };
+
   const sendComment = async (event) => {
     event.preventDefault();
     const body = commentBody.trim();
@@ -138,8 +145,6 @@ export function LiveViewer({ streamId, onBack, ping }) {
     catch { setNeedsPlay(true); }
   };
 
-  const ended = stream && stream.status !== 'live';
-
   return <div className="lumina-live-shell">
     <main className="live-page live-viewer-layout">
       <header className="live-header">
@@ -155,8 +160,8 @@ export function LiveViewer({ streamId, onBack, ping }) {
       {error && <section className="live-card live-replay-card"><div className="live-replay-title">Não foi possível abrir.</div><div className="live-replay-copy">{error}</div><button className="live-secondary" onClick={onBack}>Voltar</button></section>}
 
       {!loading&&!error&&stream&&<>
-        <section className="live-stage">
-          <video ref={videoRef} autoPlay playsInline aria-label={`Direto de ${stream.name || stream.handle}`}/>
+        <section className={`live-stage live-stage-${videoOrientation}`}>
+          <video ref={videoRef} autoPlay playsInline onLoadedMetadata={syncVideoOrientation} onResize={syncVideoOrientation} aria-label={`Direto de ${stream.name || stream.handle}`}/>
           <div className="live-stage-top">
             {stream.status==='live'?<span className="live-badge live-badge-live"><span className="live-dot"/>AO VIVO</span>:<span className="live-badge">TERMINOU</span>}
             <span className="live-badge"><Users size={13}/>{counts.viewers}</span>

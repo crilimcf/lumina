@@ -31,7 +31,12 @@ test('notificação passa de Não lida para Lida e deep-link limpa unread', asyn
   const unreadCount=()=>page.evaluate(async()=>((await (await fetch('/api/notifications/unread-count',{credentials:'include',cache:'no-store'})).json()).count));
 
   await finishOpening(page);
+  await expect(page.getByRole('button',{name:'Alertas',exact:true})).toBeVisible();
   await send('primeira notificação');
+
+  // O badge tem de reagir antes do antigo polling de 15 s: isto valida o SSE em WebKit/iPhone.
+  await expect(page.getByRole('button',{name:'Alertas, 1 por ler',exact:true})).toBeVisible({timeout:3000});
+
   await page.getByRole('button',{name:/^Alertas/}).click();
   const row=page.getByText('Sender Notify enviou-te uma mensagem');
   await expect(row).toBeVisible({timeout:5000});

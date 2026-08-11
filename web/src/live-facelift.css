@@ -137,21 +137,34 @@
 .live-stage {
   position: relative;
   width: 100%;
-  min-height: min(68dvh, 690px);
+  min-height: 0;
   overflow: hidden;
   border: 1px solid rgba(255,255,255,.08);
   border-radius: 29px;
   background: #03040a;
   box-shadow: 0 26px 70px rgba(0,0,0,.34);
 }
+.live-stage-auto {
+  min-height: min(68dvh, 690px);
+}
+.live-stage-portrait {
+  width: min(100%, 430px);
+  aspect-ratio: 9 / 16;
+  margin-inline: auto;
+}
+.live-stage-landscape {
+  aspect-ratio: 16 / 9;
+}
 .live-stage video {
   width: 100%;
   height: 100%;
-  min-height: inherit;
+  min-height: 0;
   display: block;
   object-fit: cover;
   background: #03040a;
 }
+.live-stage-auto video { min-height: inherit; }
+.live-preview-mirrored { transform: scaleX(-1); }
 .live-stage::after {
   content: '';
   position: absolute;
@@ -190,6 +203,7 @@
 .live-dot { width: 7px; height: 7px; border-radius: 50%; background: #fff; box-shadow: 0 0 10px rgba(255,255,255,.8); }
 .live-control-row { display: flex; gap: 8px; }
 .live-control { backdrop-filter: blur(12px); }
+.live-control:disabled { opacity: .48; }
 .live-control-off { color: #ffadb8; background: rgba(132,24,48,.58); }
 .live-end {
   min-height: 44px;
@@ -333,7 +347,9 @@
   .lumina-live-shell { padding-left: 22px; padding-right: 22px; }
   .live-page.live-viewer-layout { grid-template-columns: minmax(0,1.25fr) minmax(280px,.75fr); align-items: start; }
   .live-viewer-layout .live-header { grid-column: 1 / -1; }
-  .live-viewer-layout .live-stage { min-height: 72dvh; }
+  .live-viewer-layout .live-stage-auto { min-height: 72dvh; }
+  .live-viewer-layout .live-stage-portrait { width: min(100%, 460px); }
+  .live-viewer-layout .live-stage-landscape { min-height: 0; }
   .live-viewer-side { display: grid; gap: 12px; align-content: start; position: sticky; top: 16px; }
 }
 

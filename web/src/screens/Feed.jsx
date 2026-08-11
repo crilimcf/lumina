@@ -7,6 +7,7 @@ import { MomentComposer, MomentRing } from '../components/Moments.jsx';
 import { MomentViewer } from '../components/MomentViewer.jsx';
 import { LiveNow } from '../components/live/LiveNow.jsx';
 import '../facelift.css';
+import '../mediaOrientation.css';
 
 function EditPostSheet({ post, onClose, onSave }) {
   const [body, setBody] = useState(post.body || '');
@@ -96,7 +97,7 @@ export function Feed({
                     </div>}
                   </div>
                 </div>
-                {p.media_url && <div className="lumina-post-media-wrap">{isVideo ? <video className="lumina-post-media" src={p.media_url} controls playsInline preload="metadata" aria-label={`Vídeo de ${p.name}`} /> : <img className="lumina-post-media" src={p.media_url} alt="" loading="lazy" />}</div>}
+                {p.media_url && <div className="lumina-post-media-wrap">{isVideo ? <video className="lumina-post-media lumina-adaptive-video" src={p.media_url} controls playsInline preload="metadata" aria-label={`Vídeo de ${p.name}`} /> : <img className="lumina-post-media" src={p.media_url} alt="" loading="lazy" />}</div>}
                 <div className="lumina-post-actions">
                   <button className={`act${mine.includes('like')?'':' act-off'}`} onClick={() => react(p,'like')}><span className="em" style={{ filter:mine.includes('like')?'none':'grayscale(1) opacity(.55)' }}>👍</span>{p.likes}</button>
                   <button className={`act${mine.includes('fire')?'':' act-off'}`} onClick={() => react(p,'fire')}><span className="em" style={{ filter:mine.includes('fire')?'none':'grayscale(1) opacity(.55)' }}>🔥</span>{p.fires}</button>

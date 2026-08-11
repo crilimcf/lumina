@@ -36,6 +36,33 @@
   margin-right: -.02em;
 }
 
+/* Rooms headline uses the same italic treatment, but lives inside a flex header.
+   Safari/iPhone can clip the first/last glyph against the inline/flex paint box. */
+.lumina-rooms .rooms-header,
+.lumina-rooms .rooms-header > div:first-child {
+  overflow: visible !important;
+}
+
+.lumina-rooms .rooms-header > div:first-child {
+  min-width: 0;
+}
+
+.lumina-rooms .rooms-header h2.d {
+  display: inline-block;
+  width: auto;
+  max-width: 100%;
+  box-sizing: border-box;
+  line-height: 1.045 !important;
+  padding: .08em .20em .08em .08em;
+  overflow: visible !important;
+}
+
+.lumina-rooms .rooms-header h2.d .it {
+  display: inline-block;
+  padding-right: .16em;
+  margin-right: -.02em;
+}
+
 /* Comments must look writable, not disabled, on dark post surfaces. */
 .lumina-comments-inner input {
   flex: 1;

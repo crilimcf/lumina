@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Phone, Video } from 'lucide-react';
 import { Orb } from '../../ui.jsx';
 import { startCallRingtone, stopCallRingtone } from './ringtone.js';
+import '../../rooms-calls-facelift.css';
 
 export function IncomingCall({ call, busy, onAccept, onDecline }) {
   useEffect(() => {

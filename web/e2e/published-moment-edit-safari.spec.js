@@ -97,7 +97,7 @@ test('autor substitui media de Momento já publicado em Mobile Safari', async ({
     name: 'original.mp4', mimeType: 'video/mp4', buffer: MP4,
   });
   await expect(page.getByLabel('Pré-visualização do vídeo do momento')).toBeVisible();
-  await page.getByRole('button', { name: 'Publicar momento' }).click();
+  await page.getByRole('button', { name: 'Partilhar momento' }).click();
   await expect(page.getByText(/Momento publicado/)).toBeVisible();
 
   await page.getByRole('button', { name: 'Tu' }).click();

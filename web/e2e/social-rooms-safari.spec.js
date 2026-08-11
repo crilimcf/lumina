@@ -21,6 +21,20 @@ async function openLumina(page) {
   await expect(page.getByRole('button', { name: 'Novo' })).toBeVisible();
 }
 
+async function swipe(page, selector, fromX, toX, y = 360) {
+  await page.locator(selector).first().evaluate((node, args) => {
+    const fire = (type, x) => {
+      const event = new Event(type, { bubbles:true, cancelable:true });
+      const touch = { clientX:x, clientY:args.y };
+      Object.defineProperty(event, 'touches', { value:type === 'touchend' ? [] : [touch] });
+      Object.defineProperty(event, 'changedTouches', { value:[touch] });
+      node.dispatchEvent(event);
+    };
+    fire('touchstart', args.fromX);
+    fire('touchend', args.toX);
+  }, { fromX, toX, y });
+}
+
 test('navegação final tem 5 itens; publicação edita/apaga; Radar está separado', async ({ page }) => {
   await openLumina(page);
 
@@ -34,11 +48,12 @@ test('navegação final tem 5 itens; publicação edita/apaga; Radar está separ
 
   const text = `Post editável ${Date.now()}`;
   await page.getByRole('button', { name: 'Novo' }).click();
-  await page.getByPlaceholder('O que estás a ver?').fill(text);
+  await page.getByPlaceholder('O que estás a ver ou a pensar?').fill(text);
   await page.getByRole('button', { name: 'Publicar', exact: true }).click();
 
   let article = page.locator('article').filter({ hasText: text });
   await expect(article).toBeVisible();
+  await expect(article.locator('.lumina-post-meta')).toContainText(/agora|\d+ min/);
   await article.getByRole('button', { name: 'Mais opções' }).click();
   await article.getByRole('button', { name: /Editar/ }).click();
   await expect(page.getByText('Editar publicação', { exact: true })).toBeVisible();
@@ -54,7 +69,6 @@ test('navegação final tem 5 itens; publicação edita/apaga; Radar está separ
   await expect(page.locator('article').filter({ hasText: `${text} corrigido` })).toHaveCount(0);
   await expect(page.getByText('Publicação apagada')).toBeVisible();
 
-  // Radar stays a discovery surface: commercial/editorial content never becomes a normal social post.
   await page.getByRole('button', { name: 'Radar' }).click();
   await expect(page.getByRole('heading', { name: /Radar/i })).toBeVisible();
   await expect(page.getByText(/sem misturar com o teu Feed/i)).toBeVisible();
@@ -65,22 +79,46 @@ test('navegação final tem 5 itens; publicação edita/apaga; Radar está separ
   await expect(page.getByRole('button', { name: 'Tendências' })).toBeVisible();
 });
 
+test('gesto horizontal muda entre Feed, Salas, Radar e Chat', async ({ page }) => {
+  await openLumina(page);
+
+  await swipe(page, '.lumina-feed-content', 330, 80);
+  await expect(page.getByRole('heading', { name: /Salas/i })).toBeVisible();
+
+  await swipe(page, '.rooms-shell', 330, 80);
+  await expect(page.getByRole('heading', { name: /Radar/i })).toBeVisible();
+
+  await swipe(page, '.explore-shell', 330, 80);
+  await expect(page.getByRole('heading', { name: 'Conversas' })).toBeVisible();
+
+  await swipe(page, '.messages-inbox-shell', 80, 330);
+  await expect(page.getByRole('heading', { name: /Radar/i })).toBeVisible();
+});
+
 test('Sala pública cria, edita, conversa e apaga em Mobile Safari', async ({ page }) => {
   await openLumina(page);
   await page.getByRole('button', { name: 'Salas' }).click();
   await expect(page.getByRole('heading', { name: /Salas/i })).toBeVisible();
   await page.getByRole('button', { name: /Criar/ }).click();
 
+  const publicChoice = page.locator('.room-privacy-option.is-public');
+  const privateChoice = page.locator('.room-privacy-option.is-private');
+  await expect(publicChoice).toHaveAttribute('aria-pressed', 'true');
+  await privateChoice.click();
+  await expect(privateChoice).toHaveAttribute('aria-pressed', 'true');
+  await expect(publicChoice).toHaveAttribute('aria-pressed', 'false');
+  await publicChoice.click();
+
   const roomName = `Sala Futebol QA ${Date.now()}`;
   const editedRoomName = `${roomName} editada`;
   await page.getByPlaceholder('Nome da sala').fill(roomName);
   await page.getByPlaceholder('Tópico principal').fill('Liga Portugal esta noite');
   await page.getByPlaceholder('Descrição (opcional)').fill('Conversa em tempo real sem poluir o Feed.');
-  await page.getByRole('button', { name: /^Pública Qualquer pessoa/ }).click();
-  await page.getByRole('button', { name: 'Criar sala', exact: true }).click();
+  await page.getByRole('button', { name: 'Criar sala pública', exact: true }).click();
 
   await expect(page.getByText(roomName, { exact: true })).toBeVisible();
   await page.getByText(roomName, { exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Adicionar foto ou vídeo à sala' })).toBeVisible();
   await page.getByRole('button', { name: 'Editar sala' }).click();
   await page.getByPlaceholder('Nome da sala').fill(editedRoomName);
   await page.getByPlaceholder('Tópico principal').fill('Liga Portugal — tópico editado');
@@ -103,7 +141,7 @@ test('Sala pública cria, edita, conversa e apaga em Mobile Safari', async ({ pa
   await expect(page.getByText(editedRoomName, { exact: true })).toHaveCount(0);
 });
 
-test('Chat mostra ações de chamada áudio e vídeo', async ({ page }) => {
+test('Chat mostra chamadas e deslizar para a direita sai da conversa', async ({ page }) => {
   await openLumina(page);
   const fakeThread = {
     id: '11111111-1111-4111-8111-111111111111', name: 'Pessoa Chamada', handle: 'pessoa',
@@ -128,6 +166,9 @@ test('Chat mostra ações de chamada áudio e vídeo', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Ligar por áudio a Pessoa Chamada' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Fazer videochamada com Pessoa Chamada' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Enviar', exact: true })).toBeVisible();
+
+  await swipe(page, '.messages-thread-scroll', 70, 320);
+  await expect(page.getByRole('heading', { name: 'Conversas' })).toBeVisible();
 });
 
 test('Alertas aceita pedido e Pessoas & privacidade muda o perfil', async ({ page }) => {

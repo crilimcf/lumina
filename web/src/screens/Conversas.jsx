@@ -6,6 +6,7 @@ import { Bubble } from '../components/messages/Bubble.jsx';
 import { MediaEditor } from '../components/messages/MediaEditor.jsx';
 import { Nav, TopActions } from '../components/AppChrome.jsx';
 import '../messages-facelift.css';
+import '../interaction-polish.css';
 
 export function Conversas({
   me, tab, setTab, setComp, unreadCount, threads, contacts = [], openContact,
@@ -22,6 +23,7 @@ export function Conversas({
   const [query, setQuery] = useState('');
   const [callPush, setCallPush] = useState({ checking:true, supported:true, standalone:true, permission:'default', subscribed:false });
   const [callPushBusy, setCallPushBusy] = useState(false);
+  const [visualFrame, setVisualFrame] = useState(null);
 
   const normalizedQuery = query.trim().toLocaleLowerCase('pt-PT');
   const filteredThreads = useMemo(() => {
@@ -32,6 +34,24 @@ export function Conversas({
     if (!normalizedQuery) return availableContacts;
     return availableContacts.filter(item => `${item.name || ''} ${item.handle || ''}`.toLocaleLowerCase('pt-PT').includes(normalizedQuery));
   }, [availableContacts, normalizedQuery]);
+
+  useEffect(() => {
+    if (!thread || !window.visualViewport) { setVisualFrame(null); return undefined; }
+    const viewport = window.visualViewport;
+    let raf = 0;
+    const sync = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => setVisualFrame({ top:viewport.offsetTop, height:viewport.height }));
+    };
+    sync();
+    viewport.addEventListener('resize', sync);
+    viewport.addEventListener('scroll', sync);
+    return () => {
+      cancelAnimationFrame(raf);
+      viewport.removeEventListener('resize', sync);
+      viewport.removeEventListener('scroll', sync);
+    };
+  }, [thread?.id]);
 
   const refreshCallPush = useCallback(async () => {
     try {
@@ -104,14 +124,21 @@ export function Conversas({
     </div>;
   };
 
-  const mediaPicker = (label) => <label className={`messages-media-picker${label ? ' has-label' : ''}`}>
+  const mediaPicker = (label) => <label className={`messages-media-picker${label ? ' has-label' : ''}`} data-swipe-ignore="true">
     <Camera size={17}/>{label && <span>{label}</span>}
     <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm" hidden onChange={e=>{const file=e.target.files?.[0]||null;if(file)chooseMedia(file);e.target.value='';}}/>
   </label>;
 
+  const focusComposer = () => {
+    window.setTimeout(() => end?.current?.scrollIntoView?.({ block:'end', behavior:'smooth' }), 80);
+  };
+
   if (thread) {
     const modes = [['normal',MessageSquare,'Normal'],['timer',Timer,'Efémera'],['once',Eye,'Uma vez']];
-    return <div className="lumina-facelift lumina-messages lumina-messages-thread">
+    const viewportStyle = visualFrame
+      ? { top:`${visualFrame.top}px`, height:`${visualFrame.height}px` }
+      : { top:0, height:'100dvh' };
+    return <div className="lumina-facelift lumina-messages lumina-messages-thread messages-visual-viewport" style={viewportStyle}>
       <header className="messages-thread-header">
         <button className="messages-thread-back" onClick={()=>setThread(null)} aria-label="Voltar às conversas"><ArrowLeft size={18}/></button>
         <div className="messages-thread-identity">
@@ -142,11 +169,11 @@ export function Conversas({
           {!mediaReady && mediaPicker('Escolher foto ou vídeo')}
           <button className="messages-once-send" onClick={send} disabled={!mediaReady||sending} aria-label="Enviar uma vez">{sending?'A enviar…':`Enviar ${mediaReady?.type==='video'?'vídeo':'foto'} · uma vez`}</button>
         </div> : mode==='timer' ? <div className="messages-composer-row">
-          <input className="messages-composer-input" value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==='Enter'&&send()} placeholder="Mensagem efémera…"/>
+          <input className="messages-composer-input" value={text} onChange={e=>setText(e.target.value)} onFocus={focusComposer} onKeyDown={e=>e.key==='Enter'&&send()} placeholder="Mensagem efémera…"/>
           <button className="messages-send-button" onClick={send} disabled={sending||!text.trim()} aria-label="Enviar mensagem"><Send size={17}/></button>
         </div> : <div className="messages-composer-row">
           {!mediaReady && mediaPicker('')}
-          <input className="messages-composer-input" value={text} disabled={!!mediaReady} onChange={e=>setText(e.target.value)} onKeyDown={e=>e.key==='Enter'&&send()} placeholder={mediaReady?'Media pronta para enviar':'Escrever…'}/>
+          <input className="messages-composer-input" value={text} disabled={!!mediaReady} onChange={e=>setText(e.target.value)} onFocus={focusComposer} onKeyDown={e=>e.key==='Enter'&&send()} placeholder={mediaReady?'Media pronta para enviar':'Escrever…'}/>
           <button className="messages-send-button" onClick={send} disabled={sending||(!text.trim()&&!mediaReady)} aria-label="Enviar"><Send size={17}/></button>
         </div>}
       </div>

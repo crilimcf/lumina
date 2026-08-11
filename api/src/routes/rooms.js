@@ -46,7 +46,7 @@ async function assertMember(roomId,userId){const room=await getRoom(roomId,userI
 async function stripeCheckout({amountCents,name,metadata,successPath}) {
   if(!env.STRIPE_SECRET_KEY) throw new HttpError(503,'Pagamentos ainda não configurados','payments_unavailable');
   const body=new URLSearchParams();
-  body.set('mode','payment');body.set('success_url',`${env.APP_URL}${successPath}?payment=success&session_id={CHECKOUT_SESSION_ID}`);body.set('cancel_url',`${env.APP_URL}${successPath}?payment=cancelled`);
+  body.set('mode','payment');body.set('success_url',`${env.APP_URL}${successPath}?payment=success&session_id={CHECKOUT_SESSION_ID}`);body.set('cancel_url',`${env.APP_URL}${successPath}?payment=cancelled&session_id={CHECKOUT_SESSION_ID}`);
   body.set('line_items[0][price_data][currency]','eur');body.set('line_items[0][price_data][unit_amount]',String(amountCents));body.set('line_items[0][price_data][product_data][name]',name);body.set('line_items[0][quantity]','1');
   Object.entries(metadata).forEach(([k,v])=>body.set(`metadata[${k}]`,String(v)));
   const response=await fetch('https://api.stripe.com/v1/checkout/sessions',{method:'POST',headers:{authorization:`Bearer ${env.STRIPE_SECRET_KEY}`,'content-type':'application/x-www-form-urlencoded'},body});
@@ -92,7 +92,14 @@ roomRoutes.patch('/:roomId',auth,h(async(req,res)=>{
   if(imageProvided&&previousImage&&previousImage!==imageUrl)removeUploadIfUnreferenced(previousImage).catch(()=>{});
   res.json(await getRoom(room.id,req.user.id));
 }));
-roomRoutes.delete('/:roomId',auth,h(async(req,res)=>{const {rows}=await q('DELETE FROM rooms WHERE id=$1 AND creator_id=$2 RETURNING image_url',[req.params.roomId,req.user.id]);if(!rows[0])throw notFound('Sala não encontrada');if(rows[0].image_url)removeUploadIfUnreferenced(rows[0].image_url).catch(()=>{});res.json({deleted:true});}));
+roomRoutes.delete('/:roomId',auth,h(async(req,res)=>{
+  const {rows:media}=await q(`SELECT rm.media_url FROM room_messages rm JOIN rooms r ON r.id=rm.room_id WHERE r.id=$1 AND r.creator_id=$2 AND rm.media_url IS NOT NULL`,[req.params.roomId,req.user.id]);
+  const {rows}=await q('DELETE FROM rooms WHERE id=$1 AND creator_id=$2 RETURNING image_url',[req.params.roomId,req.user.id]);
+  if(!rows[0])throw notFound('Sala não encontrada');
+  const urls=[rows[0].image_url,...media.map(item=>item.media_url)].filter(Boolean);
+  for(const url of new Set(urls)) removeUploadIfUnreferenced(url).catch(()=>{});
+  res.json({deleted:true});
+}));
 
 roomRoutes.post('/:roomId/invite',auth,h(async(req,res)=>{const room=await getRoom(req.params.roomId,req.user.id);if(!room||room.creator_id!==req.user.id)throw forbidden('Só quem criou a sala envia convites');if(room.visibility==='public')throw bad('Salas públicas não precisam de convite');const userId=String(req.body.userId||'');if(!userId||userId===req.user.id)throw bad('Pessoa inválida');const {rows:user}=await q('SELECT id,handle,name FROM users WHERE id=$1 AND suspended_at IS NULL',[userId]);if(!user[0])throw notFound('Pessoa não encontrada');if(await blocked(req.user.id,userId))throw forbidden('Não é possível convidar esta pessoa');await q(`INSERT INTO room_invites (room_id,user_id,invited_by) VALUES ($1,$2,$3) ON CONFLICT (room_id,user_id) DO UPDATE SET invited_by=EXCLUDED.invited_by,created_at=now()`,[room.id,userId,req.user.id]);res.status(201).json(user[0]);}));
 
@@ -102,7 +109,32 @@ roomRoutes.post('/:roomId/checkout-entry',auth,h(async(req,res)=>{const room=awa
 
 roomRoutes.post('/:roomId/checkout-create',auth,h(async(req,res)=>{const room=await getRoom(req.params.roomId,req.user.id);if(!room||room.creator_id!==req.user.id)throw forbidden();if(room.visibility!=='ultra'||room.billing_state==='active')return res.json({paid:true,checkoutUrl:null});let {rows:pay}=await q(`SELECT id FROM room_payments WHERE room_id=$1 AND user_id=$2 AND kind='create' AND status='pending' ORDER BY created_at DESC LIMIT 1`,[room.id,req.user.id]);if(!pay[0])({rows:pay}=await q(`INSERT INTO room_payments (room_id,user_id,kind,amount_cents) VALUES ($1,$2,'create',$3) RETURNING id`,[room.id,req.user.id,room.create_price_cents]));const checkout=await stripeCheckout({amountCents:room.create_price_cents,name:`Lumina · Criar Sala Ultra · ${room.name}`,metadata:{kind:'room_create',room_id:room.id,user_id:req.user.id,payment_id:pay[0].id},successPath:'/?tab=rooms'});await q('UPDATE room_payments SET provider_ref=$2 WHERE id=$1',[pay[0].id,checkout.id]);res.status(201).json({checkoutUrl:checkout.url});}));
 
-roomRoutes.get('/:roomId/messages',auth,h(async(req,res)=>{await assertMember(req.params.roomId,req.user.id);const {rows}=await q(`SELECT rm.id,rm.sender_id,rm.body,rm.created_at,rm.edited_at,u.name,u.handle,u.palette,u.avatar_url FROM room_messages rm JOIN users u ON u.id=rm.sender_id AND u.suspended_at IS NULL WHERE rm.room_id=$1 AND rm.deleted_at IS NULL AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$2 AND b.blocked_id=rm.sender_id) OR (b.blocked_id=$2 AND b.blocker_id=rm.sender_id)) ORDER BY rm.created_at ASC LIMIT 300`,[req.params.roomId,req.user.id]);res.json(rows);}));
-roomRoutes.post('/:roomId/messages',auth,h(async(req,res)=>{await assertMember(req.params.roomId,req.user.id);const body=String(req.body.body||'').trim();if(!body)throw bad('Mensagem vazia');if(body.length>4000)throw bad('A mensagem tem no máximo 4000 caracteres');const {rows}=await q(`INSERT INTO room_messages (room_id,sender_id,body) VALUES ($1,$2,$3) RETURNING id,sender_id,body,created_at,edited_at`,[req.params.roomId,req.user.id,body]);res.status(201).json(rows[0]);}));
+roomRoutes.get('/:roomId/messages',auth,h(async(req,res)=>{await assertMember(req.params.roomId,req.user.id);const {rows}=await q(`SELECT rm.id,rm.sender_id,rm.body,rm.media_url,rm.media_mime,rm.created_at,rm.edited_at,u.name,u.handle,u.palette,u.avatar_url FROM room_messages rm JOIN users u ON u.id=rm.sender_id AND u.suspended_at IS NULL WHERE rm.room_id=$1 AND rm.deleted_at IS NULL AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$2 AND b.blocked_id=rm.sender_id) OR (b.blocked_id=$2 AND b.blocker_id=rm.sender_id)) ORDER BY rm.created_at ASC LIMIT 300`,[req.params.roomId,req.user.id]);res.json(rows);}));
+roomRoutes.post('/:roomId/messages',auth,h(async(req,res)=>{
+  await assertMember(req.params.roomId,req.user.id);
+  const body=String(req.body.body||'').trim();
+  const mediaUrl=req.body.mediaUrl?String(req.body.mediaUrl):null;
+  if(!body&&!mediaUrl)throw bad('Mensagem vazia');
+  if(body.length>4000)throw bad('A mensagem tem no máximo 4000 caracteres');
+  const message=await tx(async c=>{
+    let mediaMime=null;
+    if(mediaUrl){
+      const claimed=await claimUpload(mediaUrl,req.user.id,'room_message',(text,params)=>c.query(text,params),{allowVideo:true});
+      if(!claimed)throw bad('Foto ou vídeo não verificado ou já utilizado','unconfirmed_upload');
+      if(!claimed.mime?.startsWith('image/')&&!claimed.mime?.startsWith('video/'))throw bad('Formato de media inválido');
+      mediaMime=claimed.mime;
+    }
+    const {rows}=await c.query(`INSERT INTO room_messages (room_id,sender_id,body,media_url,media_mime) VALUES ($1,$2,$3,$4,$5) RETURNING id,sender_id,body,media_url,media_mime,created_at,edited_at`,[req.params.roomId,req.user.id,body||null,mediaUrl,mediaMime]);
+    return rows[0];
+  });
+  res.status(201).json(message);
+}));
 roomRoutes.patch('/:roomId/messages/:messageId',auth,h(async(req,res)=>{await assertMember(req.params.roomId,req.user.id);const body=String(req.body.body||'').trim();if(!body||body.length>4000)throw bad('Mensagem inválida');const {rows}=await q(`UPDATE room_messages SET body=$4,edited_at=now() WHERE id=$1 AND room_id=$2 AND sender_id=$3 AND deleted_at IS NULL RETURNING id,body,edited_at`,[req.params.messageId,req.params.roomId,req.user.id,body]);if(!rows[0])throw notFound('Mensagem não encontrada');res.json(rows[0]);}));
-roomRoutes.delete('/:roomId/messages/:messageId',auth,h(async(req,res)=>{const room=await assertMember(req.params.roomId,req.user.id);const {rows}=await q(`UPDATE room_messages SET deleted_at=now() WHERE id=$1 AND room_id=$2 AND (sender_id=$3 OR $4::uuid=$3::uuid) AND deleted_at IS NULL RETURNING id`,[req.params.messageId,req.params.roomId,req.user.id,room.creator_id]);if(!rows[0])throw forbidden('Só podes apagar as tuas mensagens, salvo se fores dono da sala');res.json({deleted:true});}));
+roomRoutes.delete('/:roomId/messages/:messageId',auth,h(async(req,res)=>{
+  const room=await assertMember(req.params.roomId,req.user.id);
+  const {rows:found}=await q(`SELECT media_url FROM room_messages WHERE id=$1 AND room_id=$2 AND deleted_at IS NULL`,[req.params.messageId,req.params.roomId]);
+  const {rows}=await q(`UPDATE room_messages SET deleted_at=now(),media_url=NULL,media_mime=NULL WHERE id=$1 AND room_id=$2 AND (sender_id=$3 OR $4::uuid=$3::uuid) AND deleted_at IS NULL RETURNING id`,[req.params.messageId,req.params.roomId,req.user.id,room.creator_id]);
+  if(!rows[0])throw forbidden('Só podes apagar as tuas mensagens, salvo se fores dono da sala');
+  if(found[0]?.media_url)removeUploadIfUnreferenced(found[0].media_url).catch(()=>{});
+  res.json({deleted:true});
+}));

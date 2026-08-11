@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api.js';
 import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
+import { ScrollToTopButton } from '../components/ScrollToTopButton.jsx';
 import '../explore-facelift.css';
 
 const FILTERS = [
@@ -188,6 +189,7 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
         </div>}
     </div>
 
+    <ScrollToTopButton/>
     <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} threads={threads}/>
     <Toast text={toast}/>
   </div>;

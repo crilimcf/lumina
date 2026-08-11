@@ -12,6 +12,7 @@ import { useMessages } from './hooks/useMessages.js';
 import { useComposer } from './hooks/useComposer.js';
 import { useMoments } from './hooks/useMoments.js';
 import { useCalls } from './hooks/useCalls.js';
+import { useSwipeNavigation } from './hooks/useSwipeNavigation.js';
 import './design-system-consolidation.css';
 import './iphone-polish.css';
 
@@ -72,6 +73,14 @@ export default function App() {
   const messageState = useMessages({ tab, palette:composerState.palette, ping, enabled:!!me });
   const momentState = useMoments({ me, ping });
   const callState = useCalls({ enabled:!!me, ping });
+
+  useSwipeNavigation({
+    enabled: !!me && !opening && !showWelcome && !screen && !composerState.comp && !callState.activeCall && !callState.incoming,
+    tab,
+    setTab,
+    thread:messageState.thread,
+    setThread:messageState.setThread,
+  });
 
   const meRef = useRef(null);
   useEffect(() => { meRef.current = me; }, [me]);

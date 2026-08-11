@@ -125,7 +125,7 @@ export const api = {
     checkoutCreate: (id) => call(`/rooms/${id}/checkout-create`, { method: 'POST' }),
     checkoutEntry: (id) => call(`/rooms/${id}/checkout-entry`, { method: 'POST' }),
     messages: (id) => call(`/rooms/${id}/messages`),
-    send: (id, body) => call(`/rooms/${id}/messages`, { method: 'POST', body: { body } }),
+    send: (id, body, mediaUrl = null) => call(`/rooms/${id}/messages`, { method: 'POST', body: { body, mediaUrl } }),
     editMessage: (roomId, messageId, body) => call(`/rooms/${roomId}/messages/${messageId}`, { method: 'PATCH', body: { body } }),
     removeMessage: (roomId, messageId) => call(`/rooms/${roomId}/messages/${messageId}`, { method: 'DELETE' }),
   },

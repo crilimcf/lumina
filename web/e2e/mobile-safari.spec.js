@@ -48,7 +48,7 @@ test('registo, reload e publicação direta funcionam em Mobile Safari', async (
   await expect(page.getByText(/O teu Feed está vazio/)).toBeVisible();
   const publishedText = `Publicação WebKit ${Date.now()}`;
   await page.getByRole('button', { name: 'Novo' }).click();
-  const composer = page.getByPlaceholder('O que estás a ver?');
+  const composer = page.getByPlaceholder('O que estás a ver ou a pensar?');
   await expect(composer).toBeVisible();
   await expect(page.getByRole('button', { name: 'Adicionar fotografia' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Adicionar vídeo' })).toBeVisible();
@@ -73,13 +73,13 @@ test('botão Novo abre o composer a partir de Perfil e Chat', async ({ page }) =
   await page.getByRole('button', { name: 'Perfil' }).click();
   await expect(page.getByRole('button', { name: 'Editar perfil' })).toBeVisible();
   await page.getByRole('button', { name: 'Novo' }).click();
-  await expect(page.getByPlaceholder('O que estás a ver?')).toBeVisible();
+  await expect(page.getByPlaceholder('O que estás a ver ou a pensar?')).toBeVisible();
   await page.getByRole('button', { name: 'Fechar' }).click();
 
   await page.getByRole('button', { name: 'Conversas' }).click();
   await expect(page.getByRole('heading', { name: /Conversas/i })).toBeVisible();
   await page.getByRole('button', { name: 'Novo' }).click();
-  await expect(page.getByPlaceholder('O que estás a ver?')).toBeVisible();
+  await expect(page.getByPlaceholder('O que estás a ver ou a pensar?')).toBeVisible();
 });
 
 test('barra flutuante esconde ao descer, regressa ao subir e mantém o Novo funcional', async ({ page }) => {
@@ -112,7 +112,7 @@ test('barra flutuante esconde ao descer, regressa ao subir e mantém o Novo func
   await expect(nav).not.toHaveClass(/nav-smart-hidden/);
 
   await page.getByRole('button', { name: 'Novo' }).click();
-  await expect(page.getByPlaceholder('O que estás a ver?')).toBeVisible();
+  await expect(page.getByPlaceholder('O que estás a ver ou a pensar?')).toBeVisible();
   await expect(nav).not.toHaveClass(/nav-smart-hidden/);
 });
 

@@ -21,11 +21,12 @@ export async function uploadReferenceCount(url, query = q) {
   if (!url) return 0;
   const { rows } = await query(
     `SELECT (
-       (SELECT count(*) FROM users    WHERE avatar_url = $1) +
-       (SELECT count(*) FROM posts    WHERE media_url = $1) +
-       (SELECT count(*) FROM moments  WHERE media_url = $1) +
-       (SELECT count(*) FROM messages WHERE media_url = $1) +
-       (SELECT count(*) FROM rooms    WHERE image_url = $1)
+       (SELECT count(*) FROM users         WHERE avatar_url = $1) +
+       (SELECT count(*) FROM posts         WHERE media_url = $1) +
+       (SELECT count(*) FROM moments       WHERE media_url = $1) +
+       (SELECT count(*) FROM messages      WHERE media_url = $1) +
+       (SELECT count(*) FROM rooms         WHERE image_url = $1) +
+       (SELECT count(*) FROM room_messages WHERE media_url = $1)
      )::int AS n`,
     [url]
   );

@@ -61,17 +61,36 @@ async function swipe(page, fromY, toY) {
   },{fromY,toY});
 }
 
-test('dock global é compacto, baixo e reage a scroll vertical em todas as abas principais', async ({page}) => {
+test('dock global mantém labels legíveis, safe-area e swipe adaptativo em todas as abas principais', async ({page}) => {
   await registerAndEnterFeed(page);
   await ensureVerticalProbe(page);
 
   const nav=page.locator('.nav');
   await expect(nav).toBeVisible();
   const box=await nav.boundingBox();
-  expect(box?.width).toBeLessThanOrEqual(332);
-  expect(box?.height).toBeLessThanOrEqual(54);
+  expect(box?.width).toBeLessThanOrEqual(390);
+  expect(box?.width).toBeGreaterThan(300);
+  expect(box?.height).toBeGreaterThanOrEqual(56);
+  expect(box?.height).toBeLessThanOrEqual(68);
   const bottom=await nav.evaluate(el=>parseFloat(getComputedStyle(el).bottom));
-  expect(bottom).toBeLessThanOrEqual(8);
+  expect(bottom).toBeGreaterThanOrEqual(8);
+  expect(bottom).toBeLessThanOrEqual(30);
+
+  for (const label of ['Feed','Salas','Novo','Radar','Conversas']) {
+    const button=page.getByRole('button',{name:label,exact:true});
+    await expect(button).toBeVisible();
+    const metrics=await button.evaluate(el=>{
+      const labelNode=el.querySelector('span');
+      const buttonRect=el.getBoundingClientRect();
+      const labelRect=labelNode?.getBoundingClientRect();
+      return {
+        buttonHeight:buttonRect.height,
+        labelInside:!!labelRect && labelRect.top>=buttonRect.top-1 && labelRect.bottom<=buttonRect.bottom+1,
+      };
+    });
+    expect(metrics.buttonHeight).toBeGreaterThanOrEqual(48);
+    expect(metrics.labelInside).toBe(true);
+  }
 
   for (const label of ['Feed','Salas','Radar','Conversas']) {
     await scrollProbe(page,0);

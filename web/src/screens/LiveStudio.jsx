@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, CheckCircle2, Eye, Flame, Mic, MicOff, Radio, Send, SwitchCamera, Users, Video, VideoOff } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Eye, Flame, Mic, MicOff, Minus, Plus, Radio, Send, SwitchCamera, Users, Video, VideoOff } from 'lucide-react';
 import { api } from '../api.js';
 import { createLiveCapture } from '../live/liveCapture.js';
 import { createWhipPublisher } from '../live/webrtcLive.js';
@@ -54,6 +54,7 @@ export function LiveStudio({ me, onBack, ping }) {
   const [cameraOn, setCameraOn] = useState(true);
   const [cameraFacing, setCameraFacing] = useState('user');
   const [switchingCamera, setSwitchingCamera] = useState(false);
+  const [zoom, setZoom] = useState(1);
   const [liveOrientation, setLiveOrientation] = useState('portrait');
   const [elapsed, setElapsed] = useState(0);
   const [replayBlob, setReplayBlob] = useState(null);
@@ -162,6 +163,7 @@ export function LiveStudio({ me, onBack, ping }) {
       setCameraFacing('user');
       setCameraOn(true);
       setMicOn(true);
+      setZoom(capture.getZoom?.() || 1);
       setLiveOrientation(capture.orientation);
 
       created = await api.live.create({ title: title.trim(), privacy });
@@ -285,6 +287,12 @@ export function LiveStudio({ me, onBack, ping }) {
     setCameraOn(next);
   };
 
+  const changeZoom = (nextZoom) => {
+    const capture = captureRef.current;
+    if (!capture || phase !== 'live' || !cameraOn) return;
+    setZoom(capture.setZoom?.(nextZoom) ?? nextZoom);
+  };
+
   const switchCamera = async () => {
     if (phase !== 'live' || switchingCamera || !captureRef.current) return;
     const nextFacing = cameraFacing === 'user' ? 'environment' : 'user';
@@ -292,6 +300,7 @@ export function LiveStudio({ me, onBack, ping }) {
     try {
       await captureRef.current.switchCamera(nextFacing);
       setCameraFacing(nextFacing);
+      setZoom(captureRef.current.getZoom?.() || 1);
       ping?.(nextFacing === 'environment' ? 'Câmara traseira ativa' : 'Câmara frontal ativa');
     } catch (failure) {
       ping?.(failure.message || 'Não foi possível trocar de câmara');
@@ -364,6 +373,12 @@ export function LiveStudio({ me, onBack, ping }) {
             <span className="live-badge live-badge-live"><span className="live-dot"/>AO VIVO</span>
             <span className="live-badge">{formatDuration(elapsed)}</span>
             <span className="live-badge"><Eye size={13}/>{counts.viewers}</span>
+          </div>
+          <div className="live-zoom-panel" aria-label="Controlos de zoom">
+            <button className="live-zoom-button" type="button" onClick={()=>changeZoom(zoom - .1)} disabled={!cameraOn || zoom <= 1 || phase==='ending'} aria-label="Diminuir zoom"><Minus size={16}/></button>
+            <input className="live-zoom-range" type="range" min="1" max="3" step="0.1" value={zoom} onChange={event=>changeZoom(Number(event.target.value))} disabled={!cameraOn || phase==='ending'} aria-label="Zoom da câmara"/>
+            <button className="live-zoom-button" type="button" onClick={()=>changeZoom(zoom + .1)} disabled={!cameraOn || zoom >= 3 || phase==='ending'} aria-label="Aumentar zoom"><Plus size={16}/></button>
+            <span className="live-zoom-value">{zoom.toFixed(1)}×</span>
           </div>
           <div className="live-stage-bottom">
             <div className="live-control-row">

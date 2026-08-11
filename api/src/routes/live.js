@@ -9,10 +9,19 @@ export const liveRoutes = Router();
 
 const visibleWhere = `(
   ls.creator_id = $1
-  OR ls.privacy = 'public'
-  OR EXISTS (
-    SELECT 1 FROM follows f
-    WHERE f.follower_id = $1 AND f.following_id = ls.creator_id
+  OR (
+    NOT EXISTS (
+      SELECT 1 FROM blocks b
+      WHERE (b.blocker_id = $1 AND b.blocked_id = ls.creator_id)
+         OR (b.blocked_id = $1 AND b.blocker_id = ls.creator_id)
+    )
+    AND (
+      ls.privacy = 'public'
+      OR EXISTS (
+        SELECT 1 FROM follows f
+        WHERE f.follower_id = $1 AND f.following_id = ls.creator_id
+      )
+    )
   )
 )`;
 
@@ -111,6 +120,11 @@ liveRoutes.post('/:streamId/start', auth, h(async (req, res) => {
             'live:' || $2::text || ':' || f.follower_id::text
        FROM follows f
       WHERE f.following_id=$1
+        AND NOT EXISTS (
+          SELECT 1 FROM blocks b
+          WHERE (b.blocker_id=$1 AND b.blocked_id=f.follower_id)
+             OR (b.blocked_id=$1 AND b.blocker_id=f.follower_id)
+        )
      ON CONFLICT (dedupe_key) DO UPDATE
        SET data=EXCLUDED.data, actor_id=EXCLUDED.actor_id, read_at=NULL, created_at=now()
      RETURNING id,user_id`,
@@ -166,8 +180,13 @@ liveRoutes.get('/:streamId/activity', auth, h(async (req, res) => {
       `SELECT lc.id,lc.body,lc.created_at,lc.author_id,u.name,u.handle,u.palette,u.avatar_url
          FROM live_comments lc JOIN users u ON u.id=lc.author_id AND u.suspended_at IS NULL
         WHERE lc.stream_id=$1 AND lc.created_at > $2::timestamptz
+          AND NOT EXISTS (
+            SELECT 1 FROM blocks b
+            WHERE (b.blocker_id=$3 AND b.blocked_id=lc.author_id)
+               OR (b.blocked_id=$3 AND b.blocker_id=lc.author_id)
+          )
         ORDER BY lc.created_at ASC LIMIT 100`,
-      [stream.id, afterIso]
+      [stream.id, afterIso, req.user.id]
     ),
     q(
       `SELECT id,kind,created_at FROM live_reactions

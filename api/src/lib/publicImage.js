@@ -1,5 +1,7 @@
 import http from 'node:http';
 import https from 'node:https';
+import { Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { resolvePublicFeedTarget } from '../jobs/radar.js';
 
 const IMAGE_TIMEOUT_MS = 8_000;
@@ -30,7 +32,18 @@ function safeReferer(value) {
   } catch { return null; }
 }
 
-export async function fetchPublicImage(input, {
+function limitBytes(maxBytes) {
+  let total = 0;
+  return new Transform({
+    transform(chunk, _encoding, callback) {
+      total += chunk.length;
+      if (total > maxBytes) return callback(new Error('Imagem Radar demasiado grande'));
+      callback(null, chunk);
+    },
+  });
+}
+
+async function openPublicImage(input, {
   referer = null,
   redirects = 0,
   deadlineAt = Date.now() + IMAGE_TIMEOUT_MS,
@@ -46,12 +59,12 @@ export async function fetchPublicImage(input, {
 
   return new Promise((resolve, reject) => {
     let settled = false;
-    let absoluteTimeout;
+    let headerTimeout;
 
-    const done = (fn, value) => {
+    const finish = (fn, value) => {
       if (settled) return;
       settled = true;
-      if (absoluteTimeout) clearTimeout(absoluteTimeout);
+      if (headerTimeout) clearTimeout(headerTimeout);
       fn(value);
     };
 
@@ -74,75 +87,100 @@ export async function fetchPublicImage(input, {
           callback(null, target.address, target.family);
         },
       }, response => {
+        if (headerTimeout) clearTimeout(headerTimeout);
         const status = response.statusCode || 0;
+
         if (status >= 300 && status < 400 && response.headers.location) {
           let next;
           try { next = new URL(response.headers.location, target.url).toString(); }
           catch {
             response.resume();
-            done(reject, new Error('Redirect inválido na imagem Radar'));
+            finish(reject, new Error('Redirect inválido na imagem Radar'));
             return;
           }
           response.resume();
-          fetchPublicImage(next, {
+          openPublicImage(next, {
             referer: requestReferer || target.url.toString(),
             redirects: redirects + 1,
             deadlineAt,
             maxBytes,
             resolveTargetImpl,
-          }).then(value => done(resolve, value), error => done(reject, error));
+          }).then(value => finish(resolve, value), error => finish(reject, error));
           return;
         }
 
         if (status < 200 || status >= 300) {
           response.resume();
-          done(reject, new Error(`HTTP ${status} ao obter imagem Radar`));
+          finish(reject, new Error(`HTTP ${status} ao obter imagem Radar`));
           return;
         }
 
         const contentType = String(response.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
         if (!SAFE_IMAGE_TYPES.has(contentType)) {
           response.resume();
-          done(reject, new Error('Tipo de imagem Radar não suportado'));
+          finish(reject, new Error('Tipo de imagem Radar não suportado'));
           return;
         }
 
         const announcedLength = Number(response.headers['content-length'] || 0);
         if (Number.isFinite(announcedLength) && announcedLength > maxBytes) {
           response.resume();
-          done(reject, new Error('Imagem Radar demasiado grande'));
+          finish(reject, new Error('Imagem Radar demasiado grande'));
           return;
         }
 
-        const chunks = [];
-        let total = 0;
-        response.on('data', chunk => {
-          total += chunk.length;
-          if (total > maxBytes) {
-            response.destroy(new Error('Imagem Radar demasiado grande'));
-            return;
-          }
-          chunks.push(chunk);
+        finish(resolve, {
+          response,
+          contentType,
+          etag: response.headers.etag || null,
+          lastModified: response.headers['last-modified'] || null,
+          maxBytes,
+          deadlineAt,
         });
-        response.on('end', () => {
-          if (total > maxBytes) return;
-          done(resolve, {
-            buffer: Buffer.concat(chunks),
-            contentType,
-            etag: response.headers.etag || null,
-            lastModified: response.headers['last-modified'] || null,
-          });
-        });
-        response.on('error', error => done(reject, error));
       });
     } catch (error) {
-      done(reject, error);
+      finish(reject, error);
       return;
     }
 
-    request.on('error', error => done(reject, error));
-    absoluteTimeout = setTimeout(() => {
+    request.on('error', error => finish(reject, error));
+    headerTimeout = setTimeout(() => {
       request.destroy(new Error('Timeout ao obter imagem Radar'));
     }, remainingMs(deadlineAt));
   });
+}
+
+export async function pipePublicImage(input, destination, {
+  referer = null,
+  deadlineAt = Date.now() + IMAGE_TIMEOUT_MS,
+  maxBytes = MAX_IMAGE_BYTES,
+  resolveTargetImpl = resolvePublicFeedTarget,
+  onHeaders = null,
+} = {}) {
+  const image = await openPublicImage(input, {
+    referer,
+    deadlineAt,
+    maxBytes,
+    resolveTargetImpl,
+  });
+
+  if (typeof onHeaders === 'function') {
+    onHeaders({
+      contentType: image.contentType,
+      etag: image.etag,
+      lastModified: image.lastModified,
+    });
+  }
+
+  const limiter = limitBytes(image.maxBytes);
+  const transferTimeout = setTimeout(() => {
+    image.response.destroy(new Error('Timeout ao obter imagem Radar'));
+    limiter.destroy(new Error('Timeout ao obter imagem Radar'));
+  }, remainingMs(image.deadlineAt));
+
+  try {
+    await pipeline(image.response, limiter, destination);
+  } finally {
+    clearTimeout(transferTimeout);
+  }
 }

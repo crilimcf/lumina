@@ -7,7 +7,7 @@ const MAX_DURATION = 900;
 function startsInInteractiveControl(target) {
   if (!(target instanceof Element)) return false;
   if (target.closest('input, textarea, select, [contenteditable="true"], video, audio, [data-swipe-ignore="true"]')) return true;
-  if (target.closest('.composer-backdrop, .moment-composer-backdrop, .room-sheet-backdrop, .room-dialog-backdrop, .lumina-profile-sheet-backdrop, .reveal')) return true;
+  if (target.closest('[role="dialog"], [aria-modal="true"], .edit-post-backdrop, .composer-backdrop, .moment-composer-backdrop, .room-sheet-backdrop, .room-dialog-backdrop, .lumina-profile-sheet-backdrop, .reveal')) return true;
 
   let node = target;
   while (node && node !== document.body) {

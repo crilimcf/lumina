@@ -74,6 +74,7 @@ const CSRF_PUBLIC_PATHS = new Set([
   '/account/reset-password',
   '/notifications/push/subscribe',
   '/notifications/push/unsubscribe',
+  '/reports/client-error',
 ]);
 const withoutApiPrefix = (pathname) => pathname.startsWith('/api/') ? pathname.slice(4) : pathname;
 app.use((req, res, next) => {

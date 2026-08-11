@@ -36,6 +36,11 @@ export const env = {
   TURN_USERNAME: process.env.TURN_USERNAME || '',
   TURN_CREDENTIAL: process.env.TURN_CREDENTIAL || '',
 
+  // Lumina Live. O token Stream nunca é exposto ao browser; a API cria um
+  // Live Input e devolve apenas os endpoints WHIP/WHEP necessários à sessão.
+  CF_STREAM_ACCOUNT_ID: process.env.CF_STREAM_ACCOUNT_ID || '',
+  CF_STREAM_API_TOKEN: process.env.CF_STREAM_API_TOKEN || '',
+
   FEATURE_SUBSCRIPTIONS: process.env.FEATURE_SUBSCRIPTIONS === 'true',
 
   // Pagamentos das Salas Ultra. Sem chaves, públicas/privadas continuam a funcionar

@@ -2,7 +2,6 @@ import crypto from 'node:crypto';
 import { env } from '../env.js';
 
 const SERVICE = 'ivs';
-const tokenCache = new Map();
 
 const endpointHost = () => `ivsrealtime.${env.AWS_REGION}.amazonaws.com`;
 const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex');
@@ -93,7 +92,7 @@ async function createParticipantToken({ stageArn, userId, capabilities }) {
   return token;
 }
 
-export async function createLiveInput({ liveId, creatorId, title }) {
+export async function createLiveInput({ liveId, creatorId }) {
   if (!liveProviderConfigured()) {
     if (env.NODE_ENV === 'test' || env.NODE_ENV === 'development') {
       return {
@@ -142,23 +141,14 @@ export async function createLiveInput({ liveId, creatorId, title }) {
 
 export async function getLiveSubscriberToken({ stageArn, userId }) {
   if (!stageArn || String(stageArn).startsWith('local-') || !liveProviderConfigured()) return null;
-  const cacheKey = `${stageArn}:${userId}`;
-  const cached = tokenCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now() + 60_000) return cached.token;
-
-  const token = await createParticipantToken({
+  return createParticipantToken({
     stageArn,
     userId: `viewer-${userId}`,
     capabilities: ['SUBSCRIBE'],
   });
-  tokenCache.set(cacheKey, { token, expiresAt: Date.now() + 11 * 60 * 60_000 });
-  return token;
 }
 
 export async function deleteLiveInput(inputId) {
   if (!inputId || String(inputId).startsWith('local-') || !liveProviderConfigured()) return;
-  for (const key of tokenCache.keys()) {
-    if (key.startsWith(`${inputId}:`)) tokenCache.delete(key);
-  }
   await ivs('/DeleteStage', { arn: inputId });
 }

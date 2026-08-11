@@ -4,10 +4,12 @@ import { env } from '../env.js';
 import { auth, h, bad, notFound, forbidden } from '../middleware/auth.js';
 import { claimUpload, removeClaimedUploadIfUnreferenced } from '../lib/uploads.js';
 import { sendPushToUser } from '../lib/webpush.js';
+import { publishRealtime, subscribeRealtime } from '../realtime.js';
 
 export const messageRoutes = Router();
 
 const pair = (a, b) => (a < b ? [a, b] : [b, a]);
+const unique = values => [...new Set(values.filter(Boolean).map(String))];
 
 async function blocked(a, b, query = q) {
   const { rows } = await query(
@@ -54,6 +56,48 @@ async function ownMessage(messageId, userId) {
   return message;
 }
 
+messageRoutes.get('/events', auth, h(async (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.socket?.setTimeout(0);
+  res.socket?.setKeepAlive(true);
+
+  const unsubscribe = await subscribeRealtime(req.user.id, event => {
+    if (res.writableEnded || res.destroyed) return;
+    const payload = {
+      id: event.id,
+      type: event.type,
+      at: event.at,
+      threadId: event.threadId || null,
+      threadIds: Array.isArray(event.threadIds) ? event.threadIds : undefined,
+      messageId: event.messageId || null,
+    };
+    res.write(`data: ${JSON.stringify(payload)}\n\n`);
+  });
+
+  res.flushHeaders?.();
+  res.write('retry: 5000\n');
+  res.write(`event: ready\ndata: ${JSON.stringify({ ok:true, at:new Date().toISOString() })}\n\n`);
+
+  const heartbeat = setInterval(() => {
+    if (!res.writableEnded && !res.destroyed) res.write(': keep-alive\n\n');
+  }, 25_000);
+  heartbeat.unref?.();
+
+  let closed = false;
+  const cleanup = () => {
+    if (closed) return;
+    closed = true;
+    clearInterval(heartbeat);
+    unsubscribe();
+  };
+  req.once('aborted', cleanup);
+  req.once('close', cleanup);
+  res.once('close', cleanup);
+}));
+
 messageRoutes.get('/threads', auth, h(async (req, res) => {
   const { rows } = await q(
     `SELECT t.id,
@@ -85,24 +129,35 @@ messageRoutes.get('/threads', auth, h(async (req, res) => {
 }));
 
 messageRoutes.post('/threads', auth, h(async (req, res) => {
-  res.status(201).json(await findOrCreateThread(req.user.id, req.body.userId));
+  const thread = await findOrCreateThread(req.user.id, req.body.userId);
+  await publishRealtime([thread.user_a, thread.user_b], 'thread_changed', { threadId:thread.id });
+  res.status(201).json(thread);
 }));
 
 messageRoutes.post('/delivered', auth, h(async (req, res) => {
-  const { rowCount } = await q(
+  const { rows } = await q(
     `UPDATE messages m SET delivered_at=COALESCE(m.delivered_at,now())
        FROM threads t
       WHERE m.thread_id=t.id AND m.sender_id<>$1 AND m.delivered_at IS NULL
-        AND m.deleted_at IS NULL AND (t.user_a=$1 OR t.user_b=$1)`, [req.user.id]
+        AND m.deleted_at IS NULL AND (t.user_a=$1 OR t.user_b=$1)
+      RETURNING m.thread_id, m.sender_id`, [req.user.id]
   );
-  res.json({ delivered: rowCount });
+  if (rows.length) {
+    await publishRealtime(
+      unique([req.user.id, ...rows.map(row => row.sender_id)]),
+      'message_delivered',
+      { threadIds:unique(rows.map(row => row.thread_id)) },
+    );
+  }
+  res.json({ delivered: rows.length });
 }));
 
 messageRoutes.get('/threads/:threadId/messages', auth, h(async (req, res) => {
-  await assertParticipant(req.params.threadId, req.user.id);
-  await q(
+  const thread = await assertParticipant(req.params.threadId, req.user.id);
+  const { rows: readRows } = await q(
     `UPDATE messages SET delivered_at=COALESCE(delivered_at,now()), read_at=COALESCE(read_at,now())
-      WHERE thread_id=$1 AND sender_id<>$2 AND read_at IS NULL AND deleted_at IS NULL`,
+      WHERE thread_id=$1 AND sender_id<>$2 AND read_at IS NULL AND deleted_at IS NULL
+      RETURNING sender_id`,
     [req.params.threadId, req.user.id]
   );
   const { rows } = await q(
@@ -115,6 +170,13 @@ messageRoutes.get('/threads/:threadId/messages', auth, h(async (req, res) => {
        FROM messages WHERE thread_id=$1 ORDER BY created_at LIMIT 200`,
     [req.params.threadId, req.user.id]
   );
+  if (readRows.length) {
+    await publishRealtime(
+      [thread.user_a, thread.user_b],
+      'message_read',
+      { threadId:req.params.threadId },
+    );
+  }
   res.json(rows);
 }));
 
@@ -157,6 +219,7 @@ messageRoutes.post('/threads/:threadId/messages', auth, h(async (req, res) => {
     return rows[0];
   });
   const recipientId = thread.user_a === req.user.id ? thread.user_b : thread.user_a;
+  await publishRealtime([req.user.id, recipientId], 'message_created', { threadId:req.params.threadId, messageId:message.id });
   sendPushToUser(recipientId).catch(error => console.debug('[push] mensagem', error?.message));
   res.status(201).json(message);
 }));
@@ -172,6 +235,7 @@ messageRoutes.patch('/:messageId', auth, h(async (req, res) => {
     `UPDATE messages SET body=$2,edited_at=now() WHERE id=$1
      RETURNING id,body,edited_at,delivered_at,read_at`, [message.id, body]
   );
+  await publishRealtime([message.user_a, message.user_b], 'message_updated', { threadId:message.thread_id, messageId:message.id });
   res.json(rows[0]);
 }));
 
@@ -183,6 +247,7 @@ messageRoutes.delete('/:messageId', auth, h(async (req, res) => {
      RETURNING media_type,deleted_at`, [message.id]
   );
   if (message.media_url) removeClaimedUploadIfUnreferenced(message.media_url, 'message').catch(() => {});
+  await publishRealtime([message.user_a, message.user_b], 'message_deleted', { threadId:message.thread_id, messageId:message.id });
   res.json({ deleted: true, deletedAt: rows[0].deleted_at });
 }));
 
@@ -209,7 +274,12 @@ messageRoutes.post('/:messageId/open', auth, h(async (req, res) => {
     if (m.purged_at) throw bad('Já não existe','purged');
     if (m.opened_at) {
       if (m.mode === 'once') throw bad('Esta media já foi vista','already_seen');
-      return { body:m.body, mediaUrl:m.media_url, mediaType:m.media_type, expiresAt:m.expires_at };
+      return {
+        payload:{ body:m.body, mediaUrl:m.media_url, mediaType:m.media_type, expiresAt:m.expires_at },
+        threadId:m.thread_id,
+        userA:m.user_a,
+        userB:m.user_b,
+      };
     }
     const seconds = m.mode === 'once' ? env.ONCE_SECONDS : env.EPHEMERAL_SECONDS;
     const { rows: up } = await c.query(
@@ -217,7 +287,13 @@ messageRoutes.post('/:messageId/open', auth, h(async (req, res) => {
                            opened_at=now(),expires_at=now()+($2||' seconds')::interval
        WHERE id=$1 RETURNING body,media_url,media_type,expires_at`, [m.id, seconds]
     );
-    return { body:up[0].body, mediaUrl:up[0].media_url, mediaType:up[0].media_type, expiresAt:up[0].expires_at };
+    return {
+      payload:{ body:up[0].body, mediaUrl:up[0].media_url, mediaType:up[0].media_type, expiresAt:up[0].expires_at },
+      threadId:m.thread_id,
+      userA:m.user_a,
+      userB:m.user_b,
+    };
   });
-  res.json(out);
+  await publishRealtime([out.userA, out.userB], 'message_opened', { threadId:out.threadId, messageId:req.params.messageId });
+  res.json(out.payload);
 }));

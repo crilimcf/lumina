@@ -9,7 +9,8 @@ ALTER TABLE room_messages
 ALTER TABLE room_messages
   ADD CONSTRAINT room_messages_content_check
   CHECK (
-    NULLIF(btrim(COALESCE(body, '')), '') IS NOT NULL
+    deleted_at IS NOT NULL
+    OR NULLIF(btrim(COALESCE(body, '')), '') IS NOT NULL
     OR media_url IS NOT NULL
   );
 

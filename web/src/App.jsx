@@ -227,7 +227,7 @@ export default function App() {
   if (screen==='radar-admin' && me.is_staff) return withCalls(<LegacySurface kind="radar-admin"><RadarAdmin onBack={()=>setScreen(null)} ping={ping}/></LegacySurface>);
   if (screen==='TERMOS'||screen==='PRIVACIDADE') return withCalls(<LegacySurface kind="legal"><Legal page={screen} onBack={()=>setScreen(null)}/></LegacySurface>);
   if (screen==='editar-perfil') return withCalls(<LegacySurface kind="edit-profile"><EditarPerfil me={me} onSave={setMe} onBack={()=>setScreen(null)} ping={ping}/></LegacySurface>);
-  if (screen==='amigos') return withCalls(<LegacySurface kind="people"><Amigos onBack={()=>setScreen(null)} ping={ping} onOpenProfile={openProfile}/></LegacySurface>);
+  if (screen==='amigos') return withCalls(<Amigos onBack={()=>setScreen(null)} ping={ping} onOpenProfile={openProfile}/>);
   if (screen==='public-profile' && profileHandle) return withCalls(<PublicProfile handle={profileHandle} onBack={()=>{setProfileHandle(null);setScreen(null)}} onMessage={messageFromProfile} ping={ping}/>);
 
   const { comp, ...composerWithoutComp } = composerState;

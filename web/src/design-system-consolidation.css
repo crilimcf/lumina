@@ -219,7 +219,7 @@
 }
 
 .lumina-legacy-edit-profile img[alt="Pré-visualização da foto de perfil"] {
-  border: 3px solid rgba(160, 139, 255, .34);
+  border: 0 !important;
   background: #10162a !important;
   box-shadow: 0 0 0 5px rgba(123, 97, 255, .06), 0 16px 36px rgba(0,0,0,.28) !important;
 }

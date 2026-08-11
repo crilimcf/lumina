@@ -6,6 +6,7 @@ import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
 import { MomentComposer, MomentRing } from '../components/Moments.jsx';
 import { MomentViewer } from '../components/MomentViewer.jsx';
 import { LiveNow } from '../components/live/LiveNow.jsx';
+import { relativeTimeShort } from '../lib/time.js';
 import '../facelift.css';
 import '../mediaOrientation.css';
 
@@ -82,6 +83,12 @@ export function Feed({
   onOpenLive,
 }) {
   const [editingPost, setEditingPost] = useState(null);
+  const [relativeNow, setRelativeNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setRelativeNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <div className="lumina-facelift lumina-feed" style={{ minHeight: '100dvh', paddingBottom: 104 }}>
@@ -117,11 +124,12 @@ export function Feed({
               const cs = comments[p.id] || [];
               const isVideo = p.media_mime?.startsWith('video/') || /\.(mp4|mov|webm)(?:$|\?)/i.test(p.media_url || '');
               const own = p.author_id === me.id;
+              const age = relativeTimeShort(p.created_at, relativeNow);
               return <article key={p.id} className="lumina-post in" style={{ animationDelay: `${Math.min(i,6)*60}ms` }}>
                 {p.repost_of && <div className="lumina-post-repost"><Repeat2 size={14} /><span className="m">{own ? 'Republicaste' : `${p.name} republicou`}</span></div>}
                 <div className="lumina-post-head">
                   <Orb p={p.author_palette} avatarUrl={p.author_avatar_url} s={38} />
-                  <div style={{ flex: 1, minWidth: 0 }}><div className="lumina-post-name">{p.name}</div><div className="m lumina-post-meta">@{p.handle} · {new Date(p.created_at).toLocaleDateString('pt-PT', { day:'numeric', month:'short' })}{p.edited_at ? ' · editado' : ''}</div></div>
+                  <div style={{ flex: 1, minWidth: 0 }}><div className="lumina-post-name">{p.name}</div><div className="m lumina-post-meta">@{p.handle}{age ? ` · ${age}` : ''}{p.edited_at ? ' · editado' : ''}</div></div>
                   <div style={{ position: 'relative' }}>
                     <button className="lumina-post-menu-button" onClick={() => setMenuFor(menuFor === p.id ? null : p.id)} aria-label="Mais opções"><MoreHorizontal size={19} /></button>
                     {menuFor === p.id && <div className="card in lumina-post-menu" style={{ position: 'absolute', top: '100%', right: 0, zIndex: 30, minWidth: 164, padding: 6, display: 'grid' }}>

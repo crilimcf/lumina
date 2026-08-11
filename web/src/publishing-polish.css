@@ -124,6 +124,122 @@
   box-shadow: none !important;
 }
 
+/* Moment composer */
+.moment-composer-backdrop {
+  background: rgba(3,5,14,.76) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(130%) !important;
+  backdrop-filter: blur(18px) saturate(130%) !important;
+}
+
+.moment-composer-sheet {
+  --ink: #F7F5FF;
+  --grey: #939AB2;
+  --edge: rgba(255,255,255,.09);
+  --coral: #FF6FB8;
+  position: relative;
+  isolation: isolate;
+  padding-top: 28px !important;
+  color: #F7F5FF;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 32px 32px 0 0 !important;
+  background:
+    radial-gradient(circle at 12% -5%, rgba(255,111,184,.20), transparent 20rem),
+    radial-gradient(circle at 90% 2%, rgba(123,97,255,.30), transparent 22rem),
+    linear-gradient(180deg,#171C33,#0C101E) !important;
+  box-shadow: 0 -24px 72px rgba(0,0,0,.46) !important;
+}
+
+.moment-composer-sheet::before {
+  content: '';
+  position: absolute;
+  top: 9px;
+  left: 50%;
+  width: 54px;
+  height: 4px;
+  border-radius: 99px;
+  transform: translateX(-50%);
+  background: rgba(255,255,255,.20);
+}
+
+.moment-composer-kicker {
+  margin-bottom: 7px;
+  color: #B5ACFF;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .16em;
+}
+
+.moment-composer-sheet h3.d {
+  color: #fff;
+  font-size: 31px !important;
+  line-height: 1 !important;
+  letter-spacing: -.04em;
+}
+
+.moment-composer-sheet .m { color: #8F97B0; }
+
+.moment-composer-close {
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 17px !important;
+  color: #ECEBFA !important;
+  background: rgba(255,255,255,.055) !important;
+  border: 1px solid rgba(255,255,255,.09) !important;
+  box-shadow: none !important;
+}
+
+.moment-composer-picker {
+  position: relative;
+  overflow: hidden;
+  min-height: 136px !important;
+  border-style: solid !important;
+  border-color: rgba(166,147,255,.20) !important;
+  color: #F1F0FB !important;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(130,96,255,.17), transparent 68%),
+    rgba(255,255,255,.037) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.035), 0 16px 30px -28px rgba(126,85,255,.9);
+  transition: transform .16s ease, border-color .16s ease;
+}
+
+.moment-composer-picker:active { transform: scale(.985); }
+
+.moment-composer-picker-icon {
+  color: #E7E2FF;
+  background: linear-gradient(145deg,rgba(123,97,255,.22),rgba(255,111,184,.10)) !important;
+  box-shadow: 0 10px 24px rgba(77,56,177,.24) !important;
+}
+
+.moment-composer-preview {
+  border: 1px solid rgba(255,255,255,.09);
+  box-shadow: 0 20px 48px -28px rgba(0,0,0,.88) !important;
+}
+
+.moment-composer-sheet .p:not(.p-brand) {
+  min-height: 44px;
+  color: #E9EAF7;
+  background: rgba(255,255,255,.055) !important;
+  border: 1px solid rgba(255,255,255,.08) !important;
+  box-shadow: none !important;
+}
+
+.moment-composer-publish {
+  min-height: 54px !important;
+  justify-content: center;
+  border: 0 !important;
+  border-radius: 20px !important;
+  color: #fff !important;
+  font-weight: 820;
+  background: linear-gradient(115deg,#7456F3,#9660F5 52%,#E05DA8) !important;
+  box-shadow: 0 16px 34px -18px rgba(151,83,230,.92) !important;
+}
+
+.moment-composer-publish:disabled {
+  color: rgba(255,255,255,.35) !important;
+  background: rgba(123,97,255,.25) !important;
+  box-shadow: none !important;
+}
+
 .edit-post-sheet {
   max-height: calc(100% - 10px) !important;
   overflow-y: auto;
@@ -168,13 +284,16 @@
 .radar-scroll-top:active { transform: scale(.94); }
 
 @media (max-width: 430px) {
-  .composer-sheet { padding-inline: 18px !important; }
+  .composer-sheet,
+  .moment-composer-sheet { padding-inline: 18px !important; }
   .composer-sheet h3.d { font-size: 30px !important; }
+  .moment-composer-sheet h3.d { font-size: 29px !important; }
   .radar-scroll-top { right: 14px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .composer-media-picker,
   .composer-live-picker,
+  .moment-composer-picker,
   .radar-scroll-top { transition: none !important; }
 }

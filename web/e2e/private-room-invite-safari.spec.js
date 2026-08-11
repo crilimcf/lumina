@@ -50,7 +50,7 @@ test('Sala privada fica invisível sem convite e entra pelo convite em Mobile Sa
   await page.getByPlaceholder('Nome da sala').fill(roomName);
   await page.getByPlaceholder('Tópico principal').fill('Só convidados entram');
   await page.locator('.room-privacy-option.is-private').click();
-  await page.getByRole('button', { name: 'Criar sala', exact: true }).click();
+  await page.getByRole('button', { name: 'Criar sala privada', exact: true }).click();
 
   await expect(page.getByText(roomName, { exact: true })).toBeVisible();
   await page.getByText(roomName, { exact: true }).click();

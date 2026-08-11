@@ -122,12 +122,39 @@ export const audit = (actorId, action, target, detail = {}) =>
   q('INSERT INTO audit_log (actor_id, action, target, detail) VALUES ($1, $2, $3, $4)',
     [actorId, action, target, detail]).catch(e => console.error('[audit]', e.message));
 
-export function errorHandler(err, _req, res, _next) {
+const clipErrorText = (value, max) => {
+  const text = String(value ?? '').trim();
+  return text ? text.slice(0, max) : null;
+};
+
+const recordUnexpectedApiError = (err, req) => {
+  const release = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GITHUB_SHA || '';
+  const context = {};
+  if (err?.code) context.code = String(err.code).slice(0, 80);
+  q(
+    `INSERT INTO app_errors
+      (source, kind, message, stack, path, method, release, user_id, user_agent, context)
+     VALUES ('api', 'unhandled_exception', $1, $2, $3, $4, $5, $6, $7, $8)`,
+    [
+      clipErrorText(err?.message || err?.name || 'Erro inesperado', 800),
+      clipErrorText(err?.stack, 8000),
+      clipErrorText(req?.path, 500),
+      clipErrorText(req?.method, 16),
+      clipErrorText(release, 160),
+      req?.user?.id || null,
+      clipErrorText(req?.headers?.['user-agent'], 240),
+      context,
+    ]
+  ).catch((telemetryError) => console.error('[telemetry] falhou registar erro API:', telemetryError.message));
+};
+
+export function errorHandler(err, req, res, _next) {
   if (err instanceof HttpError) return res.status(err.status).json({ error: err.message, code: err.code });
   if (err.code === '23505') return res.status(409).json({ error: 'Ja existe', code: 'duplicate' });
   if (err.code === '23514') return res.status(400).json({ error: 'Dados invalidos', code: 'check' });
   if (err.code === '23503') return res.status(400).json({ error: 'Referencia invalida', code: 'fk' });
   if (err.code === '22P02') return res.status(400).json({ error: 'Identificador invalido', code: 'bad_id' });
+  recordUnexpectedApiError(err, req);
   console.error(err);
   res.status(500).json({ error: 'Erro interno' });
 }

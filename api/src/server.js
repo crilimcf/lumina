@@ -37,12 +37,18 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
+      scriptSrc: ["'self'", "'wasm-unsafe-eval'", 'https://web-broadcast.live-video.net'],
+      workerSrc: ['blob:'],
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
       imgSrc: ["'self'", 'https:', 'data:', 'blob:'],
       mediaSrc: ["'self'", 'https:', 'blob:'],
-      connectSrc: ["'self'", 'https://4aee2609d2471ffc4def078dcd41d9a7.r2.cloudflarestorage.com', 'https://*.cloudflarestream.com'],
+      connectSrc: [
+        "'self'",
+        'https://4aee2609d2471ffc4def078dcd41d9a7.r2.cloudflarestorage.com',
+        'https://*.live-video.net',
+        'wss://*.live-video.net',
+      ],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
       formAction: ["'self'"],

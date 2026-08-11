@@ -26,6 +26,7 @@ import { paymentRoutes } from './routes/payments.js';
 import { notificationRoutes } from './routes/notifications.js';
 import { radarRoutes } from './routes/radar.js';
 import { radarSyncRoutes } from './routes/radar-sync.js';
+import { radarImageRoutes } from './routes/radar-images.js';
 import { liveRoutes } from './routes/live.js';
 
 const app = express();
@@ -158,6 +159,7 @@ app.get(['/health', '/api/health'], health);
 const mountApi = (prefix = '') => {
   app.use(`${prefix}/auth`, authRoutes);
   app.use(`${prefix}/posts`, postRoutes);
+  app.use(`${prefix}/radar-images`, radarImageRoutes);
   app.use(`${prefix}/radar`, radarSyncRoutes);
   app.use(`${prefix}/radar`, radarRoutes);
   app.use(`${prefix}/messages`, messageRoutes);

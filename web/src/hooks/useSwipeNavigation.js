@@ -7,6 +7,7 @@ const MAX_DURATION = 900;
 function startsInInteractiveControl(target) {
   if (!(target instanceof Element)) return false;
   if (target.closest('input, textarea, select, [contenteditable="true"], video, audio, [data-swipe-ignore="true"]')) return true;
+  if (target.closest('.composer-backdrop, .moment-composer-backdrop, .room-sheet-backdrop, .room-dialog-backdrop, .lumina-profile-sheet-backdrop, .reveal')) return true;
 
   let node = target;
   while (node && node !== document.body) {
@@ -42,7 +43,7 @@ export function useSwipeNavigation({ enabled, tab, setTab, thread, setThread }) 
 
       if (duration > MAX_DURATION || Math.abs(dx) < MIN_DISTANCE || Math.abs(dx) < Math.abs(dy) * 1.35) return;
 
-      // Dentro de uma conversa, o gesto de voltar tem prioridade sobre mudar de aba.
+      // Dentro de uma conversa, deslizar da esquerda para a direita volta à lista.
       if (thread) {
         if (dx > 0) setThread(null);
         return;

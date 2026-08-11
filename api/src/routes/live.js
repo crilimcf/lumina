@@ -94,6 +94,8 @@ liveRoutes.post('/', auth, h(async (req, res) => {
       ...stream,
       configured: provider.configured,
       publisherToken: provider.publisherToken,
+      publishUrl: provider.publisherToken,
+      playbackUrl: null,
     });
   } catch (error) {
     await q('DELETE FROM live_streams WHERE id=$1', [stream.id]);
@@ -158,7 +160,7 @@ liveRoutes.get('/:streamId', auth, h(async (req, res) => {
     });
   }
 
-  res.json({ ...stream, subscriberToken });
+  res.json({ ...stream, subscriberToken, playback_url: subscriberToken || stream.playback_url });
 }));
 
 liveRoutes.post('/:streamId/heartbeat', auth, h(async (req, res) => {

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 
 const notifyActivityChanged = () => window.dispatchEvent(new CustomEvent('lumina:notifications-changed'));
+const REALTIME_RECONCILE_MS = 60_000;
+const LEGACY_POLL_MS = 7_000;
 
 export function useMessages({ tab, palette, ping, enabled = true }) {
   const [threads, setThreads] = useState([]);
@@ -17,8 +19,10 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
   const unreadSnapshot = useRef(new Map());
   const unreadReady = useRef(false);
   const threadRef = useRef(null);
+  const tabRef = useRef(tab);
 
   useEffect(() => { threadRef.current = thread; }, [thread]);
+  useEffect(() => { tabRef.current = tab; }, [tab]);
 
   const applyThreads = useCallback((next, { announce = true } = {}) => {
     const previous = unreadSnapshot.current;
@@ -62,68 +66,92 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
     return next;
   }, []);
 
+  const syncThread = useCallback(async (threadId) => {
+    if (!threadId || threadRef.current?.id !== threadId) return [];
+    const hadUnread = Number(unreadSnapshot.current.get(threadId) || 0) > 0;
+    const next = await api.messages.list(threadId);
+    if (threadRef.current?.id !== threadId) return next;
+    setMsgs(next);
+    setThreads(rows => rows.map(row => row.id === threadId ? { ...row, unread:0 } : row));
+    unreadSnapshot.current.set(threadId, 0);
+    if (hadUnread) notifyActivityChanged();
+    return next;
+  }, []);
+
+  const loadMessages = useCallback(async () => {
+    const threadId = threadRef.current?.id;
+    return threadId ? syncThread(threadId) : [];
+  }, [syncThread]);
+
   useEffect(() => {
     if (!enabled) return;
     let alive = true;
-    const refresh = () => {
-      if (document.visibilityState !== 'visible') return;
-      loadThreads({ announce:true }).catch(() => {});
+    let source = null;
+    let timer = null;
+    const supportsRealtime = typeof window.EventSource === 'function';
+
+    const reconcile = ({ announce = true } = {}) => {
+      if (!alive || document.visibilityState !== 'visible') return;
+      loadThreads({ announce }).catch(() => {});
+      api.messages.delivered().catch(() => {});
+      const active = threadRef.current?.id;
+      if (tabRef.current === 'dms' && active) syncThread(active).catch(() => {});
     };
+
+    const onRealtime = (event) => {
+      if (!alive || document.visibilityState !== 'visible') return;
+      let payload;
+      try { payload = JSON.parse(event.data || '{}'); }
+      catch { return; }
+
+      const active = threadRef.current?.id;
+      const impacted = payload.threadId === active || (Array.isArray(payload.threadIds) && payload.threadIds.includes(active));
+      const isNewMessage = payload.type === 'message_created';
+
+      loadThreads({ announce:isNewMessage }).catch(() => {});
+      if (isNewMessage) {
+        api.messages.delivered().catch(() => {});
+        notifyActivityChanged();
+      }
+      if (tabRef.current === 'dms' && active && impacted) syncThread(active).catch(() => {});
+    };
+
     loadThreads({ announce:false }).catch(() => {});
-    const timer = setInterval(() => { if (alive) refresh(); }, 7000);
-    const visible = () => { if (document.visibilityState === 'visible') refresh(); };
+    api.messages.delivered().catch(() => {});
+
+    if (supportsRealtime) {
+      source = new window.EventSource(api.messages.eventsUrl(), { withCredentials:true });
+      source.onopen = () => reconcile({ announce:false });
+      source.onmessage = onRealtime;
+      timer = window.setInterval(() => reconcile({ announce:true }), REALTIME_RECONCILE_MS);
+    } else {
+      timer = window.setInterval(() => reconcile({ announce:true }), LEGACY_POLL_MS);
+    }
+
+    const visible = () => {
+      if (document.visibilityState === 'visible') reconcile({ announce:true });
+    };
     document.addEventListener('visibilitychange', visible);
-    return () => { alive=false; clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
-  }, [enabled, loadThreads]);
+
+    return () => {
+      alive = false;
+      if (timer) window.clearInterval(timer);
+      source?.close();
+      document.removeEventListener('visibilitychange', visible);
+    };
+  }, [enabled, loadThreads, syncThread]);
 
   useEffect(() => {
     if (!enabled || tab !== 'dms') return;
+    loadThreads({ announce:false }).catch(() => {});
     loadContacts().catch(() => {});
-  }, [enabled, tab, loadContacts]);
-
-  useEffect(() => {
-    if (!enabled) return;
-    let alive = true;
-    const markDelivered = () => api.messages.delivered().catch(() => {});
-    markDelivered();
-    const timer = setInterval(() => { if (document.visibilityState === 'visible' && alive) markDelivered(); }, 12000);
-    const visible = () => { if (document.visibilityState === 'visible') markDelivered(); };
-    document.addEventListener('visibilitychange', visible);
-    return () => { alive=false; clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
-  }, [enabled]);
-
-  const loadMessages = useCallback(async () => {
-  if (!thread) return [];
-  const hadUnread = Number(unreadSnapshot.current.get(thread.id) || 0) > 0;
-  const next = await api.messages.list(thread.id);
-  setMsgs(next);
-  setThreads(rows => rows.map(row => row.id === thread.id ? { ...row, unread:0 } : row));
-  unreadSnapshot.current.set(thread.id, 0);
-  if (hadUnread) notifyActivityChanged();
-  return next;
-}, [thread]);
+  }, [enabled, tab, loadContacts, loadThreads]);
 
   useEffect(() => {
     if (!thread) { setMsgs([]); return; }
     if (!enabled || tab !== 'dms') return;
-    let current = true;
-    const load = () => {
-    if (document.visibilityState !== 'visible') return;
-    const hadUnread = Number(unreadSnapshot.current.get(thread.id) || 0) > 0;
-    api.messages.list(thread.id).then(r => {
-      if (!current) return;
-      setMsgs(r);
-      setThreads(rows => rows.map(row => row.id === thread.id ? { ...row, unread:0 } : row));
-      unreadSnapshot.current.set(thread.id, 0);
-      if (hadUnread) notifyActivityChanged();
-    }).catch(() => {});
-  };
-    load();
-    const timer = setInterval(load, 3000);
-    const visible = () => { if (document.visibilityState === 'visible') load(); };
-    document.addEventListener('visibilitychange', visible);
-    return () => { current=false; clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
-  }, [thread, tab, enabled]);
+    syncThread(thread.id).catch(() => {});
+  }, [thread, tab, enabled, syncThread]);
 
   useEffect(() => { end.current?.scrollIntoView?.({ block:'end' }); }, [msgs]);
   useEffect(() => { if (mode === 'timer') { setMediaDraft(null); setMediaReady(null); } }, [mode]);

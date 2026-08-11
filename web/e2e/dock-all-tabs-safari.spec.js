@@ -114,5 +114,5 @@ test('dock global mantém labels legíveis, safe-area e swipe adaptativo em toda
   await expect(nav).not.toHaveClass(/nav-smart-hidden/);
 
   await page.getByRole('button',{name:'Novo'}).click();
-  await expect(page.getByPlaceholder('O que estás a ver?')).toBeVisible();
+  await expect(page.getByPlaceholder('O que estás a ver ou a pensar?')).toBeVisible();
 });

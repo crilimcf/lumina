@@ -1,5 +1,3 @@
-import { api } from './api.js';
-
 const recent = new Map();
 const DEDUPE_MS = 30_000;
 
@@ -37,18 +35,26 @@ export async function reportClientError(value, { kind = 'window_error', componen
     }
   }
 
+  const payload = {
+    kind,
+    message,
+    stack,
+    componentStack: clip(componentStack, 6000),
+    path: cleanPath(),
+    release: release(),
+    asset: currentAsset(),
+    online: navigator.onLine,
+  };
+
   try {
-    await api.telemetry.error({
-      kind,
-      message,
-      stack,
-      componentStack: clip(componentStack, 6000),
-      path: cleanPath(),
-      release: release(),
-      asset: currentAsset(),
-      online: navigator.onLine,
+    const response = await fetch('/api/telemetry/errors', {
+      method: 'POST',
+      credentials: 'include',
+      keepalive: true,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
     });
-    return true;
+    return response.ok;
   } catch {
     // Telemetria nunca pode afetar a utilização da app.
     return false;

@@ -10,6 +10,7 @@ import { pool, getAppliedSchemaVersion } from './db.js';
 import { errorHandler, auth, h, HttpError, csrfGuard } from './middleware/auth.js';
 import { startJobs } from './jobs/daily.js';
 import { startRadarJobs } from './jobs/radar-scheduler.js';
+import { startLuminaOneJobs } from './jobs/lumina-one-cleanup.js';
 
 import { authRoutes } from './routes/auth.js';
 import { postRoutes } from './routes/posts.js';
@@ -230,6 +231,7 @@ if (process.env.NODE_ENV !== 'test') {
     console.log(`Lumina API na porta ${env.PORT}`);
     startJobs();
     startRadarJobs();
+    startLuminaOneJobs();
   });
   const shutdown = () => {
     console.log('[servidor] a fechar');

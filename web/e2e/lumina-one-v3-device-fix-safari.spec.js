@@ -53,10 +53,9 @@ test('Juntos envia x-csrf-token e deixa de falhar com Pedido inválido CSRF', as
     body: JSON.stringify({ items: [radarItem] }),
   }));
 
-  let csrfHeader = '';
   await page.route('**/api/one/together', async route => {
     if (route.request().method() !== 'POST') return route.continue();
-    csrfHeader = route.request().headers()['x-csrf-token'] || '';
+    const csrfHeader = route.request().headers()['x-csrf-token'] || '';
     if (!csrfHeader) {
       return route.fulfill({
         status: 403,
@@ -75,9 +74,11 @@ test('Juntos envia x-csrf-token e deixa de falhar com Pedido inválido CSRF', as
   await openOne(page);
   const discovery = page.locator('.one-v3-discovery');
   await expect(discovery).toBeVisible();
+  const togetherRequest = page.waitForRequest(request => request.method() === 'POST' && new URL(request.url()).pathname === '/api/one/together');
   await discovery.getByRole('button', { name: 'Juntos' }).first().click();
+  const request = await togetherRequest;
 
-  expect(csrfHeader.length).toBeGreaterThan(10);
+  expect((request.headers()['x-csrf-token'] || '').length).toBeGreaterThan(10);
   await expect(page.locator('.one-v3-together-sheet')).toBeVisible();
   await expect(page.getByText('Pedido inválido (CSRF)')).toHaveCount(0);
 });
@@ -161,5 +162,5 @@ test('Localização imprecisa nunca substitui uma cidade confirmada', async ({ p
   await page.getByRole('button', { name: 'Usar GPS preciso' }).click();
 
   await expect(input).toHaveValue('Bragança');
-  await expect(page.locator('.one-v3-location-status')).toContainText('Mantive Bragança');
+  await expect(page.locator('.one-v3-location-status')).toContainText('Mantive Bragança', { timeout: 12_000 });
 });

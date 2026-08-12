@@ -47,7 +47,7 @@ test('mensagens chegam à conversa por SSE sem esperar pelo polling antigo', asy
   expect(callee.id).toBeTruthy();
 
   await page.getByRole('button', { name:'Entendido, vamos lá' }).click();
-  await page.getByRole('button', { name:'Ir para o Feed' }).click();
+  await page.getByRole('button', { name:'Entrar no Feed' }).click();
   await page.getByRole('button', { name:'Conversas' }).click();
   await expect(page.getByRole('heading', { name:/Conversas/i })).toBeVisible();
 

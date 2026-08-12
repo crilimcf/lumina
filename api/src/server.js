@@ -183,7 +183,7 @@ const mountApi = (prefix = '') => {
   app.use(`${prefix}/rooms`, roomRoutes);
   app.use(`${prefix}/calls`, callRoutes);
   app.use(`${prefix}/live`, liveRoutes);
-  app.use(`${prefix}/one/source`, oneSourceRoutes);
+  app.use(`${prefix}/one`, oneSourceRoutes);
   app.use(`${prefix}/one`, oneRoutes);
   app.use(`${prefix}/payments`, paymentRoutes);
   app.use(`${prefix}/notifications`, notificationRoutes);

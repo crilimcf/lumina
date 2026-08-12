@@ -3,12 +3,9 @@ import { q } from '../db.js';
 import { auth, h, bad, notFound } from '../middleware/auth.js';
 
 export const oneSourceRoutes = Router();
+const SOURCE_TYPES = new Set(['post','radar','live']);
 
-oneSourceRoutes.get('/:sourceType/:sourceId', auth, h(async (req, res) => {
-  const sourceType = String(req.params.sourceType || '').toLowerCase();
-  const sourceId = String(req.params.sourceId || '');
-  if (!['post','radar','live'].includes(sourceType) || !sourceId) throw bad('Fonte inválida');
-
+async function visibleSource(userId, sourceType, sourceId) {
   if (sourceType === 'post') {
     const { rows } = await q(
       `SELECT p.id,p.body,p.media_url,
@@ -22,10 +19,9 @@ oneSourceRoutes.get('/:sourceType/:sourceId', auth, h(async (req, res) => {
           AND NOT EXISTS (SELECT 1 FROM blocks b WHERE
                 (b.blocker_id=$1 AND b.blocked_id=p.author_id) OR
                 (b.blocked_id=$1 AND b.blocker_id=p.author_id))`,
-      [req.user.id, sourceId]
+      [userId, sourceId]
     );
-    if (!rows[0]) throw notFound('Publicação não encontrada');
-    return res.json({ type:'post', ...rows[0] });
+    return rows[0] ? { type:'post', ...rows[0] } : null;
   }
 
   if (sourceType === 'radar') {
@@ -36,8 +32,7 @@ oneSourceRoutes.get('/:sourceType/:sourceId', auth, h(async (req, res) => {
           AND (ends_at IS NULL OR ends_at>now())`,
       [sourceId]
     );
-    if (!rows[0]) throw notFound('Conteúdo Radar não encontrado');
-    return res.json({ type:'radar', ...rows[0] });
+    return rows[0] ? { type:'radar', ...rows[0] } : null;
   }
 
   const { rows } = await q(
@@ -54,8 +49,36 @@ oneSourceRoutes.get('/:sourceType/:sourceId', auth, h(async (req, res) => {
           ))
         )
       )`,
-    [req.user.id, sourceId]
+    [userId, sourceId]
   );
-  if (!rows[0]) throw notFound('Direto não encontrado');
-  res.json({ type:'live', ...rows[0] });
+  return rows[0] ? { type:'live', ...rows[0] } : null;
+}
+
+oneSourceRoutes.get('/source/:sourceType/:sourceId', auth, h(async (req, res) => {
+  const sourceType = String(req.params.sourceType || '').toLowerCase();
+  const sourceId = String(req.params.sourceId || '');
+  if (!SOURCE_TYPES.has(sourceType) || !sourceId) throw bad('Fonte inválida');
+  const source = await visibleSource(req.user.id, sourceType, sourceId);
+  if (!source) throw notFound('Conteúdo não encontrado');
+  res.json(source);
+}));
+
+// Esta rota fica antes do router principal /one. Assim, um convite Juntos só
+// cria membership se o convidado ainda tiver autorização para ver a fonte.
+oneSourceRoutes.post('/together/:sessionId/join', auth, h(async (req, res) => {
+  const { rows } = await q(
+    `SELECT id,host_id,source_type,source_id,title,state,created_at,updated_at,expires_at
+       FROM together_sessions WHERE id::text=$1 AND expires_at>now()`,
+    [String(req.params.sessionId || '')]
+  );
+  const session = rows[0];
+  if (!session) throw notFound('Sessão não encontrada');
+  const source = await visibleSource(req.user.id, session.source_type, session.source_id);
+  if (!source) throw notFound('Sessão não encontrada');
+  await q(
+    `INSERT INTO together_members (session_id,user_id) VALUES ($1,$2)
+     ON CONFLICT DO NOTHING`,
+    [session.id, req.user.id]
+  );
+  res.json(session);
 }));

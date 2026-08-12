@@ -29,6 +29,7 @@ import { radarSyncRoutes } from './routes/radar-sync.js';
 import { radarImageRoutes } from './routes/radar-images.js';
 import { liveRoutes } from './routes/live.js';
 import { oneRoutes } from './routes/one.js';
+import { oneSourceRoutes } from './routes/one-source.js';
 
 const app = express();
 const webDir = path.resolve(process.cwd(), 'public');
@@ -182,6 +183,7 @@ const mountApi = (prefix = '') => {
   app.use(`${prefix}/rooms`, roomRoutes);
   app.use(`${prefix}/calls`, callRoutes);
   app.use(`${prefix}/live`, liveRoutes);
+  app.use(`${prefix}/one/source`, oneSourceRoutes);
   app.use(`${prefix}/one`, oneRoutes);
   app.use(`${prefix}/payments`, paymentRoutes);
   app.use(`${prefix}/notifications`, notificationRoutes);

@@ -4,9 +4,9 @@
   isolation: isolate;
   padding-top: 26px !important;
   background:
-    radial-gradient(circle at 14% -4%, rgba(123,97,255,.34), transparent 19rem),
-    radial-gradient(circle at 92% 10%, rgba(255,111,184,.13), transparent 18rem),
-    linear-gradient(180deg,#171D34 0%,#0D1120 72%) !important;
+    radial-gradient(circle at 14% -4%, rgba(123,97,255,.40), transparent 19rem),
+    radial-gradient(circle at 92% 10%, rgba(255,111,184,.17), transparent 18rem),
+    linear-gradient(180deg,#222C49 0%,#141C31 72%) !important;
 }
 
 .composer-sheet::before {
@@ -19,8 +19,8 @@
   height: 4px;
   border-radius: 99px;
   transform: translate(-50%, 9px);
-  background: rgba(255,255,255,.20);
-  box-shadow: 0 0 18px rgba(150,126,255,.20);
+  background: rgba(255,255,255,.30);
+  box-shadow: 0 0 18px rgba(150,126,255,.26);
 }
 
 .composer-sheet h3.d {
@@ -33,7 +33,7 @@
 .composer-sheet h3.d + .m {
   max-width: 370px;
   margin-top: 8px !important;
-  color: #A0A7BE !important;
+  color: #B7BED1 !important;
   font-size: 11px;
   line-height: 1.45;
   letter-spacing: .075em;
@@ -41,79 +41,84 @@
 }
 
 .composer-close {
-  color: #F0EFFB !important;
+  color: #F5F4FF !important;
   border-radius: 18px !important;
-  background: rgba(255,255,255,.055) !important;
-  border-color: rgba(255,255,255,.09) !important;
+  background: rgba(255,255,255,.09) !important;
+  border-color: rgba(255,255,255,.14) !important;
 }
 
 .composer-media-picker {
   position: relative;
   overflow: hidden;
   min-height: 124px !important;
-  color: #F4F2FF !important;
+  color: #F8F6FF !important;
   border-style: solid !important;
-  border-color: rgba(157,137,255,.18) !important;
+  border-color: rgba(174,158,255,.30) !important;
   background:
-    radial-gradient(circle at 50% 0%, rgba(123,97,255,.16), transparent 70%),
-    rgba(255,255,255,.035) !important;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.025);
+    radial-gradient(circle at 50% 0%, rgba(123,97,255,.22), transparent 70%),
+    rgba(255,255,255,.075) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.045);
   transition: transform .16s ease, border-color .16s ease, background .16s ease;
 }
 
 .composer-media-picker > span:first-child {
   width: 44px !important;
   height: 44px !important;
-  color: #E8E3FF;
-  background: rgba(123,97,255,.15) !important;
-  box-shadow: 0 10px 24px rgba(76,54,170,.18);
+  color: #F0ECFF;
+  background: rgba(123,97,255,.22) !important;
+  box-shadow: 0 10px 24px rgba(76,54,170,.22);
 }
 
-.composer-media-picker .m { color: #8F97B0 !important; }
+.composer-media-picker .m { color: #AEB5CB !important; }
 
 .composer-media-picker:active {
   transform: scale(.985);
-  border-color: rgba(177,161,255,.34) !important;
-  background: rgba(123,97,255,.09) !important;
+  border-color: rgba(190,178,255,.42) !important;
+  background: rgba(123,97,255,.14) !important;
 }
 
 .composer-live-picker {
   min-height: 82px !important;
   margin-top: 11px !important;
   padding: 14px 15px !important;
-  color: #F5F3FF !important;
-  border-color: rgba(180,132,255,.29) !important;
+  color: #F8F6FF !important;
+  border-color: rgba(190,151,255,.38) !important;
   background:
-    radial-gradient(circle at 8% 0%, rgba(156,94,255,.22), transparent 56%),
-    linear-gradient(110deg,rgba(123,97,255,.14),rgba(255,111,184,.085)) !important;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 14px 30px -24px rgba(126,75,255,.75);
+    radial-gradient(circle at 8% 0%, rgba(156,94,255,.28), transparent 56%),
+    linear-gradient(110deg,rgba(123,97,255,.20),rgba(255,111,184,.12)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.055), 0 14px 30px -24px rgba(126,75,255,.75);
   transition: transform .16s ease, border-color .16s ease;
 }
 
-.composer-live-picker .m { color: #9BA2B8 !important; }
+.composer-live-picker .m { color: #B2B9CC !important; }
 .composer-live-picker:active { transform: scale(.988); }
 
 .composer-sheet textarea {
-  min-height: 132px;
-  padding: 17px 17px 34px !important;
+  min-height: 142px;
+  padding: 18px 18px 36px !important;
   border-radius: 22px !important;
-  color: #F7F5FF !important;
+  color: #FFFFFF !important;
   font-size: 17px !important;
   line-height: 1.42;
-  background: rgba(255,255,255,.045) !important;
-  border-color: rgba(255,255,255,.10) !important;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.018);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.15), rgba(255,255,255,.105)) !important;
+  border: 1.5px solid rgba(189,179,255,.34) !important;
+  box-shadow:
+    0 0 0 1px rgba(123,97,255,.08),
+    0 14px 34px -28px rgba(123,97,255,.9),
+    inset 0 1px 0 rgba(255,255,255,.07);
 }
 
 .composer-sheet textarea::placeholder {
-  color: #8E96AE !important;
+  color: #D0D4E3 !important;
   opacity: 1;
 }
 
 .composer-sheet textarea:focus {
   outline: none;
-  border-color: rgba(145,119,255,.64) !important;
-  box-shadow: 0 0 0 4px rgba(123,97,255,.10), inset 0 1px 0 rgba(255,255,255,.025);
+  background: rgba(255,255,255,.17) !important;
+  border-color: rgba(168,149,255,.82) !important;
+  box-shadow: 0 0 0 4px rgba(123,97,255,.18), 0 16px 38px -28px rgba(123,97,255,.95), inset 0 1px 0 rgba(255,255,255,.08);
 }
 
 .composer-sheet .p-brand {
@@ -123,39 +128,39 @@
   border-radius: 20px !important;
   color: #fff !important;
   font-weight: 800;
-  background: linear-gradient(115deg,#624BEB 0%,#7B61FF 52%,#A05DE7 100%) !important;
-  box-shadow: 0 15px 32px -18px rgba(123,97,255,.86) !important;
+  background: linear-gradient(115deg,#6F56F0 0%,#846CFF 52%,#AC68EF 100%) !important;
+  box-shadow: 0 15px 32px -18px rgba(123,97,255,.90) !important;
 }
 
 .composer-sheet .p-brand:disabled {
-  color: rgba(255,255,255,.34) !important;
-  background: rgba(123,97,255,.28) !important;
+  color: rgba(255,255,255,.46) !important;
+  background: rgba(123,97,255,.35) !important;
   box-shadow: none !important;
 }
 
 /* Moment composer */
 .moment-composer-backdrop {
-  background: rgba(3,5,14,.76) !important;
+  background: rgba(5,8,20,.68) !important;
   -webkit-backdrop-filter: blur(18px) saturate(130%) !important;
   backdrop-filter: blur(18px) saturate(130%) !important;
 }
 
 .moment-composer-sheet {
-  --ink: #F7F5FF;
-  --grey: #939AB2;
-  --edge: rgba(255,255,255,.09);
-  --coral: #FF6FB8;
+  --ink: #F9F7FF;
+  --grey: #AEB5C9;
+  --edge: rgba(255,255,255,.13);
+  --coral: #FF78BC;
   position: relative;
   isolation: isolate;
   padding-top: 28px !important;
-  color: #F7F5FF;
-  border: 1px solid rgba(255,255,255,.09);
+  color: #F9F7FF;
+  border: 1px solid rgba(255,255,255,.13);
   border-radius: 32px 32px 0 0 !important;
   background:
-    radial-gradient(circle at 12% -5%, rgba(255,111,184,.20), transparent 20rem),
-    radial-gradient(circle at 90% 2%, rgba(123,97,255,.30), transparent 22rem),
-    linear-gradient(180deg,#171C33,#0C101E) !important;
-  box-shadow: 0 -24px 72px rgba(0,0,0,.46) !important;
+    radial-gradient(circle at 12% -5%, rgba(255,111,184,.24), transparent 20rem),
+    radial-gradient(circle at 90% 2%, rgba(123,97,255,.34), transparent 22rem),
+    linear-gradient(180deg,#202842,#12192D) !important;
+  box-shadow: 0 -24px 72px rgba(0,0,0,.40) !important;
 }
 
 .moment-composer-sheet::before {
@@ -167,12 +172,12 @@
   height: 4px;
   border-radius: 99px;
   transform: translateX(-50%);
-  background: rgba(255,255,255,.20);
+  background: rgba(255,255,255,.28);
 }
 
 .moment-composer-kicker {
   margin-bottom: 7px;
-  color: #B5ACFF;
+  color: #C5BEFF;
   font-size: 9px;
   font-weight: 850;
   letter-spacing: .16em;
@@ -185,15 +190,15 @@
   letter-spacing: -.04em;
 }
 
-.moment-composer-sheet .m { color: #8F97B0; }
+.moment-composer-sheet .m { color: #AEB5C9; }
 
 .moment-composer-close {
   min-width: 44px;
   min-height: 44px;
   border-radius: 17px !important;
-  color: #ECEBFA !important;
-  background: rgba(255,255,255,.055) !important;
-  border: 1px solid rgba(255,255,255,.09) !important;
+  color: #F2F1FC !important;
+  background: rgba(255,255,255,.09) !important;
+  border: 1px solid rgba(255,255,255,.13) !important;
   box-shadow: none !important;
 }
 
@@ -202,33 +207,33 @@
   overflow: hidden;
   min-height: 136px !important;
   border-style: solid !important;
-  border-color: rgba(166,147,255,.20) !important;
-  color: #F1F0FB !important;
+  border-color: rgba(177,162,255,.28) !important;
+  color: #F5F3FF !important;
   background:
-    radial-gradient(circle at 50% 0%, rgba(130,96,255,.17), transparent 68%),
-    rgba(255,255,255,.037) !important;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.035), 0 16px 30px -28px rgba(126,85,255,.9);
+    radial-gradient(circle at 50% 0%, rgba(130,96,255,.22), transparent 68%),
+    rgba(255,255,255,.075) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 16px 30px -28px rgba(126,85,255,.9);
   transition: transform .16s ease, border-color .16s ease;
 }
 
 .moment-composer-picker:active { transform: scale(.985); }
 
 .moment-composer-picker-icon {
-  color: #E7E2FF;
-  background: linear-gradient(145deg,rgba(123,97,255,.22),rgba(255,111,184,.10)) !important;
-  box-shadow: 0 10px 24px rgba(77,56,177,.24) !important;
+  color: #EEE9FF;
+  background: linear-gradient(145deg,rgba(123,97,255,.28),rgba(255,111,184,.14)) !important;
+  box-shadow: 0 10px 24px rgba(77,56,177,.27) !important;
 }
 
 .moment-composer-preview {
-  border: 1px solid rgba(255,255,255,.09);
-  box-shadow: 0 20px 48px -28px rgba(0,0,0,.88) !important;
+  border: 1px solid rgba(255,255,255,.13);
+  box-shadow: 0 20px 48px -28px rgba(0,0,0,.80) !important;
 }
 
 .moment-composer-sheet .p:not(.p-brand) {
   min-height: 44px;
-  color: #E9EAF7;
-  background: rgba(255,255,255,.055) !important;
-  border: 1px solid rgba(255,255,255,.08) !important;
+  color: #F0F1FA;
+  background: rgba(255,255,255,.09) !important;
+  border: 1px solid rgba(255,255,255,.12) !important;
   box-shadow: none !important;
 }
 
@@ -239,13 +244,13 @@
   border-radius: 20px !important;
   color: #fff !important;
   font-weight: 820;
-  background: linear-gradient(115deg,#7456F3,#9660F5 52%,#E05DA8) !important;
+  background: linear-gradient(115deg,#7E61F6,#A069F7 52%,#E566AD) !important;
   box-shadow: 0 16px 34px -18px rgba(151,83,230,.92) !important;
 }
 
 .moment-composer-publish:disabled {
-  color: rgba(255,255,255,.35) !important;
-  background: rgba(123,97,255,.25) !important;
+  color: rgba(255,255,255,.44) !important;
+  background: rgba(123,97,255,.34) !important;
   box-shadow: none !important;
 }
 
@@ -279,13 +284,13 @@
   display: grid;
   place-items: center;
   padding: 0;
-  border: 1px solid rgba(181,166,255,.24);
+  border: 1px solid rgba(194,181,255,.30);
   border-radius: 18px;
-  color: #F7F5FF;
+  color: #F9F7FF;
   background:
-    radial-gradient(circle at 28% 12%, rgba(255,255,255,.13), transparent 42%),
-    linear-gradient(145deg,rgba(104,79,230,.96),rgba(57,48,128,.96));
-  box-shadow: 0 15px 34px -14px rgba(74,52,184,.9), inset 0 1px 0 rgba(255,255,255,.12);
+    radial-gradient(circle at 28% 12%, rgba(255,255,255,.16), transparent 42%),
+    linear-gradient(145deg,rgba(116,91,236,.98),rgba(67,57,144,.98));
+  box-shadow: 0 15px 34px -14px rgba(74,52,184,.9), inset 0 1px 0 rgba(255,255,255,.14);
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
 }

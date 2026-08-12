@@ -209,6 +209,27 @@ export const api = {
     interactions: (id) => call(`/moments/${id}/interactions`),
     remove: (id) => call(`/moments/${id}`, { method: 'DELETE' }),
   },
+  one: {
+    lumes: () => call('/one/lumes'),
+    createLume: (body) => call('/one/lumes', { method: 'POST', body }),
+    openLume: (id) => call(`/one/lumes/${id}/open`, { method: 'POST' }),
+    removeLume: (id) => call(`/one/lumes/${id}`, { method: 'DELETE' }),
+    preferences: () => call('/one/preferences'),
+    setPreferences: (body) => call('/one/preferences', { method: 'PATCH', body }),
+    pulse: (scope = 'for-you') => call(`/one/pulse?scope=${encodeURIComponent(scope)}`),
+    capsules: () => call('/one/capsules'),
+    createCapsule: (body) => call('/one/capsules', { method: 'POST', body }),
+    capsule: (id) => call(`/one/capsules/${id}`),
+    addCapsuleMember: (id, userId) => call(`/one/capsules/${id}/members`, { method: 'POST', body: { userId } }),
+    addCapsuleItem: (id, body) => call(`/one/capsules/${id}/items`, { method: 'POST', body }),
+    removeCapsule: (id) => call(`/one/capsules/${id}`, { method: 'DELETE' }),
+    together: () => call('/one/together'),
+    createTogether: (body) => call('/one/together', { method: 'POST', body }),
+    joinTogether: (id) => call(`/one/together/${id}/join`, { method: 'POST' }),
+    togetherSession: (id) => call(`/one/together/${id}`),
+    setTogetherState: (id, body) => call(`/one/together/${id}/state`, { method: 'PATCH', body }),
+    local: (region) => call(`/one/local${region ? `?region=${encodeURIComponent(region)}` : ''}`),
+  },
   async upload(file) {
     const { uploadUrl, key } = await call('/uploads/sign', { method: 'POST', body: { mime: file.type, bytes: file.size } });
     const res = await fetch(uploadUrl, { method: 'PUT', headers: { 'content-type': file.type }, body: file });

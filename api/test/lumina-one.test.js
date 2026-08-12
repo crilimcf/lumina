@@ -54,7 +54,7 @@ after(async () => {
   await pool.end();
 });
 
-test('Lume só aparece a amigos mútuos e só abre uma vez', async () => {
+test('Lume só aparece a amigos mútuos, não expõe storage e o media abre uma vez', async () => {
   const alice = await register('one.lume.alice');
   const bob = await register('one.lume.bob');
   const outsider = await register('one.lume.outsider');
@@ -76,7 +76,15 @@ test('Lume só aparece a amigos mútuos e só abre uma vez', async () => {
 
   const opened = await request(`/one/lumes/${created.data.id}/open`, { method:'POST', token:bob.token });
   assert.equal(opened.response.status, 200, JSON.stringify(opened.data));
-  assert.equal(opened.data.media_url, mediaUrl);
+  assert.match(opened.data.media_url, new RegExp(`^/api/one/lumes/${created.data.id}/media/`));
+  assert.equal(opened.data.media_url.includes('media.example.test'), false);
+
+  // Em teste não há bucket configurado: o primeiro ticket chega ao handler e
+  // devolve 204; o mesmo ticket já consumido devolve 410.
+  const firstMedia = await request(opened.data.media_url, { token:bob.token });
+  assert.equal(firstMedia.response.status, 204);
+  const reusedMedia = await request(opened.data.media_url, { token:bob.token });
+  assert.equal(reusedMedia.response.status, 410);
 
   const again = await request(`/one/lumes/${created.data.id}/open`, { method:'POST', token:bob.token });
   assert.equal(again.response.status, 410);
@@ -163,9 +171,11 @@ test('Juntos tem host, participantes e controlo de estado', async () => {
   assert.equal(state.data.state.playing, true);
   assert.equal(state.data.state.positionMs, 2500);
 
+  await new Promise(resolve => setTimeout(resolve, 60));
   const session = await request(`/one/together/${created.data.id}`, { token:bob.token });
   assert.equal(session.response.status, 200);
   assert.equal(session.data.members.length, 2);
+  assert.equal(session.data.state.positionMs >= 2500, true);
 });
 
 test('Radar Local filtra pela região escolhida', async () => {

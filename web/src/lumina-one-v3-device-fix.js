@@ -78,13 +78,16 @@ function requestPosition(options) {
   });
 }
 
-function refinePosition(seed, timeoutMs = 8000) {
+function positionAccuracy(position) {
+  return Number(position?.coords?.accuracy || Infinity);
+}
+
+function refinePosition(seed, timeoutMs = 4000) {
   return new Promise(resolve => {
     if (!navigator.geolocation?.watchPosition) return resolve(seed);
     let best = seed || null;
     let watchId = null;
     let done = false;
-    const score = position => Number(position?.coords?.accuracy || Infinity);
     const finish = () => {
       if (done) return;
       done = true;
@@ -94,8 +97,8 @@ function refinePosition(seed, timeoutMs = 8000) {
     };
     const timer = setTimeout(finish, timeoutMs);
     watchId = navigator.geolocation.watchPosition(position => {
-      if (!best || score(position) < score(best)) best = position;
-      if (score(best) <= 250) finish();
+      if (!best || positionAccuracy(position) < positionAccuracy(best)) best = position;
+      if (positionAccuracy(best) <= 1000) finish();
     }, () => finish(), {
       enableHighAccuracy: true,
       maximumAge: 0,
@@ -108,7 +111,7 @@ async function acquireDevicePosition() {
   let first = null;
   let firstError = null;
   try {
-    first = await requestPosition({ enableHighAccuracy: true, maximumAge: 0, timeout: 12_000 });
+    first = await requestPosition({ enableHighAccuracy: true, maximumAge: 0, timeout: 10_000 });
   } catch (error) {
     firstError = error;
     if (Number(error?.code) === 1) throw error;
@@ -116,15 +119,15 @@ async function acquireDevicePosition() {
 
   if (!first) {
     try {
-      first = await requestPosition({ enableHighAccuracy: false, maximumAge: 60_000, timeout: 10_000 });
+      first = await requestPosition({ enableHighAccuracy: false, maximumAge: 60_000, timeout: 7_000 });
     } catch (error) {
       if (Number(error?.code) === 1) throw error;
       throw firstError || error;
     }
   }
 
-  const refined = await refinePosition(first, 8000);
-  const accuracy = Number(refined?.coords?.accuracy || Infinity);
+  const refined = positionAccuracy(first) <= 1000 ? first : await refinePosition(first, 4000);
+  const accuracy = positionAccuracy(refined);
   if (!Number.isFinite(accuracy) || accuracy > 15_000) {
     const error = new Error('Localização demasiado imprecisa');
     error.code = 4;
@@ -185,7 +188,7 @@ async function handleLocation(button) {
 
   try {
     const position = await acquireDevicePosition();
-    const accuracy = Math.round(Number(position.coords.accuracy || 0));
+    const accuracy = Math.round(positionAccuracy(position));
     const city = await reverseGeocode(position.coords.latitude, position.coords.longitude);
     setReactInputValue(input, city);
     status.className = 'one-v3-location-status is-ok';

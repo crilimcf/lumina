@@ -301,19 +301,43 @@ async function startRadarTogether(item, button) {
 
 async function ensurePulseDiscovery(root) {
   const page = root.querySelector('.one-pulse-page');
-  if (!page || page.dataset.v2Discovery === 'loading' || page.querySelector('.one-pulse-card')) return;
-  const empty = [...page.querySelectorAll('.one-state')].find(node => /Pulso está a aquecer/i.test(node.textContent || ''));
+  if (!page) return;
+
+  const seeds = [...page.querySelectorAll('.one-v2-pulse-seed')];
+  const seed = seeds.shift() || null;
+  seeds.forEach(node => node.remove());
+
+  if (page.querySelector('.one-pulse-card')) {
+    seed?.remove();
+    page.dataset.v2Discovery = 'social';
+    return;
+  }
+
+  const empty = [...page.querySelectorAll('.one-state')].find(node =>
+    /Pulso está a aquecer|O teu círculo ainda está silencioso/i.test(node.textContent || '')
+  );
   if (!empty) return;
 
   const scope = page.querySelector('.one-segment button.is-on')?.textContent?.trim();
   if (scope === 'Amigos') {
+    if (seed) seed.hidden = true;
+    empty.style.display = '';
     empty.classList.add('one-v2-friends-empty');
     empty.innerHTML = '<span class="one-v2-empty-orb">◎</span><b>O teu círculo ainda está silencioso</b><span>Segue pessoas e, quando publicarem, aparecem aqui sem mistura com o resto do Pulso.</span>';
+    page.dataset.v2Discovery = 'friends';
     return;
   }
 
-  page.dataset.v2Discovery = 'loading';
+  empty.classList.remove('one-v2-friends-empty');
   empty.style.display = 'none';
+  if (seed) {
+    seed.hidden = false;
+    page.dataset.v2Discovery = 'ready';
+    return;
+  }
+  if (page.dataset.v2Discovery === 'loading') return;
+
+  page.dataset.v2Discovery = 'loading';
   const section = el('section', 'one-v2-pulse-seed');
   section.innerHTML = '<div class="one-v2-seed-head"><div><span>COMEÇA JÁ</span><b>Há sempre algo para descobrir</b></div><small>Radar + tua rede</small></div><div class="one-v2-seed-loading">A montar o teu primeiro Pulso…</div>';
   empty.insertAdjacentElement('afterend', section);
@@ -337,7 +361,11 @@ async function ensurePulseDiscovery(root) {
       items.forEach(item => rail.append(radarCard(item, startRadarTogether)));
       section.append(rail);
     }
-  } finally { page.dataset.v2Discovery = 'ready'; }
+    const currentScope = page.querySelector('.one-segment button.is-on')?.textContent?.trim();
+    section.hidden = currentScope === 'Amigos';
+  } finally {
+    page.dataset.v2Discovery = 'ready';
+  }
 }
 
 async function contextualizeTogether(root) {

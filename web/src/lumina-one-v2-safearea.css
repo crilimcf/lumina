@@ -1,0 +1,9 @@
+@media (max-width:700px){
+  body .lumina-one.one-v2 .one-tabs{
+    top:max(48px,calc(env(safe-area-inset-top) + 6px))!important;
+  }
+
+  body .lumina-one.one-v2 .one-together-header{
+    padding-top:max(48px,calc(env(safe-area-inset-top) + 10px))!important;
+  }
+}

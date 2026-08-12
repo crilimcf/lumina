@@ -1,3 +1,10 @@
+ALTER TABLE uploads
+  DROP CONSTRAINT IF EXISTS uploads_purpose_check;
+
+ALTER TABLE uploads
+  ADD CONSTRAINT uploads_purpose_check
+  CHECK (purpose IS NULL OR purpose IN ('legacy','post','moment','message','avatar','room','room_message','lume','capsule'));
+
 CREATE TABLE IF NOT EXISTS lumes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   author_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,

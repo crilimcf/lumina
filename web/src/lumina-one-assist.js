@@ -254,7 +254,7 @@ function ensureTogether(root) {
   if (!section) return;
 
   const headTitle = section.querySelector('.one-section-head b');
-  if (headTitle) headTitle.textContent = 'Vê e reage com amigos';
+  if (headTitle && headTitle.textContent !== 'Vê e reage com amigos') headTitle.textContent = 'Vê e reage com amigos';
 
   const join = section.querySelector('.one-join');
   if (!join) return;
@@ -313,7 +313,7 @@ function ensureTogether(root) {
       });
     }
   }
-  if (button) button.textContent = 'Entrar com convite';
+  if (button && button.textContent !== 'Entrar com convite') button.textContent = 'Entrar com convite';
   join.classList.add('is-assisted');
 
   const list = section.querySelector('.one-together-list');
@@ -334,7 +334,8 @@ function ensureTogether(root) {
   }
 
   const empty = [...section.querySelectorAll('.one-state')].find(node => node.parentElement === section);
-  if (empty) empty.textContent = 'Ainda não tens sessões ativas. Escolhe algo no Pulso ou Radar e toca em Juntos para começar.';
+  const emptyCopy = 'Ainda não tens sessões ativas. Escolhe algo no Pulso ou Radar e toca em Juntos para começar.';
+  if (empty && empty.textContent !== emptyCopy) empty.textContent = emptyCopy;
 }
 
 let scheduled = false;

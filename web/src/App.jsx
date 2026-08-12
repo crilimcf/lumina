@@ -15,6 +15,7 @@ import { useCalls } from './hooks/useCalls.js';
 import { useSwipeNavigation } from './hooks/useSwipeNavigation.js';
 import './design-system-consolidation.css';
 import './iphone-polish.css';
+import './lumina-one-entry.css';
 
 const namedLazy = (loader, name) => lazy(() => loader().then(module => ({ default:module[name] })));
 const EditarPerfil = namedLazy(() => import('./screens/EditarPerfil.jsx'), 'EditarPerfil');
@@ -281,6 +282,7 @@ export default function App() {
   else activeScreen=<Feed me={me} tab={tab} setTab={setTab} setScreen={setScreen} {...feedState} report={report} comp={null} {...composerWithoutComp} threads={messageState.threads} setThread={messageState.setThread} ping={ping} toast={toast} unreadCount={unreadCount} {...momentState} onOpenLive={openLive}/>;
 
   return withCalls(<>
+    {tab==='feed' && <button className="one-app-launch" onClick={()=>setScreen('one')} aria-label="Abrir Lumina One"><span className="one-app-launch-mark">✦</span><span>Lumina One</span><small>Pulso · Lumes · Cápsulas</small></button>}
     {activeScreen}
     <Composer
       comp={comp}

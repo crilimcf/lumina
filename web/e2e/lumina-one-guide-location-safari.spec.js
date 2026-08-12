@@ -83,7 +83,7 @@ test('Radar Local deteta a cidade com permissão e não guarda coordenadas', asy
   expect(storageDump).not.toContain('-8.6291');
 });
 
-test('Radar Local explica como recuperar uma permissão de localização recusada no iPhone', async ({ page, context }) => {
+test('Radar Local explica como recuperar quando GPS e localização aproximada falham', async ({ page, context }) => {
   await context.addInitScript(() => {
     Object.defineProperty(navigator, 'geolocation', {
       configurable: true,
@@ -94,12 +94,15 @@ test('Radar Local explica como recuperar uma permissão de localização recusad
       },
     });
   });
+  await page.route('**/api/edge-location', async route => {
+    await route.fulfill({ status: 204, body: '' });
+  });
 
   await register(page, 'onedenied');
   await openTab(page, 'Agora');
   await page.getByRole('button', { name: '◎ Usar a minha localização' }).click();
 
-  await expect(page.locator('.one-location-status')).toContainText('O iPhone bloqueou a localização deste site');
+  await expect(page.locator('.one-location-status')).toContainText('bloqueou o GPS');
   const recovery = page.locator('.one-location-recovery');
   await expect(recovery).toBeVisible();
   await expect(recovery).toContainText('a permissão é do site');

@@ -28,7 +28,7 @@ test('Lumina One abre do Feed e mantém a experiência dentro da app', async ({ 
   await expect(launcher).toBeVisible();
   await launcher.click();
 
-  await expect(page.getByText('Tudo acontece')).toBeVisible();
+  await expect(page.getByText('Tudo ligado.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Pulso', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Lumes', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Cápsulas', exact: true })).toBeVisible();

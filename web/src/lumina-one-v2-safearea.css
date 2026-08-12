@@ -18,6 +18,10 @@
     backdrop-filter:blur(18px) saturate(130%);
   }
 
+  body .lumina-one.one-v2 .one-header{
+    padding-top:max(22px,calc(58px - env(safe-area-inset-top)))!important;
+  }
+
   body .lumina-one.one-v2 .one-tabs{
     top:max(48px,calc(env(safe-area-inset-top) + 6px))!important;
   }

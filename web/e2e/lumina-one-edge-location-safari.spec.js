@@ -34,7 +34,7 @@ function denyGps(context) {
   });
 }
 
-test('Radar Local usa cidade aproximada do edge quando o iPhone bloqueia o GPS', async ({ page, context }) => {
+test('Radar Local trata a cidade aproximada do edge como sugestão quando o iPhone bloqueia o GPS', async ({ page, context }) => {
   await denyGps(context);
   await page.route('**/api/edge-location', async route => {
     await route.fulfill({
@@ -48,8 +48,14 @@ test('Radar Local usa cidade aproximada do edge quando o iPhone bloqueia o GPS',
   await page.getByRole('button', { name: '◎ Usar a minha localização' }).click();
 
   const regionInput = page.getByPlaceholder('Porto, Lisboa, Braga…');
+  await expect(regionInput).toHaveValue('');
+  const suggestion = page.locator('.one-v2-location-suggestion');
+  await expect(suggestion).toBeVisible();
+  await expect(suggestion).toContainText('Vila Nova de Gaia');
+  await expect(suggestion).toContainText('Pode estar errada');
+  await suggestion.getByRole('button', { name: 'Usar Vila Nova de Gaia' }).click();
   await expect(regionInput).toHaveValue('Vila Nova de Gaia');
-  await expect(page.locator('.one-location-status')).toContainText('detetado aproximadamente pela tua ligação');
+  await expect(page.locator('.one-location-status')).toContainText('foi apenas sugerida');
   await expect(page.locator('.one-location-recovery')).toBeHidden();
 
   const storageDump = await page.evaluate(() => JSON.stringify(Object.entries(localStorage)));
@@ -57,7 +63,7 @@ test('Radar Local usa cidade aproximada do edge quando o iPhone bloqueia o GPS',
   expect(storageDump).not.toContain('longitude');
 });
 
-test('Radar Local mantém recuperação Safari quando GPS e edge falham', async ({ page, context }) => {
+test('Radar Local mantém entrada manual simples quando GPS e edge falham', async ({ page, context }) => {
   await denyGps(context);
   await page.route('**/api/edge-location', async route => {
     await route.fulfill({ status: 204, body: '' });
@@ -66,8 +72,10 @@ test('Radar Local mantém recuperação Safari quando GPS e edge falham', async 
   await register(page, 'edgefail');
   await page.getByRole('button', { name: '◎ Usar a minha localização' }).click();
 
-  await expect(page.locator('.one-location-status')).toContainText('bloqueou o GPS');
-  const recovery = page.locator('.one-location-recovery');
-  await expect(recovery).toBeVisible();
-  await expect(recovery).toContainText('a permissão é do site');
+  await expect(page.locator('.one-location-status')).toContainText('Não consegui detetar a cidade');
+  await expect(page.locator('.one-location-recovery')).toBeHidden();
+  const regionInput = page.getByPlaceholder('Porto, Lisboa, Braga…');
+  await expect(regionInput).toBeVisible();
+  await regionInput.fill('Bragança');
+  await expect(regionInput).toHaveValue('Bragança');
 });

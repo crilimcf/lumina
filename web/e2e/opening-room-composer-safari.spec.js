@@ -107,5 +107,5 @@ test('Publicar destaca a área de escrita e usa o tema daylight-friendly', async
   expect(metrics.backgroundImage).not.toBe('none');
   expect(metrics.borderColor).not.toBe('rgba(0, 0, 0, 0)');
   expect(metrics.color).toBe('rgb(255, 255, 255)');
-  expect(metrics.rootBackground).toBe('rgb(13, 19, 38)');
+  expect(metrics.rootBackground).toBe('rgb(24, 40, 70)');
 });

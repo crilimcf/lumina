@@ -83,6 +83,31 @@ test('Radar Local deteta a cidade com permissão e não guarda coordenadas', asy
   expect(storageDump).not.toContain('-8.6291');
 });
 
+test('Radar Local explica como recuperar uma permissão de localização recusada no iPhone', async ({ page, context }) => {
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition(_success, error) {
+          setTimeout(() => error({ code: 1, message: 'denied' }), 0);
+        },
+      },
+    });
+  });
+
+  await register(page, 'onedenied');
+  await openTab(page, 'Agora');
+  await page.getByRole('button', { name: '◎ Usar a minha localização' }).click();
+
+  await expect(page.locator('.one-location-status')).toContainText('O iPhone bloqueou a localização deste site');
+  const recovery = page.locator('.one-location-recovery');
+  await expect(recovery).toBeVisible();
+  await expect(recovery).toContainText('a permissão é do site');
+  await expect(recovery).toContainText('Definições do Site');
+  await expect(recovery).toContainText('Localização escolhe Permitir');
+  await expect(recovery.getByRole('link', { name: 'Abrir Lumina no Safari para autorizar' })).toHaveAttribute('target', '_blank');
+});
+
 test('Radar Local mantém a cidade manual como fallback', async ({ page }) => {
   await register(page, 'onemanual');
   await openTab(page, 'Agora');
@@ -92,4 +117,24 @@ test('Radar Local mantém a cidade manual como fallback', async ({ page }) => {
   await page.getByRole('button', { name: 'Guardar e adaptar a Lumina' }).click();
   await expect(regionInput).toHaveValue('Braga');
   await expect(page.getByText('Braga', { exact: true }).first()).toBeVisible();
+});
+
+test('Juntos explica o fluxo e aceita um link de convite sem expor IDs ao utilizador', async ({ page }) => {
+  await register(page, 'onejuntos');
+  await openTab(page, 'Agora');
+
+  const section = page.locator('.one-juntos-section');
+  await expect(section.getByText('O que é o Juntos?', { exact: true })).toBeVisible();
+  await expect(section).toContainText('Escolhe algo no Pulso ou Radar');
+  await expect(section).toContainText('Partilha o convite com os teus amigos');
+  await expect(section.getByText('Código/ID da sessão', { exact: true })).toHaveCount(0);
+
+  const invite = section.getByRole('textbox', { name: 'Link do convite Juntos' });
+  const id = '11111111-1111-4111-8111-111111111111';
+  await invite.fill(`https://lumina-snowy-ten.vercel.app/?one=together&id=${id}`);
+  await expect(invite).toHaveValue(id);
+  await expect(section.getByRole('button', { name: 'Entrar com convite' })).toBeVisible();
+
+  await section.getByRole('button', { name: 'Escolher no Pulso' }).click();
+  await expect(page.locator('.one-tabs button.is-on')).toContainText('Pulso');
 });

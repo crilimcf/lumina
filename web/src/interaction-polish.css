@@ -14,31 +14,31 @@
   align-items: center;
   gap: 12px;
   overflow: hidden;
-  border: 1px solid rgba(255,255,255,.085) !important;
+  border: 1px solid rgba(255,255,255,.13) !important;
   border-radius: 20px !important;
-  color: #EDEFFC !important;
-  background: rgba(255,255,255,.045) !important;
+  color: #F4F5FF !important;
+  background: rgba(255,255,255,.075) !important;
   text-align: left;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.025);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.045);
   transition: transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
 }
 
 .room-privacy-option:active { transform: scale(.988); }
 
 .room-privacy-option.is-public.is-selected {
-  border-color: rgba(72,224,156,.48) !important;
+  border-color: rgba(72,224,156,.55) !important;
   background:
-    radial-gradient(circle at 8% 0%, rgba(61,210,139,.19), transparent 68%),
-    rgba(45,172,116,.08) !important;
-  box-shadow: 0 0 0 3px rgba(61,210,139,.07), inset 0 1px 0 rgba(255,255,255,.04);
+    radial-gradient(circle at 8% 0%, rgba(61,210,139,.24), transparent 68%),
+    rgba(45,172,116,.12) !important;
+  box-shadow: 0 0 0 3px rgba(61,210,139,.08), inset 0 1px 0 rgba(255,255,255,.055);
 }
 
 .room-privacy-option.is-private.is-selected {
-  border-color: rgba(157,130,255,.52) !important;
+  border-color: rgba(157,130,255,.60) !important;
   background:
-    radial-gradient(circle at 8% 0%, rgba(123,97,255,.25), transparent 68%),
-    rgba(123,97,255,.09) !important;
-  box-shadow: 0 0 0 3px rgba(123,97,255,.08), inset 0 1px 0 rgba(255,255,255,.04);
+    radial-gradient(circle at 8% 0%, rgba(123,97,255,.30), transparent 68%),
+    rgba(123,97,255,.13) !important;
+  box-shadow: 0 0 0 3px rgba(123,97,255,.10), inset 0 1px 0 rgba(255,255,255,.055);
 }
 
 .room-privacy-icon {
@@ -48,29 +48,29 @@
   place-items: center;
   flex: 0 0 auto;
   border-radius: 15px;
-  color: #B9BFD2;
-  background: rgba(255,255,255,.06);
+  color: #C7CCDE;
+  background: rgba(255,255,255,.09);
 }
 
 .room-privacy-option.is-public.is-selected .room-privacy-icon {
-  color: #8EF1C0;
-  background: rgba(61,210,139,.14);
+  color: #9BF5C8;
+  background: rgba(61,210,139,.18);
 }
 
 .room-privacy-option.is-private.is-selected .room-privacy-icon {
-  color: #C9BDFF;
-  background: rgba(123,97,255,.17);
+  color: #D2C8FF;
+  background: rgba(123,97,255,.21);
 }
 
 .room-privacy-copy { flex: 1; min-width: 0; }
-.room-privacy-copy strong { display: block; color: #F7F7FF; font-size: 14px; }
-.room-privacy-copy small { display: block; margin-top: 4px; color: #8F97AE; font-size: 11px; line-height: 1.38; }
+.room-privacy-copy strong { display: block; color: #FBFBFF; font-size: 14px; }
+.room-privacy-copy small { display: block; margin-top: 4px; color: #AAB1C7; font-size: 11px; line-height: 1.38; }
 .room-privacy-selected {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   flex: 0 0 auto;
-  color: #F5F4FF;
+  color: #F7F6FF;
   font-size: 9px;
   font-weight: 850;
   letter-spacing: .06em;
@@ -78,24 +78,24 @@
 }
 
 .room-sheet {
-  color: #F6F5FF !important;
+  color: #F8F7FF !important;
   background:
-    radial-gradient(circle at 12% -6%, rgba(123,97,255,.24), transparent 21rem),
-    linear-gradient(180deg,#171C31,#0C101E) !important;
-  border: 1px solid rgba(255,255,255,.08);
-  box-shadow: 0 -22px 62px rgba(0,0,0,.45);
+    radial-gradient(circle at 12% -6%, rgba(123,97,255,.29), transparent 21rem),
+    linear-gradient(180deg,#202943,#121A2D) !important;
+  border: 1px solid rgba(255,255,255,.13);
+  box-shadow: 0 -22px 62px rgba(0,0,0,.38);
 }
 
 .room-sheet .d { color: #fff; }
-.room-sheet .m { color: #9299B0; }
+.room-sheet .m { color: #AAB1C7; }
 .room-sheet input,
 .room-sheet textarea {
-  color: #F5F4FC !important;
-  background: rgba(255,255,255,.05) !important;
-  border-color: rgba(255,255,255,.09) !important;
+  color: #FAF9FF !important;
+  background: rgba(255,255,255,.09) !important;
+  border-color: rgba(255,255,255,.15) !important;
 }
 .room-sheet input::placeholder,
-.room-sheet textarea::placeholder { color: #7F879F !important; }
+.room-sheet textarea::placeholder { color: #A1A9C0 !important; }
 
 .room-message-media {
   display: block;
@@ -104,8 +104,8 @@
   margin-top: 6px;
   border-radius: 16px;
   object-fit: cover;
-  background: #080A12;
-  border: 1px solid rgba(255,255,255,.09);
+  background: #0D1120;
+  border: 1px solid rgba(255,255,255,.13);
 }
 
 .room-message-media.is-video { object-fit: contain; }
@@ -113,11 +113,12 @@
 .room-composer-wrap {
   flex: 0 0 auto;
   box-sizing: border-box;
-  padding: 8px 10px max(26px, calc(env(safe-area-inset-bottom) + 8px)) !important;
-  border-top: 1px solid rgba(255,255,255,.07);
-  background: rgba(10,13,25,.96);
-  -webkit-backdrop-filter: blur(22px) saturate(140%);
-  backdrop-filter: blur(22px) saturate(140%);
+  padding: 10px 12px max(58px, calc(env(safe-area-inset-bottom) + 30px)) !important;
+  border-top: 1px solid rgba(255,255,255,.13);
+  background: rgba(17,24,45,.985);
+  box-shadow: 0 -12px 34px rgba(0,0,0,.22);
+  -webkit-backdrop-filter: blur(22px) saturate(145%);
+  backdrop-filter: blur(22px) saturate(145%);
 }
 
 .room-media-ready {
@@ -126,10 +127,10 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  border: 1px solid rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.13);
   border-radius: 14px;
-  color: #D9DBE8;
-  background: rgba(255,255,255,.045);
+  color: #E5E7F2;
+  background: rgba(255,255,255,.075);
 }
 
 .room-media-ready-name {
@@ -159,32 +160,33 @@
 }
 
 .room-media-picker {
-  border: 1px solid rgba(255,255,255,.08);
-  color: #D8D3FF;
-  background: rgba(123,97,255,.10);
+  border: 1px solid rgba(255,255,255,.14);
+  color: #E2DEFF;
+  background: rgba(123,97,255,.16);
 }
 
 .room-send-button {
   border: 0;
   color: #fff;
-  background: linear-gradient(145deg,#7259EF,#536FF1);
-  box-shadow: 0 9px 24px rgba(82,64,222,.28);
+  background: linear-gradient(145deg,#8068F4,#5D7AF4);
+  box-shadow: 0 9px 24px rgba(82,64,222,.34);
 }
 
-.room-send-button:disabled { opacity: .38; box-shadow: none; }
+.room-send-button:disabled { opacity: .42; box-shadow: none; }
 
 .room-composer-row input {
   flex: 1;
   min-width: 0;
-  height: 44px !important;
+  height: 46px !important;
   padding: 0 14px !important;
-  border: 1px solid rgba(255,255,255,.08) !important;
+  border: 1px solid rgba(255,255,255,.17) !important;
   border-radius: 15px !important;
-  color: #F5F4FC !important;
-  background: rgba(255,255,255,.055) !important;
+  color: #FBFAFF !important;
+  background: rgba(255,255,255,.11) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.035);
 }
 
-.room-composer-row input::placeholder { color: #727A93 !important; }
+.room-composer-row input::placeholder { color: #AEB5CA !important; }
 
 /* Direct messages: keep the composer inside the iPhone visual viewport. */
 .lumina-messages-thread.messages-visual-viewport {

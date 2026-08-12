@@ -18,7 +18,7 @@ async function register(page, label) {
   await page.getByRole('button', { name: 'Entendido, vamos lá' }).click();
 }
 
-test('abertura apresenta uma escolha clara com Feed como ação principal', async ({ page }) => {
+test('abertura sobe os CTAs e dá a Feed e Salas a mesma presença', async ({ page }) => {
   await register(page, 'opening');
 
   const feed = page.getByRole('button', { name: 'Entrar no Feed' });
@@ -28,15 +28,28 @@ test('abertura apresenta uma escolha clara com Feed como ação principal', asyn
   await expect(feed).toHaveCount(1);
   await expect(rooms).toHaveCount(1);
   await expect(feed).toHaveClass(/p-brand/);
-  await expect(rooms).not.toHaveClass(/p-brand/);
+  await expect(rooms).toHaveClass(/p-brand/);
   await expect(page.locator('.opening-card')).toHaveCount(0);
   await expect(page.getByText('Escolhe onde queres começar')).toBeVisible();
+
+  const [feedBox, roomsBox, actionMetrics] = await Promise.all([
+    feed.boundingBox(),
+    rooms.boundingBox(),
+    page.locator('.opening-actions').evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      return { bottom: rect.bottom, viewportHeight: window.innerHeight };
+    }),
+  ]);
+  expect(feedBox).not.toBeNull();
+  expect(roomsBox).not.toBeNull();
+  expect(Math.abs(feedBox.height - roomsBox.height)).toBeLessThanOrEqual(1);
+  expect(actionMetrics.viewportHeight - actionMetrics.bottom).toBeGreaterThanOrEqual(100);
 
   await feed.click();
   await expect(page.getByRole('button', { name: 'Novo' })).toBeVisible();
 });
 
-test('composer da Sala mantém folga mínima acima da home indicator', async ({ page }) => {
+test('composer da Sala fica claramente acima da home indicator', async ({ page }) => {
   await register(page, 'roomclear');
   await page.getByRole('button', { name: 'Explorar Salas' }).click();
   await expect(page.getByText('Tópicos vivos, sem poluir o Feed.')).toBeVisible();
@@ -65,6 +78,34 @@ test('composer da Sala mantém folga mínima acima da home indicator', async ({ 
     };
   });
 
-  expect(metrics.paddingBottom).toBeGreaterThanOrEqual(26);
-  expect(metrics.viewportHeight - metrics.inputBottom).toBeGreaterThanOrEqual(24);
+  expect(metrics.paddingBottom).toBeGreaterThanOrEqual(58);
+  expect(metrics.viewportHeight - metrics.inputBottom).toBeGreaterThanOrEqual(54);
+});
+
+test('Publicar destaca a área de escrita e usa o tema daylight-friendly', async ({ page }) => {
+  await register(page, 'daylight');
+  await page.getByRole('button', { name: 'Entrar no Feed' }).click();
+  await expect(page.getByRole('button', { name: 'Novo' })).toBeVisible();
+  await page.getByRole('button', { name: 'Novo' }).click();
+
+  const textarea = page.getByPlaceholder('O que estás a ver ou a pensar?');
+  await expect(textarea).toBeVisible();
+
+  const metrics = await textarea.evaluate((node) => {
+    const style = getComputedStyle(node);
+    const htmlStyle = getComputedStyle(document.documentElement);
+    return {
+      borderWidth: parseFloat(style.borderTopWidth),
+      borderColor: style.borderTopColor,
+      backgroundImage: style.backgroundImage,
+      color: style.color,
+      rootBackground: htmlStyle.backgroundColor,
+    };
+  });
+
+  expect(metrics.borderWidth).toBeGreaterThanOrEqual(1.5);
+  expect(metrics.backgroundImage).not.toBe('none');
+  expect(metrics.borderColor).not.toBe('rgba(0, 0, 0, 0)');
+  expect(metrics.color).toBe('rgb(255, 255, 255)');
+  expect(metrics.rootBackground).toBe('rgb(13, 19, 38)');
 });

@@ -24,6 +24,17 @@ CREATE TABLE IF NOT EXISTS lume_views (
   PRIMARY KEY (lume_id, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS lume_media_tickets (
+  token_hash TEXT PRIMARY KEY,
+  lume_id UUID NOT NULL REFERENCES lumes(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  consumed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_lume_media_tickets_expiry ON lume_media_tickets (expires_at);
+
 CREATE TABLE IF NOT EXISTS pulse_preferences (
   user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   boost_topics TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],

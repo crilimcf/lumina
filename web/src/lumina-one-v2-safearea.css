@@ -1,4 +1,23 @@
+/* Real-iPhone guardrails for Lumina One v2.
+ * Keep system status information readable even when iOS standalone reports
+ * a zero/unstable safe-area inset after launch or resume.
+ */
 @media (max-width:700px){
+  body .lumina-one.one-v2::after{
+    content:"";
+    position:fixed;
+    z-index:45;
+    top:0;
+    left:0;
+    right:0;
+    height:max(48px,env(safe-area-inset-top));
+    pointer-events:none;
+    background:linear-gradient(180deg,rgba(16,33,62,.99),rgba(16,33,62,.94));
+    border-bottom:1px solid rgba(255,255,255,.08);
+    -webkit-backdrop-filter:blur(18px) saturate(130%);
+    backdrop-filter:blur(18px) saturate(130%);
+  }
+
   body .lumina-one.one-v2 .one-tabs{
     top:max(48px,calc(env(safe-area-inset-top) + 6px))!important;
   }
@@ -6,4 +25,52 @@
   body .lumina-one.one-v2 .one-together-header{
     padding-top:max(48px,calc(env(safe-area-inset-top) + 10px))!important;
   }
+}
+
+/* The region picker is one control. The wrapper owns the chrome; the nested
+ * input stays transparent so iPhone Safari does not render a double pill. */
+body .lumina-one.one-v2 .one-region-input{
+  min-height:58px!important;
+  padding:0 14px!important;
+  gap:10px!important;
+  overflow:hidden;
+  color:#fff!important;
+  background:rgba(255,255,255,.07)!important;
+  border:1px solid rgba(204,215,255,.18)!important;
+  border-radius:18px!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05)!important;
+  transition:border-color .16s ease,box-shadow .16s ease,background .16s ease;
+}
+
+body .lumina-one.one-v2 .one-region-input>svg{
+  flex:0 0 auto;
+  color:#ddd7ff;
+}
+
+body .lumina-one.one-v2 .one-region-input input{
+  min-width:0;
+  min-height:56px!important;
+  padding:0!important;
+  color:#fff!important;
+  background:transparent!important;
+  border:0!important;
+  border-radius:0!important;
+  outline:0!important;
+  box-shadow:none!important;
+}
+
+body .lumina-one.one-v2 .one-region-input input:focus{
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+
+body .lumina-one.one-v2 .one-region-input:focus-within{
+  background:rgba(255,255,255,.09)!important;
+  border-color:rgba(151,126,255,.78)!important;
+  box-shadow:0 0 0 3px rgba(123,97,255,.14),inset 0 1px 0 rgba(255,255,255,.07)!important;
+}
+
+@media (prefers-reduced-motion:reduce){
+  body .lumina-one.one-v2 .one-region-input{transition:none!important}
 }

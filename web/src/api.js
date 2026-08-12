@@ -228,6 +228,7 @@ export const api = {
     joinTogether: (id) => call(`/one/together/${id}/join`, { method: 'POST' }),
     togetherSession: (id) => call(`/one/together/${id}`),
     setTogetherState: (id, body) => call(`/one/together/${id}/state`, { method: 'PATCH', body }),
+    source: (type, id) => call(`/one/source/${encodeURIComponent(type)}/${encodeURIComponent(id)}`),
     local: (region) => call(`/one/local${region ? `?region=${encodeURIComponent(region)}` : ''}`),
   },
   async upload(file) {

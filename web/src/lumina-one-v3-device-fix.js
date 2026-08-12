@@ -164,7 +164,10 @@ function decorateLocation() {
     const copy = location.querySelector('.one-v3-location-copy');
     const button = location.querySelector('.one-v3-location-button');
     if (copy) copy.innerHTML = '<span>LOCALIZAÇÃO</span><b>A tua cidade, confirmada pelo iPhone</b><small>Usamos a localização do sistema. Se estiver indisponível, mantemos a cidade escolhida por ti — nunca a trocamos por uma estimativa de Wi‑Fi/4G.</small>';
-    if (button) button.textContent = 'Detetar onde estou';
+    if (button) {
+      button.textContent = 'Detetar onde estou';
+      button.setAttribute('aria-label', 'Usar GPS preciso');
+    }
   });
 }
 
@@ -186,7 +189,7 @@ async function handleLocation(button) {
     const city = await reverseGeocode(position.coords.latitude, position.coords.longitude);
     setReactInputValue(input, city);
     status.className = 'one-v3-location-status is-ok';
-    status.textContent = `${city} detetada pela localização do iPhone${accuracy ? ` · precisão ~${accuracy} m` : ''}. Confirma em “Guardar e adaptar a Lumina”.`;
+    status.textContent = `${city} detetada por GPS/localização do iPhone${accuracy ? ` · precisão ~${accuracy} m` : ''}. Confirma em “Guardar e adaptar a Lumina”.`;
     input.focus({ preventScroll: true });
   } catch (error) {
     const preferred = input.value.trim() || localStorage.getItem(REGION_KEY) || '';

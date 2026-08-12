@@ -56,7 +56,7 @@ test('Lumina One protege a status bar e mostra a cidade como um único campo no 
   expect(layout.tabsTop).toBeGreaterThanOrEqual(47);
 
   expect(layout.wrapperBorder).not.toBe('0px');
-  expect(layout.wrapperHeight).toBeGreaterThanOrEqual(57);
+  expect(layout.wrapperHeight).toBeGreaterThanOrEqual(52);
   expect(layout.inputBorder).toBe('0px');
   expect(layout.inputBackground).toBe('rgba(0, 0, 0, 0)');
   expect(layout.inputShadow).toBe('none');

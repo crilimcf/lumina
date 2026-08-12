@@ -83,7 +83,7 @@ test('Radar Local deteta a cidade com permissão e não guarda coordenadas', asy
   expect(storageDump).not.toContain('-8.6291');
 });
 
-test('Radar Local explica como recuperar quando GPS e localização aproximada falham', async ({ page, context }) => {
+test('Radar Local mantém um fallback simples quando GPS e localização aproximada falham', async ({ page, context }) => {
   await context.addInitScript(() => {
     Object.defineProperty(navigator, 'geolocation', {
       configurable: true,
@@ -102,13 +102,12 @@ test('Radar Local explica como recuperar quando GPS e localização aproximada f
   await openTab(page, 'Agora');
   await page.getByRole('button', { name: '◎ Usar a minha localização' }).click();
 
-  await expect(page.locator('.one-location-status')).toContainText('bloqueou o GPS');
-  const recovery = page.locator('.one-location-recovery');
-  await expect(recovery).toBeVisible();
-  await expect(recovery).toContainText('a permissão é do site');
-  await expect(recovery).toContainText('Definições do Site');
-  await expect(recovery).toContainText('Localização escolhe Permitir');
-  await expect(recovery.getByRole('link', { name: 'Abrir Lumina no Safari para autorizar' })).toHaveAttribute('target', '_blank');
+  await expect(page.locator('.one-location-status')).toContainText('Não consegui detetar a cidade');
+  await expect(page.locator('.one-location-recovery')).toBeHidden();
+  const regionInput = page.getByPlaceholder('Porto, Lisboa, Braga…');
+  await expect(regionInput).toBeVisible();
+  await regionInput.fill('Bragança');
+  await expect(regionInput).toHaveValue('Bragança');
 });
 
 test('Radar Local mantém a cidade manual como fallback', async ({ page }) => {

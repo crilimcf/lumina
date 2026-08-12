@@ -29,10 +29,10 @@ test('Lumina One abre do Feed e mantém a experiência dentro da app', async ({ 
   await launcher.click();
 
   await expect(page.getByText('Tudo acontece')).toBeVisible();
-  await expect(page.getByRole('button', { name: /Pulso/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Lumes/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Cápsulas/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Agora/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Pulso', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Lumes', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Cápsulas', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Agora', exact: true })).toBeVisible();
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
@@ -44,7 +44,7 @@ test('Lumina One abre do Feed e mantém a experiência dentro da app', async ({ 
 test('Cápsulas cria e guarda uma memória sem sair da Lumina', async ({ page }) => {
   await register(page, 'onecapsule');
   await page.getByRole('button', { name: 'Abrir Lumina One' }).click();
-  await page.getByRole('button', { name: /Cápsulas/ }).click();
+  await page.getByRole('button', { name: 'Cápsulas', exact: true }).click();
 
   await page.getByRole('button', { name: /Nova Cápsula/ }).click();
   await expect(page.getByRole('dialog', { name: 'Nova Cápsula' })).toBeVisible();
@@ -63,7 +63,7 @@ test('Cápsulas cria e guarda uma memória sem sair da Lumina', async ({ page })
 test('Agora permite afinar algoritmo e Radar Local no iPhone', async ({ page }) => {
   await register(page, 'oneagora');
   await page.getByRole('button', { name: 'Abrir Lumina One' }).click();
-  await page.getByRole('button', { name: /Agora/ }).click();
+  await page.getByRole('button', { name: 'Agora', exact: true }).click();
 
   await expect(page.getByText('A rede adapta-se')).toBeVisible();
   await page.getByPlaceholder('viagens, carros, tecnologia').fill('viagens, tecnologia');

@@ -20,7 +20,7 @@ async function register(page, label) {
 }
 
 async function openOne(page) {
-  const entry = page.getByRole('button', { name: 'Abrir Lumina One' }).filter({ visible: true });
+  const entry = page.locator('.one-v3-feed-entry');
   await expect(entry).toBeVisible();
   await entry.click();
   await expect(page.locator('.lumina-one.one-v3')).toBeVisible();

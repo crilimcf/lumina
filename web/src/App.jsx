@@ -15,6 +15,7 @@ import { useCalls } from './hooks/useCalls.js';
 import { useSwipeNavigation } from './hooks/useSwipeNavigation.js';
 import './design-system-consolidation.css';
 import './iphone-polish.css';
+import './lumina-one-entry.css';
 
 const namedLazy = (loader, name) => lazy(() => loader().then(module => ({ default:module[name] })));
 const EditarPerfil = namedLazy(() => import('./screens/EditarPerfil.jsx'), 'EditarPerfil');
@@ -29,6 +30,7 @@ const RadarAdmin = namedLazy(() => import('./screens/RadarAdmin.jsx'), 'RadarAdm
 const Atividade = namedLazy(() => import('./screens/Atividade.jsx'), 'Atividade');
 const LiveStudio = namedLazy(() => import('./screens/LiveStudio.jsx'), 'LiveStudio');
 const LiveViewer = namedLazy(() => import('./screens/LiveViewer.jsx'), 'LiveViewer');
+const LuminaOne = namedLazy(() => import('./screens/LuminaOne.jsx'), 'LuminaOne');
 const Seguranca = namedLazy(() => import('./Seguranca.jsx'), 'Seguranca');
 const Moderacao = namedLazy(() => import('./Seguranca.jsx'), 'Moderacao');
 const Legal = namedLazy(() => import('./Seguranca.jsx'), 'Legal');
@@ -154,6 +156,15 @@ export default function App() {
     setShowWelcome(false);
   }, [me]);
 
+  useEffect(() => {
+    if (!me) return;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.get('one')) return;
+    setScreen('one');
+    setOpening(false);
+    setShowWelcome(false);
+  }, [me]);
+
   async function afterLogin(user, isNewAccount = false) {
     setMe(user);
     if (isNewAccount) setShowWelcome(true);
@@ -219,6 +230,15 @@ export default function App() {
     feedState.loadFeed();
   }, [feedState.loadFeed]);
 
+  const closeOne = useCallback(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('one');
+    url.searchParams.delete('id');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    setScreen(null);
+    setTab('feed');
+  }, []);
+
   const withCalls = (content) => <>
     <Suspense fallback={<ScreenFallback/>}>{content}</Suspense>
     {callState.incoming && !callState.activeCall && <IncomingCall call={callState.incoming} busy={callState.busy} onAccept={callState.acceptIncoming} onDecline={callState.declineIncoming}/>} 
@@ -232,6 +252,7 @@ export default function App() {
 
   if (screen==='live-studio') return withCalls(<LiveStudio me={me} onBack={closeLive} ping={ping}/>);
   if (screen==='live-viewer' && liveId) return withCalls(<LiveViewer streamId={liveId} onBack={closeLive} ping={ping}/>);
+  if (screen==='one') return withCalls(<LuminaOne me={me} onBack={closeOne} ping={ping} onOpenLive={openLive}/>);
   if (screen==='seguranca') return withCalls(<LegacySurface kind="security"><Seguranca onBack={()=>setScreen(null)} ping={ping}/></LegacySurface>);
   if (screen==='moderacao') return withCalls(<LegacySurface kind="moderation"><Moderacao onBack={()=>setScreen(null)} ping={ping}/></LegacySurface>);
   if (screen==='radar-admin' && me.is_staff) return withCalls(<LegacySurface kind="radar-admin"><RadarAdmin onBack={()=>setScreen(null)} ping={ping}/></LegacySurface>);
@@ -261,6 +282,7 @@ export default function App() {
   else activeScreen=<Feed me={me} tab={tab} setTab={setTab} setScreen={setScreen} {...feedState} report={report} comp={null} {...composerWithoutComp} threads={messageState.threads} setThread={messageState.setThread} ping={ping} toast={toast} unreadCount={unreadCount} {...momentState} onOpenLive={openLive}/>;
 
   return withCalls(<>
+    {tab==='feed' && <button className="one-app-launch" onClick={()=>setScreen('one')} aria-label="Abrir Lumina One"><span className="one-app-launch-mark">✦</span><span>Lumina One</span><small>Pulso · Lumes · Cápsulas</small></button>}
     {activeScreen}
     <Composer
       comp={comp}

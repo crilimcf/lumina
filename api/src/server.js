@@ -10,6 +10,7 @@ import { pool, getAppliedSchemaVersion } from './db.js';
 import { errorHandler, auth, h, HttpError, csrfGuard } from './middleware/auth.js';
 import { startJobs } from './jobs/daily.js';
 import { startRadarJobs } from './jobs/radar-scheduler.js';
+import { startLuminaOneJobs } from './jobs/lumina-one-cleanup.js';
 
 import { authRoutes } from './routes/auth.js';
 import { postRoutes } from './routes/posts.js';
@@ -28,6 +29,8 @@ import { radarRoutes } from './routes/radar.js';
 import { radarSyncRoutes } from './routes/radar-sync.js';
 import { radarImageRoutes } from './routes/radar-images.js';
 import { liveRoutes } from './routes/live.js';
+import { oneRoutes } from './routes/one.js';
+import { oneSourceRoutes } from './routes/one-source.js';
 
 const app = express();
 const webDir = path.resolve(process.cwd(), 'public');
@@ -181,6 +184,8 @@ const mountApi = (prefix = '') => {
   app.use(`${prefix}/rooms`, roomRoutes);
   app.use(`${prefix}/calls`, callRoutes);
   app.use(`${prefix}/live`, liveRoutes);
+  app.use(`${prefix}/one`, oneSourceRoutes);
+  app.use(`${prefix}/one`, oneRoutes);
   app.use(`${prefix}/payments`, paymentRoutes);
   app.use(`${prefix}/notifications`, notificationRoutes);
   app.use(`${prefix}/reports`, reportRoutes);
@@ -226,6 +231,7 @@ if (process.env.NODE_ENV !== 'test') {
     console.log(`Lumina API na porta ${env.PORT}`);
     startJobs();
     startRadarJobs();
+    startLuminaOneJobs();
   });
   const shutdown = () => {
     console.log('[servidor] a fechar');

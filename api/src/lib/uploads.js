@@ -26,7 +26,9 @@ export async function uploadReferenceCount(url, query = q) {
        (SELECT count(*) FROM moments       WHERE media_url = $1) +
        (SELECT count(*) FROM messages      WHERE media_url = $1) +
        (SELECT count(*) FROM rooms         WHERE image_url = $1) +
-       (SELECT count(*) FROM room_messages WHERE media_url = $1)
+       (SELECT count(*) FROM room_messages WHERE media_url = $1) +
+       (SELECT count(*) FROM lumes         WHERE media_url = $1) +
+       (SELECT count(*) FROM capsule_items WHERE media_url = $1)
      )::int AS n`,
     [url]
   );

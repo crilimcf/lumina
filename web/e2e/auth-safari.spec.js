@@ -19,8 +19,8 @@ test('criar conta, sair e voltar a entrar funciona em Mobile Safari', async ({ p
 
   await expect(page.getByText('Bem-vindo à Lumina')).toBeVisible();
   await page.getByRole('button', { name: 'Entendido, vamos lá' }).click();
-  await expect(page.getByRole('button', { name: 'Ir para o Feed' })).toBeVisible();
-  await page.getByRole('button', { name: 'Ir para o Feed' }).click();
+  await expect(page.getByRole('button', { name: 'Entrar no Feed' })).toBeVisible();
+  await page.getByRole('button', { name: 'Entrar no Feed' }).click();
   await expect(page.getByRole('button', { name: 'Perfil' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Perfil' }).click();
@@ -32,7 +32,7 @@ test('criar conta, sair e voltar a entrar funciona em Mobile Safari', async ({ p
   await page.getByRole('button', { name: 'Entrar' }).click();
 
   await expect(page.getByText('Olá, Safari')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Ir para o Feed' })).toBeVisible();
-  await page.getByRole('button', { name: 'Ir para o Feed' }).click();
+  await expect(page.getByRole('button', { name: 'Entrar no Feed' })).toBeVisible();
+  await page.getByRole('button', { name: 'Entrar no Feed' }).click();
   await expect(page.getByRole('button', { name: 'Perfil' })).toBeVisible();
 });

@@ -112,7 +112,8 @@
 
 .room-composer-wrap {
   flex: 0 0 auto;
-  padding: 8px 10px max(9px, env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  padding: 8px 10px max(26px, calc(env(safe-area-inset-bottom) + 8px)) !important;
   border-top: 1px solid rgba(255,255,255,.07);
   background: rgba(10,13,25,.96);
   -webkit-backdrop-filter: blur(22px) saturate(140%);

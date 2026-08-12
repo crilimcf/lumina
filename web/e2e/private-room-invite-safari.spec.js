@@ -18,8 +18,8 @@ async function registerAndEnterFeed(page, label) {
   await page.locator('input[type="checkbox"]').check();
   await page.getByRole('button', { name: 'Criar conta' }).click();
   await page.getByRole('button', { name: 'Entendido, vamos lá' }).click();
-  await expect(page.getByRole('button', { name: 'Ir para o Feed' })).toBeVisible();
-  await page.getByRole('button', { name: 'Ir para o Feed' }).click();
+  await expect(page.getByRole('button', { name: 'Entrar no Feed' })).toBeVisible();
+  await page.getByRole('button', { name: 'Entrar no Feed' }).click();
   await expect(page.getByRole('button', { name: 'Perfil' })).toBeVisible();
   return { handle, email };
 }
@@ -35,7 +35,7 @@ async function login(page, email, firstName) {
   await page.getByPlaceholder('Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page.getByText(`Olá, ${firstName}`)).toBeVisible();
-  await page.getByRole('button', { name: 'Ir para o Feed' }).click();
+  await page.getByRole('button', { name: 'Entrar no Feed' }).click();
 }
 
 test('Sala privada fica invisível sem convite e entra pelo convite em Mobile Safari', async ({ page }) => {

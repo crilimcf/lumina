@@ -15,7 +15,7 @@ async function openLumina(page) {
   await page.locator('input[type="checkbox"]').check();
   await page.getByRole('button', { name: 'Criar conta' }).click();
   await page.getByRole('button', { name: 'Entendido, vamos lá' }).click();
-  await page.getByRole('button', { name: 'Ir para o Feed' }).click();
+  await page.getByRole('button', { name: 'Entrar no Feed' }).click();
   await expect(page.getByRole('button', { name: 'Novo' })).toBeVisible();
 }
 

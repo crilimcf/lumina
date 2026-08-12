@@ -23,8 +23,8 @@ async function registerFromUI(page) {
 
 async function enterFeed(page) {
   await page.getByRole('button', { name: 'Entendido, vamos lá' }).click();
-  await expect(page.getByRole('button', { name: 'Ir para o Feed' })).toBeVisible();
-  await page.getByRole('button', { name: 'Ir para o Feed' }).click();
+  await expect(page.getByRole('button', { name: 'Entrar no Feed' })).toBeVisible();
+  await page.getByRole('button', { name: 'Entrar no Feed' }).click();
   await expect(page.getByRole('button', { name: 'Novo' })).toBeVisible();
 }
 
@@ -60,7 +60,7 @@ test('registo, reload e publicação direta funcionam em Mobile Safari', async (
 
   await page.reload();
   await expect(page.getByText('Olá, Safari')).toBeVisible();
-  await page.getByRole('button', { name: 'Ir para o Feed' }).click();
+  await page.getByRole('button', { name: 'Entrar no Feed' }).click();
   await expect(page.locator('article').filter({ hasText: publishedText })).toBeVisible();
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

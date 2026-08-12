@@ -13,7 +13,7 @@ const DETAILS = [
   ['Cápsulas', 'Álbuns/memórias colaborativos que podem ficar fechados até uma data escolhida.'],
   ['Agora', 'Controla temas, contexto e zona. Estas escolhas ajudam a ordenar o Pulso e o Radar Local.'],
   ['Radar Local', 'Usa a tua cidade, detetada com permissão ou escrita manualmente, para procurar conteúdo associado à zona.'],
-  ['Juntos', 'No Pulso ou Radar, toca em Juntos para abrir uma sessão partilhada e sincronizada.'],
+  ['Juntos', 'Escolhe um conteúdo no Pulso ou Radar, cria uma sessão e envia o convite. Quem entrar vê o mesmo conteúdo contigo.'],
 ];
 
 function element(tag, className, text) {
@@ -87,8 +87,18 @@ function setReactInputValue(input, value) {
   input.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
+function setNativeInputValue(input, value) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  if (setter) setter.call(input, value);
+  else input.value = value;
+}
+
+function isStandaloneWebApp() {
+  return Boolean(window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone);
+}
+
 function geolocationErrorMessage(error) {
-  if (error?.code === 1) return 'Localização bloqueada. Autoriza a Lumina nas definições do iPhone ou escreve a cidade manualmente.';
+  if (error?.code === 1) return 'O iPhone bloqueou a localização deste site. Podes corrigir abaixo ou escrever a cidade manualmente.';
   if (error?.code === 2) return 'Não foi possível obter a localização agora. Experimenta novamente ou escreve a cidade.';
   if (error?.code === 3) return 'A localização demorou demasiado. Experimenta novamente ou escreve a cidade.';
   return 'Não foi possível obter a localização. Podes continuar a escrever a cidade manualmente.';
@@ -125,17 +135,54 @@ function ensureLocation(root) {
   if (!settings || !input || !label || settings.querySelector('.one-auto-location')) return;
 
   const box = element('div', 'one-auto-location');
-  const button = element('button', '', '◎ Usar a minha localização');
+  const button = element('button', 'one-location-button', '◎ Usar a minha localização');
   button.type = 'button';
   const privacy = element('small', '', 'Só pedimos a localização quando tocares aqui. A Lumina usa-a para identificar a cidade; latitude e longitude não ficam guardadas na tua conta.');
   const status = element('div', 'one-location-status', 'Também podes continuar a escrever a cidade manualmente.');
   status.setAttribute('role', 'status');
   status.setAttribute('aria-live', 'polite');
-  box.append(button, privacy, status);
+
+  const recovery = element('div', 'one-location-recovery');
+  recovery.hidden = true;
+  recovery.append(
+    element('b', '', 'No iPhone, a permissão é do site — não procures “Lumina” na lista de apps.'),
+    element('p', '', 'A Lumina instalada no ecrã principal é um web app. Se o site ficou bloqueado, abre-o no Safari e altera a permissão específica do site.'),
+  );
+  const steps = element('ol', '');
+  for (const step of [
+    'Abre a Lumina no Safari pelo botão abaixo.',
+    'No Safari, abre o menu da página e entra em Definições do Site.',
+    'Em Localização escolhe Permitir (ou Perguntar), volta à Lumina e tenta novamente.',
+  ]) steps.append(element('li', '', step));
+  recovery.append(steps);
+
+  const safariLink = element('a', 'one-location-safari', 'Abrir Lumina no Safari para autorizar');
+  const safariUrl = new URL(window.location.origin);
+  safariUrl.searchParams.set('one', 'agora');
+  safariLink.href = safariUrl.toString();
+  safariLink.target = '_blank';
+  safariLink.rel = 'noopener';
+  recovery.append(safariLink);
+
+  if (isStandaloneWebApp()) {
+    recovery.append(element('small', 'one-location-webapp-note', 'Depois de autorizares o site no Safari, fecha esta janela, volta à Lumina instalada e toca em “Tentar localização novamente”.'));
+  }
+
+  box.append(button, privacy, status, recovery);
   label.insertAdjacentElement('afterend', box);
+
+  const showRecovery = () => {
+    recovery.hidden = false;
+    box.classList.add('is-blocked');
+  };
+  const hideRecovery = () => {
+    recovery.hidden = true;
+    box.classList.remove('is-blocked');
+  };
 
   button.addEventListener('click', () => {
     status.className = 'one-location-status';
+    hideRecovery();
     if (!navigator.geolocation) {
       status.classList.add('is-error');
       status.textContent = 'Este dispositivo não disponibiliza localização. Escreve a cidade manualmente.';
@@ -163,10 +210,132 @@ function ensureLocation(root) {
     }, error => {
       status.classList.add('is-error');
       status.textContent = geolocationErrorMessage(error);
+      if (error?.code === 1) showRecovery();
       button.disabled = false;
       button.textContent = '◎ Tentar localização novamente';
     }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
   });
+}
+
+function togetherSourceLabel(value) {
+  const source = String(value || '').toLowerCase();
+  if (source === 'post') return 'Publicação';
+  if (source === 'radar') return 'Radar';
+  if (source === 'live') return 'Direto';
+  return 'Conteúdo';
+}
+
+function togetherInviteId(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return '';
+  try {
+    const url = new URL(value, window.location.origin);
+    if (url.searchParams.get('one') === 'together' && url.searchParams.get('id')) return url.searchParams.get('id').trim();
+  } catch {}
+  const match = value.match(/[?&]id=([^&#\s]+)/i);
+  if (match) {
+    try { return decodeURIComponent(match[1]).trim(); } catch { return match[1].trim(); }
+  }
+  return value;
+}
+
+function clickOneTab(root, label) {
+  const button = [...root.querySelectorAll('.one-tabs button')].find(node => node.textContent?.trim().includes(label));
+  button?.click();
+}
+
+function scrollToRadar(root) {
+  const section = [...root.querySelectorAll('.one-agora-page > section')].find(node => node.querySelector('.one-section-head span')?.textContent?.trim() === 'RADAR LOCAL');
+  section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function ensureTogether(root) {
+  const section = root.querySelector('.one-juntos-section');
+  if (!section) return;
+
+  const headTitle = section.querySelector('.one-section-head b');
+  if (headTitle && headTitle.textContent !== 'Vê e reage com amigos') headTitle.textContent = 'Vê e reage com amigos';
+
+  const join = section.querySelector('.one-join');
+  if (!join) return;
+
+  if (!section.querySelector('.one-juntos-intro')) {
+    const intro = element('div', 'one-juntos-intro');
+    intro.append(
+      element('b', '', 'O que é o Juntos?'),
+      element('p', '', 'Abres uma publicação, vídeo ou item do Radar com amigos. Se for vídeo, todos acompanham a mesma reprodução do anfitrião.'),
+    );
+    const steps = element('div', 'one-juntos-steps');
+    for (const [number, text] of [
+      ['1', 'Escolhe algo no Pulso ou Radar'],
+      ['2', 'Toca em Juntos nesse conteúdo'],
+      ['3', 'Partilha o convite com os teus amigos'],
+    ]) {
+      const row = element('div', '');
+      row.append(element('span', '', number), element('b', '', text));
+      steps.append(row);
+    }
+    const actions = element('div', 'one-juntos-actions');
+    const pulse = element('button', 'is-primary', 'Escolher no Pulso');
+    pulse.type = 'button';
+    pulse.addEventListener('click', () => clickOneTab(root, 'Pulso'));
+    const radar = element('button', '', 'Ver Radar Local');
+    radar.type = 'button';
+    radar.addEventListener('click', () => scrollToRadar(root));
+    actions.append(pulse, radar);
+    intro.append(steps, actions);
+    section.querySelector('.one-section-head')?.insertAdjacentElement('afterend', intro);
+  }
+
+  if (!join.querySelector('.one-join-copy')) {
+    const copy = element('div', 'one-join-copy');
+    copy.append(element('b', '', 'Recebeste um convite?'), element('span', '', 'Cola aqui o link que te enviaram. Não precisas de saber nenhum código.'));
+    join.prepend(copy);
+  }
+
+  const input = join.querySelector('input');
+  const button = join.querySelector('button');
+  if (input) {
+    input.placeholder = 'Cola o link do convite';
+    input.setAttribute('aria-label', 'Link do convite Juntos');
+    if (!input.dataset.inviteAssist) {
+      input.dataset.inviteAssist = '1';
+      input.addEventListener('input', () => {
+        const normalized = togetherInviteId(input.value);
+        if (normalized && normalized !== input.value && /^https?:/i.test(input.value.trim())) setNativeInputValue(input, normalized);
+      });
+      input.addEventListener('paste', event => {
+        const pasted = event.clipboardData?.getData('text') || '';
+        const normalized = togetherInviteId(pasted);
+        if (!normalized || normalized === pasted.trim()) return;
+        event.preventDefault();
+        setReactInputValue(input, normalized);
+      });
+    }
+  }
+  if (button && button.textContent !== 'Entrar com convite') button.textContent = 'Entrar com convite';
+  join.classList.add('is-assisted');
+
+  const list = section.querySelector('.one-together-list');
+  if (list) {
+    const rows = [...list.querySelectorAll(':scope > button')];
+    let title = section.querySelector('.one-together-active-title');
+    if (rows.length && !title) {
+      title = element('b', 'one-together-active-title', 'As tuas sessões');
+      list.insertAdjacentElement('beforebegin', title);
+    } else if (!rows.length && title) title.remove();
+
+    for (const row of rows) {
+      const meta = row.querySelector('section span');
+      if (!meta) continue;
+      const match = meta.textContent.match(/^(\d+)\s+juntos\s+·\s+(.+)$/i);
+      if (match) meta.textContent = `${match[1]} ${Number(match[1]) === 1 ? 'pessoa' : 'pessoas'} · ${togetherSourceLabel(match[2])}`;
+    }
+  }
+
+  const empty = [...section.querySelectorAll('.one-state')].find(node => node.parentElement === section);
+  const emptyCopy = 'Ainda não tens sessões ativas. Escolhe algo no Pulso ou Radar e toca em Juntos para começar.';
+  if (empty && empty.textContent !== emptyCopy) empty.textContent = emptyCopy;
 }
 
 let scheduled = false;
@@ -175,6 +344,7 @@ function enhance() {
   if (!root) return;
   ensureGuide(root);
   ensureLocation(root);
+  ensureTogether(root);
 }
 
 function scheduleEnhance() {

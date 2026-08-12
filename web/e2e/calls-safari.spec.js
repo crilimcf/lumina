@@ -65,7 +65,7 @@ test('chamada aberta pelo deep-link do push chega ao destinatário em Mobile Saf
   expect(callee.id).toBeTruthy();
 
   await page.getByRole('button', { name:'Entendido, vamos lá' }).click();
-  await page.getByRole('button', { name:'Ir para o Feed' }).click();
+  await page.getByRole('button', { name:'Entrar no Feed' }).click();
   await expect(page.getByRole('button', { name:'Novo' })).toBeVisible();
 
   const authHeaders = {

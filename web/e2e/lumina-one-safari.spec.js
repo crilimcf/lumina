@@ -21,12 +21,16 @@ async function register(page, label) {
   return handle;
 }
 
+async function openOne(page) {
+  const entry = page.locator('.one-v3-feed-entry');
+  await expect(entry).toBeVisible();
+  await entry.click();
+  await expect(page.locator('.lumina-one.one-v3')).toBeVisible();
+}
+
 test('Lumina One abre do Feed e mantém a experiência dentro da app', async ({ page }) => {
   await register(page, 'oneopen');
-
-  const launcher = page.getByRole('button', { name: 'Abrir Lumina One' });
-  await expect(launcher).toBeVisible();
-  await launcher.click();
+  await openOne(page);
 
   await expect(page.getByText('Tudo ligado.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Pulso', exact: true })).toBeVisible();
@@ -38,12 +42,12 @@ test('Lumina One abre do Feed e mantém a experiência dentro da app', async ({ 
   expect(overflow).toBeLessThanOrEqual(1);
 
   await page.getByRole('button', { name: 'Voltar ao Feed' }).click();
-  await expect(page.getByRole('button', { name: 'Abrir Lumina One' })).toBeVisible();
+  await expect(page.locator('.one-v3-feed-entry')).toBeVisible();
 });
 
 test('Cápsulas cria e guarda uma memória sem sair da Lumina', async ({ page }) => {
   await register(page, 'onecapsule');
-  await page.getByRole('button', { name: 'Abrir Lumina One' }).click();
+  await openOne(page);
   await page.getByRole('button', { name: 'Cápsulas', exact: true }).click();
 
   await page.getByRole('button', { name: /Nova Cápsula/ }).click();
@@ -62,7 +66,7 @@ test('Cápsulas cria e guarda uma memória sem sair da Lumina', async ({ page })
 
 test('Agora permite afinar algoritmo e Radar Local no iPhone', async ({ page }) => {
   await register(page, 'oneagora');
-  await page.getByRole('button', { name: 'Abrir Lumina One' }).click();
+  await openOne(page);
   await page.getByRole('button', { name: 'Agora', exact: true }).click();
 
   await expect(page.getByText('A rede adapta-se')).toBeVisible();

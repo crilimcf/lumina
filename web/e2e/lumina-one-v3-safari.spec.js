@@ -105,7 +105,7 @@ test('GPS recusado preserva a cidade manual e não chama fallback IP', async ({ 
   await page.getByRole('button', { name:'Guardar e adaptar a Lumina' }).click();
   await page.getByRole('button', { name:'Detetar localização do iPhone' }).click();
   await expect(input).toHaveValue('Bragança');
-  await expect(page.locator('.one-v3-location-status')).toContainText('Mantive a tua cidade confirmada');
+  await expect(page.locator('.one-v3-location-status')).toContainText('Mantive Bragança');
   expect(edgeCalls).toBe(0);
 });
 

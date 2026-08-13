@@ -1,5 +1,4 @@
 import 'dotenv/config';
-import './routes/passkeys-auth-extension.js';
 
 function required(name) {
   const v = process.env[name];

@@ -54,6 +54,15 @@ test('passkey button can authenticate without email or password', async ({ page 
   await page.goto('/');
   const button = page.getByRole('button', { name:/Entrar com (Face ID|biometria \/ PIN|passkey)/ });
   await expect(button).toBeVisible({ timeout:8000 });
+
+  const visual = await button.locator(':scope > span').evaluate(el => {
+    const style = getComputedStyle(el);
+    return { color:style.color, backgroundImage:style.backgroundImage, height:el.getBoundingClientRect().height };
+  });
+  expect(visual.color).toBe('rgb(255, 255, 255)');
+  expect(visual.backgroundImage).toContain('linear-gradient');
+  expect(visual.height).toBeGreaterThanOrEqual(50);
+
   await button.click();
   await expect.poll(() => assertionSeen).toBe(true);
 });

@@ -11,6 +11,16 @@ const mount = (host, node) => {
   root.render(node);
 };
 
+function securityShell() {
+  const legacy = document.querySelector('.lumina-legacy-security');
+  if (legacy) return legacy.querySelector('div[style*="max-width"]') || legacy;
+
+  const heading = [...document.querySelectorAll('h2.d')].find(el =>
+    el.textContent.replace(/\s/g, '').toLocaleLowerCase('pt-PT').includes('segurança')
+  );
+  return heading?.parentElement || null;
+}
+
 function decorate() {
   const form = document.querySelector('.lumina-auth form.auth-card');
   if (form && !form.querySelector('[data-passkey-react]')) {
@@ -20,9 +30,8 @@ function decorate() {
     mount(host, <PasskeyLogin onIn={() => window.location.reload()} />);
   }
 
-  const security = document.querySelector('.lumina-legacy-security');
-  if (security && !security.querySelector('[data-passkey-react="setup"]')) {
-    const shell = security.querySelector('div[style*="max-width"]') || security;
+  const shell = securityShell();
+  if (shell && !shell.querySelector('[data-passkey-react="setup"]')) {
     const host = document.createElement('div');
     host.dataset.passkeyReact = 'setup';
     shell.querySelector('.card')?.insertAdjacentElement('beforebegin', host);

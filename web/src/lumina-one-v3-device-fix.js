@@ -1,7 +1,5 @@
 const REGION_KEY = 'lumina-one-confirmed-region-v3';
 const nativeFetch = window.fetch.bind(window);
-let csrfToken = '';
-let csrfFetchedAt = 0;
 let csrfFlight = null;
 
 function isTogetherMutation(input, init = {}) {
@@ -14,19 +12,27 @@ function isTogetherMutation(input, init = {}) {
     && !['GET', 'HEAD', 'OPTIONS'].includes(method);
 }
 
-async function loadCsrf(force = false) {
-  if (!force && csrfToken && Date.now() - csrfFetchedAt < 10 * 60_000) return csrfToken;
-  if (!force && csrfFlight) return csrfFlight;
-  csrfFlight = nativeFetch('/api/auth/me', {
+/**
+ * Juntos is created by the v3 runtime with a direct fetch instead of api.js.
+ * Always request the CSRF bound to the cookie that is active *right now*.
+ * A cache-busting query avoids a stale personalized /auth/me response at an edge.
+ */
+async function loadFreshCsrf() {
+  if (csrfFlight) return csrfFlight;
+  const url = new URL('/api/auth/me', window.location.origin);
+  url.searchParams.set('__csrf_refresh', `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  csrfFlight = nativeFetch(url.toString(), {
     credentials: 'include',
     cache: 'no-store',
-    headers: { Accept: 'application/json' },
+    headers: {
+      Accept: 'application/json',
+      'cache-control': 'no-cache',
+      Pragma: 'no-cache',
+    },
   }).then(async response => {
     const body = await response.json().catch(() => ({}));
     if (!response.ok || !body?.csrf) throw new Error(body?.error || 'Sessão inválida');
-    csrfToken = String(body.csrf);
-    csrfFetchedAt = Date.now();
-    return csrfToken;
+    return String(body.csrf);
   }).finally(() => { csrfFlight = null; });
   return csrfFlight;
 }
@@ -35,23 +41,31 @@ function withCsrfHeaders(input, init, token) {
   const headers = new Headers(input instanceof Request ? input.headers : undefined);
   new Headers(init?.headers || {}).forEach((value, key) => headers.set(key, value));
   headers.set('x-csrf-token', token);
+  headers.set('cache-control', 'no-cache');
   return headers;
+}
+
+async function sendTogetherMutation(input, init) {
+  const token = await loadFreshCsrf();
+  const headers = withCsrfHeaders(input, init, token);
+  if (input instanceof Request) {
+    return nativeFetch(new Request(input, { ...init, headers, credentials: init.credentials || input.credentials || 'include' }));
+  }
+  return nativeFetch(input, { ...init, headers, credentials: init.credentials || 'include' });
 }
 
 window.fetch = async function luminaFetch(input, init = {}) {
   if (!isTogetherMutation(input, init)) return nativeFetch(input, init);
 
-  const send = async (forceRefresh = false) => {
-    const token = await loadCsrf(forceRefresh);
-    const headers = withCsrfHeaders(input, init, token);
-    if (input instanceof Request) {
-      return nativeFetch(new Request(input, { ...init, headers }));
-    }
-    return nativeFetch(input, { ...init, headers });
-  };
+  let response = await sendTogetherMutation(input, init);
+  if (response.status !== 403) return response;
 
-  let response = await send(false);
-  if (response.status === 403) response = await send(true);
+  const firstError = await response.clone().json().catch(() => ({}));
+  if (firstError?.code && firstError.code !== 'csrf') return response;
+
+  // The session may have rotated between /auth/me and the POST (another tab,
+  // login refresh, password change, etc.). Fetch once more and replay once.
+  response = await sendTogetherMutation(input, init);
   return response;
 };
 
@@ -66,12 +80,21 @@ function setReactInputValue(input, value) {
   input.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
+function locationError(code, message, extra = {}) {
+  const error = new Error(message);
+  error.code = code;
+  Object.assign(error, extra);
+  return error;
+}
+
 function requestPosition(options) {
   return new Promise((resolve, reject) => {
+    if (!window.isSecureContext) {
+      reject(locationError(6, 'A página não está num contexto seguro'));
+      return;
+    }
     if (!navigator.geolocation?.getCurrentPosition) {
-      const error = new Error('Geolocalização indisponível');
-      error.code = 0;
-      reject(error);
+      reject(locationError(0, 'Geolocalização indisponível'));
       return;
     }
     navigator.geolocation.getCurrentPosition(resolve, reject, options);
@@ -82,7 +105,21 @@ function positionAccuracy(position) {
   return Number(position?.coords?.accuracy || Infinity);
 }
 
-function refinePosition(seed, timeoutMs = 4000) {
+function positionAge(position) {
+  const stamp = Number(position?.timestamp || 0);
+  return stamp > 0 ? Math.max(0, Date.now() - stamp) : Infinity;
+}
+
+function betterPosition(a, b) {
+  if (!a) return b || null;
+  if (!b) return a;
+  const aAccuracy = positionAccuracy(a);
+  const bAccuracy = positionAccuracy(b);
+  if (Math.abs(aAccuracy - bAccuracy) > 250) return aAccuracy <= bAccuracy ? a : b;
+  return positionAge(a) <= positionAge(b) ? a : b;
+}
+
+function refinePosition(seed, timeoutMs = 5000) {
   return new Promise(resolve => {
     if (!navigator.geolocation?.watchPosition) return resolve(seed);
     let best = seed || null;
@@ -97,8 +134,8 @@ function refinePosition(seed, timeoutMs = 4000) {
     };
     const timer = setTimeout(finish, timeoutMs);
     watchId = navigator.geolocation.watchPosition(position => {
-      if (!best || positionAccuracy(position) < positionAccuracy(best)) best = position;
-      if (positionAccuracy(best) <= 1000) finish();
+      best = betterPosition(best, position);
+      if (positionAccuracy(best) <= 900) finish();
     }, () => finish(), {
       enableHighAccuracy: true,
       maximumAge: 0,
@@ -107,39 +144,77 @@ function refinePosition(seed, timeoutMs = 4000) {
   });
 }
 
-async function acquireDevicePosition() {
-  let first = null;
-  let firstError = null;
+async function geolocationPermissionDenied() {
   try {
-    first = await requestPosition({ enableHighAccuracy: true, maximumAge: 0, timeout: 10_000 });
-  } catch (error) {
-    firstError = error;
-    if (Number(error?.code) === 1) throw error;
+    if (!navigator.permissions?.query) return false;
+    const state = await navigator.permissions.query({ name: 'geolocation' });
+    return state?.state === 'denied';
+  } catch {
+    return false;
+  }
+}
+
+async function acquireDevicePosition() {
+  if (await geolocationPermissionDenied()) {
+    throw locationError(1, 'Permissão de localização bloqueada');
   }
 
-  if (!first) {
+  let cached = null;
+  let fresh = null;
+  let firstError = null;
+
+  // iOS often has a recent system fix available even when a new high-accuracy
+  // request takes too long indoors. Use it as a seed instead of throwing it away.
+  try {
+    cached = await requestPosition({
+      enableHighAccuracy: false,
+      maximumAge: 10 * 60_000,
+      timeout: 3500,
+    });
+    if (positionAccuracy(cached) <= 10_000) return cached;
+  } catch (error) {
+    firstError = error;
+    if (Number(error?.code) === 1 || Number(error?.code) === 6) throw error;
+  }
+
+  try {
+    fresh = await requestPosition({
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 12_000,
+    });
+  } catch (error) {
+    if (Number(error?.code) === 1 || Number(error?.code) === 6) throw error;
+    firstError ||= error;
+  }
+
+  let best = betterPosition(cached, fresh);
+
+  if (!best) {
     try {
-      first = await requestPosition({ enableHighAccuracy: false, maximumAge: 60_000, timeout: 7_000 });
+      best = await requestPosition({
+        enableHighAccuracy: false,
+        maximumAge: 10 * 60_000,
+        timeout: 8000,
+      });
     } catch (error) {
-      if (Number(error?.code) === 1) throw error;
+      if (Number(error?.code) === 1 || Number(error?.code) === 6) throw error;
       throw firstError || error;
     }
   }
 
-  const refined = positionAccuracy(first) <= 1000 ? first : await refinePosition(first, 4000);
-  const accuracy = positionAccuracy(refined);
-  if (!Number.isFinite(accuracy) || accuracy > 15_000) {
-    const error = new Error('Localização demasiado imprecisa');
-    error.code = 4;
-    error.accuracy = accuracy;
-    throw error;
+  if (positionAccuracy(best) > 1000) best = await refinePosition(best, 5000);
+
+  const accuracy = positionAccuracy(best);
+  if (!Number.isFinite(accuracy) || accuracy > 30_000) {
+    throw locationError(4, 'Localização demasiado imprecisa', { accuracy });
   }
-  return refined;
+  return best;
 }
 
 async function reverseGeocode(latitude, longitude) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 9000);
+  const timer = setTimeout(() => controller.abort(), 10_000);
   try {
     const url = new URL('https://nominatim.openstreetmap.org/reverse');
     url.searchParams.set('format', 'jsonv2');
@@ -148,28 +223,51 @@ async function reverseGeocode(latitude, longitude) {
     url.searchParams.set('zoom', '10');
     url.searchParams.set('addressdetails', '1');
     url.searchParams.set('accept-language', 'pt-PT,pt');
-    const response = await nativeFetch(url, { signal: controller.signal, headers: { Accept: 'application/json' } });
-    if (!response.ok) throw new Error(`reverse_${response.status}`);
+    const response = await nativeFetch(url, {
+      signal: controller.signal,
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) throw locationError(5, `reverse_${response.status}`);
     const data = await response.json();
     const address = data?.address || {};
     const city = address.city || address.town || address.village || address.municipality || address.county || address.state;
-    if (!city) throw new Error('reverse_no_city');
+    if (!city) throw locationError(5, 'reverse_no_city');
     return String(city).trim().slice(0, 80);
+  } catch (error) {
+    if (Number(error?.code) === 5) throw error;
+    throw locationError(5, error?.name === 'AbortError' ? 'reverse_timeout' : 'reverse_failed');
   } finally {
     clearTimeout(timer);
   }
 }
 
+function normalizeRegion(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function regionsAgree(a, b) {
+  const left = normalizeRegion(a);
+  const right = normalizeRegion(b);
+  if (!left || !right) return false;
+  return left === right || left.includes(right) || right.includes(left);
+}
+
 function decorateLocation() {
   document.querySelectorAll('.one-v3-location').forEach(location => {
-    if (location.dataset.deviceFix === '1') return;
-    location.dataset.deviceFix = '1';
+    if (location.dataset.deviceFix === '2') return;
+    location.dataset.deviceFix = '2';
     const copy = location.querySelector('.one-v3-location-copy');
     const button = location.querySelector('.one-v3-location-button');
-    if (copy) copy.innerHTML = '<span>LOCALIZAÇÃO</span><b>A tua cidade, confirmada pelo iPhone</b><small>Usamos a localização do sistema. Se estiver indisponível, mantemos a cidade escolhida por ti — nunca a trocamos por uma estimativa de Wi‑Fi/4G.</small>';
+    if (copy) copy.innerHTML = '<span>LOCALIZAÇÃO</span><b>Detetar a tua cidade pelo iPhone</b><small>Primeiro usamos uma posição recente do sistema e, se necessário, afinamos a precisão. Uma leitura grosseira nunca substitui uma cidade que já confirmaste.</small>';
     if (button) {
       button.textContent = 'Detetar onde estou';
-      button.setAttribute('aria-label', 'Usar GPS preciso');
+      button.setAttribute('aria-label', 'Detetar localização do iPhone');
     }
   });
 }
@@ -184,31 +282,61 @@ async function handleLocation(button) {
   button.disabled = true;
   button.textContent = 'A pedir localização ao iPhone…';
   status.className = 'one-v3-location-status';
-  status.textContent = 'A obter a posição do sistema. Não usamos a cidade aproximada da operadora como substituição.';
+  status.textContent = 'A procurar uma posição recente e, se necessário, a pedir uma posição mais precisa.';
+
+  const preferred = input.value.trim() || localStorage.getItem(REGION_KEY) || '';
 
   try {
     const position = await acquireDevicePosition();
     const accuracy = Math.round(positionAccuracy(position));
-    const city = await reverseGeocode(position.coords.latitude, position.coords.longitude);
+
+    let city;
+    try {
+      city = await reverseGeocode(position.coords.latitude, position.coords.longitude);
+    } catch (error) {
+      if (Number(error?.code) === 5) {
+        throw locationError(5, 'Não foi possível converter a posição numa cidade', { accuracy });
+      }
+      throw error;
+    }
+
+    // A coarse iOS position can occasionally point to a neighbouring city.
+    // If the user already confirmed one, only trust >15 km accuracy when both agree.
+    if (accuracy > 15_000 && (!preferred || !regionsAgree(city, preferred))) {
+      throw locationError(4, 'Localização demasiado imprecisa', { accuracy, city });
+    }
+
     setReactInputValue(input, city);
     status.className = 'one-v3-location-status is-ok';
-    status.textContent = `${city} detetada por GPS/localização do iPhone${accuracy ? ` · precisão ~${accuracy} m` : ''}. Confirma em “Guardar e adaptar a Lumina”.`;
+    status.textContent = `${city} detetada pela localização do iPhone${accuracy ? ` · precisão ~${accuracy} m` : ''}. Confirma em “Guardar e adaptar a Lumina”.`;
     input.focus({ preventScroll: true });
   } catch (error) {
-    const preferred = input.value.trim() || localStorage.getItem(REGION_KEY) || '';
     status.className = 'one-v3-location-status is-warn';
-    if (Number(error?.code) === 1) {
+    const code = Number(error?.code);
+    if (code === 1) {
       status.textContent = preferred
-        ? `O iPhone não deu acesso à localização nesta sessão. Mantive ${preferred}.`
-        : 'O iPhone não deu acesso à localização nesta sessão. Podes escrever a tua cidade acima.';
-    } else if (Number(error?.code) === 4) {
+        ? `A localização está bloqueada para a Lumina no iPhone. Mantive ${preferred}. Ativa Localização para a Lumina/Safari nas Definições e tenta novamente.`
+        : 'A localização está bloqueada para a Lumina no iPhone. Ativa Localização para a Lumina/Safari nas Definições e tenta novamente.';
+    } else if (code === 3) {
       status.textContent = preferred
-        ? `A localização recebida estava demasiado imprecisa. Mantive ${preferred} para não indicar uma cidade errada.`
-        : 'A localização recebida estava demasiado imprecisa. Escreve a tua cidade para evitar uma indicação errada.';
+        ? `O iPhone demorou demasiado a obter uma posição. Mantive ${preferred}. Tenta novamente junto a uma janela ou no exterior.`
+        : 'O iPhone demorou demasiado a obter uma posição. Tenta novamente junto a uma janela ou no exterior.';
+    } else if (code === 4) {
+      status.textContent = preferred
+        ? `Recebi uma localização demasiado imprecisa para trocar ${preferred}. Mantive a tua cidade confirmada.`
+        : 'Recebi uma localização demasiado imprecisa para escolher a tua cidade com segurança.';
+    } else if (code === 5) {
+      status.textContent = preferred
+        ? `O iPhone deu uma posição, mas não consegui convertê-la numa cidade. Mantive ${preferred}.`
+        : 'O iPhone deu uma posição, mas não consegui convertê-la numa cidade. Tenta novamente.';
+    } else if (code === 6) {
+      status.textContent = preferred
+        ? `A localização só funciona numa ligação segura. Mantive ${preferred}.`
+        : 'A localização só funciona numa ligação segura (HTTPS).';
     } else {
       status.textContent = preferred
         ? `Não consegui obter a localização do iPhone. Mantive ${preferred}.`
-        : 'Não consegui obter a localização do iPhone. Escreve a tua cidade acima e tenta novamente mais tarde.';
+        : 'Não consegui obter a localização do iPhone. Confirma a permissão de localização e tenta novamente.';
     }
   } finally {
     button.disabled = false;

@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import './routes/passkeys-auth-extension.js';
 
 function required(name) {
   const v = process.env[name];
@@ -26,19 +27,12 @@ export const env = {
   S3_SECRET_KEY: process.env.S3_SECRET_KEY || '',
   S3_PUBLIC_URL: process.env.S3_PUBLIC_URL || '',
 
-  // WebRTC/TURN. As credenciais de longa duração ficam exclusivamente no backend.
-  // Cloudflare Realtime TURN é preferido: o backend troca a TURN key por
-  // credenciais curtas antes de cada chamada. TURN_URLS permite um fornecedor
-  // TURN alternativo/gerido sem recompilar o frontend.
   TURN_CLOUDFLARE_KEY_ID: process.env.TURN_CLOUDFLARE_KEY_ID || '',
   TURN_CLOUDFLARE_API_TOKEN: process.env.TURN_CLOUDFLARE_API_TOKEN || '',
   TURN_URLS: process.env.TURN_URLS || '',
   TURN_USERNAME: process.env.TURN_USERNAME || '',
   TURN_CREDENTIAL: process.env.TURN_CREDENTIAL || '',
 
-  // Lumina Live usa Amazon IVS Real-Time. Estas credenciais ficam apenas na API
-  // (Railway) e nunca são expostas ao browser. O browser recebe somente tokens
-  // temporários de participante emitidos pela API para cada Stage.
   AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID || '',
   AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY || '',
   AWS_SESSION_TOKEN: process.env.AWS_SESSION_TOKEN || '',
@@ -47,9 +41,6 @@ export const env = {
   AWS_IVS_RECORDINGS_BUCKET: process.env.AWS_IVS_RECORDINGS_BUCKET || '',
 
   FEATURE_SUBSCRIPTIONS: process.env.FEATURE_SUBSCRIPTIONS === 'true',
-
-  // Pagamentos das Salas Ultra. Sem chaves, públicas/privadas continuam a funcionar
-  // e as Ultra ficam explicitamente pendentes em vez de fingir um pagamento.
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || '',
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || '',
   ULTRA_ROOM_CREATE_CENTS: Number(process.env.ULTRA_ROOM_CREATE_CENTS || 299),

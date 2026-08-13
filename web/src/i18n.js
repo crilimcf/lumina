@@ -1,8 +1,7 @@
-import EN from './locales/en.js';
 import FR from './locales/fr.js';
 import ES from './locales/es.js';
 
-const catalogs = { pt:{}, en:EN, fr:FR, es:ES };
+const catalogs = { pt:{}, en:{}, fr:FR, es:ES };
 const locales = { pt:'pt-PT', en:'en-US', fr:'fr-FR', es:'es-ES' };
 const supported = new Set(Object.keys(catalogs));
 const preferred = [...(navigator.languages || []), navigator.language]

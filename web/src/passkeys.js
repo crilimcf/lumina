@@ -11,7 +11,7 @@ const bytesToB64u = value => {
   const bytes = new Uint8Array(value || new ArrayBuffer(0));
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btob(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 };
 
 async function jsonCall(path, { method = 'GET', body, csrf = false } = {}) {
@@ -22,10 +22,10 @@ async function jsonCall(path, { method = 'GET', body, csrf = false } = {}) {
       credentials:'include', cache:'no-store', headers:{ 'cache-control':'no-cache' },
     });
     const session = await me.json().catch(() => ({}));
-    if (!me.ok || !session?.csrf) throw new Error(session?.error || 'Sessço inválida');
+    if (!me.ok || !session?.csrf) throw new Error(session?.error || 'Sessão inválida');
     headers['x-csrf-token'] = session.csrf;
   }
-  const response = await fetch(`${BASE�${path}`, {
+  const response = await fetch(`${BASE}${path}`, {
     method, credentials:'include', cache:'no-store', headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -88,18 +88,18 @@ export const passkeyLoginLabel = () => {
 };
 
 const deviceName = () => {
-  if (/iPhone/i.test(navigator.userAgent)) return 'iPhone ´ Face ID';
+  if (/iPhone/i.test(navigator.userAgent)) return 'iPhone · Face ID';
   if (/iPad/i.test(navigator.userAgent)) return 'iPad · biometria';
   if (/Android/i.test(navigator.userAgent)) return 'Android · biometria/PIN';
-  return `${navigator.platform || 'Dispositivo'} ´ passkey`.slice(0, 80);
+  return `${navigator.platform || 'Dispositivo'} · passkey`.slice(0, 80);
 };
 
 export async function authenticateWithPasskey() {
   if (!passkeySupported()) throw new Error('Este dispositivo não suporta passkeys.');
-  const json = await jsonCall('/auth/passkeys/options');
+  const json = await jsonCall('/auth/passkey-options');
   const credential = await navigator.credentials.get({ publicKey:requestOptions(json) });
   if (!credential) throw new Error('Login por passkey cancelado.');
-  return jsonCall('/auth/passkeys/login', { method:'POST', body:{ credential:credentialToJSON(credential) } });
+  return jsonCall('/auth/login', { method:'POST', body:{ passkey:credentialToJSON(credential) } });
 }
 
 export async function registerPasskey() {

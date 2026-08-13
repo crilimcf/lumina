@@ -188,3 +188,45 @@ test('Localização imprecisa nunca substitui uma cidade confirmada', async ({ p
   await expect(input).toHaveValue('Bragança');
   await expect(page.locator('.one-v3-location-status')).toContainText('Mantive a tua cidade confirmada', { timeout: 15_000 });
 });
+
+test('Posição recente de 9 km não troca Bragança por uma cidade vizinha', async ({ page, context }) => {
+  await context.addInitScript(() => {
+    const coarse = {
+      coords: {
+        latitude: 38.7223,
+        longitude: -9.1393,
+        accuracy: 9000,
+        altitude: null,
+        altitudeAccuracy: null,
+        heading: null,
+        speed: null,
+      },
+      timestamp: Date.now(),
+    };
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition(success) { setTimeout(() => success(coarse), 0); },
+        watchPosition(success) { setTimeout(() => success(coarse), 0); return 13; },
+        clearWatch() {},
+      },
+    });
+  });
+
+  await page.route('https://nominatim.openstreetmap.org/reverse**', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ address: { city: 'Lisboa', state: 'Lisboa', country: 'Portugal' } }),
+  }));
+
+  await register(page, 'cachedcoarse');
+  await openOne(page);
+  await openTab(page, 'Agora');
+  const input = page.getByPlaceholder('Porto, Lisboa, Braga…');
+  await input.fill('Bragança');
+  await page.getByRole('button', { name: 'Guardar e adaptar a Lumina' }).click();
+  await page.getByRole('button', { name: 'Detetar localização do iPhone' }).click();
+
+  await expect(input).toHaveValue('Bragança');
+  await expect(page.locator('.one-v3-location-status')).toContainText('Mantive a tua cidade confirmada', { timeout: 20_000 });
+});

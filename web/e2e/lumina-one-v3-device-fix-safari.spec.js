@@ -30,7 +30,7 @@ async function openTab(page, name) {
   await page.locator('.one-tabs button').filter({ hasText: name }).click();
 }
 
-test('Juntos envia x-csrf-token e deixa de falhar com Pedido inválido CSRF', async ({ page }) => {
+test('Juntos renova CSRF imediatamente antes do POST e deixa de falhar', async ({ page }) => {
   const radarItem = {
     id: 'radar-device-fix-1',
     type: 'news',
@@ -60,7 +60,7 @@ test('Juntos envia x-csrf-token e deixa de falhar com Pedido inválido CSRF', as
       return route.fulfill({
         status: 403,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'Pedido inválido (CSRF)' }),
+        body: JSON.stringify({ error: 'Pedido inválido (CSRF)', code: 'csrf' }),
       });
     }
     return route.fulfill({
@@ -74,16 +74,25 @@ test('Juntos envia x-csrf-token e deixa de falhar com Pedido inválido CSRF', as
   await openOne(page);
   const discovery = page.locator('.one-v3-discovery');
   await expect(discovery).toBeVisible();
-  const togetherRequest = page.waitForRequest(request => request.method() === 'POST' && new URL(request.url()).pathname === '/api/one/together');
-  await discovery.getByRole('button', { name: 'Juntos' }).first().click();
-  const request = await togetherRequest;
 
+  const csrfRefresh = page.waitForRequest(request => {
+    const url = new URL(request.url());
+    return request.method() === 'GET'
+      && url.pathname === '/api/auth/me'
+      && url.searchParams.has('__csrf_refresh');
+  });
+  const togetherRequest = page.waitForRequest(request => request.method() === 'POST' && new URL(request.url()).pathname === '/api/one/together');
+
+  await discovery.getByRole('button', { name: 'Juntos' }).first().click();
+  const [csrfRequest, request] = await Promise.all([csrfRefresh, togetherRequest]);
+
+  expect(new URL(csrfRequest.url()).searchParams.get('__csrf_refresh')).toBeTruthy();
   expect((request.headers()['x-csrf-token'] || '').length).toBeGreaterThan(10);
   await expect(page.locator('.one-v3-together-sheet')).toBeVisible();
   await expect(page.getByText('Pedido inválido (CSRF)')).toHaveCount(0);
 });
 
-test('Localização do iPhone usa getCurrentPosition antes de refinar e deteta Bragança', async ({ page, context }) => {
+test('Localização do iPhone usa primeiro uma posição recente e deteta Bragança', async ({ page, context }) => {
   await context.addInitScript(() => {
     const position = {
       coords: {
@@ -97,11 +106,19 @@ test('Localização do iPhone usa getCurrentPosition antes de refinar e deteta B
       },
       timestamp: Date.now(),
     };
+    window.__luminaGeoCalls = [];
     Object.defineProperty(navigator, 'geolocation', {
       configurable: true,
       value: {
-        getCurrentPosition(success) { setTimeout(() => success(position), 0); },
-        watchPosition(success) { setTimeout(() => success(position), 0); return 11; },
+        getCurrentPosition(success, _error, options = {}) {
+          window.__luminaGeoCalls.push({ kind: 'current', ...options });
+          setTimeout(() => success(position), 0);
+        },
+        watchPosition(success, _error, options = {}) {
+          window.__luminaGeoCalls.push({ kind: 'watch', ...options });
+          setTimeout(() => success(position), 0);
+          return 11;
+        },
         clearWatch() {},
       },
     });
@@ -117,13 +134,20 @@ test('Localização do iPhone usa getCurrentPosition antes de refinar e deteta B
   await openOne(page);
   await openTab(page, 'Agora');
 
-  const button = page.getByRole('button', { name: 'Usar GPS preciso' });
+  const button = page.getByRole('button', { name: 'Detetar localização do iPhone' });
   await expect(button).toBeVisible();
   await button.click();
 
   const input = page.getByPlaceholder('Porto, Lisboa, Braga…');
   await expect(input).toHaveValue('Bragança');
-  await expect(page.locator('.one-v3-location-status')).toContainText('Bragança detetada por GPS/localização do iPhone');
+  await expect(page.locator('.one-v3-location-status')).toContainText('Bragança detetada pela localização do iPhone');
+
+  const calls = await page.evaluate(() => window.__luminaGeoCalls);
+  expect(calls[0]?.kind).toBe('current');
+  expect(calls[0]?.enableHighAccuracy).toBe(false);
+  expect(calls[0]?.maximumAge).toBeGreaterThan(0);
+  expect(calls.some(call => call.enableHighAccuracy === true)).toBe(false);
+
   const stored = await page.evaluate(() => JSON.stringify(Object.entries(localStorage)));
   expect(stored).not.toContain('41.8062');
   expect(stored).not.toContain('-6.7567');
@@ -159,8 +183,8 @@ test('Localização imprecisa nunca substitui uma cidade confirmada', async ({ p
   const input = page.getByPlaceholder('Porto, Lisboa, Braga…');
   await input.fill('Bragança');
   await page.getByRole('button', { name: 'Guardar e adaptar a Lumina' }).click();
-  await page.getByRole('button', { name: 'Usar GPS preciso' }).click();
+  await page.getByRole('button', { name: 'Detetar localização do iPhone' }).click();
 
   await expect(input).toHaveValue('Bragança');
-  await expect(page.locator('.one-v3-location-status')).toContainText('Mantive Bragança', { timeout: 12_000 });
+  await expect(page.locator('.one-v3-location-status')).toContainText('Mantive a tua cidade confirmada', { timeout: 15_000 });
 });

@@ -70,12 +70,12 @@ test('Radar Local usa GPS preciso para Bragança e nunca troca por cidade de red
   await register(page, 'v3gps');
   await openOne(page);
   await openTab(page, 'Agora');
-  const gps = page.getByRole('button', { name:'Usar GPS preciso' });
+  const gps = page.getByRole('button', { name:'Detetar localização do iPhone' });
   await expect(gps).toBeVisible();
   await gps.click();
   const input = page.getByPlaceholder('Porto, Lisboa, Braga…');
   await expect(input).toHaveValue('Bragança');
-  await expect(page.locator('.one-v3-location-status')).toContainText('Bragança detetada por GPS');
+  await expect(page.locator('.one-v3-location-status')).toContainText('Bragança detetada pela localização do iPhone');
   const dump = await page.evaluate(() => JSON.stringify(Object.entries(localStorage)));
   expect(dump).not.toContain('41.8062');
   expect(dump).not.toContain('-6.7567');
@@ -86,6 +86,7 @@ test('GPS recusado preserva a cidade manual e não chama fallback IP', async ({ 
     Object.defineProperty(navigator, 'geolocation', {
       configurable:true,
       value:{
+        getCurrentPosition(_success, error){ setTimeout(() => error({ code:1, message:'denied' }), 0); },
         watchPosition(_success, error){ setTimeout(() => error({ code:1, message:'denied' }), 0); return 9; },
         clearWatch() {},
       },
@@ -102,9 +103,9 @@ test('GPS recusado preserva a cidade manual e não chama fallback IP', async ({ 
   const input = page.getByPlaceholder('Porto, Lisboa, Braga…');
   await input.fill('Bragança');
   await page.getByRole('button', { name:'Guardar e adaptar a Lumina' }).click();
-  await page.getByRole('button', { name:'Usar GPS preciso' }).click();
+  await page.getByRole('button', { name:'Detetar localização do iPhone' }).click();
   await expect(input).toHaveValue('Bragança');
-  await expect(page.locator('.one-v3-location-status')).toContainText('Mantive Bragança');
+  await expect(page.locator('.one-v3-location-status')).toContainText('Mantive a tua cidade confirmada');
   expect(edgeCalls).toBe(0);
 });
 

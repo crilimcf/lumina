@@ -96,10 +96,10 @@ const deviceName = () => {
 
 export async function authenticateWithPasskey() {
   if (!passkeySupported()) throw new Error('Este dispositivo não suporta passkeys.');
-  const json = await jsonCall('/auth/passkey-options');
+  const json = await jsonCall('/auth/passkeys/options');
   const credential = await navigator.credentials.get({ publicKey:requestOptions(json) });
   if (!credential) throw new Error('Login por passkey cancelado.');
-  return jsonCall('/auth/login', { method:'POST', body:{ passkey:credentialToJSON(credential) } });
+  return jsonCall('/auth/passkeys/login', { method:'POST', body:{ credential:credentialToJSON(credential) } });
 }
 
 export async function registerPasskey() {

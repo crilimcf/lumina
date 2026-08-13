@@ -17,8 +17,10 @@ async function register(page, label) {
   await expect(page.getByText('Bem-vindo à Lumina')).toBeVisible();
   await page.getByRole('button', { name: 'Entendido, vamos lá' }).click();
   await page.getByRole('button', { name: 'Entrar no Feed' }).click();
-  await page.getByRole('button', { name: 'Abrir Lumina One' }).click();
-  await expect(page.locator('.lumina-one.one-v2')).toBeVisible();
+  const entry = page.locator('.one-v3-feed-entry');
+  await expect(entry).toBeVisible();
+  await entry.click();
+  await expect(page.locator('.lumina-one.one-v3')).toBeVisible();
   await page.locator('.one-tabs button').filter({ hasText: 'Agora' }).click();
 }
 
@@ -26,7 +28,7 @@ test('Lumina One protege a status bar e mostra a cidade como um único campo no 
   await page.setViewportSize({ width: 390, height: 844 });
   await register(page, 'realiphone');
 
-  const layout = await page.locator('.lumina-one.one-v2').evaluate(root => {
+  const layout = await page.locator('.lumina-one.one-v3').evaluate(root => {
     const shield = getComputedStyle(root, '::after');
     const tabs = root.querySelector('.one-tabs');
     const wrapper = root.querySelector('.one-region-input');
@@ -66,7 +68,7 @@ test('Lumina One protege a status bar e mostra a cidade como um único campo no 
   await expect(regionInput).toHaveValue('Bragança');
 
   await page.evaluate(() => window.scrollTo(0, 900));
-  const shieldAfterScroll = await page.locator('.lumina-one.one-v2').evaluate(root => {
+  const shieldAfterScroll = await page.locator('.lumina-one.one-v3').evaluate(root => {
     const style = getComputedStyle(root, '::after');
     return { top: style.top, position: style.position, height: parseFloat(style.height || '0') };
   });

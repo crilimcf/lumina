@@ -73,6 +73,7 @@ app.use(cookieParser());
 const CSRF_PUBLIC_PATHS = new Set([
   '/auth/login',
   '/auth/register',
+  '/auth/passkeys/login',
   '/account/forgot-password',
   '/account/reset-password',
   '/notifications/push/subscribe',
@@ -108,9 +109,9 @@ app.use(['/radar-images/:itemId', '/api/radar-images/:itemId'], rateLimit({
   legacyHeaders: false,
   skip: skipInTests,
 }));
-app.use(['/auth/login', '/api/auth/login'], rateLimit({
+app.use(['/auth/login', '/api/auth/login', '/auth/passkeys/login', '/api/auth/passkeys/login'], rateLimit({
   windowMs: 15 * 60_000, limit: 10,
-  keyGenerator: (req) => `${req.ip}:${String(req.body?.email || '').toLowerCase()}`,
+  keyGenerator: (req) => `${req.ip}:${String(req.body?.email || 'passkey').toLowerCase()}`,
   skip: skipInTests,
 }));
 app.use(['/auth/register', '/api/auth/register'], rateLimit({ windowMs: 60 * 60_000, limit: 5, skip: skipInTests }));

@@ -164,14 +164,15 @@ async function acquireDevicePosition() {
   let firstError = null;
 
   // iOS often has a recent system fix available even when a new high-accuracy
-  // request takes too long indoors. Use it as a seed instead of throwing it away.
+  // request takes too long indoors. A genuinely precise recent fix can be used
+  // immediately; anything coarser is only a seed and must still be refined.
   try {
     cached = await requestPosition({
       enableHighAccuracy: false,
       maximumAge: 10 * 60_000,
       timeout: 3500,
     });
-    if (positionAccuracy(cached) <= 10_000) return cached;
+    if (positionAccuracy(cached) <= 1000) return cached;
   } catch (error) {
     firstError = error;
     if (Number(error?.code) === 1 || Number(error?.code) === 6) throw error;
@@ -300,9 +301,11 @@ async function handleLocation(button) {
       throw error;
     }
 
-    // A coarse iOS position can occasionally point to a neighbouring city.
-    // If the user already confirmed one, only trust >15 km accuracy when both agree.
-    if (accuracy > 15_000 && (!preferred || !regionsAgree(city, preferred))) {
+    // Once the reading is coarser than city-level precision, never let a
+    // neighbouring reverse-geocoded city replace one the user confirmed.
+    // With no confirmed city, retain the stricter 15 km safety ceiling.
+    if ((preferred && accuracy > 1000 && !regionsAgree(city, preferred))
+      || (!preferred && accuracy > 15_000)) {
       throw locationError(4, 'Localização demasiado imprecisa', { accuracy, city });
     }
 

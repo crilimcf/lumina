@@ -20,7 +20,7 @@ export default defineConfig({
   projects: [
     {
       name: 'Mobile Safari',
-      use: { ...devices['iPhone 13'] },
+      use: { ...devices['iPhone 13'], locale:'pt-PT' },
     },
   ],
 });

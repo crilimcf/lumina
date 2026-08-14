@@ -5,6 +5,7 @@ import { Orb } from '../ui.jsx';
 import { Bubble } from '../components/messages/Bubble.jsx';
 import { MediaEditor } from '../components/messages/MediaEditor.jsx';
 import { Nav, TopActions } from '../components/AppChrome.jsx';
+import { locale, t, translateDynamic } from '../i18n.js';
 import '../messages-facelift.css';
 import '../interaction-polish.css';
 
@@ -25,14 +26,14 @@ export function Conversas({
   const [callPushBusy, setCallPushBusy] = useState(false);
   const [visualFrame, setVisualFrame] = useState(null);
 
-  const normalizedQuery = query.trim().toLocaleLowerCase('pt-PT');
+  const normalizedQuery = query.trim().toLocaleLowerCase(locale);
   const filteredThreads = useMemo(() => {
     if (!normalizedQuery) return threads;
-    return threads.filter(item => `${item.name || ''} ${item.handle || ''} ${item.body || ''}`.toLocaleLowerCase('pt-PT').includes(normalizedQuery));
+    return threads.filter(item => `${item.name || ''} ${item.handle || ''} ${item.body || ''}`.toLocaleLowerCase(locale).includes(normalizedQuery));
   }, [normalizedQuery, threads]);
   const filteredContacts = useMemo(() => {
     if (!normalizedQuery) return availableContacts;
-    return availableContacts.filter(item => `${item.name || ''} ${item.handle || ''}`.toLocaleLowerCase('pt-PT').includes(normalizedQuery));
+    return availableContacts.filter(item => `${item.name || ''} ${item.handle || ''}`.toLocaleLowerCase(locale).includes(normalizedQuery));
   }, [availableContacts, normalizedQuery]);
 
   useEffect(() => {
@@ -41,7 +42,12 @@ export function Conversas({
     let raf = 0;
     const sync = () => {
       cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => setVisualFrame({ top:viewport.offsetTop, height:viewport.height }));
+      raf = requestAnimationFrame(() => setVisualFrame({
+        top:viewport.offsetTop,
+        left:viewport.offsetLeft,
+        width:viewport.width,
+        height:viewport.height,
+      }));
     };
     sync();
     viewport.addEventListener('resize', sync);
@@ -89,8 +95,8 @@ export function Conversas({
       return <div className="messages-call-status is-ready">
         <span className="messages-call-status-icon"><CheckCircle2 size={17}/></span>
         <div className="messages-call-status-copy">
-          <div className="messages-call-status-title">Chamadas em segundo plano ativas</div>
-          <div className="messages-call-status-detail">A Lumina pode avisar-te quando este dispositivo estiver em segundo plano.</div>
+          <div className="messages-call-status-title">{t('Chamadas em segundo plano ativas')}</div>
+          <div className="messages-call-status-detail">{t('A Lumina pode avisar-te quando este dispositivo estiver em segundo plano.')}</div>
         </div>
       </div>;
     }
@@ -99,19 +105,19 @@ export function Conversas({
     const denied = callPush.permission === 'denied';
     const unsupported = callPush.supported === false;
     const title = unsupported
-      ? 'Este browser não permite chamadas em segundo plano'
+      ? t('Este browser não permite chamadas em segundo plano')
       : notStandalone
-        ? 'Instala a Lumina no ecrã principal para receber chamadas'
+        ? t('Instala a Lumina no ecrã principal para receber chamadas')
         : denied
-          ? 'As notificações da Lumina estão bloqueadas neste dispositivo'
-          : 'Ativa as chamadas neste dispositivo';
+          ? t('As notificações da Lumina estão bloqueadas neste dispositivo')
+          : t('Ativa as chamadas neste dispositivo');
     const detail = unsupported
-      ? 'Com a app aberta, as chamadas continuam disponíveis.'
+      ? t('Com a app aberta, as chamadas continuam disponíveis.')
       : notStandalone
-        ? 'No iPhone, o aviso de chamada com a Lumina fechada precisa da web app no ecrã principal.'
+        ? t('No iPhone, o aviso de chamada com a Lumina fechada precisa da web app no ecrã principal.')
         : denied
-          ? 'Reativa as notificações da Lumina nas definições do dispositivo para receber chamadas quando a app não está aberta.'
-          : 'Permite que uma chamada te avise mesmo quando a Lumina está em segundo plano.';
+          ? t('Reativa as notificações da Lumina nas definições do dispositivo para receber chamadas quando a app não está aberta.')
+          : t('Permite que uma chamada te avise mesmo quando a Lumina está em segundo plano.');
     const canEnable = !unsupported && !notStandalone && !denied;
 
     return <div className={`messages-call-status is-warning${compact ? ' is-compact' : ''}`}>
@@ -120,7 +126,7 @@ export function Conversas({
         <div className="messages-call-status-title">{title}</div>
         {!compact && <div className="messages-call-status-detail">{detail}</div>}
       </div>
-      {canEnable && <button type="button" className="p p-sm p-brand" onClick={enableCallsHere} disabled={callPushBusy}>{callPushBusy ? 'A ativar…' : 'Ativar'}</button>}
+      {canEnable && <button type="button" className="p p-sm p-brand" onClick={enableCallsHere} disabled={callPushBusy}>{callPushBusy ? t('A ativar…') : t('Ativar')}</button>}
     </div>;
   };
 
@@ -134,13 +140,18 @@ export function Conversas({
   };
 
   if (thread) {
-    const modes = [['normal',MessageSquare,'Normal'],['timer',Timer,'Efémera'],['once',Eye,'Uma vez']];
+    const modes = [['normal',MessageSquare,t('Normal')],['timer',Timer,t('Efémera')],['once',Eye,t('Uma vez')]];
     const viewportStyle = visualFrame
-      ? { top:`${visualFrame.top}px`, height:`${visualFrame.height}px` }
-      : { top:0, height:'100dvh' };
+      ? {
+          top:`${visualFrame.top}px`,
+          left:`${visualFrame.left}px`,
+          width:`${visualFrame.width}px`,
+          height:`${visualFrame.height}px`,
+        }
+      : { top:0, left:0, width:'100%', height:'100dvh' };
     return <div className="lumina-facelift lumina-messages lumina-messages-thread messages-visual-viewport" style={viewportStyle}>
       <header className="messages-thread-header">
-        <button className="messages-thread-back" onClick={()=>setThread(null)} aria-label="Voltar às conversas"><ArrowLeft size={18}/></button>
+        <button className="messages-thread-back" onClick={()=>setThread(null)} aria-label={t('Voltar às conversas')}><ArrowLeft size={18}/></button>
         <div className="messages-thread-identity">
           <span className="messages-avatar-halo"><Orb p={thread.palette} avatarUrl={thread.avatar_url} s={36}/></span>
           <div className="messages-thread-identity-copy">
@@ -148,33 +159,33 @@ export function Conversas({
             <div className="messages-thread-identity-handle">@{thread.handle}</div>
           </div>
         </div>
-        <button className="messages-thread-call" onClick={()=>startCall?.(thread,'audio')} disabled={callBusy} aria-label={`Ligar por áudio a ${thread.name}`}><Phone size={17}/></button>
-        <button className="messages-thread-call" onClick={()=>startCall?.(thread,'video')} disabled={callBusy} aria-label={`Fazer videochamada com ${thread.name}`}><Video size={18}/></button>
+        <button className="messages-thread-call" onClick={()=>startCall?.(thread,'audio')} disabled={callBusy} aria-label={translateDynamic(`Ligar por áudio a ${thread.name}`)}><Phone size={17}/></button>
+        <button className="messages-thread-call" onClick={()=>startCall?.(thread,'video')} disabled={callBusy} aria-label={translateDynamic(`Fazer videochamada com ${thread.name}`)}><Video size={18}/></button>
       </header>
       {callReadiness(true)}
       <div className="ns messages-thread-scroll">
-        {msgs.length === 0 && <div className="messages-thread-empty">Diz olá e começa uma conversa.</div>}
+        {msgs.length === 0 && <div className="messages-thread-empty">{t('Diz olá e começa uma conversa.')}</div>}
         {msgs.map(message => <Bubble key={message.id} msg={message} mine={message.sender_id===me.id} onReveal={api.messages.reveal} onEdit={editMessage} onDelete={removeMessage}/>)}
         <div ref={end}/>
       </div>
       <div className="messages-composer-shell">
         <div className="ns messages-mode-row">{modes.map(([key,Icon,label])=><button key={key} onClick={()=>setMode(key)} className={`messages-mode-chip${mode===key?' is-active':''}`}><Icon size={13}/>{label}</button>)}</div>
-        {mode!=='normal' && <p className="messages-mode-hint">{mode==='timer'?'Apaga-se pouco depois de ser aberta. Não impedimos capturas de ecrã.':'Foto ou vídeo abre uma vez e não volta. Não impedimos capturas de ecrã.'}</p>}
+        {mode!=='normal' && <p className="messages-mode-hint">{mode==='timer'?t('Apaga-se pouco depois de ser aberta. Não impedimos capturas de ecrã.'):t('Foto ou vídeo abre uma vez e não volta. Não impedimos capturas de ecrã.')}</p>}
         {mediaReady && mode!=='timer' && <div className="messages-media-ready">
           <span>{mediaReady.type==='video'?'🎥':'📷'}</span>
           <span className="messages-media-ready-name">{mediaReady.file.name}</span>
-          <button className="messages-media-remove" onClick={clearMedia} aria-label="Remover ficheiro"><X size={15}/></button>
+          <button className="messages-media-remove" onClick={clearMedia} aria-label={t('Remover ficheiro')}><X size={15}/></button>
         </div>}
         {mode==='once' ? <div className="messages-once-stack">
-          {!mediaReady && mediaPicker('Escolher foto ou vídeo')}
-          <button className="messages-once-send" onClick={send} disabled={!mediaReady||sending} aria-label="Enviar uma vez">{sending?'A enviar…':`Enviar ${mediaReady?.type==='video'?'vídeo':'foto'} · uma vez`}</button>
+          {!mediaReady && mediaPicker(t('Escolher foto ou vídeo'))}
+          <button className="messages-once-send" onClick={send} disabled={!mediaReady||sending} aria-label={t('Enviar uma vez')}>{sending?t('A enviar…'):`${t('Enviar')} ${t(mediaReady?.type==='video'?'vídeo':'foto')} · ${t('Uma vez').toLocaleLowerCase(locale)}`}</button>
         </div> : mode==='timer' ? <div className="messages-composer-row">
-          <input className="messages-composer-input" value={text} onChange={e=>setText(e.target.value)} onFocus={focusComposer} onKeyDown={e=>e.key==='Enter'&&send()} placeholder="Mensagem efémera…"/>
-          <button className="messages-send-button" onClick={send} disabled={sending||!text.trim()} aria-label="Enviar mensagem"><Send size={17}/></button>
+          <input className="messages-composer-input" value={text} onChange={e=>setText(e.target.value)} onFocus={focusComposer} onKeyDown={e=>e.key==='Enter'&&send()} placeholder={t('Mensagem efémera…')}/>
+          <button className="messages-send-button" onClick={send} disabled={sending||!text.trim()} aria-label={t('Enviar mensagem')}><Send size={17}/></button>
         </div> : <div className="messages-composer-row">
           {!mediaReady && mediaPicker('')}
-          <input className="messages-composer-input" value={text} disabled={!!mediaReady} onChange={e=>setText(e.target.value)} onFocus={focusComposer} onKeyDown={e=>e.key==='Enter'&&send()} placeholder={mediaReady?'Media pronta para enviar':'Escrever…'}/>
-          <button className="messages-send-button" onClick={send} disabled={sending||(!text.trim()&&!mediaReady)} aria-label="Enviar"><Send size={17}/></button>
+          <input className="messages-composer-input" value={text} disabled={!!mediaReady} onChange={e=>setText(e.target.value)} onFocus={focusComposer} onKeyDown={e=>e.key==='Enter'&&send()} placeholder={mediaReady?t('Media pronta para enviar'):t('Escrever…')}/>
+          <button className="messages-send-button" onClick={send} disabled={sending||(!text.trim()&&!mediaReady)} aria-label={t('Enviar')}><Send size={17}/></button>
         </div>}
       </div>
       {mediaDraft && <MediaEditor file={mediaDraft} onCancel={clearMedia} onReady={acceptMedia}/>} 
@@ -190,14 +201,14 @@ export function Conversas({
         <div className="messages-title-row">
           <div className="messages-title-copy">
             <div className="messages-eyebrow">Lumina Direct</div>
-            <h1>Conversas</h1>
-            <p>As tuas ligações, mensagens e chamadas num espaço mais íntimo.</p>
+            <h1>{t('Conversas')}</h1>
+            <p>{t('As tuas ligações, mensagens e chamadas num espaço mais íntimo.')}</p>
           </div>
           <TopActions tab={tab} setTab={setTab} setThread={setThread} unreadCount={unreadCount}/>
         </div>
         <label className="messages-search">
           <Search size={17}/>
-          <input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Pesquisar conversas e pessoas" aria-label="Pesquisar conversas e pessoas"/>
+          <input value={query} onChange={event=>setQuery(event.target.value)} placeholder={t('Pesquisar conversas e pessoas')} aria-label={t('Pesquisar conversas e pessoas')}/>
         </label>
       </header>
 
@@ -205,18 +216,18 @@ export function Conversas({
 
       {!hasAnyPeople && <div className="messages-empty">
         <span className="messages-empty-icon"><Sparkles size={22}/></span>
-        <strong>As conversas começam nas conexões.</strong>
-        <p>Segue alguém ou aceita um seguidor para começares a trocar mensagens na Lumina.</p>
+        <strong>{t('As conversas começam nas conexões.')}</strong>
+        <p>{t('Segue alguém ou aceita um seguidor para começares a trocar mensagens na Lumina.')}</p>
       </div>}
 
-      {hasAnyPeople && normalizedQuery && !hasSearchResults && <div className="messages-no-results">Não encontrámos conversas ou pessoas para “{query.trim()}”.</div>}
+      {hasAnyPeople && normalizedQuery && !hasSearchResults && <div className="messages-no-results">{t('Não encontrámos conversas ou pessoas para “{query}”.', { query:query.trim() })}</div>}
 
-      {filteredThreads.length > 0 && <section className="messages-section" aria-label="Conversas recentes">
-        <div className="messages-section-head"><strong>Recentes</strong><span>{filteredThreads.length} {filteredThreads.length===1?'conversa':'conversas'}</span></div>
+      {filteredThreads.length > 0 && <section className="messages-section" aria-label={t('Conversas recentes')}>
+        <div className="messages-section-head"><strong>{t('Recentes')}</strong><span>{filteredThreads.length} {filteredThreads.length===1?t('conversa'):t('conversas')}</span></div>
         <div className="messages-thread-list">{filteredThreads.map((item,index)=><button
           key={item.id}
           type="button"
-          aria-label={`Abrir conversa com ${item.name}`}
+          aria-label={translateDynamic(`Abrir conversa com ${item.name}`)}
           onClick={()=>setThread({id:item.id,name:item.name,handle:item.handle,palette:item.palette,avatar_url:item.avatar_url,other_id:item.other_id})}
           className={`messages-thread-card in${item.unread>0?' has-unread':''}`}
           style={{animationDelay:`${Math.min(index,8)*45}ms`}}
@@ -224,18 +235,18 @@ export function Conversas({
           <span className="messages-avatar-halo"><Orb p={item.palette} avatarUrl={item.avatar_url} s={46}/></span>
           <span className="messages-thread-body">
             <span className="messages-thread-topline"><span className="messages-thread-name">{item.name}</span><span className="messages-thread-handle">@{item.handle}</span></span>
-            <span className="messages-thread-preview">{item.body||'Toca para conversar'}</span>
+            <span className="messages-thread-preview">{item.body||t('Toca para conversar')}</span>
           </span>
-          {item.unread>0 && <span className="messages-unread" aria-label={`${item.unread} por ler`}>{item.unread>9?'9+':item.unread}</span>}
+          {item.unread>0 && <span className="messages-unread" aria-label={translateDynamic(`${item.unread} por ler`)}>{item.unread>9?'9+':item.unread}</span>}
         </button>)}</div>
       </section>}
 
-      {filteredContacts.length > 0 && <section className="messages-section" aria-label="Pessoas disponíveis">
-        <div className="messages-section-head"><strong>Começar uma conversa</strong><span>Conexões</span></div>
+      {filteredContacts.length > 0 && <section className="messages-section" aria-label={t('Pessoas disponíveis')}>
+        <div className="messages-section-head"><strong>{t('Começar uma conversa')}</strong><span>{t('Conexões')}</span></div>
         <div className="messages-contact-list">{filteredContacts.map((person,index)=><button
           key={person.id}
           type="button"
-          aria-label={`Conversar com ${person.name}`}
+          aria-label={translateDynamic(`Conversar com ${person.name}`)}
           onClick={()=>openContact?.(person)}
           className="messages-contact-card in"
           style={{animationDelay:`${Math.min(index,8)*40}ms`}}
@@ -243,7 +254,7 @@ export function Conversas({
           <span className="messages-avatar-halo"><Orb p={person.palette} avatarUrl={person.avatar_url} s={42}/></span>
           <span className="messages-contact-meta">
             <span className="messages-contact-name">{person.name}</span>
-            <span className="messages-contact-handle">@{person.handle}{person.following&&person.follows_me?' · seguem-se':person.follows_me?' · segue-te':' · a seguir'}</span>
+            <span className="messages-contact-handle">@{person.handle}{person.following&&person.follows_me?` · ${t('seguem-se')}`:person.follows_me?` · ${t('segue-te')}`:` · ${t('a seguir')}`}</span>
           </span>
           <span className="messages-contact-action"><MessageSquare size={16}/></span>
         </button>)}</div>

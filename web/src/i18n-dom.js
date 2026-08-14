@@ -5,15 +5,35 @@ document.documentElement.lang = locale;
 const textState = new WeakMap();
 const attributeState = new WeakMap();
 const attributes = ['placeholder', 'aria-label', 'title'];
+
+// These surfaces are authored by users or external publishers. UI chrome around them is
+// translated, but their actual content must stay exactly in the language it was published.
 const skipSelector = [
   '[data-i18n-ignore="true"]',
   '.post-body',
   '.post-copy',
+  '.lumina-post-copy',
   '.comment-body',
   '.message-body',
   '.message-text',
   '.message-bubble',
   '.room-message-body',
+  '.lumina-profile-name',
+  '.lumina-profile-handle',
+  '.lumina-profile-bio',
+  '.public-profile-name',
+  '.public-profile-handle',
+  '.public-profile-bio',
+  '.public-profile-post-copy',
+  '.activity-profile-name',
+  '.activity-profile-handle',
+  '.activity-profile-bio',
+  '.activity-profile-post-body',
+  '.explore-card h2',
+  '.explore-card h3',
+  '.explore-card-summary',
+  '.explore-source-name',
+  '.room-card .d',
   '[contenteditable="true"]',
 ].join(',');
 

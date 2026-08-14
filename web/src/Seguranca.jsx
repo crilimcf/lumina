@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Shield, Smartphone, Check, X, Flag, Trash2, RotateCcw } from 'lucide-react';
 import { api } from './api.js';
 import { ErrorNote, Empty, Skeleton } from './ui.jsx';
+import { language, locale } from './i18n.js';
 
 export function Seguranca({ onBack, ping }) {
   const [status, setStatus] = useState(null);
@@ -33,7 +34,7 @@ export function Seguranca({ onBack, ping }) {
       status?.enabled?<><p style={{ fontSize:14,lineHeight:1.45,color:'var(--grey)',marginBottom:12 }}>Restam-te {status.codesLeft} códigos de emergência.</p><input type="password" value={pw} onChange={e=>setPw(e.target.value)} autoComplete="current-password" placeholder="Password, para desligar" style={{ marginBottom:10 }}/><button className="p" onClick={disable} disabled={!pw} style={{ width:'100%',color:'var(--coral)' }}>Desligar dois passos</button></>:
       <><p style={{ fontSize:14,lineHeight:1.45,color:'var(--grey)',marginBottom:14 }}>Com dois passos, saber a tua password deixa de chegar para entrar na tua conta. Confirma primeiro a tua password atual.</p><input type="password" value={pw} onChange={e=>setPw(e.target.value)} autoComplete="current-password" placeholder="Password atual" style={{ marginBottom:10 }}/><button className="p p-co" onClick={start} disabled={!pw} style={{ width:'100%',padding:14 }}>Ligar</button></>}
     </div>
-    <div className="card" style={{ padding:20 }}><div className="m" style={{ marginBottom:12 }}>Onde tens sessão iniciada</div>{sessions.length===0?<Skeleton h={40}/>:sessions.map(s=><div key={s.id} style={{ display:'flex',alignItems:'center',gap:11,padding:'9px 0',borderBottom:'1px solid #EFEDFA' }}><div style={{ flex:1,minWidth:0 }}><div style={{ fontSize:14,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{(s.user_agent||'Dispositivo desconhecido').slice(0,42)}</div><div className="m" style={{ marginTop:2 }}>{s.current?'este dispositivo · ':''}{new Date(s.last_seen).toLocaleDateString('pt-PT')}</div></div>{!s.current&&<button className="p p-sm" aria-label="Terminar esta sessão" onClick={async()=>{try{await api.sessions.revoke(s.id);setSessions(await api.sessions.list())}catch(e){ping(e.message)}}}><Trash2 size={13}/></button>}</div>)}<button className="p" style={{ width:'100%',marginTop:14,color:'var(--coral)' }} onClick={async()=>{if(!confirm('Fechar a sessão em todos os dispositivos?'))return;try{await api.sessions.revokeAll();load();ping('Todas as sessões fechadas')}catch(e){ping(e.message)}}}><RotateCcw size={13} style={{ verticalAlign:-2,marginRight:6 }}/>Fechar tudo em todo o lado</button></div>
+    <div className="card" style={{ padding:20 }}><div className="m" style={{ marginBottom:12 }}>Onde tens sessão iniciada</div>{sessions.length===0?<Skeleton h={40}/>:sessions.map(s=><div key={s.id} style={{ display:'flex',alignItems:'center',gap:11,padding:'9px 0',borderBottom:'1px solid #EFEDFA' }}><div style={{ flex:1,minWidth:0 }}><div style={{ fontSize:14,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{(s.user_agent||'Dispositivo desconhecido').slice(0,42)}</div><div className="m" style={{ marginTop:2 }}>{s.current?'este dispositivo · ':''}{new Date(s.last_seen).toLocaleDateString(locale)}</div></div>{!s.current&&<button className="p p-sm" aria-label="Terminar esta sessão" onClick={async()=>{try{await api.sessions.revoke(s.id);setSessions(await api.sessions.list())}catch(e){ping(e.message)}}}><Trash2 size={13}/></button>}</div>)}<button className="p" style={{ width:'100%',marginTop:14,color:'var(--coral)' }} onClick={async()=>{if(!confirm('Fechar a sessão em todos os dispositivos?'))return;try{await api.sessions.revokeAll();load();ping('Todas as sessões fechadas')}catch(e){ping(e.message)}}}><RotateCcw size={13} style={{ verticalAlign:-2,marginRight:6 }}/>Fechar tudo em todo o lado</button></div>
   </div></div>;
 }
 
@@ -54,6 +55,15 @@ export function Moderacao({ onBack, ping }) {
 
 export function Legal({ page, onBack }) {
   const [text, setText] = useState(null);
-  useEffect(() => { fetch(`/legal/${page}.md`).then(r => r.ok ? r.text() : null).then(setText).catch(() => setText(null)); }, [page]);
-  return <div style={{ minHeight:'100dvh',background:'var(--paper)' }}><div style={{ maxWidth:640,margin:'0 auto',padding:20 }}><button className="p" onClick={onBack} aria-label="Voltar" style={{ padding:10,marginBottom:22 }}><ArrowLeft size={16}/></button>{text===null?<Empty>Não foi possível carregar. Escreve para o contacto de apoio.</Empty>:<pre style={{ whiteSpace:'pre-wrap',fontFamily:'inherit',fontSize:15,lineHeight:1.6 }}>{text}</pre>}</div></div>;
+  useEffect(() => {
+    let alive = true;
+    setText(null);
+    const suffix = language === 'pt' ? '' : `.${language}`;
+    fetch(`/legal/${page}${suffix}.md`)
+      .then(r => r.ok ? r.text() : null)
+      .then(value => { if (alive) setText(value); })
+      .catch(() => { if (alive) setText(null); });
+    return () => { alive = false; };
+  }, [page]);
+  return <div style={{ minHeight:'100dvh',background:'var(--paper)' }}><div style={{ maxWidth:640,margin:'0 auto',padding:20 }}><button className="p" onClick={onBack} aria-label="Voltar" style={{ padding:10,marginBottom:22 }}><ArrowLeft size={16}/></button>{text===null?<Empty>Não foi possível carregar. Escreve para o contacto de apoio.</Empty>:<pre data-i18n-ignore="true" style={{ whiteSpace:'pre-wrap',fontFamily:'inherit',fontSize:15,lineHeight:1.6 }}>{text}</pre>}</div></div>;
 }

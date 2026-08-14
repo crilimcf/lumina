@@ -1,19 +1,62 @@
-import { locale, translateDynamic } from './i18n.js';
+import { language, locale, translateDynamic } from './i18n.js';
+import { EN_MISC, FR_MISC, ES_MISC } from './locales/misc-extra.js';
 
 document.documentElement.lang = locale;
 
 const textState = new WeakMap();
 const attributeState = new WeakMap();
 const attributes = ['placeholder', 'aria-label', 'title'];
+const miscCatalogs = { en:EN_MISC, fr:FR_MISC, es:ES_MISC };
+const normalizeKey = value => String(value ?? '').trim().replace(/\s+/gu, ' ').toLocaleLowerCase('pt-PT');
+const normalizedMisc = Object.fromEntries(Object.entries(miscCatalogs).map(([lang, catalog]) => [
+  lang,
+  new Map(Object.entries(catalog).map(([key, value]) => [normalizeKey(key), value])),
+]));
+
+function translateSurface(source) {
+  const input = String(source ?? '');
+  const translated = translateDynamic(input);
+  if (translated !== input || language === 'pt') return translated;
+
+  const fallback = miscCatalogs[language]?.[input] ?? normalizedMisc[language]?.get(normalizeKey(input));
+  if (fallback === undefined) return input;
+
+  const trimmed = input.trim();
+  const hasLetters = /\p{L}/u.test(trimmed);
+  const uppercase = hasLetters
+    && trimmed === trimmed.toLocaleUpperCase('pt-PT')
+    && trimmed !== trimmed.toLocaleLowerCase('pt-PT');
+  return uppercase ? String(fallback).toLocaleUpperCase(locale) : fallback;
+}
+
+// These surfaces are authored by users or external publishers. UI chrome around them is
+// translated, but their actual content must stay exactly in the language it was published.
 const skipSelector = [
   '[data-i18n-ignore="true"]',
   '.post-body',
   '.post-copy',
+  '.lumina-post-copy',
   '.comment-body',
   '.message-body',
   '.message-text',
   '.message-bubble',
   '.room-message-body',
+  '.lumina-profile-name',
+  '.lumina-profile-handle',
+  '.lumina-profile-bio',
+  '.public-profile-name',
+  '.public-profile-handle',
+  '.public-profile-bio',
+  '.public-profile-post-copy',
+  '.activity-profile-name',
+  '.activity-profile-handle',
+  '.activity-profile-bio',
+  '.activity-profile-post-body',
+  '.explore-card h2',
+  '.explore-card h3',
+  '.explore-card-summary',
+  '.explore-source-name',
+  '.room-card .d',
   '[contenteditable="true"]',
 ].join(',');
 
@@ -26,7 +69,7 @@ function translatedPreservingWhitespace(source) {
   if (!match) return source;
   const [, before, clean, after] = match;
   if (!clean.trim()) return source;
-  return `${before}${translateDynamic(clean)}${after}`;
+  return `${before}${translateSurface(clean)}${after}`;
 }
 
 function applyText(node) {
@@ -64,7 +107,7 @@ function applyAttribute(element, name) {
   }
 
   const entry = state[name];
-  const next = translateDynamic(entry.source);
+  const next = translateSurface(entry.source);
   entry.rendered = next;
   if (current !== next) element.setAttribute(name, next);
 }

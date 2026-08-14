@@ -27,12 +27,15 @@ test('French registration is fully translated and fits a real iPhone viewport', 
   const copy = await page.locator('.auth-card').innerText();
   expect(copy).not.toMatch(/Como te chamas|Nome de utilizador|Tenho 16 anos|Criar conta|política de privacidade/i);
 
-  const fit = await page.evaluate(() => ({
-    viewport:window.innerWidth,
-    html:document.documentElement.scrollWidth,
-    body:document.body.scrollWidth,
-    card:document.querySelector('.auth-card')?.getBoundingClientRect(),
-  }));
+  const fit = await page.evaluate(() => {
+    const rect = document.querySelector('.auth-card').getBoundingClientRect();
+    return {
+      viewport:window.innerWidth,
+      html:document.documentElement.scrollWidth,
+      body:document.body.scrollWidth,
+      card:{ left:rect.left, right:rect.right, width:rect.width },
+    };
+  });
   expect(fit.html - fit.viewport).toBeLessThanOrEqual(1);
   expect(fit.body - fit.viewport).toBeLessThanOrEqual(1);
   expect(fit.card.left).toBeGreaterThanOrEqual(0);

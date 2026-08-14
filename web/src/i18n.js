@@ -4,12 +4,13 @@ import ES from './locales/es.js';
 import EN_EXTRA from './locales/en-extra.js';
 import FR_EXTRA from './locales/fr-extra.js';
 import ES_EXTRA from './locales/es-extra.js';
+import { EN_REMAINING, FR_REMAINING, ES_REMAINING } from './locales/remaining-extra.js';
 
 const catalogs = {
   pt:{},
-  en:{ ...EN, ...EN_EXTRA },
-  fr:{ ...FR, ...FR_EXTRA },
-  es:{ ...ES, ...ES_EXTRA },
+  en:{ ...EN, ...EN_EXTRA, ...EN_REMAINING },
+  fr:{ ...FR, ...FR_EXTRA, ...FR_REMAINING },
+  es:{ ...ES, ...ES_EXTRA, ...ES_REMAINING },
 };
 const locales = { pt:'pt-PT', en:'en-US', fr:'fr-FR', es:'es-ES' };
 const supported = new Set(Object.keys(catalogs));
@@ -83,6 +84,11 @@ const dynamicRules = {
     [/^Fazer videochamada com (.+)$/u, 'Video call {1}'],
     [/^Abrir conversa com (.+)$/u, 'Open conversation with {1}'],
     [/^Conversar com (.+)$/u, 'Message {1}'],
+    [/^Chamada recebida de (.+)$/u, 'Incoming call from {1}'],
+    [/^Videochamada com (.+)$/u, 'Video call with {1}'],
+    [/^Chamada áudio com (.+)$/u, 'Audio call with {1}'],
+    [/^Direto de (.+)$/u, 'Live by {1}'],
+    [/^Ver direto de (.+): (.+)$/u, 'Watch {1} live: {2}'],
     [/^(\d+) por ler$/u, '{1} unread'],
     [/^(\d+) conversa$/u, '{1} conversation'],
     [/^(\d+) conversas$/u, '{1} conversations'],
@@ -121,6 +127,11 @@ const dynamicRules = {
     [/^Fazer videochamada com (.+)$/u, 'Appeler {1} en vidéo'],
     [/^Abrir conversa com (.+)$/u, 'Ouvrir la conversation avec {1}'],
     [/^Conversar com (.+)$/u, 'Écrire à {1}'],
+    [/^Chamada recebida de (.+)$/u, 'Appel entrant de {1}'],
+    [/^Videochamada com (.+)$/u, 'Appel vidéo avec {1}'],
+    [/^Chamada áudio com (.+)$/u, 'Appel audio avec {1}'],
+    [/^Direto de (.+)$/u, 'Direct de {1}'],
+    [/^Ver direto de (.+): (.+)$/u, 'Voir le direct de {1} : {2}'],
     [/^(\d+) por ler$/u, '{1} non lu'],
     [/^(\d+) conversa$/u, '{1} conversation'],
     [/^(\d+) conversas$/u, '{1} conversations'],
@@ -159,6 +170,11 @@ const dynamicRules = {
     [/^Fazer videochamada com (.+)$/u, 'Hacer videollamada con {1}'],
     [/^Abrir conversa com (.+)$/u, 'Abrir conversación con {1}'],
     [/^Conversar com (.+)$/u, 'Escribir a {1}'],
+    [/^Chamada recebida de (.+)$/u, 'Llamada entrante de {1}'],
+    [/^Videochamada com (.+)$/u, 'Videollamada con {1}'],
+    [/^Chamada áudio com (.+)$/u, 'Llamada de audio con {1}'],
+    [/^Direto de (.+)$/u, 'Directo de {1}'],
+    [/^Ver direto de (.+): (.+)$/u, 'Ver directo de {1}: {2}'],
     [/^(\d+) por ler$/u, '{1} sin leer'],
     [/^(\d+) conversa$/u, '{1} conversación'],
     [/^(\d+) conversas$/u, '{1} conversaciones'],

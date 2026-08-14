@@ -76,7 +76,7 @@ test('French iPhone UI has no Portuguese chrome across Feed, Rooms, Radar, Profi
   await expect(page.getByText('Sua luz, suas conexões', { exact:true })).toHaveCount(0);
 
   await page.getByRole('button', { name:'Salons' }).click();
-  await expect(page.getByText('Salons', { exact:true })).toBeVisible();
+  await expect(page.getByRole('heading', { name:'Salons' })).toBeVisible();
   await expect(page.getByText('Des sujets vivants, sans encombrer le Fil.', { exact:true })).toBeVisible();
   await expect(page.getByRole('button', { name:'Créer' })).toBeVisible();
   await expect(page.getByText('Toutes', { exact:true })).toBeVisible();

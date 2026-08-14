@@ -71,7 +71,7 @@ test('French iPhone UI has no Portuguese chrome across Feed, Rooms, Radar, Profi
   await openAuthenticatedApp(page);
 
   await expect(page.getByText('Ta lumière, tes connexions', { exact:true })).toBeVisible();
-  await expect(page.getByText('Ton Feed est vide.', { exact:true })).toBeVisible();
+  await expect(page.locator('.lumina-feed-empty')).toContainText('Ton Feed est vide.');
   await expect(page.getByText('Les histoires des personnes qui font partie de ta lumière', { exact:true })).toBeVisible();
   await expect(page.getByText('Sua luz, suas conexões', { exact:true })).toHaveCount(0);
 

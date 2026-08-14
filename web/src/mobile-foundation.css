@@ -1,0 +1,366 @@
+/*
+ * Lumina mobile foundation
+ * One final responsive layer shared by every screen. It deliberately loads last
+ * so screen-specific design stays intact while width, safe-area and keyboard
+ * behaviour remain predictable on iOS/Android.
+ */
+
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+html,
+body {
+  overscroll-behavior-x: none;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body,
+#root {
+  overflow-x: clip;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+button,
+input,
+textarea,
+select,
+label,
+form,
+section,
+article,
+header,
+main,
+nav,
+div {
+  min-width: 0;
+}
+
+button,
+label,
+p,
+small,
+span,
+strong,
+b {
+  overflow-wrap: break-word;
+}
+
+/* Every full-screen product surface must stay inside the layout viewport. */
+.lumina-auth,
+.lumina-opening,
+.lumina-facelift,
+.lumina-consolidated,
+.lumina-feed,
+.lumina-rooms,
+.lumina-profile,
+.lumina-messages,
+.lumina-one,
+.lumina-activity,
+.lumina-search-screen {
+  width: 100%;
+  max-width: 100vw;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+.nav {
+  width: auto;
+  max-width: min(420px, calc(100% - 28px));
+}
+
+/* Authentication / registration ------------------------------------------------ */
+.lumina-auth {
+  min-height: calc(100dvh - env(safe-area-inset-top));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.lumina-auth .auth-shell {
+  width: min(100%, 440px) !important;
+  min-height: calc(100dvh - env(safe-area-inset-top));
+  padding-left: max(16px, env(safe-area-inset-left)) !important;
+  padding-right: max(16px, env(safe-area-inset-right)) !important;
+  padding-bottom: max(26px, calc(18px + env(safe-area-inset-bottom))) !important;
+}
+
+.lumina-auth .auth-card {
+  width: 100%;
+  max-width: 100%;
+}
+
+.lumina-auth .auth-card input:not([type='checkbox']) {
+  min-height: 52px;
+}
+
+.lumina-auth .auth-card input[type='checkbox'] {
+  flex: 0 0 20px;
+}
+
+.lumina-auth .auth-mode-row {
+  gap: 16px;
+  align-items: center;
+}
+
+.lumina-auth .auth-mode-row > button {
+  min-height: 42px;
+  white-space: normal;
+  text-align: start;
+}
+
+/* Messages / keyboard ---------------------------------------------------------- */
+.messages-visual-viewport {
+  position: fixed !important;
+  margin: 0 !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  box-sizing: border-box;
+}
+
+.messages-thread-header,
+.messages-thread-scroll,
+.messages-composer-shell,
+.messages-composer-row {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.messages-thread-header {
+  padding-left: max(10px, env(safe-area-inset-left)) !important;
+  padding-right: max(10px, env(safe-area-inset-right)) !important;
+}
+
+.messages-thread-identity {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.messages-thread-identity-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.messages-thread-scroll {
+  padding-left: max(12px, env(safe-area-inset-left)) !important;
+  padding-right: max(12px, env(safe-area-inset-right)) !important;
+  scroll-padding-bottom: 12px;
+}
+
+/* This eyebrow was a hard-coded Portuguese pseudo-element. The chat header already
+ * establishes the private context, so removing it avoids duplicate/untranslated
+ * chrome and also gives short iPhones more vertical room. */
+.messages-thread-scroll::before {
+  display: none !important;
+  content: none !important;
+}
+
+.messages-composer-shell {
+  padding-left: max(10px, env(safe-area-inset-left)) !important;
+  padding-right: max(10px, env(safe-area-inset-right)) !important;
+  padding-bottom: max(8px, env(safe-area-inset-bottom)) !important;
+}
+
+.messages-mode-row {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  width: 100%;
+  overflow: visible !important;
+  scroll-snap-type: none !important;
+}
+
+.messages-mode-chip {
+  width: 100%;
+  min-width: 0 !important;
+  justify-content: center;
+  padding-inline: 7px !important;
+  white-space: nowrap;
+}
+
+.messages-composer-row {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.messages-composer-row .messages-composer-input {
+  width: 100% !important;
+  min-width: 0 !important;
+  font-size: 16px !important;
+}
+
+.messages-media-picker,
+.messages-send-button {
+  flex: 0 0 auto;
+}
+
+.lumina-messages-thread .message-wrap {
+  max-width: min(84%, calc(100vw - 52px)) !important;
+}
+
+.lumina-messages-thread .message-bubble,
+.lumina-messages-thread .message-ghost,
+.lumina-messages-thread .message-veil {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* Long translated copy must wrap instead of forcing the page wider. */
+.lumina-consolidated button,
+.lumina-consolidated .p,
+.lumina-facelift button,
+.lumina-facelift .p,
+.lumina-auth button,
+.lumina-one button {
+  white-space: normal;
+}
+
+@media (max-width: 600px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  .lumina-auth .auth-shell {
+    padding-top: clamp(28px, 6dvh, 52px) !important;
+  }
+
+  .lumina-auth .auth-title {
+    font-size: clamp(50px, 16vw, 72px) !important;
+    line-height: .96 !important;
+  }
+
+  .lumina-auth .auth-lede {
+    max-width: 100% !important;
+    margin-top: 15px !important;
+    margin-bottom: 22px !important;
+    font-size: clamp(14px, 4vw, 16px) !important;
+    line-height: 1.42 !important;
+  }
+
+  .lumina-auth .auth-card {
+    padding: 18px !important;
+    gap: 10px !important;
+    border-radius: 24px !important;
+  }
+
+  .lumina-auth .auth-kicker {
+    font-size: 9.5px !important;
+  }
+
+  .messages-thread-back,
+  .messages-thread-call {
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 13px !important;
+  }
+
+  .messages-thread-header {
+    gap: 7px !important;
+  }
+
+  .messages-thread-identity {
+    gap: 8px !important;
+  }
+
+  .messages-thread-identity-name {
+    font-size: 13px !important;
+  }
+
+  .messages-thread-identity-handle {
+    max-width: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 390px) {
+  .lumina-auth .auth-shell {
+    padding-left: max(14px, env(safe-area-inset-left)) !important;
+    padding-right: max(14px, env(safe-area-inset-right)) !important;
+  }
+
+  .lumina-auth .auth-title {
+    font-size: clamp(46px, 15.5vw, 64px) !important;
+  }
+
+  .lumina-auth .auth-card {
+    padding: 16px !important;
+  }
+
+  .messages-thread-header {
+    gap: 6px !important;
+  }
+
+  .messages-thread-back,
+  .messages-thread-call {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  .messages-thread-header .messages-avatar-halo {
+    transform: scale(.9);
+    transform-origin: center;
+    margin-inline: -2px;
+  }
+
+  .messages-mode-chip {
+    font-size: 10px !important;
+    gap: 4px !important;
+  }
+}
+
+/* Short phones: registration remains scrollable instead of crushing controls. */
+@media (max-height: 760px) and (max-width: 600px) {
+  .lumina-auth .auth-shell {
+    padding-top: 22px !important;
+  }
+
+  .lumina-auth .auth-title {
+    font-size: clamp(45px, 14vw, 60px) !important;
+  }
+
+  .lumina-auth .auth-lede {
+    margin-top: 10px !important;
+    margin-bottom: 16px !important;
+    font-size: 13.5px !important;
+  }
+
+  .lumina-auth .auth-card {
+    padding: 15px !important;
+    gap: 8px !important;
+  }
+
+  .lumina-auth .auth-card input:not([type='checkbox']) {
+    min-height: 48px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lumina-auth,
+  .lumina-messages-thread,
+  .messages-thread-scroll {
+    scroll-behavior: auto !important;
+  }
+}

@@ -163,6 +163,14 @@ b {
   scroll-padding-bottom: 12px;
 }
 
+/* This eyebrow was a hard-coded Portuguese pseudo-element. The chat header already
+ * establishes the private context, so removing it avoids duplicate/untranslated
+ * chrome and also gives short iPhones more vertical room. */
+.messages-thread-scroll::before {
+  display: none !important;
+  content: none !important;
+}
+
 .messages-composer-shell {
   padding-left: max(10px, env(safe-area-inset-left)) !important;
   padding-right: max(10px, env(safe-area-inset-right)) !important;

@@ -12,6 +12,7 @@ const skipSelector = [
   '.comment-body',
   '.message-body',
   '.message-text',
+  '.message-bubble',
   '.room-message-body',
   '[contenteditable="true"]',
 ].join(',');
@@ -37,8 +38,6 @@ function applyText(node) {
     state = { source:current, rendered:null };
     textState.set(node, state);
   } else if (current !== state.rendered && current !== state.source) {
-    // React reused the same text node with new source copy. Keep the newest source
-    // instead of restoring a translation from an earlier render.
     state.source = current;
   }
 

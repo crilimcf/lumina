@@ -11,6 +11,35 @@ test('Mobile Safari follows the iPhone language', async ({ browser }) => {
   await context.close();
 });
 
+test('French registration is fully translated and fits a real iPhone viewport', async ({ browser }) => {
+  const context = await browser.newContext({ locale:'fr-FR', viewport:{ width:390, height:844 } });
+  const page = await context.newPage();
+  await page.goto('/');
+  await page.getByRole('button', { name:'Créer un compte' }).click();
+
+  await expect(page.getByPlaceholder('Comment t’appelles-tu ?')).toBeVisible();
+  await expect(page.getByPlaceholder('Nom d’utilisateur')).toBeVisible();
+  await expect(page.getByText('Date de naissance', { exact:true })).toBeVisible();
+  await expect(page.getByPlaceholder('Mot de passe')).toBeVisible();
+  await expect(page.getByText(/J’ai 16 ans ou plus et j’accepte les/i)).toBeVisible();
+  await expect(page.getByRole('button', { name:'Créer un compte' })).toBeVisible();
+
+  const copy = await page.locator('.auth-card').innerText();
+  expect(copy).not.toMatch(/Como te chamas|Nome de utilizador|Tenho 16 anos|Criar conta|política de privacidade/i);
+
+  const fit = await page.evaluate(() => ({
+    viewport:window.innerWidth,
+    html:document.documentElement.scrollWidth,
+    body:document.body.scrollWidth,
+    card:document.querySelector('.auth-card')?.getBoundingClientRect(),
+  }));
+  expect(fit.html - fit.viewport).toBeLessThanOrEqual(1);
+  expect(fit.body - fit.viewport).toBeLessThanOrEqual(1);
+  expect(fit.card.left).toBeGreaterThanOrEqual(0);
+  expect(fit.card.right).toBeLessThanOrEqual(fit.viewport + 1);
+  await context.close();
+});
+
 test('unsupported device locale falls back to English', async ({ browser }) => {
   const context = await browser.newContext({ locale:'de-DE' });
   const page = await context.newPage();

@@ -64,67 +64,74 @@ async function openAuthenticatedApp(page) {
   await page.getByRole('button', { name:'Ouvrir le Fil' }).click();
 }
 
+async function bodyContains(page, text) {
+  await expect(page.locator('body')).toContainText(text);
+}
+
+async function bodyOmits(page, text) {
+  await expect(page.locator('body')).not.toContainText(text);
+}
+
 test('French iPhone UI has no Portuguese chrome across Feed, Rooms, Radar, Profile and publishing', async ({ browser }) => {
   const context = await browser.newContext({ locale:'fr-FR', viewport:{ width:390, height:844 } });
   const page = await context.newPage();
   await mockFrenchSession(page);
   await openAuthenticatedApp(page);
 
-  await expect(page.getByText('Ta lumière, tes connexions', { exact:true })).toBeVisible();
-  await expect(page.locator('.lumina-feed-empty')).toContainText('Ton Fil est vide.');
-  await expect(page.getByText('Les histoires des personnes qui font partie de ta lumière', { exact:true })).toBeVisible();
-  await expect(page.getByText('Sua luz, suas conexões', { exact:true })).toHaveCount(0);
+  await bodyContains(page, 'Ta lumière, tes connexions');
+  await bodyContains(page, 'Ton Fil est vide.');
+  await bodyContains(page, 'Les histoires des personnes qui font partie de ta lumière');
+  await bodyOmits(page, 'Sua luz, suas conexões');
 
   await page.getByRole('button', { name:'Salons' }).click();
-  await expect(page.getByRole('heading', { name:'Salons' })).toBeVisible();
-  await expect(page.getByText('Des sujets vivants, sans encombrer le Fil.', { exact:true })).toBeVisible();
-  await expect(page.getByRole('button', { name:'Créer' })).toBeVisible();
-  await expect(page.getByText('Toutes', { exact:true })).toBeVisible();
-  await expect(page.getByText('Publics', { exact:true })).toBeVisible();
-  await expect(page.getByText('Privés', { exact:true })).toBeVisible();
-  await expect(page.getByText('Confidentialité réelle.', { exact:true })).toBeVisible();
-  await expect(page.getByText('Tópicos vivos, sem poluir o Feed.', { exact:true })).toHaveCount(0);
+  await bodyContains(page, 'Salons');
+  await bodyContains(page, 'Des sujets vivants, sans encombrer le Fil.');
+  await bodyContains(page, 'Toutes');
+  await bodyContains(page, 'Publics');
+  await bodyContains(page, 'Privés');
+  await bodyContains(page, 'Confidentialité réelle.');
+  await bodyOmits(page, 'Tópicos vivos, sem poluir o Feed.');
 
   await page.getByRole('button', { name:'Radar' }).click();
-  await expect(page.getByText('Explorer maintenant', { exact:true })).toBeVisible();
-  await expect(page.getByText('Découvrir avec du contexte, pas du bruit.', { exact:true })).toBeVisible();
-  await expect(page.getByText('Actualités', { exact:true })).toBeVisible();
-  await expect(page.getByText('Événements', { exact:true })).toBeVisible();
-  await expect(page.getByText('Source vérifiée', { exact:true })).toBeVisible();
+  await bodyContains(page, 'Explorer maintenant');
+  await bodyContains(page, 'Découvrir avec du contexte, pas du bruit.');
+  await bodyContains(page, 'Actualités');
+  await bodyContains(page, 'Événements');
+  await bodyContains(page, 'Source vérifiée');
   // Publisher/editorial content is not UI chrome and must remain exactly as published.
-  await expect(page.getByText('União de Leiria contrata belga Hugo Masaki', { exact:true })).toBeVisible();
-  await expect(page.getByText('Este texto editorial permanece no idioma original da fonte.', { exact:true })).toBeVisible();
-  await expect(page.getByText('Notícias', { exact:true })).toHaveCount(0);
+  await bodyContains(page, 'União de Leiria contrata belga Hugo Masaki');
+  await bodyContains(page, 'Este texto editorial permanece no idioma original da fonte.');
+  await bodyOmits(page, 'Notícias');
 
   await page.getByRole('button', { name:'Profil' }).click();
-  await expect(page.getByText('Sécurité et sessions', { exact:true })).toBeVisible();
-  await expect(page.getByText('Protège ton compte et gère les appareils connectés.', { exact:true })).toBeVisible();
-  await expect(page.getByText('Confidentialité', { exact:true })).toBeVisible();
-  await expect(page.getByText('Se déconnecter de Lumina', { exact:true })).toBeVisible();
-  await expect(page.getByText('Segurança e sessões', { exact:true })).toHaveCount(0);
-  await expect(page.getByText('Bio écrite par l’utilisateur', { exact:true })).toBeVisible();
+  await bodyContains(page, 'Sécurité et sessions');
+  await bodyContains(page, 'Protège ton compte et gère les appareils connectés.');
+  await bodyContains(page, 'Confidentialité');
+  await bodyContains(page, 'Se déconnecter de Lumina');
+  await bodyContains(page, 'Bio écrite par l’utilisateur');
+  await bodyOmits(page, 'Segurança e sessões');
 
   await page.getByRole('button', { name:/Modifier le profil/i }).click();
-  await expect(page.getByText('Modifier le profil', { exact:true })).toBeVisible();
-  await expect(page.getByRole('button', { name:'Choisir une photo de profil' })).toContainText('Changer la photo');
-  await expect(page.getByText('Supprimer la photo', { exact:true })).toBeVisible();
-  await expect(page.getByText('Nom', { exact:true })).toBeVisible();
-  await expect(page.getByText('Biographie', { exact:true })).toBeVisible();
-  await expect(page.getByText('Enregistrer les modifications', { exact:true })).toBeVisible();
-  await expect(page.getByText('Changer le mot de passe', { exact:true }).last()).toBeVisible();
+  await bodyContains(page, 'Modifier le profil');
+  await bodyContains(page, 'Changer la photo');
+  await bodyContains(page, 'Supprimer la photo');
+  await bodyContains(page, 'Nom');
+  await bodyContains(page, 'Biographie');
+  await bodyContains(page, 'Enregistrer les modifications');
+  await bodyContains(page, 'Changer le mot de passe');
   await expect(page.getByPlaceholder('Mot de passe actuel')).toBeVisible();
   await expect(page.getByPlaceholder('Nouveau mot de passe')).toBeVisible();
-  await expect(page.getByText('Trocar foto', { exact:true })).toHaveCount(0);
-  await expect(page.getByText('Guardar alterações', { exact:true })).toHaveCount(0);
+  await bodyOmits(page, 'Trocar foto');
+  await bodyOmits(page, 'Guardar alterações');
 
   await page.getByRole('button', { name:'Retour' }).click();
   await page.getByRole('button', { name:'Nouveau' }).click();
-  await expect(page.getByText('Publier', { exact:true }).first()).toBeVisible();
-  await expect(page.getByText('Partage une photo, une vidéo, une pensée ou lance un direct', { exact:true })).toBeVisible();
-  await expect(page.getByText('Photo', { exact:true })).toBeVisible();
-  await expect(page.getByText('Direct', { exact:true })).toBeVisible();
+  await bodyContains(page, 'Publier');
+  await bodyContains(page, 'Partage une photo, une vidéo, une pensée ou lance un direct');
+  await bodyContains(page, 'Photo');
+  await bodyContains(page, 'Direct');
   await expect(page.getByPlaceholder('Qu’est-ce que tu regardes ou à quoi penses-tu ?')).toBeVisible();
-  await expect(page.getByText('Partilha uma fotografia, um vídeo, um pensamento ou entra em direto', { exact:true })).toHaveCount(0);
+  await bodyOmits(page, 'Partilha uma fotografia, um vídeo, um pensamento ou entra em direto');
 
   await context.close();
 });

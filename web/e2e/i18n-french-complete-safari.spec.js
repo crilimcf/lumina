@@ -72,7 +72,7 @@ async function bodyOmits(page, text) {
   await expect(page.locator('body')).not.toContainText(text);
 }
 
-test('French iPhone UI has no Portuguese chrome across Feed, Rooms, Radar, Profile and publishing', async ({ browser }) => {
+test('French iPhone UI has no Portuguese chrome across core mobile surfaces', async ({ browser }) => {
   const context = await browser.newContext({ locale:'fr-FR', viewport:{ width:390, height:844 } });
   const page = await context.newPage();
   await mockFrenchSession(page);
@@ -110,6 +110,24 @@ test('French iPhone UI has no Portuguese chrome across Feed, Rooms, Radar, Profi
   await bodyContains(page, 'Se déconnecter de Lumina');
   await bodyContains(page, 'Bio écrite par l’utilisateur');
   await bodyOmits(page, 'Segurança e sessões');
+
+  await page.getByRole('button', { name:/Sécurité et sessions/i }).click();
+  await bodyContains(page, 'Sécurité');
+  await bodyContains(page, 'Validation en deux étapes');
+  await bodyContains(page, 'Où tu es connecté');
+  await bodyOmits(page, 'Dois passos');
+  await bodyOmits(page, 'Onde tens sessão iniciada');
+  await page.getByRole('button', { name:'Retour' }).click();
+
+  await page.getByRole('button', { name:/Confidentialité/i }).click();
+  await bodyContains(page, 'Politique de confidentialité de Lumina');
+  await bodyOmits(page, 'Política de Privacidade da Lumina');
+  await page.getByRole('button', { name:'Retour' }).click();
+
+  await page.getByRole('button', { name:/Conditions/i }).click();
+  await bodyContains(page, 'Conditions d’utilisation de Lumina');
+  await bodyOmits(page, 'Termos de Utilização da Lumina');
+  await page.getByRole('button', { name:'Retour' }).click();
 
   await page.getByRole('button', { name:/Modifier le profil/i }).click();
   await bodyContains(page, 'Modifier le profil');

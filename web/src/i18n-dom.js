@@ -13,20 +13,27 @@ const normalizedMisc = Object.fromEntries(Object.entries(miscCatalogs).map(([lan
   new Map(Object.entries(catalog).map(([key, value]) => [normalizeKey(key), value])),
 ]));
 
-function translateSurface(source) {
-  const input = String(source ?? '');
-  const translated = translateDynamic(input);
-  if (translated !== input || language === 'pt') return translated;
-
-  const fallback = miscCatalogs[language]?.[input] ?? normalizedMisc[language]?.get(normalizeKey(input));
-  if (fallback === undefined) return input;
-
-  const trimmed = input.trim();
+function preserveLabelCase(input, value) {
+  const trimmed = String(input ?? '').trim();
   const hasLetters = /\p{L}/u.test(trimmed);
   const uppercase = hasLetters
     && trimmed === trimmed.toLocaleUpperCase('pt-PT')
     && trimmed !== trimmed.toLocaleLowerCase('pt-PT');
-  return uppercase ? String(fallback).toLocaleUpperCase(locale) : fallback;
+  return uppercase ? String(value).toLocaleUpperCase(locale) : value;
+}
+
+function translateSurface(source) {
+  const input = String(source ?? '');
+  if (language === 'pt') return input;
+
+  // misc-extra is the correction/override layer. Resolve it first so a newer,
+  // complete translation can replace an older catalogue value instead of being
+  // bypassed by translateDynamic returning a stale partial translation.
+  const override = miscCatalogs[language]?.[input] ?? normalizedMisc[language]?.get(normalizeKey(input));
+  if (override !== undefined) return preserveLabelCase(input, override);
+
+  const translated = translateDynamic(input);
+  return translated !== input ? translated : input;
 }
 
 // These surfaces are authored by users or external publishers. UI chrome around them is

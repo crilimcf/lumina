@@ -4,11 +4,13 @@ const TOP_LOCK = 56;
 const MIN_DELTA = 2;
 const DIRECTION_THRESHOLD = 10;
 const TOUCH_THRESHOLD = 18;
+const IDLE_REVEAL_MS = 760;
 
 let hidden = false;
 let frame = 0;
 let pending = null;
 let lastNav = null;
+let revealTimer = 0;
 let touchStartX = 0;
 let touchStartY = 0;
 let touchLastY = 0;
@@ -19,11 +21,27 @@ function currentNav() {
   return document.querySelector('.nav');
 }
 
-function applyVisibility(nextHidden) {
+function cancelReveal() {
+  if (!revealTimer) return;
+  clearTimeout(revealTimer);
+  revealTimer = 0;
+}
+
+function scheduleReveal() {
+  cancelReveal();
+  revealTimer = window.setTimeout(() => {
+    revealTimer = 0;
+    applyVisibility(false, { schedule:false });
+  }, IDLE_REVEAL_MS);
+}
+
+function applyVisibility(nextHidden, { schedule = true } = {}) {
   hidden = nextHidden;
   const nav = currentNav();
   if (!nav) return;
   nav.classList.toggle('nav-smart-hidden', nextHidden);
+  if (nextHidden && schedule) scheduleReveal();
+  else if (!nextHidden) cancelReveal();
 }
 
 function normalizeScroller(target) {
@@ -50,7 +68,13 @@ function readScroll() {
   frame = 0;
   const scroller = pending || window;
   pending = null;
-  if (!hasVerticalRange(scroller)) return;
+  if (!hasVerticalRange(scroller)) {
+    // If content disappears (for example after deleting a Feed post), the page
+    // can stop being scrollable while the dock is still in its hidden state.
+    // A non-scrollable screen must always leave primary navigation reachable.
+    applyVisibility(false);
+    return;
+  }
 
   const y = scrollPosition(scroller);
   const previous = stateByScroller.get(scroller) || { lastY: y, direction: null, travelled: 0 };
@@ -64,6 +88,7 @@ function readScroll() {
   const delta = y - previous.lastY;
   if (Math.abs(delta) < MIN_DELTA) {
     stateByScroller.set(scroller, { ...previous, lastY: y });
+    if (hidden) scheduleReveal();
     return;
   }
 
@@ -73,7 +98,10 @@ function readScroll() {
     : Math.abs(delta);
 
   stateByScroller.set(scroller, { lastY: y, direction: nextDirection, travelled });
-  if (travelled < DIRECTION_THRESHOLD) return;
+  if (travelled < DIRECTION_THRESHOLD) {
+    if (hidden) scheduleReveal();
+    return;
+  }
 
   applyVisibility(nextDirection === 'down');
   stateByScroller.set(scroller, { lastY: y, direction: nextDirection, travelled: 0 });
@@ -83,8 +111,12 @@ function scheduleRead(event) {
   const scroller = normalizeScroller(event?.target);
   // Carrosséis horizontais (Momentos, media, etc.) também disparam `scroll` no
   // Safari. Nunca devem alterar o estado da navegação inferior.
-  if (!hasVerticalRange(scroller)) return;
+  if (!hasVerticalRange(scroller)) {
+    if (scroller === window) applyVisibility(false);
+    return;
+  }
   pending = scroller;
+  if (hidden) scheduleReveal();
   if (!frame) frame = requestAnimationFrame(readScroll);
 }
 
@@ -100,6 +132,7 @@ function shouldIgnoreTouch(target) {
 }
 
 function onTouchStart(event) {
+  cancelReveal();
   if (shouldIgnoreTouch(event.target)) {
     touchTracking = false;
     return;
@@ -135,6 +168,7 @@ function onTouchMove(event) {
 
 function onTouchEnd() {
   touchTracking = false;
+  if (hidden) scheduleReveal();
 }
 
 // `scroll` não faz bubble. Capture deteta a página e contentores verticais
@@ -157,10 +191,15 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') applyVisibility(false);
 });
 
-// Tocar na própria navegação nunca a pode esconder.
+// Primary navigation may hide while the content is moving, but it must never be
+// left unreachable after navigation/content mutations (for example a deleted
+// Feed post). Any direct intent to use it brings it back immediately.
 document.addEventListener('pointerdown', (event) => {
   if (event.target instanceof Element && event.target.closest('.nav')) applyVisibility(false);
 }, { passive: true });
+document.addEventListener('focusin', (event) => {
+  if (event.target instanceof Element && event.target.closest('.nav')) applyVisibility(false);
+});
 
 // Cada ecrã principal monta a sua instância de Nav. Uma instância nova começa
 // sempre visível, mas passa imediatamente a obedecer ao próximo scroll vertical.
@@ -170,15 +209,24 @@ if (root) {
     const nav = currentNav();
     if (!nav) {
       lastNav = null;
+      cancelReveal();
       return;
     }
     if (nav !== lastNav) {
       lastNav = nav;
       hidden = false;
+      cancelReveal();
       nav.classList.remove('nav-smart-hidden');
       return;
     }
+    // DOM changes can collapse the active page below one viewport. Never carry
+    // a hidden dock into that state: there is no scroll gesture left to recover it.
+    if (!hasVerticalRange(window)) {
+      applyVisibility(false);
+      return;
+    }
     nav.classList.toggle('nav-smart-hidden', hidden);
+    if (hidden) scheduleReveal();
   });
   observer.observe(root, { childList: true, subtree: true });
 }

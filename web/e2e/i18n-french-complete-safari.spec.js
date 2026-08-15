@@ -39,6 +39,8 @@ async function mockFrenchSession(page) {
     if (path === '/api/users/privacy') return json(route, { isPrivate:false });
     if (path === '/api/rooms' && method === 'GET') return json(route, []);
     if (path === '/api/calls/incoming') return json(route, null);
+    if (path === '/api/one/preferences') return json(route, {});
+    if (path === '/api/one/together' || path === '/api/one/capsules' || path === '/api/one/lumes') return json(route, []);
     if (path === '/api/radar' && method === 'GET') return json(route, {
       items:[{
         id:'radar-1',
@@ -83,6 +85,20 @@ test('French iPhone UI has no Portuguese chrome across core mobile surfaces', as
   await bodyContains(page, 'Les histoires des personnes qui font partie de ta lumière');
   await bodyOmits(page, 'Sua luz, suas conexões');
 
+  const adventure = page.locator('.one-v3-feed-entry.one-adventure-entry');
+  await expect(adventure).toBeVisible();
+  const translatedModes = [
+    ['pulse', 'Ressens le pouls maintenant', 'Sente o pulso agora'],
+    ['lumes', 'Allume de nouveaux Lumes', 'Acende novos Lumes'],
+    ['capsules', 'Ouvre une Capsule', 'Abre uma Cápsula'],
+    ['agora', 'Explore ton instant présent', 'Explora o teu Agora'],
+  ];
+  for (const [mode, translated, portuguese] of translatedModes) {
+    await page.evaluate(value => window.dispatchEvent(new CustomEvent('lumina-one:show-mode', { detail:{ mode:value } })), mode);
+    await expect(adventure).toContainText(translated);
+    await expect(adventure).not.toContainText(portuguese);
+  }
+
   await page.getByRole('button', { name:'Salons' }).click();
   await bodyContains(page, 'Salons');
   await bodyContains(page, 'Des sujets vivants, sans encombrer le Fil.');
@@ -95,13 +111,15 @@ test('French iPhone UI has no Portuguese chrome across core mobile surfaces', as
   await page.getByRole('button', { name:'Radar' }).click();
   await bodyContains(page, 'Explorer maintenant');
   await bodyContains(page, 'Découvrir avec du contexte, pas du bruit.');
+  await bodyContains(page, 'Les sources éditoriales vérifiées, les titres et le contexte restent séparés du Fil social.');
   await bodyContains(page, 'Actualités');
   await bodyContains(page, 'Événements');
   await bodyContains(page, 'Source vérifiée');
   // Publisher/editorial content is not UI chrome and must remain exactly as published.
   await bodyContains(page, 'União de Leiria contrata belga Hugo Masaki');
   await bodyContains(page, 'Este texto editorial permanece no idioma original da fonte.');
-  await bodyOmits(page, 'Notícias');
+  await bodyContains(page, 'RTP Notícias · Desporto');
+  await bodyOmits(page, 'Sources editoriais verificadas, manchetes e contexto ficam separados do Feed social. O artigo original continua na respetiva fonte e conteúdo comercial permanece sempre identificado.');
 
   await page.getByRole('button', { name:'Profil' }).click();
   await bodyContains(page, 'Sécurité et sessions');

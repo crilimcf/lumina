@@ -95,13 +95,15 @@ test('French iPhone UI has no Portuguese chrome across core mobile surfaces', as
   await page.getByRole('button', { name:'Radar' }).click();
   await bodyContains(page, 'Explorer maintenant');
   await bodyContains(page, 'Découvrir avec du contexte, pas du bruit.');
+  await bodyContains(page, 'Les sources éditoriales vérifiées, les titres et le contexte restent séparés du Fil social.');
   await bodyContains(page, 'Actualités');
   await bodyContains(page, 'Événements');
   await bodyContains(page, 'Source vérifiée');
   // Publisher/editorial content is not UI chrome and must remain exactly as published.
   await bodyContains(page, 'União de Leiria contrata belga Hugo Masaki');
   await bodyContains(page, 'Este texto editorial permanece no idioma original da fonte.');
-  await bodyOmits(page, 'Notícias');
+  await bodyContains(page, 'RTP Notícias · Desporto');
+  await bodyOmits(page, 'Fontes editoriais verificadas, manchetes e contexto ficam separados do Feed social.');
 
   await page.getByRole('button', { name:'Profil' }).click();
   await bodyContains(page, 'Sécurité et sessions');

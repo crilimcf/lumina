@@ -132,7 +132,7 @@ test('French iPhone UI has no Portuguese chrome across core mobile surfaces', as
   await page.getByRole('button', { name:/Sécurité et sessions/i }).click();
   await bodyContains(page, 'Sécurité');
   await bodyContains(page, 'Validation en deux étapes');
-  await bodyContains(page, 'Appareils connectés');
+  await bodyContains(page, 'Où tu es connecté');
   await bodyOmits(page, 'Dois passos');
   await bodyOmits(page, 'Onde tens sessão iniciada');
   await page.getByRole('button', { name:'Retour' }).click();

@@ -45,8 +45,10 @@ jobs:
       - name: Validate native JavaScript
         run: |
           node --check mobile/runtime/native-bootstrap.js
+          node --check mobile/runtime/native-hardening.js
           node --check mobile/scripts/prepare-web.mjs
           node --check mobile/scripts/configure-native.mjs
+          node --check mobile/scripts/configure-android-push.mjs
           node --check mobile/scripts/configure-ios-push.mjs
           node --check mobile/scripts/store-readiness.mjs
           node --check mobile/scripts/upload-google-play.mjs
@@ -89,12 +91,15 @@ jobs:
           npx cap add android
           npx cap sync android
           npm run configure:android
-      - name: Verify Android target and manifest
+      - name: Verify Android target, push presentation and manifest
         working-directory: mobile
         run: |
           grep -R "targetSdkVersion = 36" android/variables.gradle
           grep -R 'android.permission.POST_NOTIFICATIONS' android/app/src/main/AndroidManifest.xml
           grep -R 'android:scheme="lumina"' android/app/src/main/AndroidManifest.xml
+          grep -R 'com.google.firebase.messaging.default_notification_icon' android/app/src/main/AndroidManifest.xml
+          test -f android/app/src/main/res/drawable/ic_stat_lumina.xml
+          grep -q "id:'lumina_activity'" runtime/native-hardening.js
       - name: Build debug APK and release AAB
         working-directory: mobile/android
         run: |

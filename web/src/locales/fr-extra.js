@@ -22,6 +22,16 @@ export default {
   'Desbloquear':'Débloquer',
   'pessoa':'personne',
   'pessoas':'personnes',
+  'Exportar os meus dados':'Exporter mes données',
+  'Descarrega uma cópia estruturada dos dados da tua conta.':'Télécharge une copie structurée des données de ton compte.',
+  'Pedir eliminação da conta':'Demander la suppression du compte',
+  'Agenda a remoção definitiva para daqui a 30 dias.':'Planifie la suppression définitive dans 30 jours.',
+  'Cancelar eliminação da conta':'Annuler la suppression du compte',
+  'A tua conta continua ativa se cancelares dentro dos 30 dias.':'Ton compte reste actif si tu annules dans les 30 jours.',
+  'Pedir a eliminação da conta? Tens 30 dias para cancelar.':'Demander la suppression du compte ? Tu as 30 jours pour annuler.',
+  'Exportação preparada':'Export prêt',
+  'Eliminação agendada':'Suppression planifiée',
+  'Eliminação cancelada':'Suppression annulée',
 
   // Split decorative headings kept by the current design
   'Sa':'Sa',

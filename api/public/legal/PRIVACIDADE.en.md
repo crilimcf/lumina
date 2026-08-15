@@ -1,18 +1,16 @@
 # Lumina Privacy Policy
 
-**Version:** 9 August 2026
-
-> This text is a technical product baseline and should be reviewed by legal counsel before a broad public launch.
+**Version:** 15 August 2026
 
 ## 1. Data controller
 
-**Controller:** `[name/company to be completed]`
+**Controller:** Carlos Fernandes
 
-**Email:** `[email to be completed]`
+**Email:** carlos.fernandes@digibox.pt
 
-**Address/tax ID:** `[to be completed]`
+**Address:** Rua da Cabecinha No. 23, 5300-802 Rebordainhos, Bragança, Portugal
 
-These fields must be completed before public launch.
+**Tax ID (NIF):** 227369661
 
 ## 2. Data we process
 
@@ -47,7 +45,7 @@ Data is processed to:
 - carry out export, correction and deletion requests;
 - operate, diagnose and improve the service.
 
-The applicable legal basis depends on the specific purpose and must be confirmed in the final legal text before public launch.
+The applicable legal bases are performance of the Terms and requested service, compliance with legal obligations, legitimate interests in security, abuse prevention and service improvement, and consent where it is specifically requested. Consent may be withdrawn at any time without affecting processing already carried out.
 
 ## 4. Visibility
 
@@ -81,7 +79,7 @@ The current architecture may involve:
 - **Resend** — transactional emails;
 - **Stripe** — only when paid features are enabled.
 
-Before public launch, contracts, processing regions, subprocessors and applicable transfer mechanisms must be confirmed.
+Lumina applies the contractual safeguards and transfer mechanisms required by the GDPR to its providers, including adequacy decisions or Standard Contractual Clauses where applicable.
 
 ## 8. Retention
 
@@ -101,7 +99,9 @@ The application includes technical mechanisms to:
 - cancel the request during the defined window;
 - manage privacy, follows, blocks and sessions.
 
-To exercise other rights under applicable law, a contact channel must be completed in section 1.
+Requests for access, rectification, erasure, restriction, objection and portability may be sent to the email in section 1 and are handled within the legal time limits. Where processing relies on consent, it may be withdrawn at any time. A complaint may also be filed with the Portuguese Data Protection Authority (CNPD).
+
+Lumina does not use solely automated decisions that produce legal or similarly significant effects on a person.
 
 ## 10. Security
 

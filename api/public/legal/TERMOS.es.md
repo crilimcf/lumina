@@ -1,8 +1,6 @@
 # Condiciones de uso de Lumina
 
-**Versión:** 9 de agosto de 2026
-
-> Este texto es una base técnica del producto y debe ser revisado por asesoramiento jurídico antes de un lanzamiento público amplio.
+**Versión:** 15 de agosto de 2026
 
 ## 1. Qué es Lumina
 
@@ -80,6 +78,10 @@ Podemos actualizar estas Condiciones cuando cambien el producto, la ley o los pr
 
 ## 13. Contacto
 
-**Contacto del responsable:** `[correo electrónico por completar antes del lanzamiento]`
+**Responsable:** Carlos Fernandes
 
-**Dirección/NIF del responsable:** `[por completar antes del lanzamiento]`
+**Correo electrónico:** carlos.fernandes@digibox.pt
+
+**Dirección:** Rua da Cabecinha n.º 23, 5300-802 Rebordainhos, Bragança, Portugal
+
+**NIF:** 227369661

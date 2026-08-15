@@ -50,7 +50,13 @@ function readScroll() {
   frame = 0;
   const scroller = pending || window;
   pending = null;
-  if (!hasVerticalRange(scroller)) return;
+  if (!hasVerticalRange(scroller)) {
+    // If content disappears (for example after deleting a Feed post), the page
+    // can stop being scrollable while the dock is still in its hidden state.
+    // A non-scrollable screen must always leave primary navigation reachable.
+    applyVisibility(false);
+    return;
+  }
 
   const y = scrollPosition(scroller);
   const previous = stateByScroller.get(scroller) || { lastY: y, direction: null, travelled: 0 };
@@ -83,7 +89,10 @@ function scheduleRead(event) {
   const scroller = normalizeScroller(event?.target);
   // Carrosséis horizontais (Momentos, media, etc.) também disparam `scroll` no
   // Safari. Nunca devem alterar o estado da navegação inferior.
-  if (!hasVerticalRange(scroller)) return;
+  if (!hasVerticalRange(scroller)) {
+    if (scroller === window) applyVisibility(false);
+    return;
+  }
   pending = scroller;
   if (!frame) frame = requestAnimationFrame(readScroll);
 }
@@ -176,6 +185,12 @@ if (root) {
       lastNav = nav;
       hidden = false;
       nav.classList.remove('nav-smart-hidden');
+      return;
+    }
+    // DOM changes can collapse the active page below one viewport. Never carry
+    // a hidden dock into that state: there is no scroll gesture left to recover it.
+    if (!hasVerticalRange(window)) {
+      applyVisibility(false);
       return;
     }
     nav.classList.toggle('nav-smart-hidden', hidden);

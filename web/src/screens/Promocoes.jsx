@@ -149,7 +149,7 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
         <span className="explore-trust-icon"><ShieldCheck size={20}/></span>
         <div className="explore-trust-copy">
           <strong>Descoberta com contexto, não ruído.</strong>
-          <p><b>Fontes editoriais verificadas</b>, manchetes e contexto ficam separados do Feed social. O artigo original continua na respetiva fonte e conteúdo comercial permanece sempre identificado.</p>
+          <p>Fontes editoriais verificadas, manchetes e contexto ficam separados do Feed social. O artigo original continua na respetiva fonte e conteúdo comercial permanece sempre identificado.</p>
         </div>
       </section>
 

@@ -69,7 +69,8 @@ test('Agora permite afinar algoritmo e Radar Local no iPhone', async ({ page }) 
   await openOne(page);
   await page.getByRole('button', { name: 'Agora', exact: true }).click();
 
-  await expect(page.getByText('A rede adapta-se')).toBeVisible();
+  await expect(page.locator('.one-settings-card')).toBeVisible();
+  await expect(page.getByText('O que queres ver agora?')).toBeVisible();
   await page.getByPlaceholder('viagens, carros, tecnologia').fill('viagens, tecnologia');
   await page.getByPlaceholder('política, futebol…').fill('política');
   await page.getByRole('button', { name: 'Viagem', exact: true }).click();

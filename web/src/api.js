@@ -70,6 +70,7 @@ export const api = {
       const a = document.createElement('a'); a.href = url; a.download = 'lumina-os-meus-dados.json'; a.click();
       URL.revokeObjectURL(url);
     },
+    deletion: () => call('/account/delete'),
     remove: () => call('/account/delete', { method: 'POST' }),
     cancelRemoval: () => call('/account/delete/cancel', { method: 'POST' }),
   },

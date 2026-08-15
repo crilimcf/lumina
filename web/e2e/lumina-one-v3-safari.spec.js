@@ -53,6 +53,7 @@ test('One v3 é compacto, sem onboarding permanente, e suporta swipe entre modos
   await openOne(page);
   await expect(page.getByText('Tudo ligado.')).toBeVisible();
   await expect(page.locator('.one-assist-guide')).toHaveCount(0);
+  await openTab(page, 'Pulso');
   const root = page.locator('.lumina-one.one-v3');
   await root.evaluate(node => {
     node.dispatchEvent(new PointerEvent('pointerdown', { bubbles:true, pointerType:'touch', pointerId:7, clientX:310, clientY:520 }));
@@ -127,6 +128,7 @@ test('Pulso vazio ganha descoberta visual e Juntos dá feedback funcional', asyn
   });
   await register(page, 'v3pulse');
   await openOne(page);
+  await openTab(page, 'Pulso');
   const discovery = page.locator('.one-v3-discovery');
   await expect(discovery).toBeVisible();
   await expect(discovery.getByText('Eclipse em Bragança')).toBeVisible();

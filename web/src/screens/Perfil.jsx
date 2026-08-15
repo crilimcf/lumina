@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowUpRight, Flag, LogOut, Pencil, Search, Shield, Sparkles, UserPlus, Users, X } from 'lucide-react';
+import { ArrowUpRight, Download, Flag, LogOut, Pencil, Search, Shield, Sparkles, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { api } from '../api.js';
+import { t } from '../i18n.js';
 import { Orb } from '../ui.jsx';
 import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
 import '../facelift.css';
@@ -145,12 +146,42 @@ export function Perfil({ me, blocked, setBlocked, setScreen, onOpenProfile, logo
   const [suggestions, setSuggestions] = useState([]);
   const [connections, setConnections] = useState(null);
   const [discover, setDiscover] = useState(false);
+  const [deletion, setDeletion] = useState(null);
+  const [accountBusy, setAccountBusy] = useState('');
 
   useEffect(() => {
     Promise.all([api.users.followers(), api.users.following(), api.users.suggestions()])
       .then(([a, b, c]) => { setFollowers(a); setFollowing(b); setSuggestions(c); })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    api.account.deletion().then(setDeletion).catch(() => setDeletion({ scheduled:false, executeAt:null }));
+  }, []);
+
+  const exportAccount = async () => {
+    if (accountBusy) return;
+    setAccountBusy('export');
+    try { await api.account.download(); ping('Exportação preparada'); }
+    catch (e) { ping(e.message); }
+    finally { setAccountBusy(''); }
+  };
+
+  const scheduleDeletion = async () => {
+    if (accountBusy || !window.confirm(t('Pedir a eliminação da conta? Tens 30 dias para cancelar.'))) return;
+    setAccountBusy('delete');
+    try { const result = await api.account.remove(); setDeletion(result); ping('Eliminação agendada'); }
+    catch (e) { ping(e.message); }
+    finally { setAccountBusy(''); }
+  };
+
+  const cancelDeletion = async () => {
+    if (accountBusy) return;
+    setAccountBusy('cancel');
+    try { await api.account.cancelRemoval(); setDeletion({ scheduled:false, executeAt:null }); ping('Eliminação cancelada'); }
+    catch (e) { ping(e.message); }
+    finally { setAccountBusy(''); }
+  };
 
   const unblock = async (person) => {
     try {
@@ -227,6 +258,20 @@ export function Perfil({ me, blocked, setBlocked, setScreen, onOpenProfile, logo
             <span className="lumina-profile-action-copy">Termos<small>Consulta as regras e condições da plataforma.</small></span>
             <ArrowUpRight className="lumina-profile-action-chevron" size={16} />
           </button>
+          <button className="lumina-profile-action" onClick={exportAccount} disabled={!!accountBusy}>
+            <span className="lumina-profile-action-icon"><Download size={17} /></span>
+            <span className="lumina-profile-action-copy">Exportar os meus dados<small>Descarrega uma cópia estruturada dos dados da tua conta.</small></span>
+            <ArrowUpRight className="lumina-profile-action-chevron" size={16} />
+          </button>
+          {deletion?.scheduled ? <button className="lumina-profile-action" onClick={cancelDeletion} disabled={!!accountBusy}>
+            <span className="lumina-profile-action-icon"><Shield size={17} /></span>
+            <span className="lumina-profile-action-copy">Cancelar eliminação da conta<small>A tua conta continua ativa se cancelares dentro dos 30 dias.</small></span>
+            <ArrowUpRight className="lumina-profile-action-chevron" size={16} />
+          </button> : <button className="lumina-profile-action" onClick={scheduleDeletion} disabled={!!accountBusy}>
+            <span className="lumina-profile-action-icon" style={{ color:'var(--coral)' }}><Trash2 size={17} /></span>
+            <span className="lumina-profile-action-copy">Pedir eliminação da conta<small>Agenda a remoção definitiva para daqui a 30 dias.</small></span>
+            <ArrowUpRight className="lumina-profile-action-chevron" size={16} />
+          </button>}
         </div>
       </section>
 

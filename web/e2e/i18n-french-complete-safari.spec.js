@@ -39,6 +39,8 @@ async function mockFrenchSession(page) {
     if (path === '/api/users/privacy') return json(route, { isPrivate:false });
     if (path === '/api/rooms' && method === 'GET') return json(route, []);
     if (path === '/api/calls/incoming') return json(route, null);
+    if (path === '/api/one/preferences') return json(route, {});
+    if (path === '/api/one/together' || path === '/api/one/capsules' || path === '/api/one/lumes') return json(route, []);
     if (path === '/api/radar' && method === 'GET') return json(route, {
       items:[{
         id:'radar-1',
@@ -82,6 +84,20 @@ test('French iPhone UI has no Portuguese chrome across core mobile surfaces', as
   await bodyContains(page, 'Ton Fil est vide.');
   await bodyContains(page, 'Les histoires des personnes qui font partie de ta lumière');
   await bodyOmits(page, 'Sua luz, suas conexões');
+
+  const adventure = page.locator('.one-v3-feed-entry.one-adventure-entry');
+  await expect(adventure).toBeVisible();
+  const translatedModes = [
+    ['pulse', 'Ressens le pouls maintenant', 'Sente o pulso agora'],
+    ['lumes', 'Allume de nouveaux Lumes', 'Acende novos Lumes'],
+    ['capsules', 'Ouvre une Capsule', 'Abre uma Cápsula'],
+    ['agora', 'Explore ton instant présent', 'Explora o teu Agora'],
+  ];
+  for (const [mode, translated, portuguese] of translatedModes) {
+    await page.evaluate(value => window.dispatchEvent(new CustomEvent('lumina-one:show-mode', { detail:{ mode:value } })), mode);
+    await expect(adventure).toContainText(translated);
+    await expect(adventure).not.toContainText(portuguese);
+  }
 
   await page.getByRole('button', { name:'Salons' }).click();
   await bodyContains(page, 'Salons');

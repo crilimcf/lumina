@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appDelegatePath = path.resolve(here, '../ios/App/App/AppDelegate.swift');
+const entitlementsPath = path.resolve(here, '../ios/App/App/App.entitlements');
 
 let source = await fs.readFile(appDelegatePath, 'utf8');
 if (!source.includes('capacitorDidRegisterForRemoteNotifications')) {
@@ -25,4 +26,12 @@ if (!source.includes('capacitorDidRegisterForRemoteNotifications')) {
   await fs.writeFile(appDelegatePath, source);
 }
 
-console.log('[mobile] iOS AppDelegate wired to Capacitor Push Notifications.');
+const apnsEnvironment = process.env.APNS_ENVIRONMENT === 'production' ? 'production' : 'development';
+let entitlements = await fs.readFile(entitlementsPath, 'utf8');
+entitlements = entitlements.replace(
+  /(<key>aps-environment<\/key>\s*<string>)(development|production)(<\/string>)/,
+  `$1${apnsEnvironment}$3`
+);
+await fs.writeFile(entitlementsPath, entitlements);
+
+console.log(`[mobile] iOS AppDelegate wired to Capacitor Push Notifications (${apnsEnvironment}).`);

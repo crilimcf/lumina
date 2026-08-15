@@ -6,7 +6,7 @@ const me = {
   name:'Bruno Fernandes',
   bio:'Bio écrite par l’utilisateur',
   palette:1,
-  avatar_url:'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32"%3E%3Crect width="32" height="32" fill="%23d77"/%3E%3C/svg%3E',
+  avatar_url:'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32%3E%3Crect width="32" height="32" fill="%23d77"/%3E%3C/svg%3E',
   stars:[],
   created_at:new Date().toISOString(),
   session_version:1,
@@ -103,7 +103,7 @@ test('French iPhone UI has no Portuguese chrome across core mobile surfaces', as
   await bodyContains(page, 'União de Leiria contrata belga Hugo Masaki');
   await bodyContains(page, 'Este texto editorial permanece no idioma original da fonte.');
   await bodyContains(page, 'RTP Notícias · Desporto');
-  await bodyOmits(page, 'Fontes editoriais verificadas, manchetes e contexto ficam separados do Feed social.');
+  await bodyOmits(page, 'Sources editoriais verificadas, manchetes e contexto ficam separados do Feed social. O artigo original continua na respetiva fonte e conteúdo comercial permanece sempre identificado.');
 
   await page.getByRole('button', { name:'Profil' }).click();
   await bodyContains(page, 'Sécurité et sessions');

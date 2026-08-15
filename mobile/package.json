@@ -13,7 +13,7 @@
     "native:add:ios": "npx cap add ios",
     "native:sync": "npx cap sync",
     "configure:android": "node scripts/configure-native.mjs android",
-    "configure:ios": "node scripts/configure-native.mjs ios",
+    "configure:ios": "node scripts/configure-native.mjs ios && node scripts/configure-ios-push.mjs",
     "readiness": "node scripts/store-readiness.mjs"
   },
   "dependencies": {

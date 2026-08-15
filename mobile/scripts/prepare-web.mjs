@@ -5,21 +5,25 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const mobileRoot = path.resolve(here, '..');
 const webRoot = path.resolve(mobileRoot, '../web');
-const runtimeSource = path.join(mobileRoot, 'runtime/native-bootstrap.js');
-const runtimeTarget = path.join(webRoot, 'public/native-bootstrap.js');
+const runtimeFiles = ['native-bootstrap.js', 'native-hardening.js'];
 const indexPath = path.join(webRoot, 'index.html');
 const mainPath = path.join(webRoot, 'src/main.jsx');
 const passkeysPath = path.join(webRoot, 'src/passkeys.js');
 
-await fs.copyFile(runtimeSource, runtimeTarget);
+for (const runtimeFile of runtimeFiles) {
+  await fs.copyFile(path.join(mobileRoot, 'runtime', runtimeFile), path.join(webRoot, 'public', runtimeFile));
+}
 
 let html = await fs.readFile(indexPath, 'utf8');
+const marker = '<script type="module" src="/src/main.jsx"></script>';
+if (!html.includes(marker)) throw new Error('Lumina web entry point changed; native bootstrap was not injected.');
 if (!html.includes('/native-bootstrap.js')) {
-  const marker = '<script type="module" src="/src/main.jsx"></script>';
-  if (!html.includes(marker)) throw new Error('Lumina web entry point changed; native bootstrap was not injected.');
   html = html.replace(marker, '<script src="/native-bootstrap.js"></script>\n    ' + marker);
-  await fs.writeFile(indexPath, html);
 }
+if (!html.includes('/native-hardening.js')) {
+  html = html.replace(marker, '<script src="/native-hardening.js"></script>\n    ' + marker);
+}
+await fs.writeFile(indexPath, html);
 
 let main = await fs.readFile(mainPath, 'utf8');
 main = main.replace(

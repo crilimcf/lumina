@@ -15,7 +15,12 @@ export function Entrada({ onIn }) {
   const [needsCode, setNeedsCode] = useState(false);
   const [code, setCode] = useState('');
   const [legalPage, setLegalPage] = useState(null);
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  // Use a functional update so browser autofill/password managers changing
+  // several fields in the same render cannot overwrite sibling values.
+  const set = (k) => (e) => {
+    const value = e.target.value;
+    setF((current) => ({ ...current, [k]: value }));
+  };
 
   if (legalPage) return <Legal page={legalPage} onBack={() => setLegalPage(null)} />;
 

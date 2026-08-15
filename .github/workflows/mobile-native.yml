@@ -1,0 +1,184 @@
+name: Native Mobile Validation
+
+on:
+  push:
+    branches:
+      - feat/mobile-native-apps
+    paths:
+      - 'mobile/**'
+      - 'web/**'
+      - 'api/**'
+      - 'docs/MOBILE_RELEASE.md'
+      - '.github/workflows/mobile-native.yml'
+      - '.github/workflows/mobile-store-release.yml'
+  pull_request:
+    paths:
+      - 'mobile/**'
+      - 'web/**'
+      - 'api/**'
+      - 'docs/MOBILE_RELEASE.md'
+      - '.github/workflows/mobile-native.yml'
+      - '.github/workflows/mobile-store-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-native-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  LUMINA_VERSION: '1.0.0'
+  LUMINA_BUILD: '1'
+
+jobs:
+  preflight:
+    name: Native release preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate native JavaScript
+        run: |
+          node --check mobile/runtime/native-bootstrap.js
+          node --check mobile/runtime/native-hardening.js
+          node --check mobile/scripts/prepare-web.mjs
+          node --check mobile/scripts/configure-native.mjs
+          node --check mobile/scripts/configure-android-push.mjs
+          node --check mobile/scripts/configure-ios-push.mjs
+          node --check mobile/scripts/store-readiness.mjs
+          node --check mobile/scripts/upload-google-play.mjs
+          node --check api/src/routes/native-push.js
+          node --check api/src/routes/native-push-extension.js
+          node --check api/src/lib/nativepush.js
+          node --check api/src/jobs/native-push.js
+      - name: Technical store readiness
+        working-directory: mobile
+        run: node scripts/store-readiness.mjs
+
+  android:
+    name: Android API 36 build
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci --no-audit --no-fund
+      - name: Install native dependencies
+        working-directory: mobile
+        run: npm install --no-audit --no-fund
+      - name: Build native web bundle
+        working-directory: mobile
+        run: npm run build:web
+      - name: Generate Android project
+        working-directory: mobile
+        run: |
+          npx cap add android
+          npx cap sync android
+          npm run configure:android
+      - name: Verify Android target, push presentation and manifest
+        working-directory: mobile
+        run: |
+          grep -R "targetSdkVersion = 36" android/variables.gradle
+          grep -R 'android.permission.POST_NOTIFICATIONS' android/app/src/main/AndroidManifest.xml
+          grep -R 'android:scheme="lumina"' android/app/src/main/AndroidManifest.xml
+          grep -R 'com.google.firebase.messaging.default_notification_icon' android/app/src/main/AndroidManifest.xml
+          test -f android/app/src/main/res/drawable/ic_stat_lumina.xml
+          grep -q "id:'lumina_activity'" runtime/native-hardening.js
+      - name: Build debug APK and release AAB
+        working-directory: mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug bundleRelease --stacktrace
+      - name: Upload Android test artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: lumina-android-unsigned
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            mobile/android/app/build/outputs/apk/debug/*.apk
+            mobile/android/app/build/outputs/bundle/release/*.aab
+
+  ios:
+    name: iOS simulator build
+    needs: preflight
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci --no-audit --no-fund
+      - name: Install native dependencies
+        working-directory: mobile
+        run: npm install --no-audit --no-fund
+      - name: Build native web bundle
+        working-directory: mobile
+        run: npm run build:web
+      - name: Generate iOS project
+        working-directory: mobile
+        run: |
+          npx cap add ios
+          npx cap sync ios
+          npm run configure:ios
+      - name: Verify iOS permissions, APNs bridge, privacy manifest, push entitlement and deep link
+        working-directory: mobile
+        run: |
+          grep -q 'NSCameraUsageDescription' ios/App/App/Info.plist
+          grep -q 'NSMicrophoneUsageDescription' ios/App/App/Info.plist
+          grep -q 'NSLocationWhenInUseUsageDescription' ios/App/App/Info.plist
+          grep -q '<string>lumina</string>' ios/App/App/Info.plist
+          grep -q 'aps-environment' ios/App/App/App.entitlements
+          grep -q 'CODE_SIGN_ENTITLEMENTS = App/App.entitlements' ios/App/App.xcodeproj/project.pbxproj
+          grep -q 'capacitorDidRegisterForRemoteNotifications' ios/App/App/AppDelegate.swift
+          grep -q 'capacitorDidFailToRegisterForRemoteNotifications' ios/App/App/AppDelegate.swift
+          grep -q 'NSPrivacyAccessedAPICategoryUserDefaults' ios/App/App/PrivacyInfo.xcprivacy
+          grep -q 'CA92.1' ios/App/App/PrivacyInfo.xcprivacy
+          grep -q 'NSPrivacyAccessedAPICategoryFileTimestamp' ios/App/App/PrivacyInfo.xcprivacy
+          grep -q 'C617.1' ios/App/App/PrivacyInfo.xcprivacy
+          grep -q 'PrivacyInfo.xcprivacy in Resources' ios/App/App.xcodeproj/project.pbxproj
+      - name: Resolve native project and compile without signing
+        working-directory: mobile
+        run: |
+          set -euxo pipefail
+          if [ -d ios/App/App.xcworkspace ]; then
+            xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+          else
+            xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+          fi
+      - name: Package iOS simulator result
+        if: success()
+        working-directory: mobile
+        run: |
+          APP_PATH=$(find "$HOME/Library/Developer/Xcode/DerivedData" -path '*Release-iphonesimulator/App.app' -print -quit)
+          test -n "$APP_PATH"
+          test -f "$APP_PATH/PrivacyInfo.xcprivacy"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" lumina-ios-simulator.zip
+      - name: Upload iOS test artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lumina-ios-simulator
+          if-no-files-found: error
+          retention-days: 14
+          path: mobile/lumina-ios-simulator.zip

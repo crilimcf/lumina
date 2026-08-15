@@ -14,6 +14,7 @@ jobs:
   webkit:
     name: Mobile Safari end-to-end
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:16
@@ -82,6 +83,7 @@ jobs:
           curl -kfsS https://localhost:5173/ > /dev/null
 
       - name: Run Mobile Safari flows
+        timeout-minutes: 20
         working-directory: web
         run: npx playwright test
 

@@ -1,0 +1,240 @@
+name: Native Store Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Public app version
+        required: true
+        default: '1.0.0'
+      build:
+        description: Monotonic build/version code
+        required: true
+        default: '1'
+      google_track:
+        description: Google Play track
+        required: true
+        default: internal
+        type: choice
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
+      upload_to_stores:
+        description: Upload signed artifacts after building
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lumina-mobile-store-release
+  cancel-in-progress: false
+
+env:
+  LUMINA_VERSION: ${{ inputs.version }}
+  LUMINA_BUILD: ${{ inputs.build }}
+
+jobs:
+  store-gate:
+    name: Public store gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require completed public legal identity and deletion route
+        run: |
+          test -f legal/PRIVACIDADE.md
+          test -f legal/TERMOS.md
+          test -f web/public/delete-account.html
+          if grep -Eq '\[(nome/empresa|email|a) a preencher\]' legal/PRIVACIDADE.md; then
+            echo 'Privacy controller identity/contact placeholders must be completed by the legal owner before a store release.' >&2
+            exit 1
+          fi
+          grep -F "remove: () => call('/account/delete'" web/src/api.js
+
+  android-release:
+    name: Signed Android AAB
+    needs: store-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+      GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Require Android release identity
+        run: |
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          test -n "$ANDROID_KEYSTORE_PASSWORD"
+          test -n "$ANDROID_KEY_ALIAS"
+          test -n "$ANDROID_KEY_PASSWORD"
+          test -n "$GOOGLE_SERVICES_JSON_BASE64"
+      - name: Install dependencies
+        run: |
+          npm --prefix web ci --no-audit --no-fund
+          npm --prefix mobile install --no-audit --no-fund
+      - name: Generate release project
+        working-directory: mobile
+        run: |
+          npm run build:web
+          npx cap add android
+          node -e "require('fs').writeFileSync('android/app/google-services.json', Buffer.from(process.env.GOOGLE_SERVICES_JSON_BASE64,'base64'))"
+          npx cap sync android
+          npm run configure:android
+      - name: Build unsigned bundle
+        working-directory: mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew bundleRelease --stacktrace
+      - name: Sign and verify AAB
+        run: |
+          node -e "require('fs').writeFileSync('/tmp/lumina-upload.jks', Buffer.from(process.env.ANDROID_KEYSTORE_BASE64,'base64'))"
+          AAB=$(find mobile/android/app/build/outputs/bundle/release -name '*.aab' -print -quit)
+          test -n "$AAB"
+          jarsigner -sigalg SHA256withRSA -digestalg SHA-256 \
+            -keystore /tmp/lumina-upload.jks \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD" \
+            -keypass "$ANDROID_KEY_PASSWORD" \
+            "$AAB" "$ANDROID_KEY_ALIAS"
+          jarsigner -verify -verbose -certs "$AAB"
+          cp "$AAB" "Lumina-${LUMINA_VERSION}-${LUMINA_BUILD}-android.aab"
+      - name: Upload signed Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lumina-android-store-${{ inputs.version }}-${{ inputs.build }}
+          retention-days: 30
+          if-no-files-found: error
+          path: Lumina-${{ inputs.version }}-${{ inputs.build }}-android.aab
+      - name: Upload to Google Play
+        if: ${{ inputs.upload_to_stores }}
+        env:
+          GOOGLE_PLAY_TRACK: ${{ inputs.google_track }}
+          GOOGLE_PLAY_PACKAGE: com.crilimcf.lumina
+        run: |
+          test -n "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64"
+          node -e "require('fs').writeFileSync('/tmp/google-play.json', Buffer.from(process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64,'base64'))"
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/google-play.json
+          node mobile/scripts/upload-google-play.mjs "Lumina-${LUMINA_VERSION}-${LUMINA_BUILD}-android.aab"
+
+  ios-release:
+    name: Signed iOS IPA
+    needs: store-gate
+    runs-on: macos-latest
+    timeout-minutes: 55
+    env:
+      IOS_CERTIFICATE_P12_BASE64: ${{ secrets.IOS_CERTIFICATE_P12_BASE64 }}
+      IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+      IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_PRIVATE_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Require Apple distribution identity
+        run: |
+          test -n "$IOS_CERTIFICATE_P12_BASE64"
+          test -n "$IOS_CERTIFICATE_PASSWORD"
+          test -n "$IOS_PROVISIONING_PROFILE_BASE64"
+          test -n "$APPLE_TEAM_ID"
+      - name: Install dependencies
+        run: |
+          npm --prefix web ci --no-audit --no-fund
+          npm --prefix mobile install --no-audit --no-fund
+      - name: Generate release project
+        working-directory: mobile
+        run: |
+          npm run build:web
+          npx cap add ios
+          npx cap sync ios
+          npm run configure:ios
+      - name: Install signing certificate and provisioning profile
+        run: |
+          node -e "require('fs').writeFileSync('/tmp/lumina-dist.p12', Buffer.from(process.env.IOS_CERTIFICATE_P12_BASE64,'base64'))"
+          node -e "require('fs').writeFileSync('/tmp/lumina.mobileprovision', Buffer.from(process.env.IOS_PROVISIONING_PROFILE_BASE64,'base64'))"
+          KEYCHAIN=/tmp/lumina-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -hex 24)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import /tmp/lumina-dist.p12 -k "$KEYCHAIN" -P "$IOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          security cms -D -i /tmp/lumina.mobileprovision > /tmp/profile.plist
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' /tmp/profile.plist)
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' /tmp/profile.plist)
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp /tmp/lumina.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          echo "PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+      - name: Archive signed iOS app
+        working-directory: mobile
+        run: |
+          set -euxo pipefail
+          COMMON=( -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath "$PWD/Lumina.xcarchive" DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Manual PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" PRODUCT_BUNDLE_IDENTIFIER=com.crilimcf.lumina )
+          if [ -d ios/App/App.xcworkspace ]; then
+            xcodebuild -workspace ios/App/App.xcworkspace "${COMMON[@]}" archive
+          else
+            xcodebuild -project ios/App/App.xcodeproj "${COMMON[@]}" archive
+          fi
+      - name: Export signed IPA
+        working-directory: mobile
+        run: |
+          cat > /tmp/ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>export</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>provisioningProfiles</key><dict><key>com.crilimcf.lumina</key><string>${PROFILE_NAME}</string></dict>
+            <key>stripSwiftSymbols</key><true/>
+          </dict></plist>
+          EOF
+          rm -rf output
+          xcodebuild -exportArchive -archivePath "$PWD/Lumina.xcarchive" -exportPath "$PWD/output" -exportOptionsPlist /tmp/ExportOptions.plist
+          IPA=$(find output -name '*.ipa' -print -quit)
+          test -n "$IPA"
+          cp "$IPA" "Lumina-${LUMINA_VERSION}-${LUMINA_BUILD}-ios.ipa"
+      - name: Upload signed iOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lumina-ios-store-${{ inputs.version }}-${{ inputs.build }}
+          retention-days: 30
+          if-no-files-found: error
+          path: mobile/Lumina-${{ inputs.version }}-${{ inputs.build }}-ios.ipa
+      - name: Upload to App Store Connect
+        if: ${{ inputs.upload_to_stores }}
+        working-directory: mobile
+        run: |
+          test -n "$APP_STORE_CONNECT_KEY_ID"
+          test -n "$APP_STORE_CONNECT_ISSUER_ID"
+          test -n "$APP_STORE_CONNECT_PRIVATE_KEY_BASE64"
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          node -e "require('fs').writeFileSync(process.env.HOME+'/.appstoreconnect/private_keys/AuthKey_'+process.env.APP_STORE_CONNECT_KEY_ID+'.p8', Buffer.from(process.env.APP_STORE_CONNECT_PRIVATE_KEY_BASE64,'base64'))"
+          xcrun iTMSTransporter -m upload \
+            -assetFile "Lumina-${LUMINA_VERSION}-${LUMINA_BUILD}-ios.ipa" \
+            -apiKey "$APP_STORE_CONNECT_KEY_ID" \
+            -apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"

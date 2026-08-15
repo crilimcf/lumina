@@ -1,11 +1,14 @@
 import 'dotenv/config';
 import './routes/passkeys-auth-extension.js';
+import './routes/native-push-extension.js';
 
 function required(name) {
   const v = process.env[name];
   if (!v) throw new Error(`Falta a variavel de ambiente ${name}`);
   return v;
 }
+
+const configuredCorsOrigins = process.env.CORS_ORIGIN;
 
 export const env = {
   NODE_ENV: process.env.NODE_ENV || 'development',
@@ -15,7 +18,9 @@ export const env = {
   PGSSL: process.env.PGSSL === 'true',
 
   APP_URL: process.env.APP_URL || 'http://localhost:5173',
-  CORS_ORIGIN: process.env.CORS_ORIGIN,
+  CORS_ORIGIN: configuredCorsOrigins
+    ? `${configuredCorsOrigins},capacitor://localhost,https://localhost`
+    : configuredCorsOrigins,
 
   RESEND_API_KEY: process.env.RESEND_API_KEY,
   EMAIL_FROM: process.env.EMAIL_FROM || 'Lumina <ola@lumina.app>',
@@ -45,6 +50,15 @@ export const env = {
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || '',
   ULTRA_ROOM_CREATE_CENTS: Number(process.env.ULTRA_ROOM_CREATE_CENTS || 299),
   ULTRA_ROOM_ENTRY_CENTS: Number(process.env.ULTRA_ROOM_ENTRY_CENTS || 149),
+
+  FCM_PROJECT_ID: process.env.FCM_PROJECT_ID || '',
+  FCM_CLIENT_EMAIL: process.env.FCM_CLIENT_EMAIL || '',
+  FCM_PRIVATE_KEY: process.env.FCM_PRIVATE_KEY || '',
+  APNS_TEAM_ID: process.env.APNS_TEAM_ID || '',
+  APNS_KEY_ID: process.env.APNS_KEY_ID || '',
+  APNS_PRIVATE_KEY: process.env.APNS_PRIVATE_KEY || '',
+  APNS_BUNDLE_ID: process.env.APNS_BUNDLE_ID || 'com.crilimcf.lumina',
+  APNS_PRODUCTION: process.env.APNS_PRODUCTION === 'true',
 
   REPORTS_TO_AUTOHIDE: Number(process.env.REPORTS_TO_AUTOHIDE || 3),
   PROPOSALS_PER_WEEK: Number(process.env.PROPOSALS_PER_WEEK || 3),

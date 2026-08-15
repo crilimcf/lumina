@@ -1,18 +1,16 @@
 # Política de privacidad de Lumina
 
-**Versión:** 9 de agosto de 2026
-
-> Este texto es una base técnica del producto y debe ser revisado por asesoramiento jurídico antes de un lanzamiento público amplio.
+**Versión:** 15 de agosto de 2026
 
 ## 1. Responsable del tratamiento
 
-**Responsable:** `[nombre/empresa por completar]`
+**Responsable:** Carlos Fernandes
 
-**Correo electrónico:** `[correo electrónico por completar]`
+**Correo electrónico:** carlos.fernandes@digibox.pt
 
-**Dirección/NIF:** `[por completar]`
+**Dirección:** Rua da Cabecinha n.º 23, 5300-802 Rebordainhos, Bragança, Portugal
 
-Estos campos deben completarse antes del lanzamiento público.
+**NIF:** 227369661
 
 ## 2. Datos tratados
 
@@ -47,7 +45,7 @@ Los datos se tratan para:
 - ejecutar solicitudes de exportación, corrección y eliminación;
 - operar, diagnosticar y mejorar el servicio.
 
-La base jurídica aplicable depende de la finalidad concreta y debe confirmarse en el texto jurídico final antes del lanzamiento público.
+Las bases jurídicas aplicables son la ejecución de las Condiciones y del servicio solicitado, el cumplimiento de obligaciones legales, los intereses legítimos de seguridad, prevención de abusos y mejora del servicio, y el consentimiento cuando se solicite específicamente. El consentimiento puede retirarse en cualquier momento sin afectar al tratamiento ya realizado.
 
 ## 4. Visibilidad
 
@@ -81,7 +79,7 @@ La arquitectura actual puede incluir:
 - **Resend** — correos electrónicos transaccionales;
 - **Stripe** — solo cuando se activen funciones de pago.
 
-Antes del lanzamiento público deben confirmarse los contratos, regiones de tratamiento, subencargados y mecanismos de transferencia aplicables.
+Lumina aplica a sus proveedores las garantías contractuales y los mecanismos de transferencia exigidos por el RGPD, incluidas las decisiones de adecuación o las cláusulas contractuales tipo cuando correspondan.
 
 ## 8. Conservación
 
@@ -101,7 +99,9 @@ La aplicación incluye mecanismos técnicos para:
 - cancelar la solicitud durante el plazo previsto;
 - gestionar privacidad, seguimientos, bloqueos y sesiones.
 
-Para ejercer otros derechos previstos por la legislación aplicable, debe existir un canal de contacto completado en la sección 1.
+Las solicitudes de acceso, rectificación, supresión, limitación, oposición y portabilidad pueden enviarse al correo electrónico indicado en la sección 1 y se tramitan dentro de los plazos legales. Cuando el tratamiento se base en el consentimiento, este podrá retirarse en cualquier momento. También puede presentarse una reclamación ante la autoridad portuguesa de protección de datos (CNPD).
+
+Lumina no utiliza decisiones exclusivamente automatizadas que produzcan efectos jurídicos o efectos igualmente significativos sobre una persona.
 
 ## 10. Seguridad
 

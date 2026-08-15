@@ -132,11 +132,17 @@ async function ios() {
   }
   await write(plistPath, plist);
 
+  const entitlementsPath = path.join(root, 'App/App/App.entitlements');
+  await write(entitlementsPath, `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n\t<key>aps-environment</key>\n\t<string>production</string>\n</dict>\n</plist>\n`);
+
   const projectPath = path.join(root, 'App/App.xcodeproj/project.pbxproj');
   if (await exists(projectPath)) {
     let project = await read(projectPath);
     project = project.replace(/MARKETING_VERSION = [^;]+;/g, `MARKETING_VERSION = ${VERSION};`);
     project = project.replace(/CURRENT_PROJECT_VERSION = [^;]+;/g, `CURRENT_PROJECT_VERSION = ${BUILD};`);
+    if (!project.includes('CODE_SIGN_ENTITLEMENTS = App/App.entitlements;')) {
+      project = project.replace(/CODE_SIGN_STYLE = Automatic;/g, 'CODE_SIGN_ENTITLEMENTS = App/App.entitlements;\n\t\t\t\tCODE_SIGN_STYLE = Automatic;');
+    }
     await write(projectPath, project);
   }
 
@@ -149,7 +155,7 @@ async function ios() {
   }
   await write(path.join(appIcon, 'Contents.json'), JSON.stringify({ images, info:{ author:'xcode', version:1 } }, null, 2));
 
-  console.log(`[mobile] iOS configured: ${APP_ID} ${VERSION} (${BUILD}) with camera, microphone, photos, location and deep-link usage strings.`);
+  console.log(`[mobile] iOS configured: ${APP_ID} ${VERSION} (${BUILD}) with native permissions, push entitlement and deep link.`);
 }
 
 if (platform === 'android') await android();

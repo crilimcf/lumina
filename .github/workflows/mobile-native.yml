@@ -10,6 +10,7 @@ on:
       - 'api/**'
       - 'docs/MOBILE_RELEASE.md'
       - '.github/workflows/mobile-native.yml'
+      - '.github/workflows/mobile-store-release.yml'
   pull_request:
     paths:
       - 'mobile/**'
@@ -17,6 +18,7 @@ on:
       - 'api/**'
       - 'docs/MOBILE_RELEASE.md'
       - '.github/workflows/mobile-native.yml'
+      - '.github/workflows/mobile-store-release.yml'
   workflow_dispatch:
 
 permissions:
@@ -46,6 +48,7 @@ jobs:
           node --check mobile/scripts/prepare-web.mjs
           node --check mobile/scripts/configure-native.mjs
           node --check mobile/scripts/store-readiness.mjs
+          node --check mobile/scripts/upload-google-play.mjs
           node --check api/src/routes/native-push.js
           node --check api/src/routes/native-push-extension.js
           node --check api/src/lib/nativepush.js
@@ -133,13 +136,15 @@ jobs:
           npx cap add ios
           npx cap sync ios
           npm run configure:ios
-      - name: Verify iOS permissions and deep link
+      - name: Verify iOS permissions, push entitlement and deep link
         working-directory: mobile
         run: |
           grep -q 'NSCameraUsageDescription' ios/App/App/Info.plist
           grep -q 'NSMicrophoneUsageDescription' ios/App/App/Info.plist
           grep -q 'NSLocationWhenInUseUsageDescription' ios/App/App/Info.plist
           grep -q '<string>lumina</string>' ios/App/App/Info.plist
+          grep -q 'aps-environment' ios/App/App/App.entitlements
+          grep -q 'CODE_SIGN_ENTITLEMENTS = App/App.entitlements' ios/App/App.xcodeproj/project.pbxproj
       - name: Resolve native project and compile without signing
         working-directory: mobile
         run: |

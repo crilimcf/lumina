@@ -47,6 +47,7 @@ jobs:
           node --check mobile/runtime/native-bootstrap.js
           node --check mobile/scripts/prepare-web.mjs
           node --check mobile/scripts/configure-native.mjs
+          node --check mobile/scripts/configure-ios-push.mjs
           node --check mobile/scripts/store-readiness.mjs
           node --check mobile/scripts/upload-google-play.mjs
           node --check api/src/routes/native-push.js
@@ -136,7 +137,7 @@ jobs:
           npx cap add ios
           npx cap sync ios
           npm run configure:ios
-      - name: Verify iOS permissions, push entitlement and deep link
+      - name: Verify iOS permissions, APNs bridge, push entitlement and deep link
         working-directory: mobile
         run: |
           grep -q 'NSCameraUsageDescription' ios/App/App/Info.plist
@@ -145,6 +146,8 @@ jobs:
           grep -q '<string>lumina</string>' ios/App/App/Info.plist
           grep -q 'aps-environment' ios/App/App/App.entitlements
           grep -q 'CODE_SIGN_ENTITLEMENTS = App/App.entitlements' ios/App/App.xcodeproj/project.pbxproj
+          grep -q 'capacitorDidRegisterForRemoteNotifications' ios/App/App/AppDelegate.swift
+          grep -q 'capacitorDidFailToRegisterForRemoteNotifications' ios/App/App/AppDelegate.swift
       - name: Resolve native project and compile without signing
         working-directory: mobile
         run: |

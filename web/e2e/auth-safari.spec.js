@@ -44,4 +44,9 @@ test('criar conta, sair e voltar a entrar funciona em Mobile Safari', async ({ p
   await expect(page.getByRole('button', { name: 'Entrar no Feed' })).toBeVisible();
   await page.getByRole('button', { name: 'Entrar no Feed' }).click();
   await expect(page.getByRole('button', { name: 'Perfil' })).toBeVisible();
+  await page.getByRole('button', { name: 'Perfil' }).click();
+  await expect(page.getByRole('button', { name: /Exportar os meus dados/ })).toBeVisible();
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: /Pedir eliminação da conta/ }).click();
+  await expect(page.getByRole('button', { name: /Cancelar eliminação da conta/ })).toBeVisible();
 });

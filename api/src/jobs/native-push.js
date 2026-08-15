@@ -5,17 +5,50 @@ let started = false;
 let running = false;
 let timer = null;
 
+const copy = {
+  pt:{
+    someone:'Alguém', photo:'uma fotografia', video:'um vídeo', message:'Enviou-te uma mensagem', sent:'Enviou-te',
+    call:'Chamada de', videoCall:'Videochamada recebida', audioCall:'Chamada de áudio recebida',
+    follow:'quer ligar-se à tua luz', room:'Convite para uma Sala', roomBody:'convidou-te para uma Sala',
+    activity:'interagiu com a tua publicação', new:'Tens uma novidade.'
+  },
+  fr:{
+    someone:'Quelqu’un', photo:'une photo', video:'une vidéo', message:'T’a envoyé un message', sent:'T’a envoyé',
+    call:'Appel de', videoCall:'Appel vidéo entrant', audioCall:'Appel audio entrant',
+    follow:'veut se connecter à ta lumière', room:'Invitation à un Salon', roomBody:'t’a invité dans un Salon',
+    activity:'a interagi avec ta publication', new:'Tu as une nouveauté.'
+  },
+  en:{
+    someone:'Someone', photo:'a photo', video:'a video', message:'Sent you a message', sent:'Sent you',
+    call:'Call from', videoCall:'Incoming video call', audioCall:'Incoming audio call',
+    follow:'wants to connect with your light', room:'Room invitation', roomBody:'invited you to a Room',
+    activity:'interacted with your post', new:'You have something new.'
+  },
+  es:{
+    someone:'Alguien', photo:'una foto', video:'un vídeo', message:'Te ha enviado un mensaje', sent:'Te ha enviado',
+    call:'Llamada de', videoCall:'Videollamada entrante', audioCall:'Llamada de audio entrante',
+    follow:'quiere conectar con tu luz', room:'Invitación a una Sala', roomBody:'te ha invitado a una Sala',
+    activity:'ha interactuado con tu publicación', new:'Tienes una novedad.'
+  },
+};
+
+function languageOf(value) {
+  const lang = String(value || 'pt').trim().toLowerCase().slice(0, 2);
+  return copy[lang] ? lang : 'pt';
+}
+
 function noticeFor(row) {
-  const type = row.type || row.kind || 'activity';
-  const data = row.data || row.payload || {};
-  const actor = row.actor_name || 'Alguém';
+  const type = row.type || 'activity';
+  const data = row.data || {};
+  const text = copy[languageOf(row.locale)];
+  const actor = row.actor_name || text.someone;
 
   if (type === 'message') {
     const media = data.kind === 'media';
-    const mediaName = data.mediaType === 'video' ? 'um vídeo' : 'uma fotografia';
+    const mediaName = data.mediaType === 'video' ? text.video : text.photo;
     return {
       title:actor,
-      body:media ? `Enviou-te ${mediaName}` : 'Enviou-te uma mensagem',
+      body:media ? `${text.sent} ${mediaName}` : text.message,
       tag:`lumina:message:${data.threadId || row.id}`,
       type,
       url:'/?tab=dms',
@@ -23,23 +56,23 @@ function noticeFor(row) {
   }
   if (type === 'incoming_call') {
     return {
-      title:`Chamada de ${actor}`,
-      body:data.mode === 'video' ? 'Videochamada recebida' : 'Chamada de áudio recebida',
+      title:`${text.call} ${actor}`,
+      body:data.mode === 'video' ? text.videoCall : text.audioCall,
       tag:`lumina:call:${data.callId || row.id}`,
       type,
       url:`/?tab=dms${data.callId ? `&call=${encodeURIComponent(data.callId)}` : ''}`,
     };
   }
   if (type === 'follow' || type === 'follow_request') {
-    return { title:'Lumina', body:`${actor} quer ligar-se à tua luz`, tag:`lumina:${type}:${row.id}`, type, url:'/?tab=alerts' };
+    return { title:'Lumina', body:`${actor} ${text.follow}`, tag:`lumina:${type}:${row.id}`, type, url:'/?tab=alerts' };
   }
   if (type === 'room_invite') {
-    return { title:'Convite para uma Sala', body:`${actor} convidou-te para uma Sala`, tag:`lumina:room:${row.id}`, type, url:'/?tab=rooms' };
+    return { title:text.room, body:`${actor} ${text.roomBody}`, tag:`lumina:room:${row.id}`, type, url:'/?tab=rooms' };
   }
   if (type === 'comment' || type === 'like') {
-    return { title:'Lumina', body:`${actor} interagiu com a tua publicação`, tag:`lumina:${type}:${row.id}`, type, url:'/?tab=alerts' };
+    return { title:'Lumina', body:`${actor} ${text.activity}`, tag:`lumina:${type}:${row.id}`, type, url:'/?tab=alerts' };
   }
-  return { title:'Lumina', body:'Tens uma novidade.', tag:`lumina:${type}:${row.id}`, type, url:'/?tab=alerts' };
+  return { title:'Lumina', body:text.new, tag:`lumina:${type}:${row.id}`, type, url:'/?tab=alerts' };
 }
 
 async function cycle() {
@@ -50,13 +83,13 @@ async function cycle() {
       `SELECT n.id,n.user_id,COALESCE(n.type,n.kind) AS type,
               CASE WHEN n.type IS NULL THEN COALESCE(n.payload,'{}'::jsonb) ELSE n.data END AS data,
               a.name AS actor_name,
-              t.token,t.platform,
+              t.token,t.platform,t.locale,
               (SELECT count(*)::int FROM notifications unread WHERE unread.user_id=n.user_id AND unread.read_at IS NULL) AS badge
          FROM notifications n
          JOIN native_push_tokens t ON t.user_id=n.user_id
          LEFT JOIN users a ON a.id=n.actor_id
          LEFT JOIN native_push_deliveries d ON d.notification_id=n.id AND d.token=t.token
-        WHERE d.notification_id IS NULL
+        WHERE (d.notification_id IS NULL OR (d.delivered_at IS NULL AND d.attempted_at < now()-interval '45 seconds'))
           AND n.created_at > now()-interval '10 minutes'
         ORDER BY n.created_at ASC
         LIMIT 40`
@@ -67,7 +100,10 @@ async function cycle() {
       const claimed = await q(
         `INSERT INTO native_push_deliveries (notification_id,token)
          VALUES ($1,$2)
-         ON CONFLICT DO NOTHING
+         ON CONFLICT (notification_id,token) DO UPDATE
+           SET attempted_at=now(), status=NULL, error=NULL
+         WHERE native_push_deliveries.delivered_at IS NULL
+           AND native_push_deliveries.attempted_at < now()-interval '45 seconds'
          RETURNING notification_id`,
         [row.id, row.token]
       );

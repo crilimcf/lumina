@@ -1,0 +1,43 @@
+{
+  "appId": "com.crilimcf.lumina",
+  "appName": "Lumina",
+  "category": "Social Networking",
+  "privacyPolicy": "https://lumina-snowy-ten.vercel.app/legal/PRIVACIDADE.md",
+  "accountDeletionUrl": "https://lumina-snowy-ten.vercel.app/delete-account.html",
+  "supportUrl": "https://lumina-snowy-ten.vercel.app",
+  "locales": {
+    "pt-PT": {
+      "name": "Lumina",
+      "subtitle": "A tua luz, as tuas ligações",
+      "shortDescription": "Liga-te, partilha momentos e descobre o que acontece à tua volta.",
+      "description": "Lumina é um espaço social para as tuas ligações reais. Partilha publicações e Momentos, conversa por mensagem, cria Salas, faz chamadas e explora o Lumina One para descobrir sinais, Lumes, Cápsulas e o teu Agora. Controlos de privacidade, bloqueio, denúncia e eliminação de conta fazem parte da experiência."
+    },
+    "en-US": {
+      "name": "Lumina",
+      "subtitle": "Your light, your connections",
+      "shortDescription": "Connect, share moments and discover what is happening around you.",
+      "description": "Lumina is a social space built around your real connections. Share posts and Moments, chat, create Rooms, make calls and explore Lumina One through Pulse, Lumes, Capsules and your Now. Privacy controls, blocking, reporting and account deletion are built into the experience."
+    },
+    "fr-FR": {
+      "name": "Lumina",
+      "subtitle": "Ta lumière, tes connexions",
+      "shortDescription": "Échange, partage des moments et découvre ce qui se passe autour de toi.",
+      "description": "Lumina est un espace social centré sur tes connexions. Partage des publications et des Moments, discute, crée des Salons, passe des appels et explore Lumina One avec Pouls, Lumes, Capsules et ton instant présent. Confidentialité, blocage, signalement et suppression de compte sont intégrés à l’expérience."
+    },
+    "es-ES": {
+      "name": "Lumina",
+      "subtitle": "Tu luz, tus conexiones",
+      "shortDescription": "Conecta, comparte momentos y descubre lo que ocurre a tu alrededor.",
+      "description": "Lumina es un espacio social centrado en tus conexiones. Comparte publicaciones y Momentos, conversa, crea Salas, haz llamadas y explora Lumina One con Pulso, Lumes, Cápsulas y tu Ahora. La privacidad, el bloqueo, las denuncias y la eliminación de la cuenta forman parte de la experiencia."
+    }
+  },
+  "reviewNotes": {
+    "accountRequired": true,
+    "userGeneratedContent": true,
+    "moderation": "Users can report content/users and block people from the relevant content/profile surfaces. Moderation is backed by the reports and blocks API.",
+    "accountDeletion": "Permanent account deletion is available inside the authenticated profile/security experience and the external deletion guidance URL is included in this release package.",
+    "location": "Location is optional and requested only for local Lumina One experiences; the app supports a no-location fallback.",
+    "cameraMicrophone": "Camera and microphone permissions are user initiated for media capture and audio/video calls.",
+    "payments": "Paid Ultra Rooms are disabled in the current client release. No external digital-goods checkout is exposed in the native store build."
+  }
+}

@@ -1,18 +1,16 @@
 # Política de Privacidade da Lumina
 
-**Versão:** 9 de agosto de 2026
-
-> Este texto é uma base técnica de produto e deve ser revisto por aconselhamento jurídico antes de um lançamento público alargado.
+**Versão:** 15 de agosto de 2026
 
 ## 1. Responsável pelo tratamento
 
-**Responsável:** `[nome/empresa a preencher]`
+**Responsável:** Carlos Fernandes
 
-**Email:** `[email a preencher]`
+**Email:** carlos.fernandes@digibox.pt
 
-**Morada/NIF:** `[a preencher]`
+**Morada:** Rua da Cabecinha N.º 23, 5300-802 Rebordainhos, Bragança, Portugal
 
-Estes campos têm de ser preenchidos antes do lançamento público.
+**NIF:** 227369661
 
 ## 2. Dados tratados
 
@@ -47,7 +45,7 @@ Os dados são tratados para:
 - executar pedidos de exportação, correção e apagamento;
 - operar, diagnosticar e melhorar o serviço.
 
-A base jurídica aplicável depende da finalidade concreta e deve ser confirmada no texto jurídico final antes do lançamento público.
+Os fundamentos jurídicos aplicáveis são a execução dos Termos e do serviço solicitado, o cumprimento de obrigações legais, os interesses legítimos de segurança, prevenção de abuso e melhoria do serviço, e o consentimento quando este for especificamente solicitado. O consentimento pode ser retirado a qualquer momento, sem afetar o tratamento anteriormente realizado.
 
 ## 4. Visibilidade
 
@@ -81,7 +79,7 @@ A arquitetura atual pode envolver:
 - **Resend** — emails transacionais;
 - **Stripe** — apenas quando funcionalidades pagas forem ativadas.
 
-Antes de lançamento público devem ser confirmados contratos, regiões de tratamento, subcontratantes e mecanismos de transferência aplicáveis.
+A Lumina aplica aos fornecedores as garantias contratuais e os mecanismos de transferência exigidos pelo RGPD, incluindo decisões de adequação ou cláusulas contratuais-tipo quando aplicáveis.
 
 ## 8. Retenção
 
@@ -101,7 +99,9 @@ A aplicação contém mecanismos técnicos para:
 - cancelar o pedido durante a janela prevista;
 - gerir privacidade, follows, bloqueios e sessões.
 
-Para exercer outros direitos previstos pela legislação aplicável, deve existir um canal de contacto preenchido na secção 1.
+Os pedidos de acesso, retificação, apagamento, limitação, oposição e portabilidade podem ser enviados para o email indicado na secção 1 e são tratados nos prazos legais. Quando o tratamento depender de consentimento, este pode ser retirado a qualquer momento. Também é possível apresentar reclamação à Comissão Nacional de Proteção de Dados (CNPD).
+
+A Lumina não utiliza decisões exclusivamente automatizadas que produzam efeitos jurídicos ou outros efeitos igualmente significativos sobre a pessoa.
 
 ## 10. Segurança
 

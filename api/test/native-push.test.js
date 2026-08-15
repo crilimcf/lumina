@@ -55,15 +55,16 @@ test('native mobile can register push token using Bearer auth without CSRF cooki
   const deviceToken = 'fcm-token-for-native-integration-test-1234567890';
   const subscribed = await request('/notifications/native/subscribe', {
     method:'POST', bearer:token,
-    body:{ platform:'android', token:deviceToken, deviceId:'android:test-device' },
+    body:{ platform:'android', token:deviceToken, deviceId:'android:test-device', locale:'fr-FR' },
   });
   assert.equal(subscribed.response.status, 201, JSON.stringify(subscribed.data));
   assert.deepEqual(subscribed.data, { subscribed:true, platform:'android' });
 
-  const { rows } = await q('SELECT user_id,platform,device_id FROM native_push_tokens WHERE token=$1', [deviceToken]);
+  const { rows } = await q('SELECT user_id,platform,device_id,locale FROM native_push_tokens WHERE token=$1', [deviceToken]);
   assert.equal(rows[0].user_id, userId);
   assert.equal(rows[0].platform, 'android');
   assert.equal(rows[0].device_id, 'android:test-device');
+  assert.equal(rows[0].locale, 'fr-FR');
 
   const status = await request('/notifications/native/status', { bearer:token });
   assert.equal(status.response.status, 200, JSON.stringify(status.data));

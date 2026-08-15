@@ -39,8 +39,26 @@ env:
   LUMINA_BUILD: ${{ inputs.build }}
 
 jobs:
+  store-gate:
+    name: Public store gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require completed public legal identity and deletion route
+        run: |
+          test -f legal/PRIVACIDADE.md
+          test -f legal/TERMOS.md
+          test -f web/public/delete-account.html
+          if grep -Eq '\[(nome/empresa|email|a) a preencher\]' legal/PRIVACIDADE.md; then
+            echo 'Privacy controller identity/contact placeholders must be completed by the legal owner before a store release.' >&2
+            exit 1
+          fi
+          grep -F "remove: () => call('/account/delete'" web/src/api.js
+
   android-release:
     name: Signed Android AAB
+    needs: store-gate
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -117,6 +135,7 @@ jobs:
 
   ios-release:
     name: Signed iOS IPA
+    needs: store-gate
     runs-on: macos-latest
     timeout-minutes: 55
     env:

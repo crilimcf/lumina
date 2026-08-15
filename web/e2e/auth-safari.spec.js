@@ -9,11 +9,20 @@ test('criar conta, sair e voltar a entrar funciona em Mobile Safari', async ({ p
 
   await page.goto('/');
   await page.getByRole('button', { name: 'Criar conta' }).click();
-  await page.getByPlaceholder('Como te chamas').fill('Safari Auth');
-  await page.getByPlaceholder('Nome de utilizador').fill(handle);
-  await page.locator('input[type="date"]').fill('1990-01-01');
-  await page.getByPlaceholder('Email').fill(email);
-  await page.getByPlaceholder('Password').fill(PASSWORD);
+  // Password managers and browser autofill can update the whole form in one
+  // render. Every controlled value must survive those concurrent changes.
+  await Promise.all([
+    page.getByPlaceholder('Como te chamas').fill('Safari Auth'),
+    page.getByPlaceholder('Nome de utilizador').fill(handle),
+    page.locator('input[type="date"]').fill('1990-01-01'),
+    page.getByPlaceholder('Email').fill(email),
+    page.getByPlaceholder('Password').fill(PASSWORD),
+  ]);
+  await expect(page.getByPlaceholder('Como te chamas')).toHaveValue('Safari Auth');
+  await expect(page.getByPlaceholder('Nome de utilizador')).toHaveValue(handle);
+  await expect(page.locator('input[type="date"]')).toHaveValue('1990-01-01');
+  await expect(page.getByPlaceholder('Email')).toHaveValue(email);
+  await expect(page.getByPlaceholder('Password')).toHaveValue(PASSWORD);
   await page.locator('input[type="checkbox"]').check();
   await page.getByRole('button', { name: 'Criar conta' }).click();
 

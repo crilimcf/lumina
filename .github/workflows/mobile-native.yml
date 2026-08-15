@@ -137,7 +137,7 @@ jobs:
           npx cap add ios
           npx cap sync ios
           npm run configure:ios
-      - name: Verify iOS permissions, APNs bridge, push entitlement and deep link
+      - name: Verify iOS permissions, APNs bridge, privacy manifest, push entitlement and deep link
         working-directory: mobile
         run: |
           grep -q 'NSCameraUsageDescription' ios/App/App/Info.plist
@@ -148,6 +148,11 @@ jobs:
           grep -q 'CODE_SIGN_ENTITLEMENTS = App/App.entitlements' ios/App/App.xcodeproj/project.pbxproj
           grep -q 'capacitorDidRegisterForRemoteNotifications' ios/App/App/AppDelegate.swift
           grep -q 'capacitorDidFailToRegisterForRemoteNotifications' ios/App/App/AppDelegate.swift
+          grep -q 'NSPrivacyAccessedAPICategoryUserDefaults' ios/App/App/PrivacyInfo.xcprivacy
+          grep -q 'CA92.1' ios/App/App/PrivacyInfo.xcprivacy
+          grep -q 'NSPrivacyAccessedAPICategoryFileTimestamp' ios/App/App/PrivacyInfo.xcprivacy
+          grep -q 'C617.1' ios/App/App/PrivacyInfo.xcprivacy
+          grep -q 'PrivacyInfo.xcprivacy in Resources' ios/App/App.xcodeproj/project.pbxproj
       - name: Resolve native project and compile without signing
         working-directory: mobile
         run: |
@@ -163,6 +168,7 @@ jobs:
         run: |
           APP_PATH=$(find "$HOME/Library/Developer/Xcode/DerivedData" -path '*Release-iphonesimulator/App.app' -print -quit)
           test -n "$APP_PATH"
+          test -f "$APP_PATH/PrivacyInfo.xcprivacy"
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" lumina-ios-simulator.zip
       - name: Upload iOS test artifact
         uses: actions/upload-artifact@v4

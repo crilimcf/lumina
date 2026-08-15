@@ -37,7 +37,7 @@ nativePushRoutes.post('/subscribe', auth, h(async (req, res) => {
   const platform = normalizePlatform(req.body?.platform);
   const token = normalizeToken(req.body?.token);
   const deviceId = String(req.body?.deviceId || '').trim().slice(0, 200) || null;
-  const locale = normalizeLocale(req.body?.locale);
+  const locale = normalizeLocale(req.body?.locale || req.headers['accept-language']);
 
   await q(
     `INSERT INTO native_push_tokens (token,user_id,platform,device_id,locale)

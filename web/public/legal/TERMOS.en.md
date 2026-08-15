@@ -1,8 +1,6 @@
 # Lumina Terms of Use
 
-**Version:** 9 August 2026
-
-> This text is a technical product baseline and should be reviewed by legal counsel before a broad public launch.
+**Version:** 15 August 2026
 
 ## 1. What Lumina is
 
@@ -80,6 +78,10 @@ We may update these Terms when the product, law or providers change. Material ch
 
 ## 13. Contact
 
-**Controller contact:** `[email to be completed before launch]`
+**Controller:** Carlos Fernandes
 
-**Controller address/tax ID:** `[to be completed before launch]`
+**Email:** carlos.fernandes@digibox.pt
+
+**Address:** Rua da Cabecinha No. 23, 5300-802 Rebordainhos, Bragança, Portugal
+
+**Tax ID (NIF):** 227369661

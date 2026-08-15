@@ -6,7 +6,7 @@ const me = {
   name:'Bruno Fernandes',
   bio:'Bio écrite par l’utilisateur',
   palette:1,
-  avatar_url:'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32%3E%3Crect width="32" height="32" fill="%23d77"/%3E%3C/svg%3E',
+  avatar_url:'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32"%3E%3Crect width="32" height="32" fill="%23d77"/%3E%3C/svg%3E',
   stars:[],
   created_at:new Date().toISOString(),
   session_version:1,

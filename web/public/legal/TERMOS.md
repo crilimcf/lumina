@@ -1,8 +1,6 @@
 # Termos de Utilização da Lumina
 
-**Versão:** 9 de agosto de 2026
-
-> Este texto é uma base técnica de produto e deve ser revisto por aconselhamento jurídico antes de um lançamento público alargado.
+**Versão:** 15 de agosto de 2026
 
 ## 1. O que é a Lumina
 
@@ -80,6 +78,10 @@ Podemos atualizar estes Termos quando o produto, a lei ou os fornecedores mudare
 
 ## 13. Contacto
 
-**Contacto do responsável:** `[email a preencher antes do lançamento]`
+**Responsável:** Carlos Fernandes
 
-**Morada/NIF do responsável:** `[a preencher antes do lançamento]`
+**Email:** carlos.fernandes@digibox.pt
+
+**Morada:** Rua da Cabecinha N.º 23, 5300-802 Rebordainhos, Bragança, Portugal
+
+**NIF:** 227369661

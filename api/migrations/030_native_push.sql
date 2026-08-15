@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS native_push_tokens (
   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   platform text NOT NULL CHECK (platform IN ('ios','android')),
   device_id text,
+  locale text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );

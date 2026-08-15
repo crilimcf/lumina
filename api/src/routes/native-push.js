@@ -16,6 +16,11 @@ const normalizeToken = value => {
   return token;
 };
 
+const normalizeLocale = value => {
+  const locale = String(value || '').trim().slice(0, 32);
+  return locale || null;
+};
+
 nativePushRoutes.get('/status', auth, h(async (req, res) => {
   const { rows } = await q(
     `SELECT platform, count(*)::int AS devices
@@ -32,16 +37,18 @@ nativePushRoutes.post('/subscribe', auth, h(async (req, res) => {
   const platform = normalizePlatform(req.body?.platform);
   const token = normalizeToken(req.body?.token);
   const deviceId = String(req.body?.deviceId || '').trim().slice(0, 200) || null;
+  const locale = normalizeLocale(req.body?.locale);
 
   await q(
-    `INSERT INTO native_push_tokens (token,user_id,platform,device_id)
-     VALUES ($1,$2,$3,$4)
+    `INSERT INTO native_push_tokens (token,user_id,platform,device_id,locale)
+     VALUES ($1,$2,$3,$4,$5)
      ON CONFLICT (token) DO UPDATE
        SET user_id=EXCLUDED.user_id,
            platform=EXCLUDED.platform,
            device_id=EXCLUDED.device_id,
+           locale=EXCLUDED.locale,
            updated_at=now()`,
-    [token, req.user.id, platform, deviceId]
+    [token, req.user.id, platform, deviceId, locale]
   );
   res.status(201).json({ subscribed:true, platform });
 }));

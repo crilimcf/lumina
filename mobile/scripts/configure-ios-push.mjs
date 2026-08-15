@@ -26,7 +26,8 @@ if (!source.includes('capacitorDidRegisterForRemoteNotifications')) {
   await fs.writeFile(appDelegatePath, source);
 }
 
-const apnsEnvironment = process.env.APNS_ENVIRONMENT === 'production' ? 'production' : 'development';
+const productionSigning = !!process.env.IOS_CERTIFICATE_P12_BASE64;
+const apnsEnvironment = process.env.APNS_ENVIRONMENT === 'production' || productionSigning ? 'production' : 'development';
 let entitlements = await fs.readFile(entitlementsPath, 'utf8');
 entitlements = entitlements.replace(
   /(<key>aps-environment<\/key>\s*<string>)(development|production)(<\/string>)/,

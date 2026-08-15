@@ -1,14 +1,14 @@
 # Registo interno de tratamento e resposta a incidentes
 
-Documento operacional interno. Deve ser completado e validado juridicamente antes de um lançamento público alargado.
+Documento operacional interno. Deve ser revisto sempre que o produto, os fornecedores ou as obrigações aplicáveis mudarem.
 
 > Campos entre `[colchetes]` ficam por preencher pelo responsável pelo tratamento.
 
 ## Parte 1 · Registo de atividades
 
-**Responsável pelo tratamento:** `[nome legal]`, `[morada]`, NIF `[NIF]`  
-**Contacto:** `[email]`  
-**Última atualização:** `9 de agosto de 2026`
+**Responsável pelo tratamento:** Carlos Fernandes, Rua da Cabecinha N.º 23, 5300-802 Rebordainhos, Bragança, Portugal, NIF 227369661
+**Contacto:** carlos.fernandes@digibox.pt
+**Última atualização:** `15 de agosto de 2026`
 
 ### A · Contas e perfis
 
@@ -17,7 +17,7 @@ Documento operacional interno. Deve ser completado e validado juridicamente ante
 | Finalidade | Criar conta, autenticar e apresentar o perfil |
 | Titulares | Utilizadores registados, segundo a política de idade do produto |
 | Dados | Nome, nome de utilizador, email, data de nascimento, bio, avatar, interesses, configuração público/privado, datas de conta/termos |
-| Fundamento | `[validar juridicamente]` |
+| Fundamento | Execução do serviço/Termos; obrigações legais; interesses legítimos de segurança e prevenção de abuso; consentimento quando aplicável |
 | Destinatários | Railway/PostgreSQL, Vercel; armazenamento de media quando aplicável |
 | Retenção | Enquanto durar a conta, sem prejuízo de obrigações legais e da janela de apagamento |
 | Segurança | Password com bcrypt, HTTPS, sessões revogáveis, CSRF, 2FA opcional, rate limiting |
@@ -64,7 +64,7 @@ Documento operacional interno. Deve ser completado e validado juridicamente ante
 |---|---|
 | Finalidade | Proteger contas, limitar ataques e permitir revogar sessões |
 | Dados | Email, IP, user-agent, tentativas de login, sessões, 2FA, códigos de recuperação protegidos |
-| Fundamento | `[validar juridicamente]` |
+| Fundamento | Interesses legítimos de segurança e prevenção de abuso; cumprimento de obrigações legais |
 | Retenção | Tentativas antigas e tokens são limpos por jobs; restantes dados enquanto necessários para segurança/conta |
 
 ### G · Moderação
@@ -121,7 +121,7 @@ O pedido de apagamento é agendado com uma janela de 30 dias. A execução remov
 - [x] Conteúdo efémero e Momentos com limpeza automática.
 - [x] Salas privadas protegidas por convite.
 - [x] Moderação global reservada à equipa Lumina.
-- [ ] Preencher identidade/contactos do responsável.
+- [x] Identidade e contactos do responsável preenchidos.
 - [ ] Confirmar bases jurídicas, prazos de retenção e contratos/subcontratantes.
 - [ ] Confirmar regiões de alojamento e mecanismos de transferências internacionais antes do lançamento público.
 

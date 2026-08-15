@@ -72,6 +72,7 @@ test('Juntos renova CSRF imediatamente antes do POST e deixa de falhar', async (
 
   await register(page, 'csrfone');
   await openOne(page);
+  await openTab(page, 'Pulso');
   const discovery = page.locator('.one-v3-discovery');
   await expect(discovery).toBeVisible();
 

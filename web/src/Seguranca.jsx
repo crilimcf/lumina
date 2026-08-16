@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Shield, Smartphone, Check, X, Flag, Trash2, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Shield, Smartphone, Check, X, Flag, Trash2, RotateCcw, Fingerprint } from 'lucide-react';
 import { api } from './api.js';
 import { ErrorNote, Empty, Skeleton } from './ui.jsx';
 import { language, locale } from './i18n.js';
+import {
+  disableNativeBiometric,
+  enableNativeBiometric,
+  isNativeApp,
+  nativeBiometricState,
+} from './native/session.js';
 
 export function Seguranca({ onBack, ping }) {
   const [status, setStatus] = useState(null);
@@ -12,12 +18,16 @@ export function Seguranca({ onBack, ping }) {
   const [codes, setCodes] = useState(null);
   const [pw, setPw] = useState('');
   const [err, setErr] = useState(null);
+  const [nativeBio, setNativeBio] = useState(null);
 
   const load = () => {
     api.twoFactor.status().then(setStatus).catch(() => {});
     api.sessions.list().then(setSessions).catch(() => {});
   };
   useEffect(load, []);
+  useEffect(() => {
+    if (isNativeApp) nativeBiometricState().then(setNativeBio).catch(() => {});
+  }, []);
 
   const start = async () => { setErr(null); try { setSetup(await api.twoFactor.setup(pw)); setPw(''); } catch (e) { setErr(e); } };
   const enable = async () => { setErr(null); try { const out = await api.twoFactor.enable(code); setCodes(out.recoveryCodes); setSetup(null); setCode(''); load(); } catch (e) { setErr(e); } };
@@ -27,6 +37,11 @@ export function Seguranca({ onBack, ping }) {
     <button className="p" onClick={onBack} aria-label="Voltar" style={{ padding:10,marginBottom:22 }}><ArrowLeft size={16}/></button>
     <h2 className="d" style={{ fontSize:38,marginBottom:26 }}>Segu<span className="it">rança</span></h2>
     <ErrorNote error={err}/>
+    {isNativeApp&&<div className="card" style={{ padding:20,marginBottom:14 }}>
+      <div style={{ display:'flex',alignItems:'center',gap:9,marginBottom:10 }}><Fingerprint size={18} color={nativeBio?.enabled?'#1E9E62':'var(--cobalt)'}/><span style={{ fontSize:16,fontWeight:600,flex:1 }}>Desbloqueio protegido</span>{nativeBio?.enabled&&<span className="m" style={{ color:'#1E9E62' }}>Ativo</span>}</div>
+      <p style={{ fontSize:14,lineHeight:1.45,color:'var(--grey)',marginBottom:14 }}>Protege a sessão guardada neste dispositivo com Face ID, impressão digital ou o código do telemóvel.</p>
+      <button className={`p ${nativeBio?.enabled?'':'p-brand'}`} disabled={!nativeBio?.available} style={{ width:'100%',padding:13,color:nativeBio?.enabled?'var(--coral)':undefined }} onClick={async()=>{setErr(null);try{if(nativeBio?.enabled){await enableNativeBiometric();await disableNativeBiometric();ping('Desbloqueio protegido desligado')}else{await enableNativeBiometric();ping('Desbloqueio protegido ativo')}setNativeBio(await nativeBiometricState())}catch(e){if(!['userCancel','systemCancel','appCancel'].includes(e?.code))setErr(e)}}}>{nativeBio?.enabled?'Desligar neste dispositivo':'Ativar neste dispositivo'}</button>
+    </div>}
     <div className="card" style={{ padding:20,marginBottom:14 }}>
       <div style={{ display:'flex',alignItems:'center',gap:9,marginBottom:10 }}><Shield size={17} color={status?.enabled?'#1E9E62':'var(--grey)'}/><span style={{ fontSize:16,fontWeight:600,flex:1 }}>Dois passos</span>{status?.enabled&&<span className="m" style={{ color:'#1E9E62' }}>Ativo</span>}</div>
       {codes?<><p style={{ fontSize:14,lineHeight:1.45,color:'var(--grey)',marginBottom:14 }}>Guarda estes códigos num sítio seguro. Cada um serve uma vez. <b>Não voltam a aparecer.</b></p><div style={{ background:'#F1EFFA',borderRadius:14,padding:14,fontFamily:'DM Mono, monospace',fontSize:13,lineHeight:2 }}>{codes.map(c=><div key={c}>{c}</div>)}</div><button className="p" style={{ marginTop:14,width:'100%' }} onClick={()=>{navigator.clipboard?.writeText(codes.join('\n'));ping('Copiados')}}>Copiar</button><button className="p p-ink" style={{ marginTop:8,width:'100%' }} onClick={()=>setCodes(null)}>Já os guardei</button></>:

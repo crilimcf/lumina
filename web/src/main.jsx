@@ -2,6 +2,9 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 import { ErrorBoundary } from './ui.jsx';
+import { initializeNativeRuntime, revealNativeApp } from './native/runtime.js';
+import { disableNativePush, enableNativePush, nativePushSnapshot } from './native/push.js';
+import { isNativeApp } from './native/session.js';
 import './index.css';
 
 const CANONICAL_HOST = 'lumina-snowy-ten.vercel.app';
@@ -17,11 +20,19 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
   canonical.searchParams.delete('preview');
   window.location.replace(canonical.toString());
 } else {
+  void boot();
+}
+
+async function boot() {
+  await initializeNativeRuntime().catch(error => {
+    console.error('[native] falha ao inicializar runtime', error);
+  });
   createRoot(document.getElementById('root')).render(
     <React.StrictMode>
       <ErrorBoundary><App /></ErrorBoundary>
     </React.StrictMode>
   );
+  requestAnimationFrame(() => revealNativeApp());
 
   const clearLegacyCaches = async () => {
     if (!('caches' in window)) return;
@@ -100,10 +111,11 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
   // no ecrã principal e é sempre iniciado por um toque explícito em "Ativar".
   // Safari 18.4+ expõe window.pushManager: essa subscrição sobrevive mesmo se o
   // Service Worker for removido pelo sistema, e é partilhada com o SW de raiz.
-  const supportsPush = 'Notification' in window && (
+  const supportsWebPush = 'Notification' in window && (
     'pushManager' in window || ('serviceWorker' in navigator && 'PushManager' in window)
   );
-  const standalone = window.matchMedia?.('(display-mode: standalone)')?.matches || window.navigator.standalone === true;
+  const supportsPush = isNativeApp || supportsWebPush;
+  const standalone = isNativeApp || window.matchMedia?.('(display-mode: standalone)')?.matches || window.navigator.standalone === true;
   let pushBanner = null;
   let pushBusy = false;
   let pushConfigured = false;
@@ -127,6 +139,16 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
     if (!supportsPush || pushBusy) return false;
     pushBusy = true;
     try {
+      if (isNativeApp) {
+        const ok = await enableNativePush();
+        if (ok) {
+          pushConfigured = true;
+          pushBanner?.remove(); pushBanner = null;
+          sessionStorage.removeItem('lumina-push-later');
+          window.dispatchEvent(new CustomEvent('lumina:push-state'));
+        }
+        return ok;
+      }
       const registration = await getRegistration().catch(() => null);
       const manager = getPushManager(registration);
       if (!manager) return false;
@@ -162,6 +184,7 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
 
   window.__luminaEnablePush = () => registerPush({ ask:true });
   window.__luminaPushSnapshot = async () => {
+    if (isNativeApp) return nativePushSnapshot();
     if (!supportsPush) return { supported:false, standalone, permission:'unsupported', subscribed:false };
     try {
       const registration = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration('/') : null;
@@ -176,6 +199,11 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
   // Usado no logout para não deixar um dispositivo partilhado associado à conta anterior.
   window.__luminaDisablePush = async () => {
     if (!supportsPush) return;
+    if (isNativeApp) {
+      await disableNativePush();
+      pushConfigured = false;
+      return;
+    }
     try {
       const registration = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration('/') : null;
       const manager = getPushManager(registration);
@@ -194,7 +222,7 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
   };
 
   const showPushBanner = () => {
-    if (pushBanner || !supportsPush || Notification.permission !== 'default') return;
+    if (pushBanner || !supportsPush || (!isNativeApp && Notification.permission !== 'default')) return;
     if (/iPhone|iPad|iPod/i.test(navigator.userAgent) && !standalone) return;
     const box = document.createElement('div');
     box.setAttribute('role', 'dialog');
@@ -214,7 +242,7 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
       const ok = await registerPush({ ask:true });
       if (!ok) {
         activate.disabled = false;
-        activate.textContent = Notification.permission === 'denied' ? 'Bloqueadas' : 'Tentar';
+        activate.textContent = !isNativeApp && Notification.permission === 'denied' ? 'Bloqueadas' : 'Tentar';
       }
     });
     const later = document.createElement('button');
@@ -229,6 +257,17 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
 
   const maybeSetupPush = async () => {
     if (!supportsPush || pushConfigured) return;
+    if (isNativeApp) {
+      const session = await fetch('/api/auth/me', { credentials:'include', cache:'no-store' }).catch(() => null);
+      if (!session?.ok) return;
+      const snapshot = await nativePushSnapshot();
+      if (snapshot.subscribed) {
+        pushConfigured = true;
+        return;
+      }
+      if (!sessionStorage.getItem('lumina-push-later')) showPushBanner();
+      return;
+    }
     await getRegistration().catch(() => null);
     const session = await fetch('/api/auth/me', { credentials:'include', cache:'no-store' }).catch(() => null);
     if (!session?.ok) return;
@@ -244,9 +283,10 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
 
   // Apanha logins feitos sem reload, mas deixa de consultar quando a subscrição está pronta.
   const pushProbe = supportsPush ? setInterval(() => {
-    if (pushConfigured || Notification.permission === 'denied') return;
-    const shouldProbe = Notification.permission === 'granted'
-      || (Notification.permission === 'default' && !pushBanner && !sessionStorage.getItem('lumina-push-later'));
+    if (pushConfigured || (!isNativeApp && Notification.permission === 'denied')) return;
+    const permission = isNativeApp ? 'default' : Notification.permission;
+    const shouldProbe = permission === 'granted'
+      || (permission === 'default' && !pushBanner && !sessionStorage.getItem('lumina-push-later'));
     if (shouldProbe) maybeSetupPush().catch(() => {});
   }, 15_000) : null;
 
@@ -260,5 +300,7 @@ if (!isLocal && isVercelAlias && host !== CANONICAL_HOST && !previewBypass) {
   });
   window.addEventListener('pageshow', checkForNewDeployment);
   window.addEventListener('focus', checkForNewDeployment);
-  window.addEventListener('pagehide', () => { if (pushProbe && Notification.permission === 'denied') clearInterval(pushProbe); });
+  window.addEventListener('pagehide', () => {
+    if (pushProbe && !isNativeApp && Notification.permission === 'denied') clearInterval(pushProbe);
+  });
 }

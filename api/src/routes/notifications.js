@@ -131,8 +131,47 @@ notificationRoutes.get('/push/key', auth, h(async (_req, res) => {
 }));
 
 notificationRoutes.get('/push/status', auth, h(async (req, res) => {
-  const { rows } = await q('SELECT count(*)::int AS count FROM web_push_subscriptions WHERE user_id=$1', [req.user.id]);
-  res.json({ subscribed: rows[0].count > 0, devices: rows[0].count });
+  const { rows } = await q(
+    `SELECT
+       (SELECT count(*) FROM web_push_subscriptions WHERE user_id=$1)::int AS web,
+       (SELECT count(*) FROM push_tokens WHERE user_id=$1 AND platform IN ('ios','android'))::int AS native`,
+    [req.user.id]
+  );
+  const devices = rows[0].web + rows[0].native;
+  res.json({ subscribed:devices > 0, devices, web:rows[0].web, native:rows[0].native });
+}));
+
+notificationRoutes.post('/native/subscribe', auth, h(async (req, res) => {
+  const token = String(req.body?.token || '').trim();
+  const platform = String(req.body?.platform || '').trim();
+  const pushEnvironment = platform === 'ios' && req.body?.environment === 'sandbox' ? 'sandbox' : 'production';
+  if (!['ios','android'].includes(platform) || token.length < 16 || token.length > 4096 || /\s/.test(token)) {
+    throw bad('Token de notificação nativo inválido', 'bad_native_push_token');
+  }
+  await q(
+    `INSERT INTO push_tokens (token,user_id,platform,device_id,device_name,os_version,push_environment,updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,now())
+     ON CONFLICT (token) DO UPDATE
+       SET user_id=EXCLUDED.user_id,platform=EXCLUDED.platform,device_id=EXCLUDED.device_id,
+           device_name=EXCLUDED.device_name,os_version=EXCLUDED.os_version,
+           push_environment=EXCLUDED.push_environment,updated_at=now()`,
+    [
+      token,
+      req.user.id,
+      platform,
+      req.body?.deviceId ? String(req.body.deviceId).slice(0, 160) : null,
+      req.body?.deviceName ? String(req.body.deviceName).slice(0, 120) : null,
+      req.body?.osVersion ? String(req.body.osVersion).slice(0, 40) : null,
+      pushEnvironment,
+    ]
+  );
+  res.status(201).json({ subscribed:true, platform });
+}));
+
+notificationRoutes.post('/native/unsubscribe', auth, h(async (req, res) => {
+  const token = String(req.body?.token || '').trim();
+  if (token) await q('DELETE FROM push_tokens WHERE token=$1 AND user_id=$2', [token, req.user.id]);
+  res.json({ subscribed:false });
 }));
 
 notificationRoutes.post('/push/subscribe', auth, h(async (req, res) => {

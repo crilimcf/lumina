@@ -31,6 +31,7 @@ import { radarImageRoutes } from './routes/radar-images.js';
 import { liveRoutes } from './routes/live.js';
 import { oneRoutes } from './routes/one.js';
 import { oneSourceRoutes } from './routes/one-source.js';
+import { mobileAuthRoutes } from './routes/mobile-auth.js';
 
 const app = express();
 const webDir = path.resolve(process.cwd(), 'public');
@@ -61,8 +62,10 @@ app.use(helmet({
     },
   },
 }));
-const origins = env.CORS_ORIGIN?.split(',').map(s => s.trim()).filter(Boolean);
-if (env.NODE_ENV === 'production' && !origins?.length) throw new Error('Em producao e obrigatorio definir CORS_ORIGIN');
+const configuredOrigins = env.CORS_ORIGIN?.split(',').map(s => s.trim()).filter(Boolean) || [];
+const nativeOrigins = ['capacitor://localhost', 'https://localhost'];
+const origins = [...new Set([...configuredOrigins, ...nativeOrigins])];
+if (env.NODE_ENV === 'production' && !configuredOrigins.length) throw new Error('Em producao e obrigatorio definir CORS_ORIGIN');
 app.use(cors({ origin: origins?.length ? origins : true, credentials: true, maxAge: 86400 }));
 app.use(express.json({
   limit: '256kb',
@@ -74,6 +77,9 @@ const CSRF_PUBLIC_PATHS = new Set([
   '/auth/login',
   '/auth/register',
   '/auth/passkeys/login',
+  '/auth/mobile/start',
+  '/auth/mobile/exchange',
+  '/auth/mobile/browser-exchange',
   '/account/forgot-password',
   '/account/reset-password',
   '/notifications/push/subscribe',
@@ -176,6 +182,7 @@ const health = async (_req, res) => {
 app.get(['/health', '/api/health'], health);
 
 const mountApi = (prefix = '') => {
+  app.use(`${prefix}/auth/mobile`, mobileAuthRoutes);
   app.use(`${prefix}/auth`, authRoutes);
   app.use(`${prefix}/posts`, postRoutes);
   app.use(`${prefix}/radar-images`, radarImageRoutes);

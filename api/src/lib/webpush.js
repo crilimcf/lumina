@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { q, tx } from '../db.js';
+import { sendNativePushToUser } from './nativepush.js';
 
 const SECRET_NAME = 'web_push_vapid_v1';
 const APP_ORIGIN = 'https://lumina-snowy-ten.vercel.app';
@@ -253,7 +254,7 @@ async function deliverWake(userId, key, subscriptions = null, pushPayload = null
   };
 }
 
-function scheduleIncomingCallRetries(userId, callId, key, pushPayload) {
+function scheduleIncomingCallRetries(userId, callId, key, pushPayload, notification, badge) {
   if (!callId) return;
   for (const delay of CALL_RETRY_DELAYS) {
     const timer = setTimeout(async () => {
@@ -265,14 +266,22 @@ function scheduleIncomingCallRetries(userId, callId, key, pushPayload) {
           [callId, userId]
         );
         if (!rows[0]) return;
-        const retry = await deliverWake(userId, key, null, pushPayload);
+        const [webRetry, nativeRetry] = await Promise.all([
+          key ? deliverWake(userId, key, null, pushPayload) : { attempted:0, accepted:0 },
+          sendNativePushToUser(userId, notification, badge)
+            .catch(() => ({ attempted:0, accepted:0 })),
+        ]);
         await q(
           `UPDATE call_sessions
              SET push_attempted=push_attempted+$2,
                  push_accepted=push_accepted+$3,
                  push_last_at=now()
            WHERE id=$1`,
-          [callId, retry.attempted, retry.accepted]
+          [
+            callId,
+            webRetry.attempted + nativeRetry.attempted,
+            webRetry.accepted + nativeRetry.accepted,
+          ]
         ).catch(() => {});
       } catch (error) {
         console.debug('[push] retry chamada', error?.message);
@@ -285,7 +294,6 @@ function scheduleIncomingCallRetries(userId, callId, key, pushPayload) {
 export async function sendPushToUser(userId, options = {}) {
   if (!userId) return { attempted:0, accepted:0, encrypted:0, statuses:[] };
   const subscriptions = await subscriptionsFor(userId);
-  if (!subscriptions.length) return { attempted:0, accepted:0, encrypted:0, statuses:[] };
 
   let latest;
   if (options.notification) {
@@ -301,10 +309,23 @@ export async function sendPushToUser(userId, options = {}) {
     latest = { notification, badge:countResult.rows[0]?.count || 0, callId:options.callId || null };
   } else latest = await latestNotificationFor(userId);
   const pushPayload = latest.notification ? declarativePayload(latest.notification, latest.badge) : null;
-  const key = await getOrCreateVapid();
-  const result = await deliverWake(userId, key, subscriptions, pushPayload);
+  let webResult = { attempted:0, accepted:0, encrypted:0, statuses:[] };
+  let key = null;
+  if (subscriptions.length) {
+    key = await getOrCreateVapid();
+    webResult = await deliverWake(userId, key, subscriptions, pushPayload);
+  }
+  const nativeResult = await sendNativePushToUser(userId, latest.notification, latest.badge)
+    .catch(() => ({ attempted:0, accepted:0, statuses:[] }));
 
   const callId = options.callId || latest.callId;
-  if (callId) scheduleIncomingCallRetries(userId, callId, key, pushPayload);
-  return result;
+  if (callId && latest.notification) {
+    scheduleIncomingCallRetries(userId, callId, key, pushPayload, latest.notification, latest.badge);
+  }
+  return {
+    attempted:webResult.attempted + nativeResult.attempted,
+    accepted:webResult.accepted + nativeResult.accepted,
+    encrypted:webResult.encrypted,
+    statuses:[...webResult.statuses, ...nativeResult.statuses],
+  };
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
+import { isNativeApp } from '../native/session.js';
 
 const notifyActivityChanged = () => window.dispatchEvent(new CustomEvent('lumina:notifications-changed'));
 const REALTIME_RECONCILE_MS = 60_000;
@@ -88,7 +89,7 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
     let alive = true;
     let source = null;
     let timer = null;
-    const supportsRealtime = typeof window.EventSource === 'function';
+    const supportsRealtime = !isNativeApp && typeof window.EventSource === 'function';
 
     const reconcile = ({ announce = true } = {}) => {
       if (!alive || document.visibilityState !== 'visible') return;

@@ -1,0 +1,150 @@
+name: Mobile store release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Public version, for example 1.0.0
+        required: true
+        default: 1.0.0
+      build_number:
+        description: Increasing store build number
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-store-release
+  cancel-in-progress: false
+
+jobs:
+  android-play-bundle:
+    name: Signed Google Play bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      LUMINA_VERSION_NAME: ${{ inputs.version }}
+      LUMINA_VERSION_CODE: ${{ inputs.build_number }}
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - run: npm run native:build-web
+      - run: npx cap sync android
+      - name: Configure Firebase and signing
+        env:
+          FIREBASE_JSON: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON_BASE64 }}
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          test -n "$FIREBASE_JSON" && test -n "$KEYSTORE" && test -n "$STORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD"
+          printf '%s' "$FIREBASE_JSON" | base64 --decode > android/app/google-services.json
+          printf '%s' "$KEYSTORE" | base64 --decode > android/app/lumina-release.jks
+          {
+            printf 'storeFile=lumina-release.jks\n'
+            printf 'storePassword=%s\n' "$STORE_PASSWORD"
+            printf 'keyAlias=%s\n' "$KEY_ALIAS"
+            printf 'keyPassword=%s\n' "$KEY_PASSWORD"
+          } > android/keystore.properties
+      - name: Build signed AAB
+        working-directory: web/android
+        run: ./gradlew bundleRelease --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lumina-play-${{ inputs.version }}-${{ inputs.build_number }}
+          path: web/android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload to Google Play internal track
+        env:
+          PLAY_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
+          PLAY_BUNDLE_PATH: android/app/build/outputs/bundle/release/app-release.aab
+          PLAY_RELEASE_NAME: Lumina ${{ inputs.version }} (${{ inputs.build_number }})
+          PLAY_TRACK: internal
+          PLAY_RELEASE_STATUS: completed
+        run: |
+          test -n "$PLAY_SERVICE_ACCOUNT"
+          printf '%s' "$PLAY_SERVICE_ACCOUNT" | base64 --decode > "$RUNNER_TEMP/google-play-service-account.json"
+          GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/google-play-service-account.json" node scripts/upload-google-play.mjs
+
+  ios-testflight:
+    name: Signed iOS archive and TestFlight upload
+    runs-on: macos-26
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run native:build-web
+      - run: npx cap sync ios
+      - name: Configure App Store Connect key
+        env:
+          API_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY_BASE64 }}
+          API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          test -n "$API_KEY" && test -n "$API_KEY_ID" && test -n "$API_ISSUER_ID" && test -n "$TEAM_ID"
+          mkdir -p "$RUNNER_TEMP/private_keys"
+          printf '%s' "$API_KEY" | base64 --decode > "$RUNNER_TEMP/private_keys/AuthKey_${API_KEY_ID}.p8"
+      - name: Archive signed application
+        env:
+          API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: >-
+          xcodebuild
+          -project ios/App/App.xcodeproj
+          -scheme App
+          -configuration Release
+          -destination 'generic/platform=iOS'
+          -archivePath "$RUNNER_TEMP/Lumina.xcarchive"
+          -allowProvisioningUpdates
+          -authenticationKeyPath "$RUNNER_TEMP/private_keys/AuthKey_${API_KEY_ID}.p8"
+          -authenticationKeyID "$API_KEY_ID"
+          -authenticationKeyIssuerID "$API_ISSUER_ID"
+          DEVELOPMENT_TEAM="$TEAM_ID"
+          MARKETING_VERSION='${{ inputs.version }}'
+          CURRENT_PROJECT_VERSION='${{ inputs.build_number }}'
+          archive
+      - name: Export and upload to TestFlight
+        env:
+          API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          /usr/libexec/PlistBuddy -c 'Add :method string app-store-connect' "$RUNNER_TEMP/ExportOptions.plist"
+          /usr/libexec/PlistBuddy -c 'Add :destination string upload' "$RUNNER_TEMP/ExportOptions.plist"
+          /usr/libexec/PlistBuddy -c "Add :teamID string $TEAM_ID" "$RUNNER_TEMP/ExportOptions.plist"
+          /usr/libexec/PlistBuddy -c 'Add :signingStyle string automatic' "$RUNNER_TEMP/ExportOptions.plist"
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Lumina.xcarchive" \
+            -exportPath "$RUNNER_TEMP/LuminaExport" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/private_keys/AuthKey_${API_KEY_ID}.p8" \
+            -authenticationKeyID "$API_KEY_ID" \
+            -authenticationKeyIssuerID "$API_ISSUER_ID"

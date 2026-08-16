@@ -1,0 +1,92 @@
+name: Mobile native
+
+on:
+  pull_request:
+    paths:
+      - 'api/**'
+      - 'web/**'
+      - '.github/workflows/mobile.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'api/**'
+      - 'web/**'
+      - '.github/workflows/mobile.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android APK and AAB
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - run: npm run native:build-web
+      - run: npx cap sync android
+      - name: Lint, unit test and build Android
+        working-directory: web/android
+        run: ./gradlew lintDebug testDebugUnitTest assembleDebug bundleRelease --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lumina-android-${{ github.sha }}
+          path: |
+            web/android/app/build/outputs/apk/debug/app-debug.apk
+            web/android/app/build/outputs/bundle/release/app-release.aab
+            web/android/app/build/reports/lint-results-debug.html
+          if-no-files-found: error
+          retention-days: 14
+
+  ios:
+    name: iOS simulator build
+    runs-on: macos-26
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run native:build-web
+      - run: npx cap sync ios
+      - name: Build for iPhone and iPad simulator
+        run: >-
+          xcodebuild
+          -project ios/App/App.xcodeproj
+          -scheme App
+          -configuration Debug
+          -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath ios/DerivedData
+          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_REQUIRED=NO
+          build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lumina-ios-simulator-${{ github.sha }}
+          path: web/ios/DerivedData/Build/Products/Debug-iphonesimulator/App.app
+          if-no-files-found: error
+          retention-days: 14

@@ -1,3 +1,5 @@
+import { isNativeApp } from './native/session.js';
+
 const STREAM_URL = '/api/notifications/events';
 const SESSION_URL = '/api/auth/me';
 const RETRY_VISIBLE_MS = 5_000;
@@ -35,7 +37,7 @@ const closeSource = () => {
 };
 
 async function connect() {
-  if (source || connecting || !('EventSource' in window)) return;
+  if (isNativeApp || source || connecting || !('EventSource' in window)) return;
   connecting = true;
   try {
     if (!await hasSession()) return schedule();

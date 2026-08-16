@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Lumina">
+  <defs>
+    <radialGradient id="bg" cx="55%" cy="45%" r="78%">
+      <stop offset="0" stop-color="#30105d"/>
+      <stop offset="0.52" stop-color="#17083d"/>
+      <stop offset="1" stop-color="#08041c"/>
+    </radialGradient>
+    <linearGradient id="ribbon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6e56ff"/>
+      <stop offset="0.32" stop-color="#d52cff"/>
+      <stop offset="0.63" stop-color="#ff4f9a"/>
+      <stop offset="0.86" stop-color="#ff8d62"/>
+      <stop offset="1" stop-color="#ffe097"/>
+    </linearGradient>
+    <linearGradient id="orbit" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#6350ff"/>
+      <stop offset="0.45" stop-color="#c532ff"/>
+      <stop offset="0.76" stop-color="#ff4d96"/>
+      <stop offset="1" stop-color="#ffbe6e"/>
+    </linearGradient>
+    <radialGradient id="orb1" cx="35%" cy="28%" r="75%">
+      <stop offset="0" stop-color="#ffd9ff"/>
+      <stop offset="0.35" stop-color="#ff74c8"/>
+      <stop offset="0.72" stop-color="#8d48ff"/>
+      <stop offset="1" stop-color="#32126b"/>
+    </radialGradient>
+    <radialGradient id="orb2" cx="34%" cy="28%" r="78%">
+      <stop offset="0" stop-color="#fff8d6"/>
+      <stop offset="0.38" stop-color="#ffad77"/>
+      <stop offset="0.68" stop-color="#ff5ba8"/>
+      <stop offset="1" stop-color="#7a2bca"/>
+    </radialGradient>
+    <filter id="glow" x="-70%" y="-70%" width="240%" height="240%">
+      <feGaussianBlur stdDeviation="16" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="28"/></filter>
+  </defs>
+  <rect width="1024" height="1024" rx="215" fill="url(#bg)"/>
+  <ellipse cx="540" cy="518" rx="398" ry="360" fill="none" stroke="#7d4cff" stroke-opacity=".16" stroke-width="32" filter="url(#soft)"/>
+  <ellipse cx="540" cy="518" rx="395" ry="360" fill="none" stroke="url(#orbit)" stroke-opacity=".72" stroke-width="8"/>
+  <path d="M354 226 C420 214 466 244 469 304 L469 600 C469 662 500 700 568 704 L773 704 C827 704 850 742 838 786 C829 818 804 838 760 838 L532 838 C388 838 319 758 319 619 L319 316 C319 267 328 236 354 226 Z" fill="url(#ribbon)" opacity=".34" filter="url(#soft)"/>
+  <path d="M358 230 C421 219 454 252 456 306 L456 599 C456 684 501 718 574 720 L772 720 C806 720 823 742 814 770 C807 791 791 802 759 802 L538 802 C414 802 351 735 351 617 L351 314 C351 270 348 242 358 230 Z" fill="none" stroke="url(#ribbon)" stroke-width="54" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+  <path d="M361 230 C421 220 454 252 456 306 L456 599 C456 684 501 718 574 720 L772 720" fill="none" stroke="#fff7ef" stroke-opacity=".76" stroke-width="8" stroke-linecap="round"/>
+  <path d="M225 715 C260 535 419 405 608 389 C754 377 833 414 879 477" fill="none" stroke="url(#orbit)" stroke-width="19" stroke-linecap="round" opacity=".45" filter="url(#glow)"/>
+  <path d="M225 715 C260 535 419 405 608 389 C754 377 833 414 879 477" fill="none" stroke="url(#orbit)" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="224" cy="716" r="62" fill="url(#orb1)" filter="url(#glow)"/>
+  <circle cx="224" cy="716" r="54" fill="url(#orb1)" stroke="#f3d8ff" stroke-width="4"/>
+  <circle cx="875" cy="474" r="72" fill="url(#orb2)" filter="url(#glow)"/>
+  <circle cx="875" cy="474" r="63" fill="url(#orb2)" stroke="#fff0db" stroke-width="5"/>
+  <g transform="translate(467 344)" filter="url(#glow)"><path d="M0 -27 C4 -8 8 -4 27 0 C8 4 4 8 0 27 C-4 8 -8 4 -27 0 C-8 -4 -4 -8 0 -27 Z" fill="#fff8ea"/></g>
+  <g opacity=".65" fill="#d9b7ff"><circle cx="280" cy="593" r="3"/><circle cx="736" cy="826" r="3"/><circle cx="670" cy="254" r="2.5"/><circle cx="210" cy="468" r="2"/></g>
+</svg>

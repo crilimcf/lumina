@@ -1,6 +1,6 @@
 # Politique de confidentialité de Lumina
 
-**Version :** 15 août 2026
+**Version :** 16 août 2026
 
 ## 1. Responsable du traitement
 
@@ -26,6 +26,8 @@ Selon les fonctionnalités utilisées, Lumina peut traiter :
 - les Salons créés ou rejoints, les invitations et les messages de Salon ;
 - les messages privés, les états de lecture/ouverture et les appels ;
 - les photos et vidéos envoyées ;
+- la localisation précise ou approximative, uniquement lorsque vous activez une fonctionnalité locale ;
+- le jeton de notification, la plateforme, l’identifiant technique de l’appareil, son modèle et la version du système ;
 - les signalements et décisions de modération ;
 - les données techniques de sécurité, telles que les sessions, le user-agent, l’adresse IP et les tentatives de connexion ;
 - les demandes de récupération du mot de passe, la validation en deux étapes et les codes de récupération sous forme protégée ;
@@ -68,6 +70,8 @@ La session principale du navigateur utilise un cookie `HttpOnly`, `Secure`, `Sam
 
 La valeur CSRF nécessaire aux requêtes qui modifient l’état est renvoyée par l’API et conservée en mémoire par l’application. La PWA peut également utiliser le stockage local du navigateur pour des préférences techniques non sensibles.
 
+Dans les applications iOS et Android, le jeton de session est conservé dans le Keychain ou Keystore protégé de l’appareil. Face ID, l’empreinte digitale et le code de l’appareil sont validés par le système d’exploitation ; Lumina reçoit uniquement le résultat et ne reçoit ni ne conserve de données biométriques.
+
 ## 7. Fournisseurs
 
 L’architecture actuelle peut impliquer :
@@ -77,6 +81,7 @@ L’architecture actuelle peut impliquer :
 - **Vercel** — application web ;
 - **Cloudflare R2 / service compatible S3** — photos et vidéos ;
 - **Resend** — e-mails transactionnels ;
+- **Apple Push Notification service (APNs)** et **Google Firebase Cloud Messaging (FCM)** — envoi de notifications mobiles ;
 - **Stripe** — uniquement lorsque des fonctionnalités payantes sont activées.
 
 Lumina applique à ses fournisseurs les garanties contractuelles et les mécanismes de transfert exigés par le RGPD, notamment les décisions d’adéquation ou les clauses contractuelles types lorsqu’elles sont applicables.

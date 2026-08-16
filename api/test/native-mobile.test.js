@@ -67,7 +67,7 @@ test('Bearer nativo tem prioridade sobre um cookie web antigo', async () => {
     cookie:'__Host-lumina-session=invalid-old-cookie',
   });
   assert.equal(me.response.status, 200, JSON.stringify(me.data));
-  assert.equal(me.data.user.id, account.user.id);
+  assert.equal(me.data.id, account.user.id);
 });
 
 test('token push nativo é associado ao dispositivo e removido no logout', async () => {

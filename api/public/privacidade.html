@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark light" />
+  <title>Privacidade · Lumina</title>
+  <style>
+    :root{font:16px/1.65 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#f7f4ff;background:#08041c}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 85% 0,#351065 0,transparent 34rem),#08041c}main{width:min(760px,calc(100% - 32px));margin:0 auto;padding:max(38px,env(safe-area-inset-top)) 0 max(64px,env(safe-area-inset-bottom))}header{display:flex;align-items:center;gap:14px;margin-bottom:30px}.mark{width:48px;height:48px;border-radius:15px}.title{font-size:28px;font-weight:800;letter-spacing:-.03em}.sub{color:#b9afd4;font-size:13px}nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}button,a.action{border:1px solid #ffffff25;border-radius:999px;padding:8px 12px;color:#fff;background:#ffffff0d;text-decoration:none;cursor:pointer}button[aria-pressed=true]{background:#8b5cff;border-color:#8b5cff}pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;padding:clamp(20px,5vw,38px);border:1px solid #ffffff1d;border-radius:28px;background:#ffffff0b;box-shadow:0 24px 70px #0006;font:inherit;color:#ede8fb}footer{margin-top:24px;color:#a99fc4;font-size:13px}footer a{color:#d9cfff}@media(prefers-color-scheme:light){:root{color:#21183c;background:#f4f0ff}body{background:radial-gradient(circle at 85% 0,#e3d6ff 0,transparent 34rem),#f4f0ff}.sub,footer{color:#665a83}button,a.action{color:#281c46;border-color:#281c4628;background:#fff8}pre{color:#281f43;background:#ffffffc7;border-color:#3f2c701a;box-shadow:0 24px 70px #35205a18}footer a{color:#5e3bc8}}
+  </style>
+</head>
+<body>
+  <main>
+    <header><img class="mark" src="/lumina-icon.svg" alt="" /><div><div class="title">Lumina</div><div class="sub">Política de Privacidade · Privacy Policy</div></div></header>
+    <nav aria-label="Idioma"><button data-lang="pt">PT</button><button data-lang="en">EN</button><button data-lang="es">ES</button><button data-lang="fr">FR</button><a class="action" href="/">Abrir Lumina</a></nav>
+    <pre id="policy">A carregar…</pre>
+    <footer>Contacto: <a href="mailto:carlos.fernandes@digibox.pt">carlos.fernandes@digibox.pt</a></footer>
+  </main>
+  <script>
+    const supported=['pt','en','es','fr'];
+    const initial=supported.includes(navigator.language.slice(0,2))?navigator.language.slice(0,2):'pt';
+    const load=async lang=>{const suffix=lang==='pt'?'':'.'+lang;const response=await fetch('/legal/PRIVACIDADE'+suffix+'.md');document.querySelector('#policy').textContent=response.ok?await response.text():'Não foi possível carregar.';document.documentElement.lang=lang;for(const button of document.querySelectorAll('[data-lang]'))button.setAttribute('aria-pressed',String(button.dataset.lang===lang));};
+    for(const button of document.querySelectorAll('[data-lang]'))button.addEventListener('click',()=>load(button.dataset.lang));
+    load(initial);
+  </script>
+</body>
+</html>

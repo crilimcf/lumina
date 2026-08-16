@@ -1,5 +1,14 @@
 /** Cliente único da API Lumina. */
-const BASE = import.meta.env.VITE_API_URL || '/api';
+import {
+  captureNativeSession,
+  clearNativeSession,
+  isNativeApp,
+  nativeApiOrigin,
+  nativeAuthHeaders,
+} from './native/session.js';
+import { saveNativeDownload } from './native/files.js';
+
+const BASE = isNativeApp ? nativeApiOrigin : (import.meta.env.VITE_API_URL || '/api');
 const SAFE_METHODS = new Set(['GET', 'HEAD']);
 const REQUEST_TIMEOUT_MS = 12_000;
 
@@ -16,7 +25,7 @@ export class ApiError extends Error {
 }
 
 async function call(path, { method = 'GET', body, auth = true } = {}) {
-  const headers = {};
+  const headers = { ...nativeAuthHeaders() };
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (!SAFE_METHODS.has(method) && csrfToken) headers['x-csrf-token'] = csrfToken;
 
@@ -38,11 +47,13 @@ async function call(path, { method = 'GET', body, auth = true } = {}) {
   }
   if (res.status === 401 && auth) {
     const data = await res.json().catch(() => ({}));
+    await clearNativeSession();
     unauthorizedHandler();
     throw new ApiError(401, data.error || 'A sessão expirou', data.code || 'unauthorized');
   }
   if (res.status === 204) return null;
   const data = await res.json().catch(() => ({}));
+  await captureNativeSession(data);
   if (typeof data?.csrf === 'string') csrfToken = data.csrf;
   if (!res.ok) throw new ApiError(res.status, data.error || 'Alguma coisa correu mal', data.code);
   return data;
@@ -57,15 +68,19 @@ export const api = {
     me: () => call('/auth/me'),
     update: (b) => call('/auth/me', { method: 'PATCH', body: b }),
     changePassword: (b) => call('/auth/change-password', { method: 'POST', body: b }),
-    logout: async () => { const r = await call('/auth/logout', { method: 'POST' }); csrfToken = null; return r; },
+    logout: async () => {
+      try { return await call('/auth/logout', { method: 'POST' }); }
+      finally { csrfToken = null; await clearNativeSession(); }
+    },
   },
   account: {
     forgot: (email) => call('/account/forgot-password', { method: 'POST', body: { email }, auth: false }),
     reset: (b) => call('/account/reset-password', { method: 'POST', body: b, auth: false }),
     async download() {
-      const res = await fetch(`${BASE}/account/export`, { credentials: 'include' });
+      const res = await fetch(`${BASE}/account/export`, { credentials: 'include', headers:nativeAuthHeaders() });
       if (!res.ok) throw new ApiError(res.status, 'Nao foi possivel descarregar');
       const blob = await res.blob();
+      if (await saveNativeDownload(blob, 'lumina-os-meus-dados.json')) return;
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = 'lumina-os-meus-dados.json'; a.click();
       URL.revokeObjectURL(url);
@@ -158,6 +173,8 @@ export const api = {
     list: (cursor) => call(`/notifications${cursor ? `?before=${encodeURIComponent(cursor)}` : ''}`),
     unread: () => call('/notifications/unread-count'),
     pushStatus: () => call('/notifications/push/status'),
+    nativeSubscribe: (body) => call('/notifications/native/subscribe', { method:'POST', body }),
+    nativeUnsubscribe: (token) => call('/notifications/native/unsubscribe', { method:'POST', body:{ token } }),
     read: (id) => call(`/notifications/${id}/read`, { method: 'POST' }),
     readAll: () => call('/notifications/read-all', { method: 'POST' }),
   },

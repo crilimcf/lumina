@@ -40,6 +40,15 @@ export const env = {
   AWS_IVS_STORAGE_CONFIGURATION_ARN: process.env.AWS_IVS_STORAGE_CONFIGURATION_ARN || '',
   AWS_IVS_RECORDINGS_BUCKET: process.env.AWS_IVS_RECORDINGS_BUCKET || '',
 
+  FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || '',
+  FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL || '',
+  FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY || '',
+  APNS_TEAM_ID: process.env.APNS_TEAM_ID || '',
+  APNS_KEY_ID: process.env.APNS_KEY_ID || '',
+  APNS_PRIVATE_KEY: process.env.APNS_PRIVATE_KEY || '',
+  APNS_BUNDLE_ID: process.env.APNS_BUNDLE_ID || 'pt.digibox.lumina',
+  APNS_PRODUCTION: process.env.APNS_PRODUCTION !== 'false',
+
   FEATURE_SUBSCRIPTIONS: process.env.FEATURE_SUBSCRIPTIONS === 'true',
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || '',
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || '',

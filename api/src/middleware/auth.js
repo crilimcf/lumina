@@ -19,6 +19,10 @@ const CSRF_SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 export function csrfGuard(req, _res, next) {
   if (CSRF_SAFE_METHODS.has(req.method)) return next();
+  // A credencial Bearer é acrescentada explicitamente pela app nativa e não é
+  // enviada automaticamente por um site terceiro, portanto não está sujeita a
+  // CSRF. Isto também evita que um cookie web antigo bloqueie uma sessão móvel.
+  if (String(req.headers.authorization || '').startsWith('Bearer ')) return next();
   const token = req.cookies?.[SESSION_COOKIE];
   if (!token) return next();
   let payload;
@@ -64,7 +68,7 @@ export const revokeSessionToken = (token) => {
 export async function auth(req, _res, next) {
   try {
     const header = req.headers.authorization || '';
-    const token = req.cookies?.[SESSION_COOKIE] || (header.startsWith('Bearer ') ? header.slice(7) : null);
+    const token = header.startsWith('Bearer ') ? header.slice(7) : req.cookies?.[SESSION_COOKIE];
     if (!token) throw new HttpError(401, 'Sessao em falta');
 
     let payload;

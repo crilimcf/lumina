@@ -1,4 +1,12 @@
-const BASE = import.meta.env.VITE_API_URL || '/api';
+import { Browser } from '@capacitor/browser';
+import {
+  captureNativeSession,
+  isNativeApp,
+  nativeApiOrigin,
+  nativeAuthHeaders,
+} from './native/session.js';
+
+const BASE = isNativeApp ? nativeApiOrigin : (import.meta.env.VITE_API_URL || '/api');
 
 const b64uToBytes = value => {
   const input = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
@@ -15,9 +23,9 @@ const bytesToB64u = value => {
 };
 
 async function jsonCall(path, { method = 'GET', body, csrf = false } = {}) {
-  const headers = { Accept:'application/json' };
+  const headers = { Accept:'application/json', ...nativeAuthHeaders() };
   if (body !== undefined) headers['content-type'] = 'application/json';
-  if (csrf) {
+  if (csrf && !isNativeApp) {
     const me = await fetch(`${BASE}/auth/me?__passkey_csrf=${Date.now()}`, {
       credentials:'include', cache:'no-store', headers:{ 'cache-control':'no-cache' },
     });
@@ -32,6 +40,7 @@ async function jsonCall(path, { method = 'GET', body, csrf = false } = {}) {
   if (response.status === 204) return null;
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data?.error || 'Não foi possível concluir a operação.');
+  await captureNativeSession(data);
   return data;
 }
 
@@ -77,8 +86,8 @@ export function credentialToJSON(credential) {
 }
 
 export const passkeySupported = () => !!(
-  window.isSecureContext && window.PublicKeyCredential
-  && navigator.credentials?.create && navigator.credentials?.get
+  isNativeApp || (window.isSecureContext && window.PublicKeyCredential
+  && navigator.credentials?.create && navigator.credentials?.get)
 );
 
 export const passkeyLoginLabel = () => {
@@ -96,6 +105,51 @@ const deviceName = () => {
 
 export async function authenticateWithPasskey() {
   if (!passkeySupported()) throw new Error('Este dispositivo não suporta passkeys.');
+  if (isNativeApp) {
+    const verifier = bytesToB64u(crypto.getRandomValues(new Uint8Array(32)));
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+    const codeChallenge = bytesToB64u(digest);
+    const started = await jsonCall('/auth/mobile/start', { method:'POST', body:{ codeChallenge } });
+
+    let cleanupNavigation = () => {};
+    const callback = new Promise((resolve, reject) => {
+      let timeout;
+      const onNavigation = event => {
+        const url = new URL(event.detail?.url || '/', window.location.href);
+        if (url.pathname !== '/auth' || url.searchParams.get('handoff') !== started.id) return;
+        cleanupNavigation();
+        resolve({ handoff:started.id, code:url.searchParams.get('code') || '' });
+      };
+      cleanupNavigation = () => {
+        window.clearTimeout(timeout);
+        window.removeEventListener('lumina:native-navigation', onNavigation);
+      };
+      timeout = window.setTimeout(() => {
+        cleanupNavigation();
+        reject(new Error('O login por passkey expirou. Tenta novamente.'));
+      }, 2 * 60_000);
+      window.addEventListener('lumina:native-navigation', onNavigation);
+    });
+
+    let rejectBrowserFinished;
+    const browserFinished = new Promise((_, reject) => { rejectBrowserFinished = reject; });
+    const browserHandle = await Browser.addListener('browserFinished', () => {
+      cleanupNavigation();
+      rejectBrowserFinished(new Error('Login por passkey cancelado.'));
+    });
+    await Browser.open({ url:started.loginUrl, presentationStyle:'fullscreen' });
+    try {
+      const result = await Promise.race([callback, browserFinished]);
+      return await jsonCall('/auth/mobile/exchange', {
+        method:'POST',
+        body:{ ...result, verifier },
+      });
+    } finally {
+      cleanupNavigation();
+      await browserHandle.remove().catch(() => {});
+      await Browser.close().catch(() => {});
+    }
+  }
   const json = await jsonCall('/auth/passkeys/options');
   const credential = await navigator.credentials.get({ publicKey:requestOptions(json) });
   if (!credential) throw new Error('Login por passkey cancelado.');
@@ -104,6 +158,11 @@ export async function authenticateWithPasskey() {
 
 export async function registerPasskey() {
   if (!passkeySupported()) throw new Error('Este dispositivo não suporta passkeys.');
+  if (isNativeApp) {
+    const session = await jsonCall('/auth/mobile/browser-session', { method:'POST', body:{} });
+    await Browser.open({ url:session.url, presentationStyle:'fullscreen' });
+    return { external:true };
+  }
   const json = await jsonCall('/auth/passkeys/register-options');
   const credential = await navigator.credentials.create({ publicKey:creationOptions(json) });
   if (!credential) throw new Error('Criação da passkey cancelada.');

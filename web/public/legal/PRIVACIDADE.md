@@ -1,6 +1,6 @@
 # Política de Privacidade da Lumina
 
-**Versão:** 15 de agosto de 2026
+**Versão:** 16 de agosto de 2026
 
 ## 1. Responsável pelo tratamento
 
@@ -26,6 +26,8 @@ Consoante as funcionalidades usadas, a Lumina pode tratar:
 - Salas criadas/aderidas, convites e mensagens de Sala;
 - mensagens privadas, estado de leitura/abertura e chamadas;
 - fotografias e vídeos carregados;
+- localização precisa ou aproximada, apenas quando ativas uma funcionalidade local;
+- token de notificações, plataforma, identificador técnico do dispositivo, modelo e versão do sistema;
 - denúncias e decisões de moderação;
 - dados técnicos de segurança, como sessões, user-agent, IP e tentativas de login;
 - pedidos de recuperação de password, 2FA e códigos de recuperação em formato protegido;
@@ -68,6 +70,8 @@ A sessão browser principal usa um cookie `HttpOnly`, `Secure`, `SameSite=Lax` e
 
 O valor CSRF necessário para pedidos que alteram estado é devolvido pela API e mantido em memória pela aplicação. O PWA pode também usar armazenamento local do browser para preferências técnicas não sensíveis.
 
+Nas aplicações iOS e Android, o token de sessão é guardado no Keychain ou Keystore protegido do dispositivo. Face ID, impressão digital e código do dispositivo são validados pelo sistema operativo; a Lumina apenas recebe o resultado da validação e não recebe nem guarda dados biométricos.
+
 ## 7. Fornecedores
 
 A arquitetura atual pode envolver:
@@ -77,6 +81,7 @@ A arquitetura atual pode envolver:
 - **Vercel** — aplicação web;
 - **Cloudflare R2 / serviço S3-compatível** — fotografias e vídeos;
 - **Resend** — emails transacionais;
+- **Apple Push Notification service (APNs)** e **Google Firebase Cloud Messaging (FCM)** — entrega de notificações móveis;
 - **Stripe** — apenas quando funcionalidades pagas forem ativadas.
 
 A Lumina aplica aos fornecedores as garantias contratuais e os mecanismos de transferência exigidos pelo RGPD, incluindo decisões de adequação ou cláusulas contratuais-tipo quando aplicáveis.

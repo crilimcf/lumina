@@ -1,6 +1,6 @@
 # Política de privacidad de Lumina
 
-**Versión:** 15 de agosto de 2026
+**Versión:** 16 de agosto de 2026
 
 ## 1. Responsable del tratamiento
 
@@ -26,6 +26,8 @@ Según las funciones utilizadas, Lumina puede tratar:
 - Salas creadas o a las que se ha unido, invitaciones y mensajes de Sala;
 - mensajes privados, estado de lectura/apertura y llamadas;
 - fotos y vídeos cargados;
+- ubicación precisa o aproximada, solo cuando activas una función local;
+- token de notificaciones, plataforma, identificador técnico del dispositivo, modelo y versión del sistema operativo;
 - denuncias y decisiones de moderación;
 - datos técnicos de seguridad como sesiones, user-agent, IP e intentos de inicio de sesión;
 - solicitudes de recuperación de contraseña, verificación en dos pasos y códigos de recuperación en formato protegido;
@@ -68,6 +70,8 @@ La sesión principal del navegador utiliza una cookie `HttpOnly`, `Secure`, `Sam
 
 El valor CSRF necesario para solicitudes que cambian el estado lo devuelve la API y se mantiene en memoria por la aplicación. La PWA también puede utilizar el almacenamiento local del navegador para preferencias técnicas no sensibles.
 
+En las aplicaciones iOS y Android, el token de sesión se guarda en el Keychain o Keystore protegido del dispositivo. Face ID, la huella y el código del dispositivo los valida el sistema operativo; Lumina solo recibe el resultado y no recibe ni almacena datos biométricos.
+
 ## 7. Proveedores
 
 La arquitectura actual puede incluir:
@@ -77,6 +81,7 @@ La arquitectura actual puede incluir:
 - **Vercel** — aplicación web;
 - **Cloudflare R2 / servicio compatible con S3** — fotos y vídeos;
 - **Resend** — correos electrónicos transaccionales;
+- **Apple Push Notification service (APNs)** y **Google Firebase Cloud Messaging (FCM)** — entrega de notificaciones móviles;
 - **Stripe** — solo cuando se activen funciones de pago.
 
 Lumina aplica a sus proveedores las garantías contractuales y los mecanismos de transferencia exigidos por el RGPD, incluidas las decisiones de adecuación o las cláusulas contractuales tipo cuando correspondan.

@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Lumina</string>
+    <string name="title_activity_main">Lumina</string>
+    <string name="package_name">pt.digibox.lumina</string>
+    <string name="custom_url_scheme">lumina</string>
+    <string name="default_notification_channel_id">lumina_activity</string>
+    <string name="notification_channel_name">Atividade Lumina</string>
+    <string name="notification_channel_description">Mensagens, chamadas e atividade importante da tua conta.</string>
+</resources>

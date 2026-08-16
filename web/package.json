@@ -2,18 +2,49 @@
   "name": "lumina-web",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "node scripts/sync-legal.mjs && vite",
     "build": "node scripts/sync-legal.mjs && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "native:build-web": "node scripts/build-native.mjs",
+    "native:sync": "npm run native:build-web && cap sync",
+    "native:doctor": "cap doctor",
+    "android:debug": "npm run native:sync && cd android && ./gradlew assembleDebug",
+    "android:bundle": "npm run native:sync && cd android && ./gradlew bundleRelease",
+    "ios:sync": "npm run native:build-web && cap sync ios"
   },
   "dependencies": {
+    "@aparajita/capacitor-biometric-auth": "^10.0.0",
+    "@aparajita/capacitor-secure-storage": "^8.0.0",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/browser": "^8.0.4",
+    "@capacitor/camera": "^8.2.2",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/device": "^8.0.3",
+    "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/geolocation": "^8.2.2",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/keyboard": "^8.0.5",
+    "@capacitor/network": "^8.0.1",
+    "@capacitor/privacy-screen": "^2.0.1",
+    "@capacitor/push-notifications": "^8.1.2",
+    "@capacitor/share": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3",
     "lucide-react": "^0.400.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
     "@vitejs/plugin-react": "^6.0.5",
+    "typescript": "^5.9.3",
     "vite": "^8.2.1"
   }
 }

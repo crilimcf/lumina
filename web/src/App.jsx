@@ -13,6 +13,8 @@ import { useComposer } from './hooks/useComposer.js';
 import { useMoments } from './hooks/useMoments.js';
 import { useCalls } from './hooks/useCalls.js';
 import { useSwipeNavigation } from './hooks/useSwipeNavigation.js';
+import { exitNativeApp, takePendingNativeNavigation } from './native/runtime.js';
+import { isNativeApp } from './native/session.js';
 import './design-system-consolidation.css';
 import './iphone-polish.css';
 import './lumina-one-entry.css';
@@ -65,6 +67,26 @@ export default function App() {
   const [liveId, setLiveId] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
+  const applyNativeNavigation = useCallback((value) => {
+    if (!value) return;
+    const url = new URL(value, window.location.href);
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    if (!meRef.current) return;
+    const requestedLive = url.searchParams.get('live');
+    if (requestedLive) {
+      setLiveId(requestedLive);
+      setScreen('live-viewer');
+    } else if (url.searchParams.get('one')) {
+      setScreen('one');
+    } else {
+      const requestedTab = url.searchParams.get('tab');
+      if (['feed','rooms','promos','alerts','dms','me'].includes(requestedTab)) setTab(requestedTab);
+      setScreen(null);
+    }
+    setOpening(false);
+    setShowWelcome(false);
+  }, []);
+
   const ping = useCallback((text) => {
     setToast(text);
     setTimeout(() => setToast(''), 2600);
@@ -75,6 +97,34 @@ export default function App() {
   const messageState = useMessages({ tab, palette:composerState.palette, ping, enabled:!!me });
   const momentState = useMoments({ me, ping });
   const callState = useCalls({ enabled:!!me, ping });
+
+  useEffect(() => {
+    if (!isNativeApp) return;
+    const pending = takePendingNativeNavigation();
+    if (pending) applyNativeNavigation(pending);
+    const navigate = event => applyNativeNavigation(event.detail?.url);
+    window.addEventListener('lumina:native-navigation', navigate);
+    return () => window.removeEventListener('lumina:native-navigation', navigate);
+  }, [applyNativeNavigation]);
+
+  useEffect(() => {
+    if (!isNativeApp) return;
+    const back = () => {
+      window.__luminaNativeHaptic?.();
+      if (callState.activeCall) return callState.closeActiveCall();
+      if (composerState.comp) return composerState.setComp(null);
+      if (messageState.thread) return messageState.setThread(null);
+      if (screen) {
+        setProfileHandle(null);
+        setLiveId(null);
+        return setScreen(null);
+      }
+      if (tab !== 'feed') return setTab('feed');
+      void exitNativeApp();
+    };
+    window.addEventListener('lumina:native-back', back);
+    return () => window.removeEventListener('lumina:native-back', back);
+  }, [callState.activeCall, callState.closeActiveCall, composerState.comp, composerState.setComp, messageState.thread, messageState.setThread, screen, tab]);
 
   useSwipeNavigation({
     enabled: !!me && !opening && !showWelcome && !screen && !composerState.comp && !callState.activeCall && !callState.incoming,
@@ -165,6 +215,15 @@ export default function App() {
     setShowWelcome(false);
   }, [me]);
 
+  useEffect(() => {
+    if (!me) return;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.get('security')) return;
+    setScreen('seguranca');
+    setOpening(false);
+    setShowWelcome(false);
+  }, [me]);
+
   async function afterLogin(user, isNewAccount = false) {
     setMe(user);
     if (isNewAccount) setShowWelcome(true);
@@ -192,15 +251,20 @@ export default function App() {
     } catch (e) { ping(e.code === 'duplicate' ? 'Já tinhas denunciado' : e.message); }
   };
 
-  const logout = () => {
-    api.auth.logout().catch(()=>{});
-    setMe(null);
-    setUnreadCount(0);
-    setProfileHandle(null);
-    setLiveId(null);
-    setScreen(null);
-    setTab('feed');
-    messageState.setThread(null);
+  const logout = async () => {
+    try {
+      await window.__luminaDisablePush?.();
+      await api.auth.logout();
+    } catch {}
+    finally {
+      setMe(null);
+      setUnreadCount(0);
+      setProfileHandle(null);
+      setLiveId(null);
+      setScreen(null);
+      setTab('feed');
+      messageState.setThread(null);
+    }
   };
 
   const openProfile = useCallback((personOrHandle) => {

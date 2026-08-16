@@ -184,6 +184,7 @@ export function LuminaOne({ me, onBack, ping, onOpenLive }) {
   const [boostInput, setBoostInput] = useState('');
   const [muteInput, setMuteInput] = useState('');
   const [localRegion, setLocalRegion] = useState('');
+  const localRegionEditVersion = useRef(0);
   const [localItems, setLocalItems] = useState([]);
   const [together, setTogether] = useState([]);
   const [togetherId, setTogetherId] = useState(null);
@@ -198,12 +199,13 @@ export function LuminaOne({ me, onBack, ping, onOpenLive }) {
   const loadLumes = useCallback(async () => { try { setLumes(await api.one.lumes()); } catch (error) { ping(error.message); } }, [ping]);
   const loadCapsules = useCallback(async () => { try { setCapsules(await api.one.capsules()); } catch (error) { ping(error.message); } }, [ping]);
   const loadAgora = useCallback(async () => {
+    const regionVersion = localRegionEditVersion.current;
     try {
       const [nextPrefs, sessions] = await Promise.all([api.one.preferences(), api.one.together()]);
       setPrefs(nextPrefs);
       setBoostInput((nextPrefs.boost_topics || []).join(', '));
       setMuteInput((nextPrefs.mute_topics || []).join(', '));
-      setLocalRegion(nextPrefs.local_region || '');
+      if (localRegionEditVersion.current === regionVersion) setLocalRegion(nextPrefs.local_region || '');
       setTogether(sessions || []);
       if (nextPrefs.local_region) setLocalItems((await api.one.local(nextPrefs.local_region)).items || []);
     } catch (error) { ping(error.message); }
@@ -376,7 +378,7 @@ export function LuminaOne({ me, onBack, ping, onOpenLive }) {
 
     {tab==='agora' && <main className="one-content one-agora-page">
       <section className="one-hero-card one-agora-hero"><div><span>AGORA</span><h2>A rede adapta-se <i>a ti.</i></h2><p>Tu dizes o que queres ver e em que contexto estás. O algoritmo deixa de ser uma caixa preta.</p></div></section>
-      <section className="one-settings-card"><div className="one-section-head"><div><span>O MEU ALGORITMO</span><b>Afinar o Pulso</b></div><SlidersHorizontal size={20}/></div><label>Quero ver mais<input value={boostInput} onChange={e=>setBoostInput(e.target.value)} placeholder="viagens, carros, tecnologia"/></label><label>Quero ver menos<input value={muteInput} onChange={e=>setMuteInput(e.target.value)} placeholder="política, futebol…"/></label><div className="one-contexts"><span>Modo de agora</span><div>{CONTEXTS.map(([key,label])=><button key={key} className={prefs.context_mode===key?'is-on':''} onClick={()=>setPrefs(prev=>({...prev,context_mode:key}))}>{label}</button>)}</div></div><label>Onde estás / o que queres descobrir<div className="one-region-input"><MapPin size={17}/><input value={localRegion} onChange={e=>setLocalRegion(e.target.value)} placeholder="Porto, Lisboa, Braga…"/></div></label><button className="one-primary" onClick={saveAgora}>Guardar e adaptar a Lumina</button></section>
+      <section className="one-settings-card"><div className="one-section-head"><div><span>O MEU ALGORITMO</span><b>Afinar o Pulso</b></div><SlidersHorizontal size={20}/></div><label>Quero ver mais<input value={boostInput} onChange={e=>setBoostInput(e.target.value)} placeholder="viagens, carros, tecnologia"/></label><label>Quero ver menos<input value={muteInput} onChange={e=>setMuteInput(e.target.value)} placeholder="política, futebol…"/></label><div className="one-contexts"><span>Modo de agora</span><div>{CONTEXTS.map(([key,label])=><button key={key} className={prefs.context_mode===key?'is-on':''} onClick={()=>setPrefs(prev=>({...prev,context_mode:key}))}>{label}</button>)}</div></div><label>Onde estás / o que queres descobrir<div className="one-region-input"><MapPin size={17}/><input value={localRegion} onChange={e=>{localRegionEditVersion.current+=1;setLocalRegion(e.target.value)}} placeholder="Porto, Lisboa, Braga…"/></div></label><button className="one-primary" onClick={saveAgora}>Guardar e adaptar a Lumina</button></section>
       <section><div className="one-section-head"><div><span>RADAR LOCAL</span><b>{localRegion||'Perto de ti'}</b></div><MapPin size={19}/></div>{localRegion&&!localItems.length&&<div className="one-state">Ainda não encontrei conteúdo Radar associado a esta zona.</div>}<div className="one-local-grid">{localItems.map(item=><article key={item.id}>{item.image_url&&<img src={item.image_url} alt=""/>}<span>{item.type==='event'?'EVENTO':'RADAR'}{item.region?` · ${item.region}`:''}</span><b>{item.title}</b><p>{item.summary}</p>{item.starts_at&&<time>{new Date(item.starts_at).toLocaleString('pt-PT')}</time>}<button onClick={async()=>{try{const s=await api.one.createTogether({sourceType:'radar',sourceId:item.id,title:item.title});setTogetherId(s.id)}catch(error){ping(error.message)}}}><Users size={16}/> Ver Juntos</button></article>)}</div></section>
       <section className="one-juntos-section"><div className="one-section-head"><div><span>JUNTOS</span><b>Partilhar o momento</b></div><Users size={20}/></div><div className="one-join"><input value={joinCode} onChange={e=>setJoinCode(e.target.value)} placeholder="Código/ID da sessão"/><button onClick={joinTogether}>Entrar</button></div><div className="one-together-list">{together.map(item=><button key={item.id} onClick={()=>setTogetherId(item.id)}><div><Users size={18}/></div><section><b>{item.title}</b><span>{item.participants} juntos · {item.source_type}</span></section><Play size={16}/></button>)}</div>{!together.length&&<div className="one-state">No Pulso ou Radar, toca em <b>Juntos</b> para iniciar uma sessão.</div>}</section>
     </main>}

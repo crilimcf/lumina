@@ -1,6 +1,6 @@
 # Lumina Privacy Policy
 
-**Version:** 15 August 2026
+**Version:** 16 August 2026
 
 ## 1. Data controller
 
@@ -26,6 +26,8 @@ Depending on the features used, Lumina may process:
 - Rooms created/joined, invitations and Room messages;
 - private messages, read/open state and calls;
 - uploaded photos and videos;
+- precise or approximate location, only when you activate a local feature;
+- notification token, platform, technical device identifier, model and operating-system version;
 - reports and moderation decisions;
 - technical security data such as sessions, user-agent, IP address and login attempts;
 - password-recovery requests, two-step verification and protected recovery codes;
@@ -68,6 +70,8 @@ The main browser session uses a cookie with `HttpOnly`, `Secure`, `SameSite=Lax`
 
 The CSRF value required for state-changing requests is returned by the API and kept in application memory. The PWA may also use browser local storage for non-sensitive technical preferences.
 
+In the iOS and Android apps, the session token is stored in the device's protected Keychain or Keystore. Face ID, fingerprint and device passcode are validated by the operating system; Lumina only receives the validation result and does not receive or store biometric data.
+
 ## 7. Providers
 
 The current architecture may involve:
@@ -77,6 +81,7 @@ The current architecture may involve:
 - **Vercel** — web application;
 - **Cloudflare R2 / S3-compatible service** — photos and videos;
 - **Resend** — transactional emails;
+- **Apple Push Notification service (APNs)** and **Google Firebase Cloud Messaging (FCM)** — mobile-notification delivery;
 - **Stripe** — only when paid features are enabled.
 
 Lumina applies the contractual safeguards and transfer mechanisms required by the GDPR to its providers, including adequacy decisions or Standard Contractual Clauses where applicable.

@@ -31,6 +31,7 @@ test('abertura sobe os CTAs e dá a Feed e Salas a mesma presença', async ({ pa
   await expect(rooms).toHaveClass(/p-brand/);
   await expect(page.locator('.opening-card')).toHaveCount(0);
   await expect(page.getByText('Escolhe onde queres começar')).toBeVisible();
+  await page.evaluate(() => document.fonts?.ready);
 
   const [feedBox, roomsBox, actionMetrics] = await Promise.all([
     feed.boundingBox(),

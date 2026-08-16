@@ -144,6 +144,8 @@ async function pushReadyFor(userId) {
   const { rows } = await q(
     `SELECT EXISTS(
        SELECT 1 FROM web_push_subscriptions WHERE user_id=$1
+       UNION ALL
+       SELECT 1 FROM push_tokens WHERE user_id=$1 AND platform IN ('ios','android')
      ) AS ready`,
     [userId]
   );

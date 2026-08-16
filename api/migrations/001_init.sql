@@ -278,9 +278,15 @@ CREATE TABLE push_tokens (
   token      TEXT PRIMARY KEY,
   user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   platform   TEXT NOT NULL CHECK (platform IN ('web','ios','android')),
+  device_id  TEXT,
+  device_name TEXT,
+  os_version TEXT,
+  push_environment TEXT NOT NULL DEFAULT 'production' CHECK (push_environment IN ('production','sandbox')),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX push_tokens_user_idx ON push_tokens(user_id);
+CREATE INDEX push_tokens_user_updated_idx ON push_tokens(user_id, updated_at DESC);
 
 CREATE OR REPLACE FUNCTION lumina_notify_new_post()
 RETURNS trigger LANGUAGE plpgsql AS $$
@@ -383,6 +389,28 @@ CREATE TABLE sessions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX sessions_user_idx ON sessions(user_id, last_seen DESC);
+
+CREATE TABLE mobile_auth_handoffs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code_challenge TEXT NOT NULL,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  exchange_code_hash TEXT,
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '10 minutes'),
+  completed_at TIMESTAMPTZ,
+  exchanged_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX mobile_auth_handoffs_expiry_idx ON mobile_auth_handoffs(expires_at);
+
+CREATE TABLE mobile_browser_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  code_hash TEXT UNIQUE NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '10 minutes'),
+  used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX mobile_browser_sessions_expiry_idx ON mobile_browser_sessions(expires_at);
 
 CREATE TABLE deletion_requests (
   user_id      UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,

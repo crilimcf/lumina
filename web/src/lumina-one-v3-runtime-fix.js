@@ -299,6 +299,8 @@ async function handleLocation(button) {
     status.textContent = `${city} detetada pela localização do iPhone${accuracy ? ` · precisão ~${accuracy} m` : ''}. Confirma em “Guardar e adaptar a Lumina”.`;
     input.focus({ preventScroll: true });
   } catch (error) {
+    const currentInput = settings.querySelector('.one-region-input input') || input;
+    if (preferred && !currentInput.value.trim()) setReactInputValue(currentInput, preferred);
     status.className = 'one-v3-location-status is-warn';
     const code = Number(error?.code);
     if (code === 1) {

@@ -62,6 +62,39 @@ test('One v3 é compacto, sem onboarding permanente, e suporta swipe entre modos
   await expect(page.locator('.one-tabs button.is-on')).toContainText('Lumes');
 });
 
+test('Lumes abre a câmara em ecrã inteiro no iPhone', async ({ page }) => {
+  await page.setViewportSize({ width:390, height:844 });
+  await register(page, 'v3lume');
+  await openOne(page);
+  await openTab(page, 'Lumes');
+
+  await page.getByRole('button', { name:'Tirar um Lume' }).click();
+  const camera = page.getByRole('dialog', { name:'Câmara Lume' });
+  await expect(camera).toBeVisible();
+  await expect(camera.getByRole('button', { name:'Tirar fotografia' })).toBeVisible();
+
+  const layout = await camera.evaluate(node => {
+    const style = getComputedStyle(node);
+    const rect = node.getBoundingClientRect();
+    return {
+      position:style.position,
+      zIndex:Number(style.zIndex),
+      top:rect.top,
+      left:rect.left,
+      width:rect.width,
+      height:rect.height,
+      viewportWidth:window.innerWidth,
+      viewportHeight:window.innerHeight,
+    };
+  });
+  expect(layout.position).toBe('fixed');
+  expect(layout.zIndex).toBeGreaterThan(80);
+  expect(Math.abs(layout.top)).toBeLessThanOrEqual(1);
+  expect(Math.abs(layout.left)).toBeLessThanOrEqual(1);
+  expect(layout.width).toBeGreaterThanOrEqual(layout.viewportWidth - 1);
+  expect(layout.height).toBeGreaterThanOrEqual(layout.viewportHeight - 1);
+});
+
 test('Radar Local usa GPS preciso para Bragança e nunca troca por cidade de rede', async ({ page, context }) => {
   await context.grantPermissions(['geolocation']);
   await context.setGeolocation({ latitude:41.8062, longitude:-6.7567, accuracy:45 });

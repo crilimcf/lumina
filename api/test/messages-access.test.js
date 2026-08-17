@@ -89,6 +89,32 @@ test('abrir conversa valida o destinatário antes de tocar na base', async () =>
   assert.equal(suspendedTarget.response.status, 404);
 });
 
+test('o chat indica presença online apenas para sessões com atividade recente', async () => {
+  const alice = await register('dm.presence.alice', 'dm-presence-alice@example.test');
+  const bob = await register('dm.presence.bob', 'dm-presence-bob@example.test');
+
+  const thread = await request('/messages/threads', {
+    method: 'POST', token: alice.token, body: { userId: bob.user.id },
+  });
+  assert.equal(thread.response.status, 201, JSON.stringify(thread.data));
+
+  await q("UPDATE sessions SET last_seen = now() - interval '10 minutes' WHERE user_id = $1", [bob.user.id]);
+  const offline = await request('/messages/threads', { token: alice.token });
+  assert.equal(offline.response.status, 200);
+  assert.equal(offline.data.find(row => row.id === thread.data.id)?.online, false);
+
+  const activity = await request('/auth/me', { token: bob.token });
+  assert.equal(activity.response.status, 200);
+  const online = await request('/messages/threads', { token: alice.token });
+  assert.equal(online.response.status, 200);
+  assert.equal(online.data.find(row => row.id === thread.data.id)?.online, true);
+
+  await q('INSERT INTO follows (follower_id, following_id) VALUES ($1, $2)', [alice.user.id, bob.user.id]);
+  const contacts = await request('/users/me/following', { token: alice.token });
+  assert.equal(contacts.response.status, 200);
+  assert.equal(contacts.data.find(person => person.id === bob.user.id)?.online, true);
+});
+
 test('bloquear alguém corta lista, histórico, envio e abertura efémera por ID direto', async () => {
   const alice = await register('dm.block.alice', 'dm-block-alice@example.test');
   const bob = await register('dm.block.bob', 'dm-block-bob@example.test');

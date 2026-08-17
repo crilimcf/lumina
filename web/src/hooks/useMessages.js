@@ -40,6 +40,12 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
     unreadSnapshot.current = new Map(next.map(row => [row.id, Number(row.unread || 0)]));
     unreadReady.current = true;
     setThreads(next);
+    setThread(current => {
+      if (!current) return current;
+      const refreshed = next.find(row => row.id === current.id);
+      if (!refreshed || !!refreshed.online === !!current.online) return current;
+      return { ...current, online:!!refreshed.online };
+    });
     return next;
   }, [ping]);
 
@@ -94,6 +100,7 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
     const reconcile = ({ announce = true } = {}) => {
       if (!alive || document.visibilityState !== 'visible') return;
       loadThreads({ announce }).catch(() => {});
+      if (tabRef.current === 'dms') loadContacts().catch(() => {});
       api.messages.delivered().catch(() => {});
       const active = threadRef.current?.id;
       if (tabRef.current === 'dms' && active) syncThread(active).catch(() => {});
@@ -140,7 +147,7 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
       source?.close();
       document.removeEventListener('visibilitychange', visible);
     };
-  }, [enabled, loadThreads, syncThread]);
+  }, [enabled, loadContacts, loadThreads, syncThread]);
 
   useEffect(() => {
     if (!enabled || tab !== 'dms') return;
@@ -161,7 +168,7 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
     if (!person?.id) return;
     try {
       const created = await api.messages.openThread(person.id);
-      setThread({ id:created.id, name:person.name, handle:person.handle, palette:person.palette, avatar_url:person.avatar_url, other_id:person.id });
+      setThread({ id:created.id, name:person.name, handle:person.handle, palette:person.palette, avatar_url:person.avatar_url, other_id:person.id, online:!!person.online });
       await loadThreads({ announce:false }).catch(() => {});
     } catch (e) { ping(e.message); }
   }, [loadThreads, ping]);

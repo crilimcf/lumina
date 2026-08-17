@@ -277,6 +277,8 @@
 }
 
 .messages-avatar-halo {
+  position: relative;
+  display: inline-flex;
   flex: 0 0 auto;
   padding: 2px;
   border-radius: 999px;
@@ -288,6 +290,20 @@
   display: block;
   border: 2px solid #10162a;
   border-radius: inherit;
+}
+
+.messages-avatar-halo > .messages-presence-dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  z-index: 2;
+  width: 13px;
+  height: 13px;
+  border: 2px solid #10162a;
+  border-radius: 999px;
+  background: #35d477;
+  box-shadow: 0 0 0 2px rgba(53,212,119,.14), 0 2px 8px rgba(12,104,61,.42);
+  pointer-events: none;
 }
 
 .messages-thread-body {

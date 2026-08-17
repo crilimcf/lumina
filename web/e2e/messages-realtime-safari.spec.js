@@ -64,8 +64,10 @@ test('mensagens chegam à conversa por SSE sem esperar pelo polling antigo', asy
 
   const conversation = page.getByRole('button', { name:'Abrir conversa com Caller Realtime' });
   await expect(conversation).toBeVisible({ timeout:2500 });
+  await expect(conversation.getByRole('img', { name:'Online' })).toBeVisible();
   await conversation.click();
   await expect(page.getByText('@' + callerHandle)).toBeVisible();
+  await expect(page.locator('.messages-thread-header').getByRole('img', { name:'Online' })).toBeVisible();
 
   const body = `Mensagem realtime ${Date.now()}`;
   const startedAt = Date.now();

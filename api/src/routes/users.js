@@ -155,6 +155,12 @@ userRoutes.post('/me/follow-requests/:requestId/decline', auth, h(async (req, re
 userRoutes.get('/me/followers', auth, h(async (req, res) => {
   const { rows } = await q(
     `SELECT u.id, u.handle, u.name, u.bio, u.palette, u.avatar_url, u.is_private,
+            EXISTS (
+              SELECT 1 FROM sessions presence
+               WHERE presence.user_id = u.id
+                 AND presence.revoked_at IS NULL
+                 AND presence.last_seen >= now() - interval '90 seconds'
+            ) AS online,
             (SELECT count(*) FROM follows WHERE following_id = u.id)::int AS followers,
             EXISTS (SELECT 1 FROM follows mine WHERE mine.follower_id = $1 AND mine.following_id = u.id) AS following,
             EXISTS (SELECT 1 FROM follow_requests fr WHERE fr.requester_id=$1 AND fr.target_id=u.id AND fr.status='pending') AS requested,
@@ -174,6 +180,12 @@ userRoutes.get('/me/followers', auth, h(async (req, res) => {
 userRoutes.get('/me/following', auth, h(async (req, res) => {
   const { rows } = await q(
     `SELECT u.id, u.handle, u.name, u.bio, u.palette, u.avatar_url, u.is_private,
+            EXISTS (
+              SELECT 1 FROM sessions presence
+               WHERE presence.user_id = u.id
+                 AND presence.revoked_at IS NULL
+                 AND presence.last_seen >= now() - interval '90 seconds'
+            ) AS online,
             (SELECT count(*) FROM follows WHERE following_id = u.id)::int AS followers,
             true AS following, false AS requested,
             EXISTS (SELECT 1 FROM follows theirs WHERE theirs.follower_id = u.id AND theirs.following_id = $1) AS follows_me

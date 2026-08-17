@@ -102,6 +102,12 @@ messageRoutes.get('/threads', auth, h(async (req, res) => {
   const { rows } = await q(
     `SELECT t.id,
             u.id AS other_id, u.handle, u.name, u.palette, u.avatar_url,
+            EXISTS (
+              SELECT 1 FROM sessions presence
+               WHERE presence.user_id = u.id
+                 AND presence.revoked_at IS NULL
+                 AND presence.last_seen >= now() - interval '90 seconds'
+            ) AS online,
             last.body, last.mode, last.kind, last.media_type, last.purged_at, last.deleted_at, last.created_at,
             (SELECT count(*) FROM messages m
               WHERE m.thread_id=t.id AND m.sender_id<>$1 AND m.read_at IS NULL AND m.deleted_at IS NULL)::int AS unread

@@ -9,6 +9,13 @@ import { locale, t, translateDynamic } from '../i18n.js';
 import '../messages-facelift.css';
 import '../interaction-polish.css';
 
+function PresenceAvatar({ person, size }) {
+  return <span className="messages-avatar-halo">
+    <Orb p={person.palette} avatarUrl={person.avatar_url} s={size}/>
+    {!!person.online && <span className="messages-presence-dot" role="img" aria-label={t('Online')} title={t('Online')}/>}
+  </span>;
+}
+
 export function Conversas({
   me, tab, setTab, setComp, unreadCount, threads, contacts = [], openContact,
   thread, setThread, msgs, text, setText, mode, setMode,
@@ -153,7 +160,7 @@ export function Conversas({
       <header className="messages-thread-header">
         <button className="messages-thread-back" onClick={()=>setThread(null)} aria-label={t('Voltar às conversas')}><ArrowLeft size={18}/></button>
         <div className="messages-thread-identity">
-          <span className="messages-avatar-halo"><Orb p={thread.palette} avatarUrl={thread.avatar_url} s={36}/></span>
+          <PresenceAvatar person={thread} size={36}/>
           <div className="messages-thread-identity-copy">
             <div className="messages-thread-identity-name">{thread.name}</div>
             <div className="messages-thread-identity-handle">@{thread.handle}</div>
@@ -228,11 +235,11 @@ export function Conversas({
           key={item.id}
           type="button"
           aria-label={translateDynamic(`Abrir conversa com ${item.name}`)}
-          onClick={()=>setThread({id:item.id,name:item.name,handle:item.handle,palette:item.palette,avatar_url:item.avatar_url,other_id:item.other_id})}
+          onClick={()=>setThread({id:item.id,name:item.name,handle:item.handle,palette:item.palette,avatar_url:item.avatar_url,other_id:item.other_id,online:!!item.online})}
           className={`messages-thread-card in${item.unread>0?' has-unread':''}`}
           style={{animationDelay:`${Math.min(index,8)*45}ms`}}
         >
-          <span className="messages-avatar-halo"><Orb p={item.palette} avatarUrl={item.avatar_url} s={46}/></span>
+          <PresenceAvatar person={item} size={46}/>
           <span className="messages-thread-body">
             <span className="messages-thread-topline"><span className="messages-thread-name">{item.name}</span><span className="messages-thread-handle">@{item.handle}</span></span>
             <span className="messages-thread-preview">{item.body||t('Toca para conversar')}</span>
@@ -251,7 +258,7 @@ export function Conversas({
           className="messages-contact-card in"
           style={{animationDelay:`${Math.min(index,8)*40}ms`}}
         >
-          <span className="messages-avatar-halo"><Orb p={person.palette} avatarUrl={person.avatar_url} s={42}/></span>
+          <PresenceAvatar person={person} size={42}/>
           <span className="messages-contact-meta">
             <span className="messages-contact-name">{person.name}</span>
             <span className="messages-contact-handle">@{person.handle}{person.following&&person.follows_me?` · ${t('seguem-se')}`:person.follows_me?` · ${t('segue-te')}`:` · ${t('a seguir')}`}</span>

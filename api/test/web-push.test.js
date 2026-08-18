@@ -76,10 +76,11 @@ test('subscrição push pertence à conta e pode ser removida', async () => {
   const endpoint = 'https://fcm.googleapis.com/fcm/send/lumina-test-subscription';
   const subscribed = await request('/notifications/push/subscribe', {
     method:'POST',
-    body:{ endpoint, keys:{ p256dh:'test-p256dh', auth:'test-auth' } },
+    body:{ endpoint, keys:{ p256dh:'test-p256dh', auth:'test-auth' }, locale:'fr-FR' },
   });
   assert.equal(subscribed.response.status, 201, JSON.stringify(subscribed.data));
   assert.equal(subscribed.data.subscribed, true);
+  assert.equal(subscribed.data.locale, 'fr');
 
   const status = await request('/notifications/push/status');
   assert.equal(status.response.status, 200);
@@ -105,7 +106,7 @@ test('subscrição rejeita HTTP e hosts HTTPS arbitrários', async () => {
   }
 });
 
-test('push de mensagem identifica remetente sem expor o texto privado', async () => {
+test('push de mensagem segue o idioma do dispositivo sem expor o texto privado', async () => {
   const sender = await register('push.sender', 'Remetente Push');
   const thread = await requestAs(sender.token, '/messages/threads', {
     method:'POST', body:{ userId },
@@ -118,10 +119,10 @@ test('push de mensagem identifica remetente sem expor o texto privado', async ()
   });
   assert.equal(message.response.status, 201, JSON.stringify(message.data));
 
-  const latest = await request('/notifications/push/latest');
+  const latest = await request('/notifications/push/latest?locale=fr-FR');
   assert.equal(latest.response.status, 200, JSON.stringify(latest.data));
   assert.equal(latest.data.notification.type, 'message');
   assert.equal(latest.data.notification.title, 'Remetente Push');
-  assert.equal(latest.data.notification.body, 'Enviou-te uma mensagem');
+  assert.equal(latest.data.notification.body, 'T’a envoyé un message');
   assert.equal(JSON.stringify(latest.data).includes(secretText), false);
 });

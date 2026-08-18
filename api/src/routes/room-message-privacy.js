@@ -61,6 +61,29 @@ async function privateRecipient(roomId, senderId, rawBody, query = q) {
   };
 }
 
+roomMessagePrivacyRoutes.get('/:roomId/private-recipients', auth, h(async (req, res) => {
+  await assertMember(req.params.roomId, req.user.id);
+  const term = String(req.query.q || '').trim().replace(/^@/, '').slice(0, 24);
+  if (term.length < 2) return res.json([]);
+  const { rows } = await q(
+    `SELECT u.id,u.name,u.handle,u.palette,u.avatar_url
+       FROM room_members rm
+       JOIN users u ON u.id=rm.user_id AND u.suspended_at IS NULL
+      WHERE rm.room_id=$1
+        AND u.id<>$2
+        AND (u.handle ILIKE $3 OR u.name ILIKE $3)
+        AND NOT EXISTS (
+          SELECT 1 FROM blocks b
+           WHERE (b.blocker_id=$2 AND b.blocked_id=u.id)
+              OR (b.blocked_id=$2 AND b.blocker_id=u.id)
+        )
+      ORDER BY CASE WHEN u.handle ILIKE $4 THEN 0 ELSE 1 END,u.name
+      LIMIT 8`,
+    [req.params.roomId, req.user.id, `%${term}%`, `${term}%`]
+  );
+  res.json(rows);
+}));
+
 roomMessagePrivacyRoutes.get('/:roomId/messages', auth, h(async (req, res) => {
   await assertMember(req.params.roomId, req.user.id);
   const { rows } = await q(
@@ -154,8 +177,9 @@ roomMessagePrivacyRoutes.delete('/:roomId/messages/:messageId', auth, h(async (r
   const { rows: found } = await q(
     `SELECT sender_id,private_recipient_id,media_url
        FROM room_messages
-      WHERE id=$1 AND room_id=$2 AND deleted_at IS NULL`,
-    [req.params.messageId, req.params.roomId]
+      WHERE id=$1 AND room_id=$2 AND deleted_at IS NULL
+        AND (private_recipient_id IS NULL OR sender_id=$3 OR private_recipient_id=$3)`,
+    [req.params.messageId, req.params.roomId, req.user.id]
   );
   const message = found[0];
   if (!message) throw notFound('Mensagem não encontrada');

@@ -76,7 +76,7 @@ async function eligibleRoom(roomId, userId) {
     [roomId, userId]
   );
   const room = rows[0];
-  if (!room || room.visibility !== 'private' || (!room.joined && !room.invited && room.creator_id !== userId)) {
+  if (!room || room.visibility !== 'private' || (!room.joined && room.creator_id !== userId)) {
     throw forbidden('Este grupo não está disponível');
   }
   return room;

@@ -180,6 +180,13 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
                 </span>
               </button>
               {location?.countryCode && <span className="explore-location-country" data-i18n-ignore="true">{location.countryCode}</span>}
+              {location?.countryCode && <a
+                className="explore-location-attribution"
+                href="https://www.openstreetmap.org/copyright"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-i18n-ignore="true"
+              >© OpenStreetMap</a>}
             </div>
           </div>
           <TopActions tab={tab} setTab={setTab} setThread={setThread} unreadCount={unreadCount}/>

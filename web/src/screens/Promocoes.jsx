@@ -135,14 +135,20 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
 
   useEffect(() => {
     if (!locationReady) return undefined;
+    if (!location?.countryCode) {
+      setItems([]);
+      setPublisher('');
+      setLoading(false);
+      return undefined;
+    }
     let active = true;
     setLoading(true);
     setPublisher('');
     loadRadarForLocation({
       type:filter || undefined,
       limit:30,
-      country:location?.countryCode,
-      region:location?.city || location?.region,
+      country:location.countryCode,
+      region:location.city || location.region,
     })
       .then(result => { if (active) setItems(result.items || []); })
       .catch(error => { if (active) ping(error.message); })

@@ -2,7 +2,7 @@ import { Geolocation } from '@capacitor/geolocation';
 import { isNativeApp, nativeApiOrigin, nativeAuthHeaders } from './native/session.js';
 
 const CACHE_KEY = 'lumina.radar.location.v1';
-const CACHE_TTL_MS = 5 * 60_000;
+const CACHE_TTL_MS = 30 * 60_000;
 const BASE = isNativeApp ? nativeApiOrigin : (import.meta.env.VITE_API_URL || '/api');
 
 function safeStorage() {

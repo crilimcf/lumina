@@ -18,7 +18,7 @@ async function register(page) {
   await page.getByRole('button', { name:'Entrar no Feed' }).click();
 }
 
-test('Radar muda de Portugal para França sem mudar a língua da app', async ({ page, context }) => {
+test('Radar e Lumina One mudam de Portugal para França sem mudar a língua da app', async ({ page, context }) => {
   await context.addInitScript(() => {
     window.__radarCountry = 'PT';
     Object.defineProperty(navigator, 'geolocation', {
@@ -106,5 +106,16 @@ test('Radar muda de Portugal para França sem mudar a língua da app', async ({ 
 
   await expect(page.getByRole('button', { name:'Tentar localização novamente' })).toContainText('Paris, France');
   await expect(page.getByRole('heading', { name:'Actualité locale à Paris' })).toBeVisible();
+  expect(requestedCountries.at(-1)).toBe('FR');
+
+  await page.getByRole('button', { name:'Feed' }).click();
+  const oneEntry = page.locator('.one-v3-feed-entry');
+  await expect(oneEntry).toBeVisible();
+  await oneEntry.click();
+  await expect(page.locator('.lumina-one.one-v3')).toBeVisible();
+  await page.locator('.one-tabs button').filter({ hasText:'Agora' }).click();
+
+  await expect(page.getByPlaceholder('Porto, Lisboa, Braga…')).toHaveValue('Paris');
+  await expect(page.locator('.one-local-grid article')).toContainText('Actualité locale à Paris');
   expect(requestedCountries.at(-1)).toBe('FR');
 });

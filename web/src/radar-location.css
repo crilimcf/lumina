@@ -47,6 +47,20 @@
   letter-spacing:.09em;
 }
 
+.explore-location-attribution{
+  color:inherit;
+  font-size:10px;
+  font-weight:600;
+  opacity:.62;
+  text-decoration:none;
+}
+
+.explore-location-attribution:hover,
+.explore-location-attribution:focus-visible{
+  opacity:.9;
+  text-decoration:underline;
+}
+
 .explore-location-spin{
   animation:radar-location-spin .9s linear infinite;
 }

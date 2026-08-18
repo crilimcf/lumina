@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { q } from '../db.js';
 import { auth, h, bad, notFound } from '../middleware/auth.js';
 import { validPushEndpoint, vapidPublicKey } from '../lib/webpush.js';
+import { localizeNotification, normalizeNotificationLocale } from '../lib/notification-i18n.js';
 import { subscribeRealtime } from '../realtime.js';
 
 export const notificationRoutes = Router();
@@ -145,16 +146,17 @@ notificationRoutes.post('/native/subscribe', auth, h(async (req, res) => {
   const token = String(req.body?.token || '').trim();
   const platform = String(req.body?.platform || '').trim();
   const pushEnvironment = platform === 'ios' && req.body?.environment === 'sandbox' ? 'sandbox' : 'production';
+  const locale = normalizeNotificationLocale(req.body?.locale || req.headers['accept-language']);
   if (!['ios','android'].includes(platform) || token.length < 16 || token.length > 4096 || /\s/.test(token)) {
     throw bad('Token de notificação nativo inválido', 'bad_native_push_token');
   }
   await q(
-    `INSERT INTO push_tokens (token,user_id,platform,device_id,device_name,os_version,push_environment,updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,now())
+    `INSERT INTO push_tokens (token,user_id,platform,device_id,device_name,os_version,push_environment,locale,updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,now())
      ON CONFLICT (token) DO UPDATE
        SET user_id=EXCLUDED.user_id,platform=EXCLUDED.platform,device_id=EXCLUDED.device_id,
            device_name=EXCLUDED.device_name,os_version=EXCLUDED.os_version,
-           push_environment=EXCLUDED.push_environment,updated_at=now()`,
+           push_environment=EXCLUDED.push_environment,locale=EXCLUDED.locale,updated_at=now()`,
     [
       token,
       req.user.id,
@@ -163,9 +165,10 @@ notificationRoutes.post('/native/subscribe', auth, h(async (req, res) => {
       req.body?.deviceName ? String(req.body.deviceName).slice(0, 120) : null,
       req.body?.osVersion ? String(req.body.osVersion).slice(0, 40) : null,
       pushEnvironment,
+      locale,
     ]
   );
-  res.status(201).json({ subscribed:true, platform });
+  res.status(201).json({ subscribed:true, platform, locale });
 }));
 
 notificationRoutes.post('/native/unsubscribe', auth, h(async (req, res) => {
@@ -182,14 +185,15 @@ notificationRoutes.post('/push/subscribe', auth, h(async (req, res) => {
   const keys = req.body?.keys || {};
   const p256dh = keys.p256dh ? String(keys.p256dh).slice(0, 500) : null;
   const authKey = keys.auth ? String(keys.auth).slice(0, 500) : null;
+  const locale = normalizeNotificationLocale(req.body?.locale || req.headers['accept-language']);
   await q(
-    `INSERT INTO web_push_subscriptions (endpoint,user_id,p256dh,auth)
-     VALUES ($1,$2,$3,$4)
+    `INSERT INTO web_push_subscriptions (endpoint,user_id,p256dh,auth,locale)
+     VALUES ($1,$2,$3,$4,$5)
      ON CONFLICT (endpoint) DO UPDATE
-       SET user_id=EXCLUDED.user_id,p256dh=EXCLUDED.p256dh,auth=EXCLUDED.auth,updated_at=now()`,
-    [endpoint, req.user.id, p256dh, authKey]
+       SET user_id=EXCLUDED.user_id,p256dh=EXCLUDED.p256dh,auth=EXCLUDED.auth,locale=EXCLUDED.locale,updated_at=now()`,
+    [endpoint, req.user.id, p256dh, authKey, locale]
   );
-  res.status(201).json({ subscribed:true });
+  res.status(201).json({ subscribed:true, locale });
 }));
 
 notificationRoutes.post('/push/unsubscribe', auth, h(async (req, res) => {
@@ -235,7 +239,9 @@ notificationRoutes.get('/push/latest', auth, h(async (req, res) => {
     tag = `lumina:call:${item.data?.callId || item.id}`;
     url = '/?tab=dms';
   }
-  res.json({ notification:{ title,body,tag,url,type:item.type }, unread:countResult.rows[0].count });
+  const locale = normalizeNotificationLocale(req.query.locale || req.headers['accept-language']);
+  const notification = localizeNotification({ title,body,tag,url,type:item.type }, locale);
+  res.json({ notification, unread:countResult.rows[0].count });
 }));
 
 notificationRoutes.post('/read-all', auth, h(async (req, res) => {

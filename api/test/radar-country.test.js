@@ -40,13 +40,24 @@ before(async () => {
   token = (await registered.json()).token;
   assert.ok(token);
 
+  const legacySource = await q(
+    `INSERT INTO radar_sources (name,kind,url,default_type,active,trusted,config)
+     VALUES ('Legacy Portugal','manual','https://legacy-portugal.example/','news',true,true,
+             '{"region":"Portugal","tags":["legacy"]}'::jsonb)
+     RETURNING id`
+  );
+
   await q(
-    `INSERT INTO radar_items (type,title,summary,tags,region,published_at,status,priority)
+    `INSERT INTO radar_items (type,title,summary,tags,region,source_id,published_at,status,priority)
      VALUES
-       ('news','Portugal only','PT',ARRAY['country:pt'],'Portugal',now(),'published',20),
-       ('news','France only','FR',ARRAY['country:fr'],'France',now() - interval '1 minute','published',20),
-       ('news','Paris local','Paris',ARRAY['country:fr','paris'],'Paris',now() - interval '2 minute','published',5),
-       ('news','Global item','Global',ARRAY['country:global'],NULL,now() - interval '3 minute','published',1)`
+       ('news','Portugal only','PT',ARRAY['country:pt'],'Portugal',NULL,now(),'published',20),
+       ('news','France only','FR',ARRAY['country:fr'],'France',NULL,now() - interval '1 minute','published',20),
+       ('news','Paris local','Paris',ARRAY['country:fr','paris'],'Paris',NULL,now() - interval '2 minute','published',5),
+       ('news','Global item','Global',ARRAY['country:global'],NULL,NULL,now() - interval '3 minute','published',1),
+       ('news','Legacy Portugal item','Legacy PT',ARRAY[]::text[],'Portugal',NULL,now() - interval '4 minute','published',10),
+       ('news','Legacy source Portugal','Legacy source',ARRAY[]::text[],NULL,$1,now() - interval '5 minute','published',9),
+       ('news','Legacy unknown','Unknown',ARRAY[]::text[],NULL,NULL,now() - interval '6 minute','published',99)`,
+    [legacySource.rows[0].id]
   );
 });
 
@@ -55,7 +66,7 @@ after(async () => {
   await pool.end();
 });
 
-test('Radar em França mostra França/global e exclui Portugal', async () => {
+test('Radar em França mostra França/global e exclui Portugal, incluindo legado', async () => {
   const { response, data } = await request('/radar?country=FR&limit=20');
   assert.equal(response.status, 200, JSON.stringify(data));
   assert.equal(data.country, 'FR');
@@ -64,17 +75,23 @@ test('Radar em França mostra França/global e exclui Portugal', async () => {
   assert.equal(titles.includes('Paris local'), true);
   assert.equal(titles.includes('Global item'), true);
   assert.equal(titles.includes('Portugal only'), false);
+  assert.equal(titles.includes('Legacy Portugal item'), false);
+  assert.equal(titles.includes('Legacy source Portugal'), false);
+  assert.equal(titles.includes('Legacy unknown'), false);
 });
 
-test('Radar em Portugal mostra Portugal/global e exclui França', async () => {
+test('Radar em Portugal mostra Portugal/global e recupera legado sem misturar desconhecidos', async () => {
   const { response, data } = await request('/radar?country=PT&limit=20');
   assert.equal(response.status, 200, JSON.stringify(data));
   assert.equal(data.country, 'PT');
   const titles = data.items.map(item => item.title);
   assert.equal(titles.includes('Portugal only'), true);
   assert.equal(titles.includes('Global item'), true);
+  assert.equal(titles.includes('Legacy Portugal item'), true);
+  assert.equal(titles.includes('Legacy source Portugal'), true);
   assert.equal(titles.includes('France only'), false);
   assert.equal(titles.includes('Paris local'), false);
+  assert.equal(titles.includes('Legacy unknown'), false);
 });
 
 test('cidade atual tem prioridade dentro do país sem furar o filtro nacional', async () => {
@@ -83,6 +100,7 @@ test('cidade atual tem prioridade dentro do país sem furar o filtro nacional', 
   assert.equal(data.region, 'Paris');
   assert.equal(data.items[0].title, 'Paris local');
   assert.equal(data.items.some(item => item.title === 'Portugal only'), false);
+  assert.equal(data.items.some(item => item.title === 'Legacy Portugal item'), false);
 });
 
 test('Radar rejeita código de país que não seja ISO alpha-2', async () => {

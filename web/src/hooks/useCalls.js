@@ -121,7 +121,7 @@ export function useCalls({ enabled, ping }) {
     setBusy(true);
     try {
       const call = await api.calls.start(thread.id, mode);
-      setActiveCall({ call, caller:true, person:{ name:thread.name, handle:thread.handle, palette:thread.palette, avatar_url:thread.avatar_url } });
+      setActiveCall({ call, caller:true, group:false, person:{ name:thread.name, handle:thread.handle, palette:thread.palette, avatar_url:thread.avatar_url } });
       if (call.callee_push_ready === false) {
         ping(callCopy.pushDisabledToast);
       }
@@ -131,16 +131,33 @@ export function useCalls({ enabled, ping }) {
     } finally { setBusy(false); }
   }, [busy, ping]);
 
+  const startGroupCall = useCallback(async (group) => {
+    if (!group || busy) return;
+    setBusy(true);
+    try {
+      const call = await api.calls.start(`room:${group.id}`, 'video');
+      setIncoming(null);
+      setActiveCall({ call, caller:true, group:true, groupInfo:{ id:group.id, name:group.name } });
+    } catch (e) {
+      ping(e.message);
+      throw e;
+    } finally { setBusy(false); }
+  }, [busy, ping]);
+
   const acceptIncoming = useCallback(async () => {
     if (!incoming || busy) return;
-    const voiceCall = incoming.mode === 'audio';
+    const voiceCall = !incoming.group && incoming.mode === 'audio';
     // Must be set before CallOverlay mounts and asks getUserMedia for the microphone.
     if (voiceCall) setVoiceAudioSession(true);
     setBusy(true);
     try {
       await audioRef.current?.resume?.().catch(() => {});
       const call = await api.calls.answer(incoming.id);
-      setActiveCall({ call, caller:false, person:{ name:incoming.name, handle:incoming.handle, palette:incoming.palette, avatar_url:incoming.avatar_url } });
+      if (incoming.group || call.group) {
+        setActiveCall({ call, caller:false, group:true, groupInfo:{ id:call.room_id, name:call.group_name || call.name } });
+      } else {
+        setActiveCall({ call, caller:false, group:false, person:{ name:incoming.name, handle:incoming.handle, palette:incoming.palette, avatar_url:incoming.avatar_url } });
+      }
       setIncoming(null);
       notifyActivityChanged();
     } catch (e) {
@@ -166,5 +183,5 @@ export function useCalls({ enabled, ping }) {
     notifyActivityChanged();
   }, []);
 
-  return { activeCall, incoming, busy, startCall, acceptIncoming, declineIncoming, closeActiveCall };
+  return { activeCall, incoming, busy, startCall, startGroupCall, acceptIncoming, declineIncoming, closeActiveCall };
 }

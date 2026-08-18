@@ -27,8 +27,13 @@ export function IncomingCall({ call, busy, onAccept, onDecline }) {
     ? groupCallCopy.incoming
     : call.mode === 'video' ? 'Videochamada recebida' : 'Chamada áudio recebida';
   const ringingLabel = call.group ? groupCallCopy.ringing : 'A tocar enquanto a Lumina estiver aberta';
+  // Keep the established accessible contract for 1:1 calls. Deep-links, assistive
+  // technology and the Mobile Safari regression suite rely on this exact label.
+  const dialogLabel = call.group
+    ? `${groupCallCopy.incoming}: ${call.name}`
+    : `Chamada recebida de ${call.name}`;
 
-  return <div role="dialog" aria-modal="true" aria-label={`${incomingLabel}: ${call.name}`} style={{position:'fixed',inset:0,zIndex:205,background:'radial-gradient(circle at 50% 28%,#49347D,#17102E 48%,#080711 80%)',display:'grid',placeItems:'center',color:'#fff',padding:22}}>
+  return <div role="dialog" aria-modal="true" aria-label={dialogLabel} style={{position:'fixed',inset:0,zIndex:205,background:'radial-gradient(circle at 50% 28%,#49347D,#17102E 48%,#080711 80%)',display:'grid',placeItems:'center',color:'#fff',padding:22}}>
     <div style={{width:'100%',maxWidth:360,textAlign:'center'}}>
       <div style={{padding:7,borderRadius:'50%',background:'linear-gradient(135deg,#FF6558,#624DFF)',display:'inline-grid'}}><Orb p={call.palette} avatarUrl={call.avatar_url} s={118}/></div>
       <div className="d" style={{fontSize:34,marginTop:19,color:'#fff'}}>{call.name}</div>

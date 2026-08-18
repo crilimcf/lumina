@@ -118,6 +118,7 @@ async function pushReadyFor(userId) {
   return !!rows[0]?.ready;
 }
 
+// Interceta apenas chamadas iniciadas com threadId="room:<uuid>".
 groupCallRoutes.post('/', auth, (req, res, next) => {
   const roomId = roomIdOf(req.body?.threadId);
   if (!roomId) return next();
@@ -154,7 +155,6 @@ groupCallRoutes.post('/', auth, (req, res, next) => {
       const [ready, push] = await Promise.all([
         pushReadyFor(member.id),
         sendPushToUser(member.id, {
-          callId:`${GROUP_PREFIX}${created.id}`,
           notification:{
             title:`${req.user.name || req.user.handle} iniciou uma chamada`,
             body:`Videochamada no grupo ${room.name}`,
@@ -178,6 +178,7 @@ groupCallRoutes.post('/', auth, (req, res, next) => {
   })(req, res, next);
 });
 
+// Uma chamada de grupo pendente tem prioridade; se não existir, deixa a rota 1:1 responder.
 groupCallRoutes.get('/incoming', auth, (req, res, next) => h(async () => {
   const { rows } = await q(
     `SELECT gc.*,r.name AS group_name,r.image_url AS group_image,gp.joined_at AS self_joined_at

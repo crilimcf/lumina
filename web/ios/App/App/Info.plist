@@ -6,6 +6,13 @@
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>fr</string>
+		<string>es</string>
+		<string>pt</string>
+	</array>
 	<key>CFBundleDisplayName</key>
         <string>Lumina</string>
 	<key>CFBundleExecutable</key>

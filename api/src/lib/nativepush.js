@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import http2 from 'node:http2';
 import { env } from '../env.js';
 import { q } from '../db.js';
+import { localizeNotification } from './notification-i18n.js';
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
@@ -66,7 +67,7 @@ function apnsToken() {
 
 const cleanNotification = (notification, badge) => ({
   title:String(notification?.title || 'Lumina').slice(0, 120),
-  body:String(notification?.body || 'Tens uma novidade.').slice(0, 220),
+  body:String(notification?.body || 'You have something new.').slice(0, 220),
   url:String(notification?.url || '/?tab=alerts').slice(0, 600),
   tag:String(notification?.tag || 'lumina:activity').slice(0, 180),
   badge:Math.max(0, Math.min(999, Number(badge) || 0)),
@@ -151,15 +152,15 @@ function sendApns(token, notification, environment) {
 
 export async function sendNativePushToUser(userId, notification, badge = 0) {
   const { rows } = await q(
-    `SELECT token,platform,push_environment FROM push_tokens
+    `SELECT token,platform,push_environment,locale FROM push_tokens
      WHERE user_id=$1 AND platform IN ('ios','android')
      ORDER BY updated_at DESC LIMIT 12`,
     [userId]
   );
   const targets = rows.filter(row => nativeConfigured(row.platform));
   if (!targets.length || !notification) return { attempted:0, accepted:0, statuses:[] };
-  const payload = cleanNotification(notification, badge);
   const results = await Promise.all(targets.map(async target => {
+    const payload = cleanNotification(localizeNotification(notification, target.locale), badge);
     try {
       const result = target.platform === 'ios'
         ? await sendApns(target.token, payload, target.push_environment)

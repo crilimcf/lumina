@@ -3,8 +3,10 @@ import { q } from '../db.js';
 import { env } from '../env.js';
 import { auth, h, bad, forbidden, notFound } from '../middleware/auth.js';
 import { sendPushToUser } from '../lib/webpush.js';
+import { groupCallRoutes } from './group-calls.js';
 
 export const callRoutes = Router();
+callRoutes.use(groupCallRoutes);
 
 const BASE_STUN = {
   urls: [

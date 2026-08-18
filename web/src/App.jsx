@@ -5,6 +5,8 @@ import { Welcome } from './components/Milestones.jsx';
 import { LaunchScreen } from './components/LaunchScreen.jsx';
 import { IncomingCall } from './components/calls/IncomingCall.jsx';
 import { CallOverlay } from './components/calls/CallOverlay.jsx';
+import { GroupCallOverlay } from './components/calls/GroupCallOverlay.jsx';
+import { GroupCallHub } from './components/calls/GroupCallHub.jsx';
 import { Entrada } from './screens/Entrada.jsx';
 import { Abertura } from './screens/Abertura.jsx';
 import { useFeed } from './hooks/useFeed.js';
@@ -306,7 +308,9 @@ export default function App() {
   const withCalls = (content) => <>
     <Suspense fallback={<ScreenFallback/>}>{content}</Suspense>
     {callState.incoming && !callState.activeCall && <IncomingCall call={callState.incoming} busy={callState.busy} onAccept={callState.acceptIncoming} onDecline={callState.declineIncoming}/>} 
-    {callState.activeCall && <CallOverlay {...callState.activeCall} ping={ping} onClosed={callState.closeActiveCall}/>} 
+    {callState.activeCall && (callState.activeCall.group
+      ? <GroupCallOverlay {...callState.activeCall} ping={ping} onClosed={callState.closeActiveCall}/>
+      : <CallOverlay {...callState.activeCall} ping={ping} onClosed={callState.closeActiveCall}/>)}
   </>;
 
   if (booting || !launchReady) return <LaunchScreen/>;
@@ -338,7 +342,10 @@ export default function App() {
   };
 
   let activeScreen;
-  if (tab==='dms') activeScreen=<Conversas me={me} {...navProps} comp={comp} {...messageState} startCall={callState.startCall} callBusy={callState.busy}/>;
+  if (tab==='dms') activeScreen=<>
+    <Conversas me={me} {...navProps} comp={comp} {...messageState} startCall={callState.startCall} callBusy={callState.busy}/>
+    <GroupCallHub me={me} contacts={messageState.contacts} hidden={!!messageState.thread} startGroupCall={callState.startGroupCall} callBusy={callState.busy} ping={ping}/>
+  </>;
   else if (tab==='rooms') activeScreen=<Salas me={me} {...navProps}/>;
   else if (tab==='promos') activeScreen=<Promocoes me={me} setScreen={setScreen} {...navProps}/>;
   else if (tab==='alerts') activeScreen=<Atividade {...navProps} onUnreadChange={setUnreadCount} onOpenLive={openLive}/>;

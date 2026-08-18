@@ -6,6 +6,8 @@ import { syncWebRadarSources } from '../jobs/radar-web.js';
 
 export const radarSyncRoutes = Router();
 const AUTO_RSS_TYPES = new Set(['news', 'trend', 'editorial']);
+const RADAR_TYPES = new Set(['news', 'promotion', 'event', 'trend', 'editorial']);
+const LEGACY_COUNTRY_REGIONS = Object.freeze({ pt:'portugal', fr:'france' });
 
 function requireStaff(req, _res, next) {
   if (!req.user?.is_staff) return next(forbidden('Apenas a equipa Lumina pode sincronizar o Radar'));
@@ -20,6 +22,106 @@ function assertRssType(kind, defaultType, config = null) {
     throw bad('Publishers verificados suportam manchetes de notícias', 'bad_partner_type');
   }
 }
+
+function cleanCountry(value) {
+  const code = String(value || '').trim().toLowerCase();
+  if (!/^[a-z]{2}$/.test(code)) throw bad('País inválido', 'bad_country');
+  return code;
+}
+
+function cleanRadarType(value) {
+  const type = String(value || '').trim().toLowerCase();
+  if (!RADAR_TYPES.has(type)) throw bad('Tipo de Radar inválido', 'bad_radar_type');
+  return type;
+}
+
+function optionalDate(value, field) {
+  if (value === undefined || value === null || value === '') return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw bad(`${field} inválido`, 'bad_date');
+  return date.toISOString();
+}
+
+function cleanRegion(value) {
+  if (value === undefined || value === null || value === '') return null;
+  return String(value).trim().slice(0, 80) || null;
+}
+
+// Country-aware compatibility path. Explicit country tags remain authoritative, while
+// pre-schema-35 items can still be scoped by their own/source region without rewriting
+// the historical radar_items table during Railway startup.
+radarSyncRoutes.get('/', auth, h(async (req, res, next) => {
+  if (req.query.country === undefined || req.query.country === null || req.query.country === '') return next();
+
+  const country = cleanCountry(req.query.country);
+  const countryTag = `country:${country}`;
+  const countryRegion = LEGACY_COUNTRY_REGIONS[country] || null;
+  const requestedType = req.query.type ? cleanRadarType(req.query.type) : null;
+  const before = optionalDate(req.query.before, 'Cursor');
+  const region = cleanRegion(req.query.region);
+  const regionNeedle = region ? `%${region}%` : null;
+  const asked = Number(req.query.limit);
+  const limit = Number.isInteger(asked) && asked > 0 ? Math.min(asked, 50) : 20;
+
+  const { rows } = await q(
+    `SELECT ri.id, ri.type, ri.title, ri.summary, ri.body, ri.image_url, ri.external_url,
+            COALESCE(ri.source_name, rs.name) AS source_name,
+            COALESCE(ri.source_url, rs.url) AS source_url,
+            ri.sponsored, ri.sponsor_label, ri.tags, ri.region,
+            ri.starts_at, ri.ends_at, ri.published_at, ri.priority
+     FROM radar_items ri
+     LEFT JOIN radar_sources rs ON rs.id = ri.source_id
+     WHERE ri.status = 'published'
+       AND ri.published_at <= now()
+       AND (
+         (ri.type = 'promotion'
+           AND (ri.starts_at IS NULL OR ri.starts_at <= now())
+           AND (ri.ends_at IS NULL OR ri.ends_at > now()))
+         OR
+         (ri.type = 'event'
+           AND COALESCE(ri.ends_at, ri.starts_at + interval '12 hours') > now())
+         OR
+         (ri.type NOT IN ('promotion','event')
+           AND (ri.ends_at IS NULL OR ri.ends_at > now()))
+       )
+       AND ($1::text IS NULL OR ri.type = $1)
+       AND ($2::timestamptz IS NULL OR ri.published_at < $2)
+       AND (
+         $3 = ANY(COALESCE(ri.tags, ARRAY[]::text[]))
+         OR 'country:global' = ANY(COALESCE(ri.tags, ARRAY[]::text[]))
+         OR (
+           $4::text IS NOT NULL
+           AND NOT EXISTS (
+             SELECT 1
+             FROM unnest(COALESCE(ri.tags, ARRAY[]::text[])) tag
+             WHERE tag LIKE 'country:%'
+           )
+           AND (
+             lower(COALESCE(ri.region, '')) = $4
+             OR lower(COALESCE(rs.config->>'region', '')) = $4
+           )
+         )
+       )
+     ORDER BY
+       CASE WHEN $5::text IS NOT NULL AND (
+         COALESCE(ri.region, '') ILIKE $5
+         OR EXISTS (
+           SELECT 1 FROM unnest(COALESCE(ri.tags, ARRAY[]::text[])) tag
+           WHERE tag ILIKE $5
+         )
+       ) THEN 0 ELSE 1 END,
+       ri.priority DESC, ri.published_at DESC, ri.id DESC
+     LIMIT $6`,
+    [requestedType, before, countryTag, countryRegion, regionNeedle, limit]
+  );
+
+  res.json({
+    items: rows,
+    nextCursor: rows.length === limit ? rows.at(-1).published_at : null,
+    country: country.toUpperCase(),
+    region,
+  });
+}));
 
 radarSyncRoutes.get('/', auth, h(async (req, res, next) => {
   if (String(req.query.type || '').toLowerCase() !== 'trend') return next();

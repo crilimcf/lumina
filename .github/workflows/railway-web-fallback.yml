@@ -1,12 +1,10 @@
 name: Build Railway web fallback
 
+# The production frontend is deployed independently by Vercel.
+# Keep the Railway static fallback manual until a regenerated web bundle has
+# been validated against Railway packaging; an automatic refresh caused API
+# deployments to fail even though the API runtime itself was healthy.
 on:
-  push:
-    branches:
-      - master
-    paths:
-      - 'web/**'
-      - '.github/workflows/railway-web-fallback.yml'
   workflow_dispatch:
 
 permissions:

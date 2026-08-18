@@ -2,6 +2,7 @@ import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
 import app from '../src/server.js';
 import { migrate, pool, q } from '../src/db.js';
+import { ensureRadarCountrySources } from '../src/jobs/radar-scheduler.js';
 
 let server;
 let baseUrl;
@@ -46,6 +47,24 @@ before(async () => {
              '{"region":"Portugal","tags":["legacy"]}'::jsonb)
      RETURNING id`
   );
+
+  const firstBootstrap = await ensureRadarCountrySources();
+  assert.equal(firstBootstrap.inserted, 3);
+  const secondBootstrap = await ensureRadarCountrySources();
+  assert.equal(secondBootstrap.inserted, 0);
+
+  const { rows: taggedPortugal } = await q(
+    `SELECT config->'tags' AS tags FROM radar_sources WHERE id=$1`,
+    [legacySource.rows[0].id]
+  );
+  assert.equal(taggedPortugal[0].tags.includes('country:pt'), true);
+
+  const { rows: frenchSources } = await q(
+    `SELECT count(*)::int AS total FROM radar_sources
+     WHERE lower(COALESCE(config->>'region',''))='france'
+       AND config->'tags' @> '["country:fr"]'::jsonb`
+  );
+  assert.equal(frenchSources[0].total, 3);
 
   await q(
     `INSERT INTO radar_items (type,title,summary,tags,region,source_id,published_at,status,priority)

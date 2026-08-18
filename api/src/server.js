@@ -21,6 +21,7 @@ import { uploadRoutes } from './routes/uploads.js';
 import { userRoutes } from './routes/users.js';
 import { twoFactorRoutes, sessionRoutes } from './routes/twofactor.js';
 import { momentRoutes } from './routes/moments.js';
+import { roomMessagePrivacyRoutes } from './routes/room-message-privacy.js';
 import { roomRoutes } from './routes/rooms.js';
 import { callRoutes } from './routes/calls.js';
 import { paymentRoutes } from './routes/payments.js';
@@ -189,6 +190,7 @@ const mountApi = (prefix = '') => {
   app.use(`${prefix}/radar`, radarSyncRoutes);
   app.use(`${prefix}/radar`, radarRoutes);
   app.use(`${prefix}/messages`, messageRoutes);
+  app.use(`${prefix}/rooms`, roomMessagePrivacyRoutes);
   app.use(`${prefix}/rooms`, roomRoutes);
   app.use(`${prefix}/calls`, callRoutes);
   app.use(`${prefix}/live`, liveRoutes);

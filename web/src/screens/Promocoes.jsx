@@ -1,12 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  BadgeCheck, BadgePercent, CalendarDays, ChevronRight, ExternalLink, Newspaper,
-  Settings2, ShieldCheck, Sparkles, TrendingUp,
+  BadgeCheck, BadgePercent, CalendarDays, ChevronRight, ExternalLink, MapPin, Newspaper,
+  RefreshCw, Settings2, ShieldCheck, Sparkles, TrendingUp,
 } from 'lucide-react';
 import { api } from '../api.js';
+import { detectRadarLocation, loadRadarForLocation, readCachedRadarLocation } from '../radar-location.js';
 import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
 import { ScrollToTopButton } from '../components/ScrollToTopButton.jsx';
 import '../explore-facelift.css';
+import '../radar-location.css';
 
 const FILTERS = [
   ['', Sparkles, 'Para ti'],
@@ -26,7 +28,7 @@ function formatDate(value) {
     const date = new Date(value);
     const now = new Date();
     const sameYear = date.getFullYear() === now.getFullYear();
-    return new Intl.DateTimeFormat('pt-PT', { day:'numeric', month:'short', ...(sameYear ? {} : { year:'numeric' }) }).format(date);
+    return new Intl.DateTimeFormat(navigator.language || undefined, { day:'numeric', month:'short', ...(sameYear ? {} : { year:'numeric' }) }).format(date);
   } catch { return ''; }
 }
 
@@ -112,20 +114,50 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [publisher, setPublisher] = useState('');
+  const [location, setLocation] = useState(() => readCachedRadarLocation());
+  const [locationReady, setLocationReady] = useState(false);
+  const [locating, setLocating] = useState(false);
+
+  const refreshLocation = useCallback(async (force = false) => {
+    setLocating(true);
+    try {
+      const next = await detectRadarLocation({ force });
+      if (next) setLocation(next);
+    } catch {
+      if (force) setLocation(readCachedRadarLocation());
+    } finally {
+      setLocationReady(true);
+      setLocating(false);
+    }
+  }, []);
+
+  useEffect(() => { void refreshLocation(false); }, [refreshLocation]);
 
   useEffect(() => {
+    if (!locationReady) return undefined;
+    if (!location?.countryCode) {
+      setItems([]);
+      setPublisher('');
+      setLoading(false);
+      return undefined;
+    }
     let active = true;
     setLoading(true);
     setPublisher('');
-    api.radar.list({ type:filter || undefined, limit:30 })
+    loadRadarForLocation({
+      type:filter || undefined,
+      limit:30,
+      country:location.countryCode,
+      region:location.city || location.region,
+    })
       .then(result => { if (active) setItems(result.items || []); })
       .catch(error => { if (active) ping(error.message); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [filter, ping]);
+  }, [filter, location?.countryCode, location?.city, location?.region, locationReady, ping]);
 
   const publishers = useMemo(
-    () => [...new Set(items.map(item => item.source_name).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt')),
+    () => [...new Set(items.map(item => item.source_name).filter(Boolean))].sort((a,b)=>a.localeCompare(b, navigator.language || undefined)),
     [items],
   );
   const visible = publisher ? items.filter(item => item.source_name === publisher) : items;
@@ -140,6 +172,28 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
             <div className="explore-eyebrow">Explorar agora</div>
             <h1>Radar</h1>
             <p>O mundo agora, sem misturar com o teu Feed. Descobre sinais relevantes com contexto e origem clara.</p>
+            <div className="explore-location-row">
+              <button
+                type="button"
+                className="explore-location-chip"
+                onClick={()=>refreshLocation(true)}
+                disabled={locating}
+                aria-label={location ? 'Tentar localização novamente' : 'Detetar onde estou'}
+              >
+                {locating ? <RefreshCw className="explore-location-spin" size={15}/> : <MapPin size={15}/>} 
+                <span data-i18n-ignore={location?.label ? 'true' : undefined}>
+                  {locating ? 'A pedir localização ao iPhone…' : (location?.label || 'Detetar onde estou')}
+                </span>
+              </button>
+              {location?.countryCode && <span className="explore-location-country" data-i18n-ignore="true">{location.countryCode}</span>}
+              {location?.countryCode && <a
+                className="explore-location-attribution"
+                href="https://www.openstreetmap.org/copyright"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-i18n-ignore="true"
+              >© OpenStreetMap</a>}
+            </div>
           </div>
           <TopActions tab={tab} setTab={setTab} setThread={setThread} unreadCount={unreadCount}/>
         </div>
@@ -181,7 +235,7 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
         </div>
       </section>}
 
-      {loading ? <div className="explore-loading"><span className="explore-loading-dot"/>A sintonizar o Radar…</div>
+      {!locationReady || loading ? <div className="explore-loading"><span className="explore-loading-dot"/>A sintonizar o Radar…</div>
         : !visible.length ? <div className="explore-empty">Sem sinais nesta categoria.<br/>Quando houver algo relevante, aparece aqui.</div>
         : <div className="explore-grid">
           {hero && <RadarCard item={hero} hero/>}

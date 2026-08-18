@@ -20,7 +20,32 @@ function json(route, body, status = 200) {
 async function mockFrenchSession(page) {
   await page.addInitScript(() => {
     Object.defineProperty(window, 'EventSource', { value:undefined, configurable:true });
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable:true,
+      value:{
+        getCurrentPosition(success) {
+          success({
+            coords:{
+              latitude:38.7223,
+              longitude:-9.1393,
+              accuracy:100,
+              altitude:null,
+              altitudeAccuracy:null,
+              heading:null,
+              speed:null,
+            },
+            timestamp:Date.now(),
+          });
+        },
+        watchPosition() { return 1; },
+        clearWatch() {},
+      },
+    });
   });
+
+  await page.route('https://nominatim.openstreetmap.org/reverse**', route => json(route, {
+    address:{ city:'Lisboa', state:'Lisboa', country:'Portugal', country_code:'pt' },
+  }));
 
   await page.route('**/api/**', async route => {
     const request = route.request();
@@ -42,6 +67,8 @@ async function mockFrenchSession(page) {
     if (path === '/api/one/preferences') return json(route, {});
     if (path === '/api/one/together' || path === '/api/one/capsules' || path === '/api/one/lumes') return json(route, []);
     if (path === '/api/radar' && method === 'GET') return json(route, {
+      country:'PT',
+      region:'Lisboa',
       items:[{
         id:'radar-1',
         type:'news',

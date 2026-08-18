@@ -1,0 +1,70 @@
+.explore-location-row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:14px;
+}
+
+.explore-location-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  min-height:36px;
+  max-width:100%;
+  padding:8px 12px;
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:999px;
+  background:rgba(8,16,55,.34);
+  color:inherit;
+  font:inherit;
+  font-size:13px;
+  font-weight:700;
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+}
+
+.explore-location-chip span{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.explore-location-chip:disabled{
+  opacity:.72;
+}
+
+.explore-location-country{
+  display:inline-grid;
+  place-items:center;
+  min-width:34px;
+  height:28px;
+  padding:0 8px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.14);
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.09em;
+}
+
+.explore-location-attribution{
+  color:inherit;
+  font-size:10px;
+  font-weight:600;
+  opacity:.62;
+  text-decoration:none;
+}
+
+.explore-location-attribution:hover,
+.explore-location-attribution:focus-visible{
+  opacity:.9;
+  text-decoration:underline;
+}
+
+.explore-location-spin{
+  animation:radar-location-spin .9s linear infinite;
+}
+
+@keyframes radar-location-spin{
+  to{ transform:rotate(360deg); }
+}

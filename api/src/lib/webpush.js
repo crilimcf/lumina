@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { q, tx } from '../db.js';
 import { sendNativePushToUser } from './nativepush.js';
+import { localizeNotification } from './notification-i18n.js';
 
 const SECRET_NAME = 'web_push_vapid_v1';
 const APP_ORIGIN = 'https://lumina-snowy-ten.vercel.app';
@@ -78,11 +79,6 @@ function makeVapidJwt(endpoint, key) {
   return `${signingInput}.${signature}`;
 }
 
-/**
- * RFC 8291 + RFC 8188, aes128gcm, single record.
- * Exportada para podermos validar criptograficamente o payload nos testes sem
- * depender de um serviço Push externo.
- */
 export function encryptWebPushPayload(payload, subscription) {
   const uaPublic = decode64(subscription?.p256dh);
   const authSecret = decode64(subscription?.auth);
@@ -137,7 +133,7 @@ export function declarativePayload(notification, badge = 0) {
     app_badge: String(appBadge),
     notification: {
       title: String(item.title || 'Lumina').slice(0, 120),
-      body: String(item.body || 'Tens uma novidade.').slice(0, 220),
+      body: String(item.body || 'You have something new.').slice(0, 220),
       navigate: absoluteNavigation(item.url),
       silent: false,
       tag: String(item.tag || 'lumina:activity').slice(0, 180),
@@ -232,18 +228,22 @@ async function sendWake(subscription, key, pushPayload) {
 
 async function subscriptionsFor(userId) {
   const { rows } = await q(
-    `SELECT endpoint,p256dh,auth FROM web_push_subscriptions
+    `SELECT endpoint,p256dh,auth,locale FROM web_push_subscriptions
      WHERE user_id=$1 ORDER BY updated_at DESC LIMIT 8`,
     [userId]
   );
   return rows;
 }
 
-async function deliverWake(userId, key, subscriptions = null, pushPayload = null) {
+async function deliverWake(userId, key, subscriptions = null, notification = null, badge = 0) {
   const rows = subscriptions || await subscriptionsFor(userId);
   if (!rows.length) return { attempted:0, accepted:0, encrypted:0, statuses:[] };
 
-  const results = await Promise.all(rows.map(async (subscription) => ({ endpoint:subscription.endpoint, ...(await sendWake(subscription, key, pushPayload)) })));
+  const results = await Promise.all(rows.map(async (subscription) => {
+    const localized = notification ? localizeNotification(notification, subscription.locale) : null;
+    const pushPayload = localized ? declarativePayload(localized, badge) : null;
+    return { endpoint:subscription.endpoint, ...(await sendWake(subscription, key, pushPayload)) };
+  }));
   const stale = results.filter(r => r.stale).map(r => r.endpoint);
   if (stale.length) await q('DELETE FROM web_push_subscriptions WHERE endpoint = ANY($1::text[])', [stale]);
   return {
@@ -254,7 +254,7 @@ async function deliverWake(userId, key, subscriptions = null, pushPayload = null
   };
 }
 
-function scheduleIncomingCallRetries(userId, callId, key, pushPayload, notification, badge) {
+function scheduleIncomingCallRetries(userId, callId, key, notification, badge) {
   if (!callId) return;
   for (const delay of CALL_RETRY_DELAYS) {
     const timer = setTimeout(async () => {
@@ -267,7 +267,7 @@ function scheduleIncomingCallRetries(userId, callId, key, pushPayload, notificat
         );
         if (!rows[0]) return;
         const [webRetry, nativeRetry] = await Promise.all([
-          key ? deliverWake(userId, key, null, pushPayload) : { attempted:0, accepted:0 },
+          key ? deliverWake(userId, key, null, notification, badge) : { attempted:0, accepted:0 },
           sendNativePushToUser(userId, notification, badge)
             .catch(() => ({ attempted:0, accepted:0 })),
         ]);
@@ -308,19 +308,19 @@ export async function sendPushToUser(userId, options = {}) {
     }
     latest = { notification, badge:countResult.rows[0]?.count || 0, callId:options.callId || null };
   } else latest = await latestNotificationFor(userId);
-  const pushPayload = latest.notification ? declarativePayload(latest.notification, latest.badge) : null;
+
   let webResult = { attempted:0, accepted:0, encrypted:0, statuses:[] };
   let key = null;
   if (subscriptions.length) {
     key = await getOrCreateVapid();
-    webResult = await deliverWake(userId, key, subscriptions, pushPayload);
+    webResult = await deliverWake(userId, key, subscriptions, latest.notification, latest.badge);
   }
   const nativeResult = await sendNativePushToUser(userId, latest.notification, latest.badge)
     .catch(() => ({ attempted:0, accepted:0, statuses:[] }));
 
   const callId = options.callId || latest.callId;
   if (callId && latest.notification) {
-    scheduleIncomingCallRetries(userId, callId, key, pushPayload, latest.notification, latest.badge);
+    scheduleIncomingCallRetries(userId, callId, key, latest.notification, latest.badge);
   }
   return {
     attempted:webResult.attempted + nativeResult.attempted,

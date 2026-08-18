@@ -1,12 +1,17 @@
 import { language, locale, translateDynamic } from './i18n.js';
 import { EN_MISC, FR_MISC, ES_MISC } from './locales/misc-extra.js';
+import { EN_DEVICE, FR_DEVICE, ES_DEVICE, translateDeviceDynamic } from './locales/device-extra.js';
 
 document.documentElement.lang = locale;
 
 const textState = new WeakMap();
 const attributeState = new WeakMap();
 const attributes = ['placeholder', 'aria-label', 'title'];
-const miscCatalogs = { en:EN_MISC, fr:FR_MISC, es:ES_MISC };
+const miscCatalogs = {
+  en:{ ...EN_MISC, ...EN_DEVICE },
+  fr:{ ...FR_MISC, ...FR_DEVICE },
+  es:{ ...ES_MISC, ...ES_DEVICE },
+};
 const normalizeKey = value => String(value ?? '').trim().replace(/\s+/gu, ' ').toLocaleLowerCase('pt-PT');
 const normalizedMisc = Object.fromEntries(Object.entries(miscCatalogs).map(([lang, catalog]) => [
   lang,
@@ -26,11 +31,14 @@ function translateSurface(source) {
   const input = String(source ?? '');
   if (language === 'pt') return input;
 
-  // misc-extra is the correction/override layer. Resolve it first so a newer,
-  // complete translation can replace an older catalogue value instead of being
-  // bypassed by translateDynamic returning a stale partial translation.
+  // The device catalogue is the last-mile correction layer for UI authored by
+  // runtime scripts. Resolve exact strings first so partial DOM fragments never
+  // leave a mixed-language surface behind.
   const override = miscCatalogs[language]?.[input] ?? normalizedMisc[language]?.get(normalizeKey(input));
   if (override !== undefined) return preserveLabelCase(input, override);
+
+  const deviceDynamic = translateDeviceDynamic(input, language);
+  if (deviceDynamic !== input) return deviceDynamic;
 
   const translated = translateDynamic(input);
   return translated !== input ? translated : input;
@@ -64,6 +72,14 @@ const skipSelector = [
   '.explore-card-summary',
   '.explore-source-name',
   '.room-card .d',
+  '.one-pulse-copy > p',
+  '.one-local-grid article > b',
+  '.one-local-grid article > p',
+  '.one-v3-discovery-copy h3',
+  '.one-v3-discovery-copy p',
+  '.one-together-caption p',
+  '.one-together-radar h3',
+  '.one-together-radar p',
   '[contenteditable="true"]',
 ].join(',');
 

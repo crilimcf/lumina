@@ -50,6 +50,8 @@
 	<string>A Lumina usa a câmara para criares publicações, momentos, diretos e chamadas de vídeo.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Usa o Face ID para desbloquear a tua sessão Lumina com segurança.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>A tua localização permite mostrar contexto local no Radar e nas experiências Lumina One que ativares.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>A tua localização permite mostrar contexto local no Radar e nas experiências Lumina One que ativares.</string>
 	<key>NSMicrophoneUsageDescription</key>

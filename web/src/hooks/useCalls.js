@@ -139,10 +139,9 @@ export function useCalls({ enabled, ping }) {
       setIncoming(null);
       setActiveCall({ call, caller:true, group:true, groupInfo:{ id:group.id, name:group.name } });
     } catch (e) {
-      ping(e.message);
       throw e;
     } finally { setBusy(false); }
-  }, [busy, ping]);
+  }, [busy]);
 
   const acceptIncoming = useCallback(async () => {
     if (!incoming || busy) return;

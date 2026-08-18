@@ -5,9 +5,27 @@ import { isNativeApp, nativeApiOrigin, nativeAuthHeaders, nativePlatform, toNati
 
 const TOKEN_KEY = 'push-token';
 const APNS_ENVIRONMENT = import.meta.env.VITE_APNS_ENVIRONMENT === 'sandbox' ? 'sandbox' : 'production';
+const SUPPORTED_LANGUAGES = new Set(['pt', 'en', 'fr', 'es']);
+const CHANNEL_COPY = {
+  pt:{ name:'Atividade Lumina', description:'Mensagens, chamadas e atividade importante da tua conta.' },
+  en:{ name:'Lumina activity', description:'Messages, calls and important activity from your account.' },
+  fr:{ name:'Activité Lumina', description:'Messages, appels et activité importante de ton compte.' },
+  es:{ name:'Actividad de Lumina', description:'Mensajes, llamadas y actividad importante de tu cuenta.' },
+};
 let initialized = false;
 let currentToken = null;
 let registrationWaiters = [];
+
+const deviceLanguage = () => {
+  const preset = String(window.__luminaDeviceLanguage || '').toLowerCase();
+  if (SUPPORTED_LANGUAGES.has(preset)) return preset;
+  const candidates = [...(Array.isArray(navigator.languages) ? navigator.languages : []), navigator.language].filter(Boolean);
+  for (const value of candidates) {
+    const short = String(value).trim().toLowerCase().split(/[-_]/)[0];
+    if (SUPPORTED_LANGUAGES.has(short)) return short;
+  }
+  return 'en';
+};
 
 const resolveRegistration = (value) => {
   const waiters = registrationWaiters;
@@ -31,6 +49,7 @@ const saveRegistration = async (token) => {
     body:JSON.stringify({
       token:currentToken,
       platform:nativePlatform,
+      locale:deviceLanguage(),
       deviceId:deviceId.identifier || null,
       deviceName:[info.manufacturer, info.model].filter(Boolean).join(' ').slice(0, 120) || null,
       osVersion:String(info.osVersion || '').slice(0, 40) || null,
@@ -49,10 +68,11 @@ export async function initializeNativePush() {
   if (typeof currentToken !== 'string') currentToken = null;
 
   if (nativePlatform === 'android') {
+    const channel = CHANNEL_COPY[deviceLanguage()] || CHANNEL_COPY.en;
     await PushNotifications.createChannel({
       id:'lumina_activity',
-      name:'Atividade Lumina',
-      description:'Mensagens, chamadas e atividade importante da tua conta.',
+      name:channel.name,
+      description:channel.description,
       sound:'default',
       importance:4,
       visibility:1,
@@ -77,6 +97,9 @@ export async function initializeNativePush() {
     }));
   });
   window.addEventListener('lumina:native-session', () => {
+    if (currentToken) void saveRegistration(currentToken).catch(() => false);
+  });
+  window.addEventListener('languagechange', () => {
     if (currentToken) void saveRegistration(currentToken).catch(() => false);
   });
   if (currentToken && nativeAuthHeaders().authorization) {

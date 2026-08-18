@@ -127,7 +127,7 @@ export function GroupCallOverlay({call,onClosed,ping}){
     for(const peerId of [...pcs.current.keys()])if(!livePeers.some(item=>item.id===peerId))closePeer(peerId);
     for(const peer of livePeers)if(!pcs.current.has(peer.id)&&shouldOfferTo(peer))await ensurePeer(peer.id,{offer:true});
     if(livePeers.length>0)setPhase(copy.live);
-    else if(Date.now()-startedAt.current>NO_ANSWER_MS&&call.initiator_id===selfId){setPhase(copy.noAnswer);await api.calls.end(call.id).catch(()=>{});setTimeout(()=>cleanup(),900)}
+    else if(state.status==='ringing'&&Date.now()-startedAt.current>NO_ANSWER_MS&&call.initiator_id===selfId){setPhase(copy.noAnswer);await api.calls.end(call.id).catch(()=>{});setTimeout(()=>cleanup(),900)}
   };
 
   const cleanup=async({notify=false}={})=>{

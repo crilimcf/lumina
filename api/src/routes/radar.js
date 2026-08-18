@@ -48,6 +48,18 @@ function cleanPriority(value) {
   return priority;
 }
 
+function cleanCountry(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const code = String(value).trim().toLowerCase();
+  if (!/^[a-z]{2}$/.test(code)) throw bad('País inválido', 'bad_country');
+  return code;
+}
+
+function cleanRegionQuery(value) {
+  if (value === undefined || value === null || value === '') return null;
+  return String(value).trim().slice(0, 80) || null;
+}
+
 function validateWindow(type, startsAt, endsAt) {
   if (type === 'event' && !startsAt) throw bad('Um evento precisa de data de início', 'missing_event_start');
   if (endsAt && startsAt && new Date(endsAt) < new Date(startsAt)) {
@@ -64,6 +76,10 @@ function validateSponsoredAttribution(sponsored, sponsorLabel, sourceId, sourceN
 radarRoutes.get('/', auth, h(async (req, res) => {
   const requestedType = req.query.type ? cleanType(req.query.type) : null;
   const before = optionalDate(req.query.before, 'Cursor');
+  const country = cleanCountry(req.query.country);
+  const countryTag = country ? `country:${country}` : null;
+  const region = cleanRegionQuery(req.query.region);
+  const regionNeedle = region ? `%${region}%` : null;
   const asked = Number(req.query.limit);
   const limit = Number.isInteger(asked) && asked > 0 ? Math.min(asked, 50) : 20;
 
@@ -90,12 +106,30 @@ radarRoutes.get('/', auth, h(async (req, res) => {
        )
        AND ($1::text IS NULL OR ri.type = $1)
        AND ($2::timestamptz IS NULL OR ri.published_at < $2)
-     ORDER BY ri.published_at DESC, ri.priority DESC, ri.id DESC
-     LIMIT $3`,
-    [requestedType, before, limit]
+       AND (
+         $3::text IS NULL
+         OR $3 = ANY(COALESCE(ri.tags, ARRAY[]::text[]))
+         OR 'country:global' = ANY(COALESCE(ri.tags, ARRAY[]::text[]))
+       )
+     ORDER BY
+       CASE WHEN $4::text IS NOT NULL AND (
+         COALESCE(ri.region, '') ILIKE $4
+         OR EXISTS (
+           SELECT 1 FROM unnest(COALESCE(ri.tags, ARRAY[]::text[])) tag
+           WHERE tag ILIKE $4
+         )
+       ) THEN 0 ELSE 1 END,
+       ri.priority DESC, ri.published_at DESC, ri.id DESC
+     LIMIT $5`,
+    [requestedType, before, countryTag, regionNeedle, limit]
   );
 
-  res.json({ items: rows, nextCursor: rows.length === limit ? rows.at(-1).published_at : null });
+  res.json({
+    items: rows,
+    nextCursor: rows.length === limit ? rows.at(-1).published_at : null,
+    country: country ? country.toUpperCase() : null,
+    region,
+  });
 }));
 
 radarRoutes.get('/manage', auth, requireStaff, h(async (req, res) => {

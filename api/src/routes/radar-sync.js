@@ -49,8 +49,10 @@ function cleanRegion(value) {
 
 // Country-aware compatibility path. Explicit country tags remain authoritative, while
 // pre-schema-35 items can still be scoped by their own/source region without rewriting
-// the historical radar_items table during Railway startup.
+// the historical radar_items table during Railway startup. Explicit new scopes bypass
+// this compatibility layer so radar.js can enforce local/global separation.
 radarSyncRoutes.get('/', auth, h(async (req, res, next) => {
+  if (req.query.scope !== undefined && req.query.scope !== null && req.query.scope !== '') return next();
   if (req.query.country === undefined || req.query.country === null || req.query.country === '') return next();
 
   const country = cleanCountry(req.query.country);

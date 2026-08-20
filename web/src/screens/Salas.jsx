@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Camera, CheckCircle2, Crown, DoorOpen, ImagePlus, LockKeyhole, Pencil, Plus, Search, Send, ShieldCheck, Trash2, Users, X } from 'lucide-react';
 import { api } from '../api.js';
+import { roomPrivateRecipients } from '../roomPrivateRecipients.js';
 import { Empty } from '../ui.jsx';
 import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
 import '../interaction-polish.css';
@@ -99,7 +100,7 @@ function RoomChat({ room, me, onBack, onRoomUpdated, onRoomDeleted, ping }) {
   useEffect(()=>{setEditName(room.name||'');setEditTopic(room.topic||'');setEditDescription(room.description||'');setEditFile(null)},[room.id,room.name,room.topic,room.description,room.image_url]);
   useEffect(()=>{let alive=true;const load=()=>api.rooms.messages(room.id).then(r=>alive&&setMessages(r)).catch(e=>alive&&ping(e.message));load();const timer=setInterval(load,3000);return()=>{alive=false;clearInterval(timer)}},[room.id]);
   useEffect(()=>{if(!showInvite||search.trim().length<2){setPeople([]);return;}const timer=setTimeout(()=>api.users.search(search.trim()).then(setPeople).catch(()=>setPeople([])),250);return()=>clearTimeout(timer)},[search,showInvite]);
-  useEffect(()=>{if(!mentionQuery){setMentionPeople([]);return;}let alive=true;const timer=setTimeout(()=>api.users.search(mentionQuery).then(rows=>{if(alive)setMentionPeople(rows.filter(p=>p.id!==me.id).slice(0,6))}).catch(()=>alive&&setMentionPeople([])),180);return()=>{alive=false;clearTimeout(timer)}},[mentionQuery,me.id]);
+  useEffect(()=>{if(!mentionQuery){setMentionPeople([]);return;}let alive=true;const timer=setTimeout(()=>roomPrivateRecipients(room.id,mentionQuery).then(rows=>{if(alive)setMentionPeople(rows.filter(p=>p.id!==me.id).slice(0,6))}).catch(()=>alive&&setMentionPeople([])),180);return()=>{alive=false;clearTimeout(timer)}},[mentionQuery,me.id,room.id]);
 
   const clearRoomMedia=()=>{if(sending)return;setMediaFile(null);setMediaUrl(null);if(roomMediaInput.current)roomMediaInput.current.value=''};
   const choosePrivateTarget=(person,body='')=>{setPrivateTarget({id:person.id,name:person.name,handle:person.handle});setMentionPeople([]);setText(body);setTimeout(()=>composerInput.current?.focus(),0)};

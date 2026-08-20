@@ -7,6 +7,7 @@ export const radarRoutes = Router();
 const ITEM_TYPES = new Set(['news', 'promotion', 'event', 'trend', 'editorial']);
 const SOURCE_KINDS = new Set(['manual', 'rss', 'api', 'partner']);
 const STATUSES = new Set(['draft', 'published', 'archived']);
+const RADAR_SCOPES = new Set(['mixed', 'local', 'global']);
 
 function requireStaff(req, _res, next) {
   if (!req.user?.is_staff) return next(forbidden('Apenas a equipa Lumina pode gerir o Radar'));
@@ -55,6 +56,12 @@ function cleanCountry(value) {
   return code;
 }
 
+function cleanScope(value) {
+  const scope = String(value || 'mixed').trim().toLowerCase();
+  if (!RADAR_SCOPES.has(scope)) throw bad('Âmbito do Radar inválido', 'bad_radar_scope');
+  return scope;
+}
+
 function cleanRegionQuery(value) {
   if (value === undefined || value === null || value === '') return null;
   return String(value).trim().slice(0, 80) || null;
@@ -78,6 +85,8 @@ radarRoutes.get('/', auth, h(async (req, res) => {
   const before = optionalDate(req.query.before, 'Cursor');
   const country = cleanCountry(req.query.country);
   const countryTag = country ? `country:${country}` : null;
+  const scope = cleanScope(req.query.scope);
+  if (scope === 'local' && !countryTag) throw bad('Radar local precisa do país atual', 'missing_radar_country');
   const region = cleanRegionQuery(req.query.region);
   const regionNeedle = region ? `%${region}%` : null;
   const asked = Number(req.query.limit);
@@ -107,12 +116,16 @@ radarRoutes.get('/', auth, h(async (req, res) => {
        AND ($1::text IS NULL OR ri.type = $1)
        AND ($2::timestamptz IS NULL OR ri.published_at < $2)
        AND (
-         $3::text IS NULL
-         OR $3 = ANY(COALESCE(ri.tags, ARRAY[]::text[]))
-         OR 'country:global' = ANY(COALESCE(ri.tags, ARRAY[]::text[]))
+         ($5::text = 'global' AND 'country:global' = ANY(COALESCE(ri.tags, ARRAY[]::text[])))
+         OR ($5::text = 'local' AND $3::text IS NOT NULL AND $3 = ANY(COALESCE(ri.tags, ARRAY[]::text[])))
+         OR ($5::text = 'mixed' AND (
+           $3::text IS NULL
+           OR $3 = ANY(COALESCE(ri.tags, ARRAY[]::text[]))
+           OR 'country:global' = ANY(COALESCE(ri.tags, ARRAY[]::text[]))
+         ))
        )
      ORDER BY
-       CASE WHEN $4::text IS NOT NULL AND (
+       CASE WHEN $5::text <> 'global' AND $4::text IS NOT NULL AND (
          COALESCE(ri.region, '') ILIKE $4
          OR EXISTS (
            SELECT 1 FROM unnest(COALESCE(ri.tags, ARRAY[]::text[])) tag
@@ -120,8 +133,8 @@ radarRoutes.get('/', auth, h(async (req, res) => {
          )
        ) THEN 0 ELSE 1 END,
        ri.priority DESC, ri.published_at DESC, ri.id DESC
-     LIMIT $5`,
-    [requestedType, before, countryTag, regionNeedle, limit]
+     LIMIT $6`,
+    [requestedType, before, countryTag, regionNeedle, scope, limit]
   );
 
   res.json({
@@ -129,6 +142,7 @@ radarRoutes.get('/', auth, h(async (req, res) => {
     nextCursor: rows.length === limit ? rows.at(-1).published_at : null,
     country: country ? country.toUpperCase() : null,
     region,
+    scope,
   });
 }));
 
@@ -284,14 +298,11 @@ radarRoutes.patch('/:itemId', auth, requireStaff, h(async (req, res) => {
   const isRssItem = String(item.fingerprint || '').startsWith('rss:');
   if (isRssItem && req.body.status !== undefined && status !== item.status) {
     if (status === 'published') {
-      // Publicação manual é uma aprovação explícita da equipa Lumina.
       ingestionTrusted = true;
       ingestionPublishable = true;
     } else if (status === 'draft') {
-      // Um item devolvido a revisão deixa de bloquear conteúdo publicável equivalente.
       ingestionPublishable = false;
     }
-    // Ao arquivar preservamos a classe anterior para impedir reaparecimento por sibling feeds.
   }
 
   const { rows } = await q(

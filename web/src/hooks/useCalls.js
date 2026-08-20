@@ -135,7 +135,7 @@ export function useCalls({ enabled, ping }) {
     if (!group || busy) return;
     setBusy(true);
     try {
-      const call = await api.calls.start(`room:${group.id}`, 'video');
+      const call = await api.calls.start(`group:${group.id}`, 'video');
       setIncoming(null);
       setActiveCall({ call, caller:true, group:true, groupInfo:{ id:group.id, name:group.name } });
     } catch (e) {
@@ -153,7 +153,7 @@ export function useCalls({ enabled, ping }) {
       await audioRef.current?.resume?.().catch(() => {});
       const call = await api.calls.answer(incoming.id);
       if (incoming.group || call.group) {
-        setActiveCall({ call, caller:false, group:true, groupInfo:{ id:call.room_id, name:call.group_name || call.name } });
+        setActiveCall({ call, caller:false, group:true, groupInfo:{ id:call.group_id || call.room_id, name:call.group_name || call.name } });
       } else {
         setActiveCall({ call, caller:false, group:false, person:{ name:incoming.name, handle:incoming.handle, palette:incoming.palette, avatar_url:incoming.avatar_url } });
       }

@@ -31,7 +31,11 @@ export async function ensureRadarCountrySources() {
          ('France 24 · Français', 'rss', 'https://www.france24.com/fr/rss', 'news', true, true,
            '{"maxItems":18,"maxAgeDays":3,"priority":18,"autoPublish":true,"region":"France","tags":["country:fr","france","france24"]}'::jsonb),
          ('RFI · Français', 'rss', 'https://www.rfi.fr/fr/rss', 'news', true, true,
-           '{"maxItems":16,"maxAgeDays":3,"priority":16,"autoPublish":true,"region":"France","tags":["country:fr","france","rfi"]}'::jsonb)
+           '{"maxItems":16,"maxAgeDays":3,"priority":16,"autoPublish":true,"region":"France","tags":["country:fr","france","rfi"]}'::jsonb),
+         ('Al Jazeera · English', 'rss', 'https://www.aljazeera.com/xml/rss/all.xml', 'news', true, true,
+           '{"maxItems":20,"maxAgeDays":3,"priority":20,"autoPublish":true,"region":"Global","tags":["country:global","world","aljazeera"]}'::jsonb),
+         ('Euronews · World News', 'rss', 'https://www.euronews.com/rss?format=mrss&level=theme&name=news', 'news', true, true,
+           '{"maxItems":20,"maxAgeDays":3,"priority":19,"autoPublish":true,"region":"Global","tags":["country:global","world","euronews"]}'::jsonb)
      )
      INSERT INTO radar_sources (name, kind, url, default_type, active, trusted, config)
      SELECT name, kind, url, default_type, active, trusted, config
@@ -71,9 +75,9 @@ async function runRadarSync() {
 export function startRadarJobs() {
   ensureRadarCountrySources()
     .then(({ inserted }) => {
-      if (inserted) console.log(`[radar] ${inserted} fonte(s) de país preparada(s) após health`);
+      if (inserted) console.log(`[radar] ${inserted} fonte(s) local/global preparada(s) após health`);
     })
-    .catch(error => console.error('[radar] preparação de fontes por país falhou:', error.message));
+    .catch(error => console.error('[radar] preparação de fontes local/global falhou:', error.message));
 
   if (process.env.RUN_JOBS_IN_PROCESS === 'false' || process.env.RADAR_INGEST_ENABLED === 'false') {
     console.log('[radar] ingestão automática desligada neste processo');

@@ -49,7 +49,7 @@ before(async () => {
   );
 
   const firstBootstrap = await ensureRadarCountrySources();
-  assert.equal(firstBootstrap.inserted, 3);
+  assert.equal(firstBootstrap.inserted, 5);
   const secondBootstrap = await ensureRadarCountrySources();
   assert.equal(secondBootstrap.inserted, 0);
 
@@ -65,6 +65,13 @@ before(async () => {
        AND config->'tags' @> '["country:fr"]'::jsonb`
   );
   assert.equal(frenchSources[0].total, 3);
+
+  const { rows: globalSources } = await q(
+    `SELECT count(*)::int AS total FROM radar_sources
+     WHERE lower(COALESCE(config->>'region',''))='global'
+       AND config->'tags' @> '["country:global"]'::jsonb`
+  );
+  assert.equal(globalSources[0].total, 2);
 
   await q(
     `INSERT INTO radar_items (type,title,summary,tags,region,source_id,published_at,status,priority)
@@ -120,6 +127,36 @@ test('cidade atual tem prioridade dentro do país sem furar o filtro nacional', 
   assert.equal(data.items[0].title, 'Paris local');
   assert.equal(data.items.some(item => item.title === 'Portugal only'), false);
   assert.equal(data.items.some(item => item.title === 'Legacy Portugal item'), false);
+});
+
+test('scope local devolve só o país atual e nunca mistura Global', async () => {
+  const { response, data } = await request('/radar?scope=local&country=FR&region=Paris&limit=20');
+  assert.equal(response.status, 200, JSON.stringify(data));
+  assert.equal(data.scope, 'local');
+  const titles = data.items.map(item => item.title);
+  assert.equal(titles.includes('France only'), true);
+  assert.equal(titles.includes('Paris local'), true);
+  assert.equal(titles.includes('Global item'), false);
+  assert.equal(titles.includes('Portugal only'), false);
+});
+
+test('scope global funciona sem localização e devolve apenas Mundo', async () => {
+  const { response, data } = await request('/radar?scope=global&limit=20');
+  assert.equal(response.status, 200, JSON.stringify(data));
+  assert.equal(data.scope, 'global');
+  assert.equal(data.country, null);
+  const titles = data.items.map(item => item.title);
+  assert.deepEqual(titles, ['Global item']);
+});
+
+test('scope local exige país e scope inválido é rejeitado', async () => {
+  const local = await request('/radar?scope=local');
+  assert.equal(local.response.status, 400);
+  assert.equal(local.data.code, 'missing_radar_country');
+
+  const invalid = await request('/radar?scope=planet');
+  assert.equal(invalid.response.status, 400);
+  assert.equal(invalid.data.code, 'bad_radar_scope');
 });
 
 test('Radar rejeita código de país que não seja ISO alpha-2', async () => {

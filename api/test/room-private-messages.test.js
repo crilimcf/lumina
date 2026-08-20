@@ -78,6 +78,13 @@ test('mensagens privadas numa sala só são visíveis ao remetente e destinatár
     assert.equal(join.response.status, 200);
   }
 
+  const picker = await request(`/rooms/${roomId}/private-recipients?q=`, { token: alice.token });
+  assert.equal(picker.response.status, 200);
+  assert.equal(picker.data.some(p => p.id === owner.user.id), true);
+  assert.equal(picker.data.some(p => p.id === bob.user.id), true);
+  assert.equal(picker.data.some(p => p.id === alice.user.id), false);
+  assert.equal(picker.data.some(p => p.id === outsider.user.id), false);
+
   const recipients = await request(`/rooms/${roomId}/private-recipients?q=bob`, { token: alice.token });
   assert.equal(recipients.response.status, 200);
   assert.deepEqual(recipients.data.map(p => p.handle), ['priv.bob']);

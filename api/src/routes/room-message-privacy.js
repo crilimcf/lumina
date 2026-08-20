@@ -64,7 +64,8 @@ async function privateRecipient(roomId, senderId, rawBody, query = q) {
 roomMessagePrivacyRoutes.get('/:roomId/private-recipients', auth, h(async (req, res) => {
   await assertMember(req.params.roomId, req.user.id);
   const term = String(req.query.q || '').trim().replace(/^@/, '').slice(0, 24);
-  if (term.length < 2) return res.json([]);
+  const contains = term ? `%${term}%` : '%';
+  const prefix = term ? `${term}%` : '%';
   const { rows } = await q(
     `SELECT u.id,u.name,u.handle,u.palette,u.avatar_url
        FROM room_members rm
@@ -78,8 +79,8 @@ roomMessagePrivacyRoutes.get('/:roomId/private-recipients', auth, h(async (req, 
               OR (b.blocked_id=$2 AND b.blocker_id=u.id)
         )
       ORDER BY CASE WHEN u.handle ILIKE $4 THEN 0 ELSE 1 END,u.name
-      LIMIT 8`,
-    [req.params.roomId, req.user.id, `%${term}%`, `${term}%`]
+      LIMIT 12`,
+    [req.params.roomId, req.user.id, contains, prefix]
   );
   res.json(rows);
 }));

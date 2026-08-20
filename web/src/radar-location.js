@@ -110,13 +110,14 @@ export async function detectRadarLocation({ force = false } = {}) {
   }
 }
 
-export async function loadRadarForLocation({ type, cursor, limit = 30, country, region } = {}) {
+export async function loadRadarForLocation({ type, cursor, limit = 30, country, region, scope = 'mixed' } = {}) {
   const params = new URLSearchParams();
   if (type) params.set('type', type);
   if (cursor) params.set('before', cursor);
   if (limit) params.set('limit', String(limit));
   if (country) params.set('country', String(country).toUpperCase());
   if (region) params.set('region', String(region).slice(0, 80));
+  if (scope) params.set('scope', scope);
 
   const response = await fetch(`${BASE}/radar?${params}`, {
     credentials:'include',
@@ -126,3 +127,5 @@ export async function loadRadarForLocation({ type, cursor, limit = 30, country, 
   if (!response.ok) throw new Error(data.error || 'Não foi possível carregar o Radar');
   return data;
 }
+
+export const loadGlobalRadar = options => loadRadarForLocation({ ...options, scope:'global', country:null, region:null });

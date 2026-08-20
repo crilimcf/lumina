@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  BadgeCheck, BadgePercent, CalendarDays, ChevronRight, ExternalLink, MapPin, Newspaper,
+  BadgeCheck, BadgePercent, CalendarDays, ChevronRight, ExternalLink, Globe2, MapPin, Newspaper,
   RefreshCw, Settings2, ShieldCheck, Sparkles, TrendingUp,
 } from 'lucide-react';
 import { api } from '../api.js';
-import { detectRadarLocation, loadRadarForLocation, readCachedRadarLocation } from '../radar-location.js';
+import { detectRadarLocation, loadGlobalRadar, loadRadarForLocation, readCachedRadarLocation } from '../radar-location.js';
 import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
 import { ScrollToTopButton } from '../components/ScrollToTopButton.jsx';
 import '../explore-facelift.css';
@@ -59,32 +59,15 @@ function SourceLine({ item }) {
 
 function RadarImage({ item }) {
   const [source, setSource] = useState(item.image_url ? 'proxy' : 'none');
-
-  useEffect(() => {
-    setSource(item.image_url ? 'proxy' : 'none');
-  }, [item.id, item.image_url]);
-
+  useEffect(() => { setSource(item.image_url ? 'proxy' : 'none'); }, [item.id, item.image_url]);
   if (!item.image_url || source === 'none') return null;
-  const src = source === 'proxy'
-    ? `/api/radar-images/${encodeURIComponent(item.id)}`
-    : item.image_url;
-
-  return <div className="explore-media">
-    <img
-      src={src}
-      alt=""
-      loading="lazy"
-      decoding="async"
-      onError={()=>setSource(current => current === 'proxy' ? 'direct' : 'none')}
-    />
-  </div>;
+  const src = source === 'proxy' ? `/api/radar-images/${encodeURIComponent(item.id)}` : item.image_url;
+  return <div className="explore-media"><img src={src} alt="" loading="lazy" decoding="async" onError={()=>setSource(current => current === 'proxy' ? 'direct' : 'none')}/></div>;
 }
 
 function RadarCard({ item, hero = false }) {
   const displayDate = item.type === 'event' ? item.starts_at : item.published_at;
-  const titleTag = hero ? 'h2' : 'h3';
-  const Title = titleTag;
-
+  const Title = hero ? 'h2' : 'h3';
   return <article className={`explore-card in${hero ? ' is-hero' : ''}`}>
     <RadarImage item={item}/>
     <div className="explore-card-body">
@@ -97,21 +80,32 @@ function RadarCard({ item, hero = false }) {
       {(item.summary || item.body) && <div className="explore-card-summary">{item.summary || item.body}</div>}
       <div className="explore-card-footer">
         <SourceLine item={item}/>
-        {item.external_url && <a
-          className="explore-external"
-          href={item.external_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={`Abrir na fonte ${item.source_name || ''}`}
-        ><ExternalLink size={15}/></a>}
+        {item.external_url && <a className="explore-external" href={item.external_url} target="_blank" rel="noopener noreferrer" aria-label={`Abrir na fonte ${item.source_name || ''}`}><ExternalLink size={15}/></a>}
       </div>
     </div>
   </article>;
 }
 
+function RadarSection({ icon:Icon, title, subtitle, items, loading, empty, locationLabel }) {
+  const hero = items[0] || null;
+  const rest = hero ? items.slice(1) : [];
+  return <section className="radar-scope-section">
+    <div className="radar-scope-heading">
+      <span className="radar-scope-icon"><Icon size={18}/></span>
+      <div><div className="radar-scope-title">{title}</div><div className="radar-scope-subtitle">{subtitle}</div></div>
+      {locationLabel && <span className="radar-scope-location" data-i18n-ignore="true">{locationLabel}</span>}
+    </div>
+    {loading ? <div className="explore-loading"><span className="explore-loading-dot"/>A sintonizar o Radar…</div>
+      : !items.length ? <div className="explore-empty radar-scope-empty">{empty}</div>
+      : <div className="explore-grid">{hero && <RadarCard item={hero} hero/>}{rest.length > 0 && <div className="explore-rest">{rest.map(item => <RadarCard key={item.id} item={item}/>)}</div>}</div>}
+  </section>;
+}
+
 export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThread, ping, toast, unreadCount }) {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [localItems, setLocalItems] = useState([]);
+  const [globalItems, setGlobalItems] = useState([]);
+  const [localLoading, setLocalLoading] = useState(true);
+  const [globalLoading, setGlobalLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [publisher, setPublisher] = useState('');
   const [location, setLocation] = useState(() => readCachedRadarLocation());
@@ -134,35 +128,45 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
   useEffect(() => { void refreshLocation(false); }, [refreshLocation]);
 
   useEffect(() => {
+    let active = true;
+    setGlobalLoading(true);
+    setPublisher('');
+    loadGlobalRadar({ type:filter || undefined, limit:30 })
+      .then(result => { if (active) setGlobalItems(result.items || []); })
+      .catch(error => { if (active) ping(error.message); })
+      .finally(() => { if (active) setGlobalLoading(false); });
+    return () => { active = false; };
+  }, [filter, ping]);
+
+  useEffect(() => {
     if (!locationReady) return undefined;
     if (!location?.countryCode) {
-      setItems([]);
-      setPublisher('');
-      setLoading(false);
+      setLocalItems([]);
+      setLocalLoading(false);
       return undefined;
     }
     let active = true;
-    setLoading(true);
-    setPublisher('');
+    setLocalLoading(true);
     loadRadarForLocation({
       type:filter || undefined,
       limit:30,
       country:location.countryCode,
       region:location.city || location.region,
+      scope:'local',
     })
-      .then(result => { if (active) setItems(result.items || []); })
+      .then(result => { if (active) setLocalItems(result.items || []); })
       .catch(error => { if (active) ping(error.message); })
-      .finally(() => { if (active) setLoading(false); });
+      .finally(() => { if (active) setLocalLoading(false); });
     return () => { active = false; };
   }, [filter, location?.countryCode, location?.city, location?.region, locationReady, ping]);
 
+  const allItems = useMemo(() => [...localItems, ...globalItems], [localItems, globalItems]);
   const publishers = useMemo(
-    () => [...new Set(items.map(item => item.source_name).filter(Boolean))].sort((a,b)=>a.localeCompare(b, navigator.language || undefined)),
-    [items],
+    () => [...new Set(allItems.map(item => item.source_name).filter(Boolean))].sort((a,b)=>a.localeCompare(b, navigator.language || undefined)),
+    [allItems],
   );
-  const visible = publisher ? items.filter(item => item.source_name === publisher) : items;
-  const hero = visible[0] || null;
-  const rest = hero ? visible.slice(1) : visible;
+  const localVisible = publisher ? localItems.filter(item => item.source_name === publisher) : localItems;
+  const globalVisible = publisher ? globalItems.filter(item => item.source_name === publisher) : globalItems;
 
   return <div className="lumina-facelift lumina-explore">
     <div className="explore-shell">
@@ -171,28 +175,14 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
           <div className="explore-title-copy">
             <div className="explore-eyebrow">Explorar agora</div>
             <h1>Radar</h1>
-            <p>O mundo agora, sem misturar com o teu Feed. Descobre sinais relevantes com contexto e origem clara.</p>
+            <p>O mundo e o que acontece perto de ti, sempre separados e com origem clara.</p>
             <div className="explore-location-row">
-              <button
-                type="button"
-                className="explore-location-chip"
-                onClick={()=>refreshLocation(true)}
-                disabled={locating}
-                aria-label={location ? 'Tentar localização novamente' : 'Detetar onde estou'}
-              >
+              <button type="button" className="explore-location-chip" onClick={()=>refreshLocation(true)} disabled={locating} aria-label={location ? 'Atualizar localização' : 'Detetar onde estou'}>
                 {locating ? <RefreshCw className="explore-location-spin" size={15}/> : <MapPin size={15}/>} 
-                <span data-i18n-ignore={location?.label ? 'true' : undefined}>
-                  {locating ? 'A pedir localização ao iPhone…' : (location?.label || 'Detetar onde estou')}
-                </span>
+                <span data-i18n-ignore={location?.label ? 'true' : undefined}>{locating ? 'A pedir localização ao iPhone…' : (location?.label || 'Detetar onde estou')}</span>
               </button>
               {location?.countryCode && <span className="explore-location-country" data-i18n-ignore="true">{location.countryCode}</span>}
-              {location?.countryCode && <a
-                className="explore-location-attribution"
-                href="https://www.openstreetmap.org/copyright"
-                target="_blank"
-                rel="noopener noreferrer"
-                data-i18n-ignore="true"
-              >© OpenStreetMap</a>}
+              {location?.countryCode && <a className="explore-location-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" data-i18n-ignore="true">© OpenStreetMap</a>}
             </div>
           </div>
           <TopActions tab={tab} setTab={setTab} setThread={setThread} unreadCount={unreadCount}/>
@@ -201,46 +191,27 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
 
       <section className="explore-trust-panel" aria-label="Como funciona o Radar">
         <span className="explore-trust-icon"><ShieldCheck size={20}/></span>
-        <div className="explore-trust-copy">
-          <strong>Descoberta com contexto, não ruído.</strong>
-          <p>Fontes editoriais verificadas, manchetes e contexto ficam separados do Feed social. O artigo original continua na respetiva fonte e conteúdo comercial permanece sempre identificado.</p>
-        </div>
+        <div className="explore-trust-copy"><strong>Descoberta com contexto, não ruído.</strong><p>Fontes editoriais verificadas, manchetes e contexto ficam separados do Feed social. O artigo original continua na respetiva fonte e conteúdo comercial permanece sempre identificado.</p></div>
       </section>
 
       {me?.is_staff && <button type="button" className="p explore-staff-button" onClick={()=>setScreen?.('radar-admin')}><Settings2 size={15}/>Gerir Radar</button>}
 
       <div aria-label="Filtros do Radar" className="explore-filter-rail">
-        {FILTERS.map(([value,Icon,label]) => {
-          const active = filter === value;
-          return <button
-            key={value || 'all'}
-            type="button"
-            onClick={()=>setFilter(value)}
-            aria-pressed={active}
-            className={`explore-filter-chip${active ? ' is-active' : ''}`}
-          ><Icon size={14}/>{label}</button>;
-        })}
+        {FILTERS.map(([value,Icon,label]) => { const active = filter === value; return <button key={value || 'all'} type="button" onClick={()=>setFilter(value)} aria-pressed={active} className={`explore-filter-chip${active ? ' is-active' : ''}`}><Icon size={14}/>{label}</button>; })}
       </div>
 
       {filter === 'news' && publishers.length > 1 && <section className="explore-sources" aria-label="Fontes de notícias">
         <div className="explore-section-label">Fontes</div>
         <div className="explore-source-rail">
           <button type="button" onClick={()=>setPublisher('')} className={`explore-source-chip${!publisher ? ' is-active' : ''}`}>Todas</button>
-          {publishers.map(name => <button
-            type="button"
-            key={name}
-            onClick={()=>setPublisher(name)}
-            className={`explore-source-chip${publisher === name ? ' is-active' : ''}`}
-          ><PublisherMark name={name} size={27}/><span>{name}</span><ChevronRight size={12}/></button>)}
+          {publishers.map(name => <button type="button" key={name} onClick={()=>setPublisher(name)} className={`explore-source-chip${publisher === name ? ' is-active' : ''}`}><PublisherMark name={name} size={27}/><span>{name}</span><ChevronRight size={12}/></button>)}
         </div>
       </section>}
 
-      {!locationReady || loading ? <div className="explore-loading"><span className="explore-loading-dot"/>A sintonizar o Radar…</div>
-        : !visible.length ? <div className="explore-empty">Sem sinais nesta categoria.<br/>Quando houver algo relevante, aparece aqui.</div>
-        : <div className="explore-grid">
-          {hero && <RadarCard item={hero} hero/>}
-          {rest.length > 0 && <div className="explore-rest">{rest.map(item => <RadarCard key={item.id} item={item}/>)}</div>}
-        </div>}
+      <div className="radar-dual-feed">
+        {locationReady && !location?.countryCode ? <section className="radar-location-off"><MapPin size={20}/><div><strong>Localização desligada</strong><p>Ativa a localização para juntar notícias locais. O Radar mundial continua disponível.</p></div></section> : <RadarSection icon={MapPin} title="Perto de ti" subtitle="Notícias e sinais do local onde estás agora." items={localVisible} loading={!locationReady || localLoading} empty="Sem notícias locais nesta categoria." locationLabel={location?.label}/>} 
+        <RadarSection icon={Globe2} title="Mundo" subtitle="Notícias globais, independentemente do local onde estás." items={globalVisible} loading={globalLoading} empty="Sem notícias globais nesta categoria."/>
+      </div>
     </div>
 
     <ScrollToTopButton/>

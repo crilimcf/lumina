@@ -4,14 +4,13 @@ import { api } from '../../api.js';
 import { Orb } from '../../ui.jsx';
 import { locale } from '../../i18n.js';
 
-const GROUP_TOPIC = 'Grupo de videochamada';
 const MAX_OTHER_PEOPLE = 5;
 
 const dictionary = {
-  pt:{ launcher:'Vídeo em grupo', title:'Videochamadas de grupo', subtitle:'Cria um grupo privado e liga até 6 pessoas.', create:'Novo grupo', name:'Nome do grupo', choose:'Escolhe até 5 pessoas', selected:'selecionadas', save:'Criar grupo', creating:'A criar…', groups:'Os teus grupos', empty:'Ainda não tens grupos de videochamada.', join:'Entrar no grupo', call:'Iniciar videochamada', calling:'A iniciar…', delete:'Apagar grupo', close:'Fechar', min:'Escolhe pelo menos uma pessoa.', max:'Podes escolher no máximo 5 pessoas.', created:'Grupo criado.', people:'pessoas' },
-  fr:{ launcher:'Vidéo de groupe', title:'Appels vidéo de groupe', subtitle:'Crée un groupe privé et appelle jusqu’à 6 personnes.', create:'Nouveau groupe', name:'Nom du groupe', choose:'Choisis jusqu’à 5 personnes', selected:'sélectionnées', save:'Créer le groupe', creating:'Création…', groups:'Tes groupes', empty:'Tu n’as pas encore de groupe d’appel vidéo.', join:'Rejoindre le groupe', call:'Démarrer l’appel vidéo', calling:'Démarrage…', delete:'Supprimer le groupe', close:'Fermer', min:'Choisis au moins une personne.', max:'Tu peux choisir au maximum 5 personnes.', created:'Groupe créé.', people:'personnes' },
-  en:{ launcher:'Group video', title:'Group video calls', subtitle:'Create a private group and call up to 6 people.', create:'New group', name:'Group name', choose:'Choose up to 5 people', selected:'selected', save:'Create group', creating:'Creating…', groups:'Your groups', empty:'You do not have any video-call groups yet.', join:'Join group', call:'Start video call', calling:'Starting…', delete:'Delete group', close:'Close', min:'Choose at least one person.', max:'You can choose up to 5 people.', created:'Group created.', people:'people' },
-  es:{ launcher:'Vídeo en grupo', title:'Videollamadas de grupo', subtitle:'Crea un grupo privado y llama hasta a 6 personas.', create:'Nuevo grupo', name:'Nombre del grupo', choose:'Elige hasta 5 personas', selected:'seleccionadas', save:'Crear grupo', creating:'Creando…', groups:'Tus grupos', empty:'Todavía no tienes grupos de videollamada.', join:'Unirse al grupo', call:'Iniciar videollamada', calling:'Iniciando…', delete:'Eliminar grupo', close:'Cerrar', min:'Elige al menos una persona.', max:'Puedes elegir como máximo 5 personas.', created:'Grupo creado.', people:'personas' },
+  pt:{ launcher:'Vídeo em grupo', title:'Videochamadas de grupo', subtitle:'Cria um grupo privado no Direct e liga até 6 pessoas. Não cria uma Sala.', create:'Novo grupo', name:'Nome do grupo', choose:'Escolhe até 5 pessoas', selected:'selecionadas', save:'Criar grupo', creating:'A criar…', groups:'Os teus grupos', empty:'Ainda não tens grupos de videochamada.', call:'Iniciar videochamada', calling:'A iniciar…', delete:'Apagar grupo', deleteConfirm:'Apagar este grupo de videochamada?', close:'Fechar', min:'Escolhe pelo menos uma pessoa.', max:'Podes escolher no máximo 5 pessoas.', created:'Grupo criado.', deleted:'Grupo apagado.', people:'pessoas' },
+  fr:{ launcher:'Vidéo de groupe', title:'Appels vidéo de groupe', subtitle:'Crée un groupe privé dans Direct et appelle jusqu’à 6 personnes. Cela ne crée pas de Salon.', create:'Nouveau groupe', name:'Nom du groupe', choose:'Choisis jusqu’à 5 personnes', selected:'sélectionnées', save:'Créer le groupe', creating:'Création…', groups:'Tes groupes', empty:'Tu n’as pas encore de groupe d’appel vidéo.', call:'Démarrer l’appel vidéo', calling:'Démarrage…', delete:'Supprimer le groupe', deleteConfirm:'Supprimer ce groupe d’appel vidéo ?', close:'Fermer', min:'Choisis au moins une personne.', max:'Tu peux choisir au maximum 5 personnes.', created:'Groupe créé.', deleted:'Groupe supprimé.', people:'personnes' },
+  en:{ launcher:'Group video', title:'Group video calls', subtitle:'Create a private group in Direct and call up to 6 people. It does not create a Room.', create:'New group', name:'Group name', choose:'Choose up to 5 people', selected:'selected', save:'Create group', creating:'Creating…', groups:'Your groups', empty:'You do not have any video-call groups yet.', call:'Start video call', calling:'Starting…', delete:'Delete group', deleteConfirm:'Delete this video-call group?', close:'Close', min:'Choose at least one person.', max:'You can choose at most 5 people.', created:'Group created.', deleted:'Group deleted.', people:'people' },
+  es:{ launcher:'Vídeo en grupo', title:'Videollamadas de grupo', subtitle:'Crea un grupo privado en Direct y llama hasta a 6 personas. No crea una Sala.', create:'Nuevo grupo', name:'Nombre del grupo', choose:'Elige hasta 5 personas', selected:'seleccionadas', save:'Crear grupo', creating:'Creando…', groups:'Tus grupos', empty:'Todavía no tienes grupos de videollamada.', call:'Iniciar videollamada', calling:'Iniciando…', delete:'Eliminar grupo', deleteConfirm:'¿Eliminar este grupo de videollamada?', close:'Cerrar', min:'Elige al menos una persona.', max:'Puedes elegir como máximo 5 personas.', created:'Grupo creado.', deleted:'Grupo eliminado.', people:'personas' },
 };
 
 const lang = String(locale || 'pt').slice(0,2).toLowerCase();
@@ -19,19 +18,19 @@ const copy = dictionary[lang] || dictionary.en;
 
 export function GroupCallHub({ me, contacts = [], hidden = false, startGroupCall, callBusy, ping }) {
   const [open,setOpen]=useState(false);
-  const [rooms,setRooms]=useState([]);
+  const [groups,setGroups]=useState([]);
   const [loading,setLoading]=useState(false);
   const [creating,setCreating]=useState(false);
   const [callingId,setCallingId]=useState(null);
+  const [deletingId,setDeletingId]=useState(null);
   const [name,setName]=useState('');
   const [selected,setSelected]=useState([]);
 
-  const groups=useMemo(()=>rooms.filter(room=>room.visibility==='private'&&room.topic===GROUP_TOPIC),[rooms]);
   const people=useMemo(()=>contacts.filter(person=>person.id!==me?.id),[contacts,me?.id]);
 
   const load=async()=>{
     setLoading(true);
-    try{setRooms(await api.rooms.list())}catch(e){ping?.(e.message)}finally{setLoading(false)}
+    try{setGroups(await api.calls.groups())}catch(e){ping?.(e.message)}finally{setLoading(false)}
   };
   useEffect(()=>{if(open)load()},[open]);
   if(hidden)return null;
@@ -50,27 +49,29 @@ export function GroupCallHub({ me, contacts = [], hidden = false, startGroupCall
     if(!selected.length){ping?.(copy.min);return}
     setCreating(true);
     try{
-      const created=await api.rooms.create({name:clean,topic:GROUP_TOPIC,description:'',visibility:'private'});
-      const room=created.room;
-      for(const userId of selected) await api.rooms.invite(room.id,userId);
+      await api.calls.createGroup({name:clean,memberIds:selected});
       setName('');setSelected([]);ping?.(copy.created);await load();
     }catch(e){ping?.(e.message)}finally{setCreating(false)}
   };
 
-  const start=async room=>{
+  const start=async group=>{
     if(callBusy||callingId)return;
-    setCallingId(room.id);
+    setCallingId(group.id);
     try{
-      let current=room;
-      if(current.invited&&!current.joined)current=await api.rooms.join(current.id);
-      await startGroupCall?.(current);
+      await startGroupCall?.(group);
       setOpen(false);
     }catch(e){ping?.(e.message)}finally{setCallingId(null)}
   };
 
-  const remove=async room=>{
-    if(room.creator_id!==me?.id)return;
-    try{await api.rooms.remove(room.id);await load()}catch(e){ping?.(e.message)}
+  const remove=async group=>{
+    if(group.creator_id!==me?.id||deletingId)return;
+    if(!window.confirm(copy.deleteConfirm))return;
+    setDeletingId(group.id);
+    try{
+      await api.calls.removeGroup(group.id);
+      setGroups(current=>current.filter(item=>item.id!==group.id));
+      ping?.(copy.deleted);
+    }catch(e){ping?.(e.message)}finally{setDeletingId(null)}
   };
 
   return <>
@@ -92,10 +93,10 @@ export function GroupCallHub({ me, contacts = [], hidden = false, startGroupCall
 
         <div style={{marginTop:18}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',margin:'0 2px 9px'}}><strong>{copy.groups}</strong>{loading&&<span style={{fontSize:12,opacity:.5}}>…</span>}</div>
           {!loading&&groups.length===0&&<div style={{padding:18,borderRadius:18,background:'#EEEDF5',fontSize:14,opacity:.65}}>{copy.empty}</div>}
-          <div style={{display:'grid',gap:9}}>{groups.map(room=><article key={room.id} style={{padding:13,borderRadius:19,background:'#fff',border:'1px solid #E4E2ED',display:'grid',gridTemplateColumns:'auto 1fr auto',alignItems:'center',gap:11}}>
+          <div style={{display:'grid',gap:9}}>{groups.map(group=><article key={group.id} style={{padding:13,borderRadius:19,background:'#fff',border:'1px solid #E4E2ED',display:'grid',gridTemplateColumns:'auto 1fr auto',alignItems:'center',gap:11}}>
             <div style={{width:46,height:46,borderRadius:16,display:'grid',placeItems:'center',background:'linear-gradient(135deg,#ECE8FF,#FFE7EF)',color:'#5F4BE8'}}><UsersRound size={22}/></div>
-            <div style={{minWidth:0}}><strong style={{display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{room.name}</strong><small style={{opacity:.55}}>{Math.max(1,Number(room.member_count||0))} {copy.people}{room.invited&&!room.joined?' · convite':''}</small></div>
-            <div style={{display:'flex',gap:7}}>{room.creator_id===me?.id&&<button onClick={()=>remove(room)} aria-label={copy.delete} style={{width:38,height:38,borderRadius:99,border:'1px solid #E8E5EF',background:'#fff',display:'grid',placeItems:'center',color:'#A43A49'}}><Trash2 size={16}/></button>}<button onClick={()=>start(room)} disabled={callBusy||callingId===room.id} aria-label={copy.call} style={{height:38,border:0,borderRadius:99,padding:'0 12px',display:'flex',alignItems:'center',gap:7,background:'#6753F2',color:'#fff',fontWeight:850}}><Video size={17}/><span>{callingId===room.id?copy.calling:(room.invited&&!room.joined?copy.join:copy.call)}</span></button></div>
+            <div style={{minWidth:0}}><strong style={{display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{group.name}</strong><small style={{opacity:.55}}>{Math.max(1,Number(group.member_count||0))} {copy.people}</small></div>
+            <div style={{display:'flex',gap:7}}>{group.creator_id===me?.id&&<button onClick={()=>remove(group)} disabled={deletingId===group.id} aria-label={copy.delete} style={{width:38,height:38,borderRadius:99,border:'1px solid #E8E5EF',background:'#fff',display:'grid',placeItems:'center',color:'#A43A49',opacity:deletingId===group.id?.55:1}}><Trash2 size={16}/></button>}<button onClick={()=>start(group)} disabled={callBusy||callingId===group.id} aria-label={copy.call} style={{height:38,border:0,borderRadius:99,padding:'0 12px',display:'flex',alignItems:'center',gap:7,background:'#6753F2',color:'#fff',fontWeight:850}}><Video size={17}/><span>{callingId===group.id?copy.calling:copy.call}</span></button></div>
           </article>)}</div>
         </div>
       </section>

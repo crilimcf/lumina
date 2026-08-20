@@ -18,7 +18,28 @@ async function register(page) {
   await page.getByRole('button', { name:'Entrar no Feed' }).click();
 }
 
-test('Radar e Lumina One mudam de Portugal para França sem mudar a língua da app', async ({ page, context }) => {
+function radarItem({ id, title, summary, source, tags, region }) {
+  return {
+    id,
+    type:'news',
+    title,
+    summary,
+    source_name:source,
+    source_url:null,
+    external_url:null,
+    image_url:null,
+    sponsored:false,
+    sponsor_label:null,
+    tags,
+    region,
+    starts_at:null,
+    ends_at:null,
+    published_at:new Date().toISOString(),
+    priority:10,
+  };
+}
+
+test('Radar mantém Mundo e muda o Local de Portugal para França sem mudar a língua da app', async ({ page, context }) => {
   await context.addInitScript(() => {
     window.__radarCountry = 'PT';
     Object.defineProperty(navigator, 'geolocation', {
@@ -59,54 +80,47 @@ test('Radar e Lumina One mudam de Portugal para França sem mudar a língua da a
     });
   });
 
-  const requestedCountries = [];
+  const radarRequests = [];
   await page.route('**/api/radar?**', async route => {
     const url = new URL(route.request().url());
     const country = url.searchParams.get('country');
-    requestedCountries.push(country);
+    const scope = url.searchParams.get('scope') || 'mixed';
+    radarRequests.push({ country, scope });
     const france = country === 'FR';
+    const global = scope === 'global';
+    const item = global
+      ? radarItem({ id:'world-item', title:'World briefing', summary:'Global editorial signal.', source:'Euronews', tags:['country:global'], region:'Global' })
+      : radarItem({
+          id:france ? 'fr-item' : 'pt-item',
+          title:france ? 'Actualité locale à Paris' : 'Notícia local em Lisboa',
+          summary:france ? 'Contenu éditorial français.' : 'Conteúdo editorial português.',
+          source:france ? 'franceinfo' : 'RTP Notícias',
+          tags:[`country:${String(country || 'pt').toLowerCase()}`],
+          region:france ? 'France' : 'Portugal',
+        });
     await route.fulfill({
       status:200,
       contentType:'application/json',
-      body:JSON.stringify({
-        country,
-        region:france ? 'Paris' : 'Lisboa',
-        nextCursor:null,
-        items:[{
-          id:france ? 'fr-item' : 'pt-item',
-          type:'news',
-          title:france ? 'Actualité locale à Paris' : 'Notícia local em Lisboa',
-          summary:france ? 'Contenu éditorial français.' : 'Conteúdo editorial português.',
-          source_name:france ? 'franceinfo' : 'RTP Notícias',
-          source_url:null,
-          external_url:null,
-          image_url:null,
-          sponsored:false,
-          sponsor_label:null,
-          tags:[`country:${country.toLowerCase()}`],
-          region:france ? 'France' : 'Portugal',
-          starts_at:null,
-          ends_at:null,
-          published_at:new Date().toISOString(),
-          priority:10,
-        }],
-      }),
+      body:JSON.stringify({ country, scope, region:france ? 'Paris' : 'Lisboa', nextCursor:null, items:[item] }),
     });
   });
 
   await register(page);
   await page.getByRole('button', { name:'Radar' }).click();
 
-  await expect(page.getByRole('button', { name:'Tentar localização novamente' })).toContainText('Lisboa, Portugal');
+  await expect(page.getByRole('button', { name:'Atualizar localização' })).toContainText('Lisboa, Portugal');
   await expect(page.getByRole('heading', { name:'Notícia local em Lisboa' })).toBeVisible();
-  expect(requestedCountries.at(-1)).toBe('PT');
+  await expect(page.getByRole('heading', { name:'World briefing' })).toBeVisible();
+  expect(radarRequests.some(req => req.scope === 'local' && req.country === 'PT')).toBe(true);
+  expect(radarRequests.some(req => req.scope === 'global' && req.country === null)).toBe(true);
 
   await page.evaluate(() => { window.__radarCountry = 'FR'; });
-  await page.getByRole('button', { name:'Tentar localização novamente' }).click();
+  await page.getByRole('button', { name:'Atualizar localização' }).click();
 
-  await expect(page.getByRole('button', { name:'Tentar localização novamente' })).toContainText('Paris, France');
+  await expect(page.getByRole('button', { name:'Atualizar localização' })).toContainText('Paris, France');
   await expect(page.getByRole('heading', { name:'Actualité locale à Paris' })).toBeVisible();
-  expect(requestedCountries.at(-1)).toBe('FR');
+  await expect(page.getByRole('heading', { name:'World briefing' })).toBeVisible();
+  expect(radarRequests.some(req => req.scope === 'local' && req.country === 'FR')).toBe(true);
 
   await page.getByRole('button', { name:'Feed' }).click();
   const oneEntry = page.locator('.one-v3-feed-entry');
@@ -117,5 +131,5 @@ test('Radar e Lumina One mudam de Portugal para França sem mudar a língua da a
 
   await expect(page.getByPlaceholder('Porto, Lisboa, Braga…')).toHaveValue('Paris');
   await expect(page.locator('.one-local-grid article')).toContainText('Actualité locale à Paris');
-  expect(requestedCountries.at(-1)).toBe('FR');
+  expect(radarRequests.some(req => req.country === 'FR')).toBe(true);
 });

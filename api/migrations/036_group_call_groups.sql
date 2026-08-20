@@ -1,5 +1,6 @@
 -- Lumina · dedicated persistent groups for group video calls.
--- Group video calls no longer create private Salas. Existing room-backed calls remain valid.
+-- New group video calls no longer create private Salas.
+-- Legacy groups created by the old GroupCallHub are moved out of Salas automatically.
 
 CREATE TABLE group_call_groups (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -37,3 +38,50 @@ ALTER TABLE group_call_sessions
 CREATE INDEX group_call_sessions_group_status_idx
   ON group_call_sessions(group_id, status, created_at DESC)
   WHERE group_id IS NOT NULL;
+
+-- The old GroupCallHub always created a private room with this exact topic,
+-- no description/image and at least one invite. Reuse the same UUID so active/history
+-- call references can move without changing the group's identity.
+INSERT INTO group_call_groups (id,creator_id,name,image_url,created_at,updated_at)
+SELECT r.id,r.creator_id,left(r.name,60),NULL,r.created_at,r.updated_at
+  FROM rooms r
+ WHERE r.visibility='private'
+   AND r.topic='Grupo de videochamada'
+   AND COALESCE(r.description,'')=''
+   AND r.image_url IS NULL
+   AND EXISTS (SELECT 1 FROM room_invites ri WHERE ri.room_id=r.id)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO group_call_group_members (group_id,user_id,role,added_at)
+SELECT r.id,rm.user_id,
+       CASE WHEN rm.user_id=r.creator_id THEN 'owner' ELSE 'member' END,
+       rm.joined_at
+  FROM rooms r
+  JOIN group_call_groups g ON g.id=r.id
+  JOIN room_members rm ON rm.room_id=r.id
+ON CONFLICT (group_id,user_id) DO UPDATE
+SET role=CASE WHEN EXCLUDED.role='owner' THEN 'owner' ELSE group_call_group_members.role END;
+
+INSERT INTO group_call_group_members (group_id,user_id,role,added_at)
+SELECT r.id,ri.user_id,
+       CASE WHEN ri.user_id=r.creator_id THEN 'owner' ELSE 'member' END,
+       ri.created_at
+  FROM rooms r
+  JOIN group_call_groups g ON g.id=r.id
+  JOIN room_invites ri ON ri.room_id=r.id
+ON CONFLICT (group_id,user_id) DO NOTHING;
+
+UPDATE group_call_sessions gc
+   SET group_id=gc.room_id,
+       room_id=NULL
+ WHERE gc.room_id IN (SELECT id FROM group_call_groups);
+
+-- Remove only rooms positively identified as old GroupCallHub artefacts.
+-- Their members/calls already live in the dedicated group tables above.
+DELETE FROM rooms r
+ USING group_call_groups g
+ WHERE r.id=g.id
+   AND r.visibility='private'
+   AND r.topic='Grupo de videochamada'
+   AND COALESCE(r.description,'')=''
+   AND r.image_url IS NULL;

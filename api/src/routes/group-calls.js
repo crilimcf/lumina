@@ -5,11 +5,17 @@ import { sendPushToUser } from '../lib/webpush.js';
 
 export const groupCallRoutes = Router();
 const GROUP_PREFIX = 'g:';
-const ROOM_PREFIX = 'room:';
+const GROUP_THREAD_PREFIX = 'group:';
+const ROOM_PREFIX = 'room:'; // compatibilidade com grupos antigos baseados em Salas
 const MAX_GROUP_PARTICIPANTS = 6;
+const MAX_OTHER_PEOPLE = MAX_GROUP_PARTICIPANTS - 1;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const groupIdOf = value => String(value || '').startsWith(GROUP_PREFIX)
   ? String(value).slice(GROUP_PREFIX.length)
+  : null;
+const groupThreadIdOf = value => String(value || '').startsWith(GROUP_THREAD_PREFIX)
+  ? String(value).slice(GROUP_THREAD_PREFIX.length)
   : null;
 const roomIdOf = value => String(value || '').startsWith(ROOM_PREFIX)
   ? String(value).slice(ROOM_PREFIX.length)
@@ -19,10 +25,14 @@ async function groupCall(callId, userId, query = q) {
   const id = groupIdOf(callId);
   if (!id) return null;
   const { rows } = await query(
-    `SELECT gc.*, r.name AS group_name, r.image_url AS group_image,
-            gp.status AS participant_status, gp.joined_at AS self_joined_at
+    `SELECT gc.*,
+            COALESCE(gg.name,r.name) AS group_name,
+            COALESCE(gg.image_url,r.image_url) AS group_image,
+            gp.status AS participant_status,
+            gp.joined_at AS self_joined_at
        FROM group_call_sessions gc
-       JOIN rooms r ON r.id=gc.room_id
+       LEFT JOIN group_call_groups gg ON gg.id=gc.group_id
+       LEFT JOIN rooms r ON r.id=gc.room_id
        JOIN group_call_participants gp ON gp.call_id=gc.id AND gp.user_id=$2
       WHERE gc.id=$1`,
     [id, userId]
@@ -49,7 +59,8 @@ async function publicGroupCall(call, userId, query = q) {
   return {
     id:`${GROUP_PREFIX}${call.id}`,
     group:true,
-    room_id:call.room_id,
+    group_id:call.group_id || null,
+    room_id:call.room_id || null,
     initiator_id:call.initiator_id,
     mode:'video',
     status:call.status,
@@ -64,6 +75,46 @@ async function publicGroupCall(call, userId, query = q) {
     palette:participants.find(p => p.id === call.initiator_id)?.palette ?? 0,
     participants,
   };
+}
+
+async function persistentGroup(groupId, userId, query = q) {
+  const { rows } = await query(
+    `SELECT g.id,g.creator_id,g.name,g.image_url,g.created_at,g.updated_at,
+            self.role AS self_role,
+            (SELECT count(*)::int
+               FROM group_call_group_members gm
+               JOIN users member ON member.id=gm.user_id AND member.suspended_at IS NULL
+              WHERE gm.group_id=g.id) AS member_count
+       FROM group_call_groups g
+       JOIN group_call_group_members self ON self.group_id=g.id AND self.user_id=$2
+      WHERE g.id=$1`,
+    [groupId, userId]
+  );
+  return rows[0] || null;
+}
+
+async function eligibleGroup(groupId, userId) {
+  const group = await persistentGroup(groupId, userId);
+  if (!group) throw forbidden('Este grupo não está disponível');
+  return group;
+}
+
+async function persistentGroupMembers(groupId, initiatorId) {
+  const { rows } = await q(
+    `SELECT u.id,u.name,u.handle,u.palette,u.avatar_url
+       FROM group_call_group_members gm
+       JOIN users u ON u.id=gm.user_id AND u.suspended_at IS NULL
+      WHERE gm.group_id=$1
+        AND NOT EXISTS (
+          SELECT 1 FROM blocks b
+           WHERE (b.blocker_id=$2 AND b.blocked_id=u.id)
+              OR (b.blocked_id=$2 AND b.blocker_id=u.id)
+        )
+      ORDER BY (u.id=$2) DESC,(gm.role='owner') DESC,gm.added_at,u.name
+      LIMIT $3`,
+    [groupId, initiatorId, MAX_GROUP_PARTICIPANTS]
+  );
+  return rows;
 }
 
 async function eligibleRoom(roomId, userId) {
@@ -82,7 +133,7 @@ async function eligibleRoom(roomId, userId) {
   return room;
 }
 
-async function groupMembers(roomId, initiatorId) {
+async function legacyRoomMembers(roomId, initiatorId) {
   const { rows } = await q(
     `WITH candidates AS (
        SELECT user_id,0 AS priority FROM room_members WHERE room_id=$1
@@ -118,26 +169,132 @@ async function pushReadyFor(userId) {
   return !!rows[0]?.ready;
 }
 
-// Interceta apenas chamadas iniciadas com threadId="room:<uuid>".
+// Grupos persistentes de videochamada vivem no Direct e nunca criam uma Sala.
+groupCallRoutes.get('/groups', auth, h(async (req, res) => {
+  const { rows } = await q(
+    `SELECT g.id,g.creator_id,g.name,g.image_url,g.created_at,g.updated_at,
+            self.role AS self_role,
+            (SELECT count(*)::int
+               FROM group_call_group_members gm2
+               JOIN users member ON member.id=gm2.user_id AND member.suspended_at IS NULL
+              WHERE gm2.group_id=g.id) AS member_count
+       FROM group_call_groups g
+       JOIN group_call_group_members self ON self.group_id=g.id AND self.user_id=$1
+      ORDER BY (g.creator_id=$1) DESC,g.updated_at DESC,g.created_at DESC
+      LIMIT 100`,
+    [req.user.id]
+  );
+  res.json(rows);
+}));
+
+groupCallRoutes.post('/groups', auth, h(async (req, res) => {
+  const name = String(req.body?.name || '').trim();
+  const rawIds = Array.isArray(req.body?.memberIds) ? req.body.memberIds : [];
+  const memberIds = [...new Set(rawIds.map(value => String(value || '').trim()).filter(Boolean))]
+    .filter(value => value !== req.user.id);
+
+  if (name.length < 3 || name.length > 60) throw bad('O nome do grupo tem entre 3 e 60 caracteres');
+  if (memberIds.length < 1) throw bad('Escolhe pelo menos uma pessoa');
+  if (memberIds.length > MAX_OTHER_PEOPLE) throw bad('Podes escolher no máximo 5 pessoas');
+  if (memberIds.some(id => !UUID_RE.test(id))) throw bad('Pessoa inválida');
+
+  const { rows:people } = await q(
+    `SELECT u.id
+       FROM users u
+      WHERE u.id=ANY($1::uuid[])
+        AND u.suspended_at IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM blocks b
+           WHERE (b.blocker_id=$2 AND b.blocked_id=u.id)
+              OR (b.blocked_id=$2 AND b.blocker_id=u.id)
+        )`,
+    [memberIds, req.user.id]
+  );
+  if (people.length !== memberIds.length) throw forbidden('Uma das pessoas já não pode ser adicionada a este grupo');
+
+  const created = await tx(async c => {
+    const { rows } = await c.query(
+      `INSERT INTO group_call_groups (creator_id,name)
+       VALUES ($1,$2) RETURNING id`,
+      [req.user.id, name]
+    );
+    const groupId = rows[0].id;
+    await c.query(
+      `INSERT INTO group_call_group_members (group_id,user_id,role)
+       VALUES ($1,$2,'owner')`,
+      [groupId, req.user.id]
+    );
+    for (const userId of memberIds) {
+      await c.query(
+        `INSERT INTO group_call_group_members (group_id,user_id,role)
+         VALUES ($1,$2,'member')`,
+        [groupId, userId]
+      );
+    }
+    return groupId;
+  });
+
+  res.status(201).json(await persistentGroup(created, req.user.id));
+}));
+
+groupCallRoutes.delete('/groups/:groupId', auth, h(async (req, res) => {
+  const groupId = String(req.params.groupId || '');
+  if (!UUID_RE.test(groupId)) throw notFound('Grupo não encontrado');
+  const group = await persistentGroup(groupId, req.user.id);
+  if (!group || group.creator_id !== req.user.id) throw notFound('Grupo não encontrado');
+
+  const { rows:active } = await q(
+    `SELECT 1 FROM group_call_sessions
+      WHERE group_id=$1 AND status IN ('ringing','active') LIMIT 1`,
+    [groupId]
+  );
+  if (active[0]) throw bad('Termina a videochamada antes de apagar o grupo', 'group_call_active');
+
+  const { rows } = await q(
+    `DELETE FROM group_call_groups WHERE id=$1 AND creator_id=$2 RETURNING id`,
+    [groupId, req.user.id]
+  );
+  if (!rows[0]) throw notFound('Grupo não encontrado');
+  res.json({ deleted:true });
+}));
+
+// Chamadas novas usam threadId="group:<uuid>". room:<uuid> fica apenas para compatibilidade com grupos antigos.
 groupCallRoutes.post('/', auth, (req, res, next) => {
-  const roomId = roomIdOf(req.body?.threadId);
-  if (!roomId) return next();
+  const dedicatedGroupId = groupThreadIdOf(req.body?.threadId);
+  const legacyRoomId = roomIdOf(req.body?.threadId);
+  if (!dedicatedGroupId && !legacyRoomId) return next();
+
   return h(async () => {
     if (String(req.body?.mode || 'video') !== 'video') throw bad('Chamadas de grupo são vídeo nesta versão');
-    const room = await eligibleRoom(roomId, req.user.id);
-    const members = await groupMembers(room.id, req.user.id);
+
+    let parent;
+    let members;
+    let scopeColumn;
+    let scopeId;
+    if (dedicatedGroupId) {
+      parent = await eligibleGroup(dedicatedGroupId, req.user.id);
+      members = await persistentGroupMembers(parent.id, req.user.id);
+      scopeColumn = 'group_id';
+      scopeId = parent.id;
+    } else {
+      parent = await eligibleRoom(legacyRoomId, req.user.id);
+      members = await legacyRoomMembers(parent.id, req.user.id);
+      scopeColumn = 'room_id';
+      scopeId = parent.id;
+    }
+
     if (members.length < 2) throw bad('Adiciona pelo menos uma pessoa ao grupo antes de ligar');
 
     const created = await tx(async c => {
       await c.query(
         `UPDATE group_call_sessions SET status='ended',ended_at=now()
-          WHERE room_id=$1 AND status IN ('ringing','active')`,
-        [room.id]
+          WHERE ${scopeColumn}=$1 AND status IN ('ringing','active')`,
+        [scopeId]
       );
       const { rows } = await c.query(
-        `INSERT INTO group_call_sessions (room_id,initiator_id,mode)
+        `INSERT INTO group_call_sessions (${scopeColumn},initiator_id,mode)
          VALUES ($1,$2,'video') RETURNING *`,
-        [room.id, req.user.id]
+        [scopeId, req.user.id]
       );
       const call = rows[0];
       for (const member of members) {
@@ -157,7 +314,7 @@ groupCallRoutes.post('/', auth, (req, res, next) => {
         sendPushToUser(member.id, {
           notification:{
             title:`${req.user.name || req.user.handle} iniciou uma chamada`,
-            body:`Videochamada no grupo ${room.name}`,
+            body:`Videochamada no grupo ${parent.name}`,
             tag:`lumina:group-call:${created.id}`,
             url:`/?tab=dms&call=${encodeURIComponent(`${GROUP_PREFIX}${created.id}`)}`,
           },
@@ -166,7 +323,12 @@ groupCallRoutes.post('/', auth, (req, res, next) => {
       return { id:member.id, ready, attempted:push.attempted || 0, accepted:push.accepted || 0 };
     }));
 
-    const hydrated = { ...created, group_name:room.name, group_image:room.image_url, self_joined_at:new Date().toISOString() };
+    const hydrated = {
+      ...created,
+      group_name:parent.name,
+      group_image:parent.image_url || null,
+      self_joined_at:new Date().toISOString(),
+    };
     const out = await publicGroupCall(hydrated, req.user.id);
     res.status(201).json({
       ...out,
@@ -181,10 +343,14 @@ groupCallRoutes.post('/', auth, (req, res, next) => {
 // Uma chamada de grupo pendente tem prioridade; se não existir, deixa a rota 1:1 responder.
 groupCallRoutes.get('/incoming', auth, (req, res, next) => h(async () => {
   const { rows } = await q(
-    `SELECT gc.*,r.name AS group_name,r.image_url AS group_image,gp.joined_at AS self_joined_at
+    `SELECT gc.*,
+            COALESCE(gg.name,r.name) AS group_name,
+            COALESCE(gg.image_url,r.image_url) AS group_image,
+            gp.joined_at AS self_joined_at
        FROM group_call_participants gp
        JOIN group_call_sessions gc ON gc.id=gp.call_id
-       JOIN rooms r ON r.id=gc.room_id
+       LEFT JOIN group_call_groups gg ON gg.id=gc.group_id
+       LEFT JOIN rooms r ON r.id=gc.room_id
       WHERE gp.user_id=$1 AND gp.status='invited'
         AND gc.status IN ('ringing','active')
         AND gc.created_at > now()-interval '3 minutes'
@@ -222,12 +388,14 @@ groupCallRoutes.post('/:callId/answer', ...groupRoute(async (req, res) => {
       [call.id, req.user.id]
     );
     await c.query(`UPDATE group_call_sessions SET status='active',started_at=COALESCE(started_at,now()) WHERE id=$1 AND status<>'ended'`, [call.id]);
-    await c.query(
-      `INSERT INTO room_members (room_id,user_id,role)
-       VALUES ($1,$2,'member') ON CONFLICT (room_id,user_id) DO NOTHING`,
-      [call.room_id, req.user.id]
-    );
-    await c.query(`UPDATE room_invites SET accepted_at=COALESCE(accepted_at,now()) WHERE room_id=$1 AND user_id=$2`, [call.room_id, req.user.id]);
+    if (call.room_id) {
+      await c.query(
+        `INSERT INTO room_members (room_id,user_id,role)
+         VALUES ($1,$2,'member') ON CONFLICT (room_id,user_id) DO NOTHING`,
+        [call.room_id, req.user.id]
+      );
+      await c.query(`UPDATE room_invites SET accepted_at=COALESCE(accepted_at,now()) WHERE room_id=$1 AND user_id=$2`, [call.room_id, req.user.id]);
+    }
   });
   const refreshed = await groupCall(req.params.callId, req.user.id);
   res.json(await publicGroupCall(refreshed, req.user.id));

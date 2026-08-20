@@ -33,16 +33,31 @@ before(async()=>{
 
 after(async()=>{if(server)await new Promise(resolve=>server.close(resolve));await pool.end()});
 
-test('videochamada de grupo limita a sessão a seis participantes',async()=>{
+test('grupo Direct limita a videochamada a seis participantes no total',async()=>{
   const users=[];for(let i=0;i<8;i++)users.push(await register(i));
   const owner=users[0];
-  const created=await request('/rooms',{method:'POST',token:owner.token,body:{name:'Grupo grande',topic:'Grupo de videochamada',description:'',visibility:'private'}});
-  const roomId=created.data.room.id;
-  for(const person of users.slice(1)){
-    const invite=await request(`/rooms/${roomId}/invite`,{method:'POST',token:owner.token,body:{userId:person.user.id}});
-    assert.equal(invite.response.status,201,JSON.stringify(invite.data));
-  }
-  const call=await request('/calls',{method:'POST',token:owner.token,body:{threadId:`room:${roomId}`,mode:'video'}});
+
+  const tooLarge=await request('/calls/groups',{
+    method:'POST',token:owner.token,
+    body:{name:'Grupo demasiado grande',memberIds:users.slice(1).map(user=>user.user.id)},
+  });
+  assert.equal(tooLarge.response.status,400,JSON.stringify(tooLarge.data));
+
+  const created=await request('/calls/groups',{
+    method:'POST',token:owner.token,
+    body:{name:'Grupo com seis',memberIds:users.slice(1,6).map(user=>user.user.id)},
+  });
+  assert.equal(created.response.status,201,JSON.stringify(created.data));
+  assert.equal(created.data.member_count,6);
+
+  const rooms=await request('/rooms',{token:owner.token});
+  assert.equal(rooms.response.status,200,JSON.stringify(rooms.data));
+  assert.equal(rooms.data.some(room=>room.name==='Grupo com seis'),false);
+
+  const call=await request('/calls',{
+    method:'POST',token:owner.token,
+    body:{threadId:`group:${created.data.id}`,mode:'video'},
+  });
   assert.equal(call.response.status,201,JSON.stringify(call.data));
   assert.equal(call.data.group_size,6);
   assert.equal(call.data.participants.length,6);

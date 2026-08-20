@@ -146,6 +146,9 @@ export const api = {
     removeMessage: (roomId, messageId) => call(`/rooms/${roomId}/messages/${messageId}`, { method: 'DELETE' }),
   },
   calls: {
+    groups: () => call('/calls/groups'),
+    createGroup: (body) => call('/calls/groups', { method: 'POST', body }),
+    removeGroup: (id) => call(`/calls/groups/${id}`, { method: 'DELETE' }),
     start: (threadId, mode) => call('/calls', { method: 'POST', body: { threadId, mode } }),
     incoming: () => call('/calls/incoming'),
     get: (id) => call(`/calls/${id}`),

@@ -122,6 +122,36 @@ test('cidade atual tem prioridade dentro do país sem furar o filtro nacional', 
   assert.equal(data.items.some(item => item.title === 'Legacy Portugal item'), false);
 });
 
+test('scope local devolve só o país atual e nunca mistura Global', async () => {
+  const { response, data } = await request('/radar?scope=local&country=FR&region=Paris&limit=20');
+  assert.equal(response.status, 200, JSON.stringify(data));
+  assert.equal(data.scope, 'local');
+  const titles = data.items.map(item => item.title);
+  assert.equal(titles.includes('France only'), true);
+  assert.equal(titles.includes('Paris local'), true);
+  assert.equal(titles.includes('Global item'), false);
+  assert.equal(titles.includes('Portugal only'), false);
+});
+
+test('scope global funciona sem localização e devolve apenas Mundo', async () => {
+  const { response, data } = await request('/radar?scope=global&limit=20');
+  assert.equal(response.status, 200, JSON.stringify(data));
+  assert.equal(data.scope, 'global');
+  assert.equal(data.country, null);
+  const titles = data.items.map(item => item.title);
+  assert.deepEqual(titles, ['Global item']);
+});
+
+test('scope local exige país e scope inválido é rejeitado', async () => {
+  const local = await request('/radar?scope=local');
+  assert.equal(local.response.status, 400);
+  assert.equal(local.data.code, 'missing_radar_country');
+
+  const invalid = await request('/radar?scope=planet');
+  assert.equal(invalid.response.status, 400);
+  assert.equal(invalid.data.code, 'bad_radar_scope');
+});
+
 test('Radar rejeita código de país que não seja ISO alpha-2', async () => {
   const { response, data } = await request('/radar?country=FRA');
   assert.equal(response.status, 400);

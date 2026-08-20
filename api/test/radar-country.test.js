@@ -49,7 +49,7 @@ before(async () => {
   );
 
   const firstBootstrap = await ensureRadarCountrySources();
-  assert.equal(firstBootstrap.inserted, 3);
+  assert.equal(firstBootstrap.inserted, 5);
   const secondBootstrap = await ensureRadarCountrySources();
   assert.equal(secondBootstrap.inserted, 0);
 
@@ -65,6 +65,13 @@ before(async () => {
        AND config->'tags' @> '["country:fr"]'::jsonb`
   );
   assert.equal(frenchSources[0].total, 3);
+
+  const { rows: globalSources } = await q(
+    `SELECT count(*)::int AS total FROM radar_sources
+     WHERE lower(COALESCE(config->>'region',''))='global'
+       AND config->'tags' @> '["country:global"]'::jsonb`
+  );
+  assert.equal(globalSources[0].total, 2);
 
   await q(
     `INSERT INTO radar_items (type,title,summary,tags,region,source_id,published_at,status,priority)

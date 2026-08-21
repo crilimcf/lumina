@@ -48,8 +48,16 @@ before(async () => {
      RETURNING id`
   );
 
+  await q(
+    `INSERT INTO radar_items (
+       type,title,summary,tags,region,starts_at,ends_at,published_at,status,priority,fingerprint
+     ) VALUES
+       ('promotion','Verified Portugal promotion','Promoção',ARRAY['portugal','promocoes'],'Portugal',NULL,NULL,now(),'published',18,'verified:promotion:test-country-backfill'),
+       ('event','Verified Portugal event','Evento',ARRAY['portugal','eventos'],'Lisboa',now()+interval '1 day',now()+interval '2 days',now(),'published',18,'verified:event:test-country-backfill')`
+  );
+
   const firstBootstrap = await ensureRadarCountrySources();
-  assert.equal(firstBootstrap.inserted, 5);
+  assert.equal(firstBootstrap.inserted, 11);
   const secondBootstrap = await ensureRadarCountrySources();
   assert.equal(secondBootstrap.inserted, 0);
 
@@ -59,12 +67,20 @@ before(async () => {
   );
   assert.equal(taggedPortugal[0].tags.includes('country:pt'), true);
 
+  const { rows: recoveredCategories } = await q(
+    `SELECT type,tags FROM radar_items
+     WHERE fingerprint IN ('verified:promotion:test-country-backfill','verified:event:test-country-backfill')
+     ORDER BY type`
+  );
+  assert.equal(recoveredCategories.length, 2);
+  assert.equal(recoveredCategories.every(item => item.tags.includes('country:pt')), true);
+
   const { rows: frenchSources } = await q(
     `SELECT count(*)::int AS total FROM radar_sources
      WHERE lower(COALESCE(config->>'region',''))='france'
        AND config->'tags' @> '["country:fr"]'::jsonb`
   );
-  assert.equal(frenchSources[0].total, 3);
+  assert.equal(frenchSources[0].total, 4);
 
   const { rows: globalSources } = await q(
     `SELECT count(*)::int AS total FROM radar_sources
@@ -72,6 +88,13 @@ before(async () => {
        AND config->'tags' @> '["country:global"]'::jsonb`
   );
   assert.equal(globalSources[0].total, 2);
+
+  const { rows: trendSources } = await q(
+    `SELECT count(*)::int AS total FROM radar_sources
+     WHERE active=true AND trusted=true AND default_type='trend'
+       AND config->'tags' @> '["country:global"]'::jsonb`
+  );
+  assert.equal(trendSources[0].total, 6);
 
   await q(
     `INSERT INTO radar_items (type,title,summary,tags,region,source_id,published_at,status,priority)
@@ -115,9 +138,21 @@ test('Radar em Portugal mostra Portugal/global e recupera legado sem misturar de
   assert.equal(titles.includes('Global item'), true);
   assert.equal(titles.includes('Legacy Portugal item'), true);
   assert.equal(titles.includes('Legacy source Portugal'), true);
+  assert.equal(titles.includes('Verified Portugal promotion'), true);
+  assert.equal(titles.includes('Verified Portugal event'), true);
   assert.equal(titles.includes('France only'), false);
   assert.equal(titles.includes('Paris local'), false);
   assert.equal(titles.includes('Legacy unknown'), false);
+});
+
+test('Eventos e Promoções verificadas aparecem no scope local de Portugal', async () => {
+  const promotion = await request('/radar?scope=local&country=PT&type=promotion&limit=20');
+  assert.equal(promotion.response.status, 200, JSON.stringify(promotion.data));
+  assert.equal(promotion.data.items.some(item => item.title === 'Verified Portugal promotion'), true);
+
+  const event = await request('/radar?scope=local&country=PT&type=event&limit=20');
+  assert.equal(event.response.status, 200, JSON.stringify(event.data));
+  assert.equal(event.data.items.some(item => item.title === 'Verified Portugal event'), true);
 });
 
 test('cidade atual tem prioridade dentro do país sem furar o filtro nacional', async () => {

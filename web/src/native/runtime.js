@@ -4,7 +4,7 @@ import { PrivacyScreen } from '@capacitor/privacy-screen';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
-import { initializeNativeSession, installNativeFetchBridge, isNativeApp, toNativeNavigationUrl } from './session.js';
+import { initializeNativeSession, installNativeFetchBridge, isNativeApp, nativePlatform, toNativeNavigationUrl } from './session.js';
 import { installNativeGeolocationBridge } from './geolocation.js';
 import { initializeNativePush } from './push.js';
 
@@ -23,7 +23,7 @@ export const takePendingNativeNavigation = () => {
 
 export async function initializeNativeRuntime() {
   if (!isNativeApp) return;
-  document.documentElement.classList.add('lumina-native');
+  document.documentElement.classList.add('lumina-native', `lumina-native-${nativePlatform}`);
   installNativeFetchBridge();
   installNativeGeolocationBridge();
   await initializeNativeSession();

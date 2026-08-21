@@ -17,6 +17,41 @@ const FILTERS = [
   ['trend', TrendingUp, 'Tendências'],
 ];
 
+const LOCAL_ONLY_FILTERS = new Set(['promotion', 'event']);
+
+const FILTER_COPY = {
+  '': {
+    localSubtitle: 'Notícias e sinais do local onde estás agora.',
+    globalSubtitle: 'Notícias e sinais globais, independentemente do local onde estás.',
+    localEmpty: 'Ainda não há conteúdo local disponível.',
+    globalEmpty: 'Ainda não há conteúdo global disponível.',
+  },
+  news: {
+    localSubtitle: 'Notícias verificadas do país e da região onde estás.',
+    globalSubtitle: 'Notícias globais, independentemente do local onde estás.',
+    localEmpty: 'Sem notícias locais neste momento.',
+    globalEmpty: 'Sem notícias globais neste momento.',
+  },
+  promotion: {
+    localSubtitle: 'Ofertas e campanhas verificadas relevantes no país onde estás.',
+    globalSubtitle: '',
+    localEmpty: 'Ainda não há promoções verificadas para esta localização.',
+    globalEmpty: '',
+  },
+  event: {
+    localSubtitle: 'Eventos atuais e próximos, com data e fonte verificável.',
+    globalSubtitle: '',
+    localEmpty: 'Ainda não há eventos futuros verificados para esta localização.',
+    globalEmpty: '',
+  },
+  trend: {
+    localSubtitle: 'Pesquisas que estão a ganhar força no país onde estás.',
+    globalSubtitle: 'Pesquisas em alta reunidas a partir de vários países.',
+    localEmpty: 'A aguardar novas tendências desta localização.',
+    globalEmpty: 'A aguardar novas tendências globais.',
+  },
+};
+
 const TYPE_LABEL = {
   news: 'Notícia', promotion: 'Promoção', event: 'Evento', trend: 'Tendência', editorial: 'Lumina',
 };
@@ -137,6 +172,8 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
   const [location, setLocation] = useState(() => readCachedRadarLocation());
   const [locationReady, setLocationReady] = useState(false);
   const [locating, setLocating] = useState(false);
+  const localOnly = LOCAL_ONLY_FILTERS.has(filter);
+  const copy = FILTER_COPY[filter] || FILTER_COPY[''];
 
   const refreshLocation = useCallback(async (force = false) => {
     setLocating(true);
@@ -155,8 +192,13 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
 
   useEffect(() => {
     let active = true;
-    setGlobalLoading(true);
     setPublisher('');
+    if (LOCAL_ONLY_FILTERS.has(filter)) {
+      setGlobalItems([]);
+      setGlobalLoading(false);
+      return () => { active = false; };
+    }
+    setGlobalLoading(true);
     loadGlobalRadar({ type:filter || undefined, limit:30 })
       .then(result => { if (active) setGlobalItems(result.items || []); })
       .catch(error => { if (active) ping(error.message); })
@@ -192,7 +234,9 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
     [allItems],
   );
   const localVisible = publisher ? localItems.filter(item => cleanEditorialText(item.source_name) === publisher) : localItems;
-  const globalVisible = publisher ? globalItems.filter(item => cleanEditorialText(item.source_name) === publisher) : globalItems;
+  const localIds = new Set(localVisible.map(item => item.id));
+  const globalVisible = (publisher ? globalItems.filter(item => cleanEditorialText(item.source_name) === publisher) : globalItems)
+    .filter(item => !localIds.has(item.id));
 
   return <div className="lumina-facelift lumina-explore">
     <div className="explore-shell">
@@ -227,7 +271,7 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
         </div>
         <div className="radar-status-chip is-world">
           <span className="radar-status-chip-icon"><Globe2 size={16}/></span>
-          <span className="radar-status-chip-copy"><b><span className="radar-status-live"/>Mundo sempre ativo</b><small>Notícias globais em qualquer lugar</small></span>
+          <span className="radar-status-chip-copy"><b><span className="radar-status-live"/>Mundo sempre ativo</b><small>{filter === 'trend' ? 'Tendências de vários países' : 'Notícias globais em qualquer lugar'}</small></span>
         </div>
       </div>
 
@@ -245,9 +289,9 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
         </div>
       </section>}
 
-      <div className="radar-dual-feed">
-        {locationReady && !location?.countryCode ? <section className="radar-location-off"><MapPin size={20}/><div><strong>Localização desligada</strong><p>Ativa a localização para juntar notícias locais. O Radar mundial continua disponível.</p></div></section> : <RadarSection scope="local" icon={MapPin} title="Perto de ti" subtitle="Notícias e sinais do local onde estás agora." items={localVisible} loading={!locationReady || localLoading} empty="Sem notícias locais nesta categoria." locationLabel={location?.label}/>} 
-        <RadarSection scope="global" icon={Globe2} title="Mundo" subtitle="Notícias globais, independentemente do local onde estás." items={globalVisible} loading={globalLoading} empty="Sem notícias globais nesta categoria."/>
+      <div className="radar-dual-feed" style={localOnly ? { gridTemplateColumns:'minmax(0,1fr)' } : undefined}>
+        {locationReady && !location?.countryCode ? <section className="radar-location-off"><MapPin size={20}/><div><strong>Localização desligada</strong><p>{localOnly ? 'Ativa a localização para veres conteúdo válido para o país onde estás.' : 'Ativa a localização para juntar conteúdo local. O Radar mundial continua disponível.'}</p></div></section> : <RadarSection scope="local" icon={MapPin} title="Perto de ti" subtitle={copy.localSubtitle} items={localVisible} loading={!locationReady || localLoading} empty={copy.localEmpty} locationLabel={location?.label}/>} 
+        {!localOnly && <RadarSection scope="global" icon={Globe2} title="Mundo" subtitle={copy.globalSubtitle} items={globalVisible} loading={globalLoading} empty={copy.globalEmpty}/>} 
       </div>
     </div>
 

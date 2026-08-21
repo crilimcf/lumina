@@ -91,9 +91,25 @@
   box-shadow: 0 0 0 3px rgba(123,97,255,.15), inset 0 1px 0 rgba(255,255,255,.055);
 }
 
-/* body already owns the top safe-area; sticky Feed chrome must stop at it. */
-.lumina-feed-header {
-  top: env(safe-area-inset-top);
+/* Feed chrome owns a predictable top frame on iPhone. The body still contributes
+   the browser/PWA safe-area; this rule adds only the missing amount so the bar
+   itself starts at >=52px and its controls begin comfortably below the status bar. */
+@media (max-width: 700px) {
+  body .lumina-feed .lumina-feed-header {
+    top: 0 !important;
+    padding-top: max(0px, calc(52px - env(safe-area-inset-top))) !important;
+  }
+
+  /* Capacitor deliberately overlays the WebView under the iOS status bar. Some
+     WKWebView builds report a zero CSS env inset there. Make the native iOS header
+     own the complete inset instead of splitting it between body and sticky chrome. */
+  html.lumina-native-ios body {
+    padding-top: 0 !important;
+  }
+
+  html.lumina-native-ios body .lumina-feed .lumina-feed-header {
+    padding-top: max(52px, env(safe-area-inset-top)) !important;
+  }
 }
 
 .lumina-feed-bar {

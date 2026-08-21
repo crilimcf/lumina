@@ -26,7 +26,7 @@ function radarItem({ id, title, summary, source, tags, region }) {
     summary,
     source_name:source,
     source_url:null,
-    external_url:null,
+    external_url:'https://example.test/story',
     image_url:null,
     sponsored:false,
     sponsor_label:null,
@@ -39,7 +39,8 @@ function radarItem({ id, title, summary, source, tags, region }) {
   };
 }
 
-test('Radar mantém Mundo e muda o Local de Portugal para França sem mudar a língua da app', async ({ page, context }) => {
+test('Radar mantém Mundo, contraste premium e muda o Local de Portugal para França sem mudar a língua da app', async ({ page, context }) => {
+  await context.emulateMedia({ colorScheme:'light' });
   await context.addInitScript(() => {
     window.__radarCountry = 'PT';
     Object.defineProperty(navigator, 'geolocation', {
@@ -89,11 +90,11 @@ test('Radar mantém Mundo e muda o Local de Portugal para França sem mudar a l�
     const france = country === 'FR';
     const global = scope === 'global';
     const item = global
-      ? radarItem({ id:'world-item', title:'World briefing', summary:'Global editorial signal.', source:'Euronews', tags:['country:global'], region:'Global' })
+      ? radarItem({ id:'world-item', title:'World briefing', summary:'Global&nbsp;&nbsp;editorial signal.', source:'Euronews', tags:['country:global'], region:'Global' })
       : radarItem({
           id:france ? 'fr-item' : 'pt-item',
           title:france ? 'Actualité locale à Paris' : 'Notícia local em Lisboa',
-          summary:france ? 'Contenu éditorial français.' : 'Conteúdo editorial português.',
+          summary:france ? 'Contenu&nbsp;&nbsp;éditorial français.' : 'Conteúdo&nbsp;&nbsp;editorial português.',
           source:france ? 'franceinfo' : 'RTP Notícias',
           tags:[`country:${String(country || 'pt').toLowerCase()}`],
           region:france ? 'France' : 'Portugal',
@@ -109,8 +110,27 @@ test('Radar mantém Mundo e muda o Local de Portugal para França sem mudar a l�
   await page.getByRole('button', { name:'Radar' }).click();
 
   await expect(page.getByRole('button', { name:'Atualizar localização' })).toContainText('Lisboa, Portugal');
+  await expect(page.getByText('Local ativo', { exact:true })).toBeVisible();
+  await expect(page.getByText('Mundo sempre ativo', { exact:true })).toBeVisible();
   await expect(page.getByRole('heading', { name:'Notícia local em Lisboa' })).toBeVisible();
   await expect(page.getByRole('heading', { name:'World briefing' })).toBeVisible();
+  await expect(page.getByText('Conteúdo editorial português.', { exact:true })).toBeVisible();
+  await expect(page.getByText('Global editorial signal.', { exact:true })).toBeVisible();
+  await expect(page.getByText(/&nbsp;/)).toHaveCount(0);
+
+  const localHeadingStyle = await page.locator('[data-radar-scope="local"] .radar-scope-heading').evaluate(node => {
+    const style = getComputedStyle(node);
+    const title = node.querySelector('.radar-scope-title');
+    return {
+      color:getComputedStyle(title).color,
+      backgroundColor:style.backgroundColor,
+      backgroundImage:style.backgroundImage,
+    };
+  });
+  expect(localHeadingStyle.color).toBe('rgb(255, 255, 255)');
+  expect(localHeadingStyle.backgroundColor).not.toMatch(/rgba?\(255,\s*255,\s*255/);
+  expect(localHeadingStyle.backgroundImage).toContain('linear-gradient');
+
   expect(radarRequests.some(req => req.scope === 'local' && req.country === 'PT')).toBe(true);
   expect(radarRequests.some(req => req.scope === 'global' && req.country === null)).toBe(true);
 
@@ -119,6 +139,7 @@ test('Radar mantém Mundo e muda o Local de Portugal para França sem mudar a l�
 
   await expect(page.getByRole('button', { name:'Atualizar localização' })).toContainText('Paris, France');
   await expect(page.getByRole('heading', { name:'Actualité locale à Paris' })).toBeVisible();
+  await expect(page.getByText('Contenu éditorial français.', { exact:true })).toBeVisible();
   await expect(page.getByRole('heading', { name:'World briefing' })).toBeVisible();
   expect(radarRequests.some(req => req.scope === 'local' && req.country === 'FR')).toBe(true);
 

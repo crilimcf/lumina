@@ -3,7 +3,6 @@ import {
   BadgeCheck, BadgePercent, CalendarDays, ChevronRight, ExternalLink, Globe2, MapPin, Newspaper,
   RefreshCw, Settings2, ShieldCheck, Sparkles, TrendingUp,
 } from 'lucide-react';
-import { api } from '../api.js';
 import { detectRadarLocation, loadGlobalRadar, loadRadarForLocation, readCachedRadarLocation } from '../radar-location.js';
 import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
 import { ScrollToTopButton } from '../components/ScrollToTopButton.jsx';
@@ -22,6 +21,20 @@ const TYPE_LABEL = {
   news: 'Notícia', promotion: 'Promoção', event: 'Evento', trend: 'Tendência', editorial: 'Lumina',
 };
 
+function cleanEditorialText(value) {
+  return String(value || '')
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;|&#160;|&#x0*a0;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#(?:39|x0*27);|&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function formatDate(value) {
   if (!value) return '';
   try {
@@ -38,7 +51,7 @@ function ItemIcon({ type, size = 15 }) {
 }
 
 function sourceInitials(name) {
-  const cleaned = String(name || 'Radar').replace(/·.*$/, '').trim();
+  const cleaned = cleanEditorialText(name || 'Radar').replace(/·.*$/, '').trim();
   return cleaned.split(/\s+/).slice(0,2).map(word=>word[0]).join('').toUpperCase().slice(0,2) || 'R';
 }
 
@@ -47,7 +60,7 @@ function PublisherMark({ name, size = 36 }) {
 }
 
 function SourceLine({ item }) {
-  const name = item.sponsor_label || item.source_name || 'Radar Lumina';
+  const name = cleanEditorialText(item.sponsor_label || item.source_name || 'Radar Lumina');
   return <div className="explore-source-line">
     <PublisherMark name={name}/>
     <div className="explore-source-copy">
@@ -68,6 +81,9 @@ function RadarImage({ item }) {
 function RadarCard({ item, hero = false }) {
   const displayDate = item.type === 'event' ? item.starts_at : item.published_at;
   const Title = hero ? 'h2' : 'h3';
+  const title = cleanEditorialText(item.title);
+  const summary = cleanEditorialText(item.summary || item.body);
+  const sourceName = cleanEditorialText(item.source_name || '');
   return <article className={`explore-card in${hero ? ' is-hero' : ''}`}>
     <RadarImage item={item}/>
     <div className="explore-card-body">
@@ -76,26 +92,36 @@ function RadarCard({ item, hero = false }) {
         {item.sponsored && <span className="explore-sponsored-badge">Patrocinado</span>}
         <span className="explore-date">{formatDate(displayDate)}</span>
       </div>
-      <Title>{item.title}</Title>
-      {(item.summary || item.body) && <div className="explore-card-summary">{item.summary || item.body}</div>}
+      <Title>{title}</Title>
+      {summary && <div className="explore-card-summary">{summary}</div>}
       <div className="explore-card-footer">
         <SourceLine item={item}/>
-        {item.external_url && <a className="explore-external" href={item.external_url} target="_blank" rel="noopener noreferrer" aria-label={`Abrir na fonte ${item.source_name || ''}`}><ExternalLink size={15}/></a>}
+        {item.external_url && <a className="explore-external" href={item.external_url} target="_blank" rel="noopener noreferrer" aria-label={`Abrir na fonte ${sourceName}`}><span>Ler na fonte</span><ExternalLink size={15}/></a>}
       </div>
     </div>
   </article>;
 }
 
-function RadarSection({ icon:Icon, title, subtitle, items, loading, empty, locationLabel }) {
+function RadarSkeleton() {
+  return <div className="radar-skeleton" aria-hidden="true">
+    <div className="radar-skeleton-media"/>
+    <div className="radar-skeleton-line is-short"/>
+    <div className="radar-skeleton-line is-title"/>
+    <div className="radar-skeleton-line is-mid"/>
+    <div className="radar-skeleton-line"/>
+  </div>;
+}
+
+function RadarSection({ scope, icon:Icon, title, subtitle, items, loading, empty, locationLabel }) {
   const hero = items[0] || null;
   const rest = hero ? items.slice(1) : [];
-  return <section className="radar-scope-section">
+  return <section className="radar-scope-section" data-radar-scope={scope} aria-label={title}>
     <div className="radar-scope-heading">
-      <span className="radar-scope-icon"><Icon size={18}/></span>
+      <span className="radar-scope-icon"><Icon size={19}/></span>
       <div><div className="radar-scope-title">{title}</div><div className="radar-scope-subtitle">{subtitle}</div></div>
       {locationLabel && <span className="radar-scope-location" data-i18n-ignore="true">{locationLabel}</span>}
     </div>
-    {loading ? <div className="explore-loading"><span className="explore-loading-dot"/>A sintonizar o Radar…</div>
+    {loading ? <div className="radar-skeleton-grid" role="status" aria-label="A sintonizar o Radar…"><RadarSkeleton/><RadarSkeleton/></div>
       : !items.length ? <div className="explore-empty radar-scope-empty">{empty}</div>
       : <div className="explore-grid">{hero && <RadarCard item={hero} hero/>}{rest.length > 0 && <div className="explore-rest">{rest.map(item => <RadarCard key={item.id} item={item}/>)}</div>}</div>}
   </section>;
@@ -162,11 +188,11 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
 
   const allItems = useMemo(() => [...localItems, ...globalItems], [localItems, globalItems]);
   const publishers = useMemo(
-    () => [...new Set(allItems.map(item => item.source_name).filter(Boolean))].sort((a,b)=>a.localeCompare(b, navigator.language || undefined)),
+    () => [...new Set(allItems.map(item => cleanEditorialText(item.source_name)).filter(Boolean))].sort((a,b)=>a.localeCompare(b, navigator.language || undefined)),
     [allItems],
   );
-  const localVisible = publisher ? localItems.filter(item => item.source_name === publisher) : localItems;
-  const globalVisible = publisher ? globalItems.filter(item => item.source_name === publisher) : globalItems;
+  const localVisible = publisher ? localItems.filter(item => cleanEditorialText(item.source_name) === publisher) : localItems;
+  const globalVisible = publisher ? globalItems.filter(item => cleanEditorialText(item.source_name) === publisher) : globalItems;
 
   return <div className="lumina-facelift lumina-explore">
     <div className="explore-shell">
@@ -194,6 +220,17 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
         <div className="explore-trust-copy"><strong>Descoberta com contexto, não ruído.</strong><p>Fontes editoriais verificadas, manchetes e contexto ficam separados do Feed social. O artigo original continua na respetiva fonte e conteúdo comercial permanece sempre identificado.</p></div>
       </section>
 
+      <div className="radar-status-strip" aria-label="Estado do Radar">
+        <div className="radar-status-chip is-local">
+          <span className="radar-status-chip-icon"><MapPin size={16}/></span>
+          <span className="radar-status-chip-copy"><b><span className="radar-status-live"/>{location?.countryCode ? 'Local ativo' : 'Local opcional'}</b><small data-i18n-ignore={location?.label ? 'true' : undefined}>{location?.label || 'Ativa a localização'}</small></span>
+        </div>
+        <div className="radar-status-chip is-world">
+          <span className="radar-status-chip-icon"><Globe2 size={16}/></span>
+          <span className="radar-status-chip-copy"><b><span className="radar-status-live"/>Mundo sempre ativo</b><small>Notícias globais em qualquer lugar</small></span>
+        </div>
+      </div>
+
       {me?.is_staff && <button type="button" className="p explore-staff-button" onClick={()=>setScreen?.('radar-admin')}><Settings2 size={15}/>Gerir Radar</button>}
 
       <div aria-label="Filtros do Radar" className="explore-filter-rail">
@@ -209,8 +246,8 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
       </section>}
 
       <div className="radar-dual-feed">
-        {locationReady && !location?.countryCode ? <section className="radar-location-off"><MapPin size={20}/><div><strong>Localização desligada</strong><p>Ativa a localização para juntar notícias locais. O Radar mundial continua disponível.</p></div></section> : <RadarSection icon={MapPin} title="Perto de ti" subtitle="Notícias e sinais do local onde estás agora." items={localVisible} loading={!locationReady || localLoading} empty="Sem notícias locais nesta categoria." locationLabel={location?.label}/>} 
-        <RadarSection icon={Globe2} title="Mundo" subtitle="Notícias globais, independentemente do local onde estás." items={globalVisible} loading={globalLoading} empty="Sem notícias globais nesta categoria."/>
+        {locationReady && !location?.countryCode ? <section className="radar-location-off"><MapPin size={20}/><div><strong>Localização desligada</strong><p>Ativa a localização para juntar notícias locais. O Radar mundial continua disponível.</p></div></section> : <RadarSection scope="local" icon={MapPin} title="Perto de ti" subtitle="Notícias e sinais do local onde estás agora." items={localVisible} loading={!locationReady || localLoading} empty="Sem notícias locais nesta categoria." locationLabel={location?.label}/>} 
+        <RadarSection scope="global" icon={Globe2} title="Mundo" subtitle="Notícias globais, independentemente do local onde estás." items={globalVisible} loading={globalLoading} empty="Sem notícias globais nesta categoria."/>
       </div>
     </div>
 

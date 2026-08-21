@@ -23,6 +23,18 @@ export async function ensureRadarCountrySources() {
        AND NOT (COALESCE(config->'tags', '[]'::jsonb) @> '["country:pt"]'::jsonb)`
   );
 
+  // Eventos e promoções verificadas foram criados antes do Radar passar a usar
+  // country:* como fonte de verdade. Mantém o catálogo existente visível no país
+  // correto sem abrir itens sem proveniência a outros países.
+  await q(
+    `UPDATE radar_items
+     SET tags = array_append(COALESCE(tags, ARRAY[]::text[]), 'country:pt'),
+         updated_at = now()
+     WHERE status = 'published'
+       AND (fingerprint LIKE 'verified:event:%' OR fingerprint LIKE 'verified:promotion:%')
+       AND NOT ('country:pt' = ANY(COALESCE(tags, ARRAY[]::text[])))`
+  );
+
   const { rowCount } = await q(
     `WITH source_pack(name, kind, url, default_type, active, trusted, config) AS (
        VALUES
@@ -35,7 +47,23 @@ export async function ensureRadarCountrySources() {
          ('Al Jazeera · English', 'rss', 'https://www.aljazeera.com/xml/rss/all.xml', 'news', true, true,
            '{"maxItems":20,"maxAgeDays":3,"priority":20,"autoPublish":true,"region":"Global","tags":["country:global","world","aljazeera"]}'::jsonb),
          ('Euronews · World News', 'rss', 'https://www.euronews.com/rss?format=mrss&level=theme&name=news', 'news', true, true,
-           '{"maxItems":20,"maxAgeDays":3,"priority":19,"autoPublish":true,"region":"Global","tags":["country:global","world","euronews"]}'::jsonb)
+           '{"maxItems":20,"maxAgeDays":3,"priority":19,"autoPublish":true,"region":"Global","tags":["country:global","world","euronews"]}'::jsonb),
+
+         -- Google disponibiliza um feed RSS público das pesquisas em alta por país.
+         -- Cada feed pertence ao país e também ao agregado Mundo; a UI remove
+         -- duplicados quando o mesmo item já aparece no bloco local.
+         ('Google Trends · Portugal', 'rss', 'https://trends.google.com/trending/rss?geo=PT', 'trend', true, true,
+           '{"maxItems":20,"maxAgeDays":2,"priority":24,"autoPublish":true,"region":"Portugal","tags":["country:pt","country:global","google-trends","tendencias"]}'::jsonb),
+         ('Google Trends · France', 'rss', 'https://trends.google.com/trending/rss?geo=FR', 'trend', true, true,
+           '{"maxItems":20,"maxAgeDays":2,"priority":24,"autoPublish":true,"region":"France","tags":["country:fr","country:global","google-trends","trends"]}'::jsonb),
+         ('Google Trends · España', 'rss', 'https://trends.google.com/trending/rss?geo=ES', 'trend', true, true,
+           '{"maxItems":20,"maxAgeDays":2,"priority":23,"autoPublish":true,"region":"Spain","tags":["country:es","country:global","google-trends","trends"]}'::jsonb),
+         ('Google Trends · United Kingdom', 'rss', 'https://trends.google.com/trending/rss?geo=GB', 'trend', true, true,
+           '{"maxItems":20,"maxAgeDays":2,"priority":23,"autoPublish":true,"region":"United Kingdom","tags":["country:gb","country:global","google-trends","trends"]}'::jsonb),
+         ('Google Trends · United States', 'rss', 'https://trends.google.com/trending/rss?geo=US', 'trend', true, true,
+           '{"maxItems":20,"maxAgeDays":2,"priority":23,"autoPublish":true,"region":"United States","tags":["country:us","country:global","google-trends","trends"]}'::jsonb),
+         ('Google Trends · Brasil', 'rss', 'https://trends.google.com/trending/rss?geo=BR', 'trend', true, true,
+           '{"maxItems":20,"maxAgeDays":2,"priority":23,"autoPublish":true,"region":"Brazil","tags":["country:br","country:global","google-trends","tendencias"]}'::jsonb)
      )
      INSERT INTO radar_sources (name, kind, url, default_type, active, trusted, config)
      SELECT name, kind, url, default_type, active, trusted, config

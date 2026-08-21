@@ -40,7 +40,7 @@ function radarItem({ id, title, summary, source, tags, region }) {
 }
 
 test('Radar mantém Mundo, contraste premium e muda o Local de Portugal para França sem mudar a língua da app', async ({ page, context }) => {
-  await context.emulateMedia({ colorScheme:'light' });
+  await page.emulateMedia({ colorScheme:'light' });
   await context.addInitScript(() => {
     window.__radarCountry = 'PT';
     Object.defineProperty(navigator, 'geolocation', {

@@ -93,8 +93,8 @@ test('Lumina One usa localização, Lumes e Cápsulas reais para personalizar o 
     status:200,
     contentType:'application/json',
     body:JSON.stringify([
-      { id:'44444444-4444-4444-8444-444444444444', mine:false, viewed:false },
-      { id:'55555555-5555-4555-8555-555555555555', mine:false, viewed:false },
+      { id:'44444444-4444-4444-8444-444444444444', author_id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', handle:'mariaqa', name:'Maria QA', palette:1, avatar_url:null, mine:false, viewed:false },
+      { id:'55555555-5555-4555-8555-555555555555', author_id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', handle:'joaoqa', name:'João QA', palette:2, avatar_url:null, mine:false, viewed:false },
     ]),
   }));
 

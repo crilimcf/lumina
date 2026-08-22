@@ -2,6 +2,7 @@ import { language, locale, translateDynamic } from './i18n.js';
 import { EN_MISC, FR_MISC, ES_MISC } from './locales/misc-extra.js';
 import { EN_DEVICE, FR_DEVICE, ES_DEVICE, translateDeviceDynamic } from './locales/device-extra.js';
 import { EN_QUALITY, FR_QUALITY, ES_QUALITY } from './locales/quality-extra.js';
+import { EN_PRODUCT_CLARITY, FR_PRODUCT_CLARITY, ES_PRODUCT_CLARITY } from './locales/product-clarity-extra.js';
 
 document.documentElement.lang = locale;
 
@@ -9,9 +10,9 @@ const textState = new WeakMap();
 const attributeState = new WeakMap();
 const attributes = ['placeholder', 'aria-label', 'title'];
 const miscCatalogs = {
-  en:{ ...EN_MISC, ...EN_DEVICE, ...EN_QUALITY },
-  fr:{ ...FR_MISC, ...FR_DEVICE, ...FR_QUALITY },
-  es:{ ...ES_MISC, ...ES_DEVICE, ...ES_QUALITY },
+  en:{ ...EN_MISC, ...EN_DEVICE, ...EN_QUALITY, ...EN_PRODUCT_CLARITY },
+  fr:{ ...FR_MISC, ...FR_DEVICE, ...FR_QUALITY, ...FR_PRODUCT_CLARITY },
+  es:{ ...ES_MISC, ...ES_DEVICE, ...ES_QUALITY, ...ES_PRODUCT_CLARITY },
 };
 const normalizeKey = value => String(value ?? '').trim().replace(/\s+/gu, ' ').toLocaleLowerCase('pt-PT');
 const normalizedMisc = Object.fromEntries(Object.entries(miscCatalogs).map(([lang, catalog]) => [

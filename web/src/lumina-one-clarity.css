@@ -1,0 +1,97 @@
+body .lumina-one.one-v2 .one-pulse-intro,
+body .lumina-one.one-v2 .one-agora-summary{
+  margin:0 0 18px;
+  padding:20px 20px 21px;
+  border:1px solid rgba(202,211,255,.16);
+  border-radius:26px;
+  background:linear-gradient(145deg,rgba(43,63,103,.72),rgba(27,44,75,.55));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 18px 46px rgba(5,12,30,.12);
+  backdrop-filter:blur(18px);
+}
+body .lumina-one.one-v2 .one-pulse-intro>span,
+body .lumina-one.one-v2 .one-agora-summary>span{
+  display:block;
+  margin-bottom:8px;
+  color:#BCB3FF;
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.18em;
+}
+body .lumina-one.one-v2 .one-pulse-intro h2,
+body .lumina-one.one-v2 .one-agora-summary h2{
+  margin:0;
+  max-width:700px;
+  color:#F8F9FF;
+  font-size:clamp(25px,6vw,38px);
+  line-height:1.02;
+  letter-spacing:-.045em;
+}
+body .lumina-one.one-v2 .one-pulse-intro p,
+body .lumina-one.one-v2 .one-agora-summary p{
+  margin:10px 0 0;
+  max-width:680px;
+  color:#C8CFE3;
+  font-size:13px;
+  line-height:1.55;
+}
+body .lumina-one.one-v2 .one-pulse-social-label{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  width:max-content;
+  padding:6px 9px;
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:999px;
+  background:rgba(255,255,255,.1);
+  color:#E5E8F7;
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.12em;
+}
+body .lumina-one.one-v2 .one-radar-handoff{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  gap:13px;
+  align-items:center;
+  margin-top:18px;
+  padding:16px;
+  border:1px solid rgba(185,197,255,.17);
+  border-radius:22px;
+  background:rgba(10,25,49,.34);
+}
+body .lumina-one.one-v2 .one-radar-handoff>svg{color:#AFA6FF}
+body .lumina-one.one-v2 .one-radar-handoff>div{min-width:0;display:grid;gap:4px}
+body .lumina-one.one-v2 .one-radar-handoff b{font-size:14px;color:#F8F9FF;overflow-wrap:anywhere}
+body .lumina-one.one-v2 .one-radar-handoff p{margin:0;color:#BFC7DC;font-size:11px;line-height:1.45}
+body .lumina-one.one-v2 .one-secondary-action{
+  min-height:48px;
+  border:1px solid rgba(255,255,255,.15);
+  border-radius:16px;
+  padding:0 15px;
+  background:rgba(255,255,255,.07);
+  color:#F4F6FF;
+  font:inherit;
+  font-size:12px;
+  font-weight:800;
+}
+body .lumina-one.one-v2 .one-secondary-action:active{transform:scale(.98)}
+body .lumina-one.one-v2 .one-secondary-action:disabled{opacity:.56}
+body .lumina-one.one-v2 .one-agora-actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin-top:14px;
+}
+body .lumina-one.one-v2 .one-agora-actions>.one-primary,
+body .lumina-one.one-v2 .one-agora-actions>.one-secondary-action{min-height:54px}
+
+@media (max-width:560px){
+  body .lumina-one.one-v2 .one-radar-handoff{
+    grid-template-columns:auto minmax(0,1fr);
+  }
+  body .lumina-one.one-v2 .one-radar-handoff>.one-secondary-action{
+    grid-column:1/-1;
+    width:100%;
+  }
+  body .lumina-one.one-v2 .one-agora-actions{grid-template-columns:1fr}
+}

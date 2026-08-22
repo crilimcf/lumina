@@ -33,8 +33,8 @@ test('Lumina One abre do Feed e mantém a experiência dentro da app', async ({ 
   await openOne(page);
 
   await expect(page.getByText('Tudo ligado.')).toBeVisible();
+  await page.getByRole('button', { name:'Pulso', exact:true }).click();
   await expect(page.getByText('Pessoas e momentos. Não notícias.')).toBeVisible();
-  await expect(page.getByRole('button', { name:'Pulso', exact:true })).toBeVisible();
   await expect(page.getByRole('button', { name:'Lumes', exact:true })).toBeVisible();
   await expect(page.getByRole('button', { name:'Cápsulas', exact:true })).toBeVisible();
   await expect(page.getByRole('button', { name:'Agora', exact:true })).toBeVisible();
@@ -96,9 +96,21 @@ test('Agora afina o algoritmo e usa a localização real do iPhone sem virar fee
   await page.getByPlaceholder('política, futebol…').fill('política');
   await page.getByRole('button', { name:'Viagem', exact:true }).click();
   await expect(page.locator('.one-radar-handoff')).toContainText('Bragança, Portugal', { timeout:12000 });
-  await page.getByRole('button', { name:'Aplicar agora' }).click();
 
-  await expect(page.getByText('A Lumina foi adaptada ao teu momento')).toBeVisible();
+  const saved = page.waitForResponse(response => {
+    const url = new URL(response.url());
+    return url.pathname === '/api/one/preferences' && response.request().method() === 'PATCH';
+  });
+  await page.getByRole('button', { name:'Aplicar agora' }).click();
+  const saveResponse = await saved;
+  expect(saveResponse.ok()).toBe(true);
+  expect(saveResponse.request().postDataJSON()).toMatchObject({
+    boostTopics:['viagens', 'tecnologia'],
+    muteTopics:['política'],
+    contextMode:'viagem',
+    localRegion:'Bragança',
+  });
+
   await expect(page.getByRole('button', { name:'Abrir Radar Local / Mundo' })).toBeVisible();
   await expect(page.locator('.one-local-grid')).toHaveCount(0);
   await expect(page.locator('.one-juntos-section')).toHaveCount(0);

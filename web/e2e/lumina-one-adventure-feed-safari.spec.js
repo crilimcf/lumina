@@ -114,7 +114,7 @@ test('Lumina One usa localização, Lumes e Cápsulas reais para personalizar o 
     await entry.click();
     await expect(page.locator('.lumina-one.one-v3')).toBeVisible();
     await page.getByRole('button', { name:label, exact:true }).click();
-    await page.getByRole('button', { name:'Voltar ao Feed' }).click();
+    await page.locator('.one-back').click();
     await expect(entry).toBeVisible();
     await expect(entry).toHaveAttribute('data-one-adventure-mode', mode);
     await expect(entry).toHaveAttribute('data-one-adventure-personalized', '1');

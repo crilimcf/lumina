@@ -6,17 +6,17 @@ async function register(page, label) {
   const suffix = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
   const handle = `${label}${suffix}`.replace(/[^a-z0-9]/gi, '').toLowerCase().slice(0, 22);
   await page.goto('/');
-  await page.getByRole('button', { name: 'Criar conta' }).click();
+  await page.getByRole('button', { name:'Criar conta' }).click();
   await page.getByPlaceholder('Como te chamas').fill('Lumina One v3 Safari');
   await page.getByPlaceholder('Nome de utilizador').fill(handle);
   await page.locator('input[type="date"]').fill('1990-01-01');
   await page.getByPlaceholder('Email').fill(`${handle}@example.test`);
   await page.getByPlaceholder('Password').fill(PASSWORD);
   await page.locator('input[type="checkbox"]').check();
-  await page.getByRole('button', { name: 'Criar conta' }).click();
+  await page.getByRole('button', { name:'Criar conta' }).click();
   await expect(page.getByText('Bem-vindo à Lumina')).toBeVisible();
-  await page.getByRole('button', { name: 'Entendido, vamos lá' }).click();
-  await page.getByRole('button', { name: 'Entrar no Feed' }).click();
+  await page.getByRole('button', { name:'Entendido, vamos lá' }).click();
+  await page.getByRole('button', { name:'Entrar no Feed' }).click();
 }
 
 async function openOne(page) {
@@ -45,6 +45,7 @@ test('Lumina One entra no Feed sem se sobrepor a Momentos', async ({ page }) => 
   expect(geometry.top).toBeGreaterThanOrEqual(geometry.momentsTop);
   expect(geometry.top).toBeLessThan(geometry.momentsBottom);
   await expect(page.locator('.one-app-launch')).toBeHidden();
+  await expect(entry).not.toContainText('Juntos');
 });
 
 test('One v3 é compacto, sem onboarding permanente, e suporta swipe entre modos', async ({ page }) => {
@@ -95,80 +96,51 @@ test('Lumes abre a câmara em ecrã inteiro no iPhone', async ({ page }) => {
   expect(layout.height).toBeGreaterThanOrEqual(layout.viewportHeight - 1);
 });
 
-test('Radar Local usa GPS preciso para Bragança e nunca troca por cidade de rede', async ({ page, context }) => {
-  await context.grantPermissions(['geolocation']);
-  await context.setGeolocation({ latitude:41.8062, longitude:-6.7567, accuracy:45 });
-  await page.route('https://nominatim.openstreetmap.org/reverse**', async route => {
-    await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ address:{ city:'Bragança', state:'Bragança', country:'Portugal' } }) });
-  });
-  await register(page, 'v3gps');
-  await openOne(page);
-  await openTab(page, 'Agora');
-  const gps = page.getByRole('button', { name:'Detetar localização do iPhone' });
-  await expect(gps).toBeVisible();
-  await gps.click();
-  const input = page.getByPlaceholder('Porto, Lisboa, Braga…');
-  await expect(input).toHaveValue('Bragança');
-  await expect(page.locator('.one-v3-location-status')).toContainText('Bragança detetada pela localização do iPhone');
-  const dump = await page.evaluate(() => JSON.stringify(Object.entries(localStorage)));
-  expect(dump).not.toContain('41.8062');
-  expect(dump).not.toContain('-6.7567');
-});
-
-test('GPS recusado preserva a cidade manual e não chama fallback IP', async ({ page, context }) => {
+test('Agora e Radar usam GPS de Bragança sem campo manual nem coordenadas persistidas', async ({ page, context }) => {
   await context.addInitScript(() => {
     Object.defineProperty(navigator, 'geolocation', {
       configurable:true,
       value:{
-        getCurrentPosition(_success, error){ setTimeout(() => error({ code:1, message:'denied' }), 0); },
-        watchPosition(_success, error){ setTimeout(() => error({ code:1, message:'denied' }), 0); return 9; },
+        getCurrentPosition(success) {
+          success({ coords:{ latitude:41.8062, longitude:-6.7567, accuracy:45, altitude:null, altitudeAccuracy:null, heading:null, speed:null }, timestamp:Date.now() });
+        },
+        watchPosition() { return 1; },
         clearWatch() {},
       },
     });
   });
-  let edgeCalls = 0;
-  await page.route('**/api/edge-location', async route => {
-    edgeCalls += 1;
-    await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ city:'Lisbon' }) });
-  });
-  await register(page, 'v3manual');
+  await page.route('https://nominatim.openstreetmap.org/reverse**', route => route.fulfill({
+    status:200,
+    contentType:'application/json',
+    body:JSON.stringify({ address:{ city:'Bragança', state:'Bragança', country:'Portugal', country_code:'pt' } }),
+  }));
+
+  await register(page, 'v3gps');
   await openOne(page);
   await openTab(page, 'Agora');
-  const input = page.getByPlaceholder('Porto, Lisboa, Braga…');
-  await input.fill('Bragança');
-  await page.getByRole('button', { name:'Guardar e adaptar a Lumina' }).click();
-  await page.getByRole('button', { name:'Detetar localização do iPhone' }).click();
-  await expect(input).toHaveValue('Bragança');
-  await expect(page.locator('.one-v3-location-status')).toContainText('Mantive Bragança');
-  expect(edgeCalls).toBe(0);
+  await expect(page.locator('.one-radar-handoff')).toContainText('Bragança, Portugal', { timeout:12000 });
+  await expect(page.getByPlaceholder('Porto, Lisboa, Braga…')).toHaveCount(0);
+
+  const dump = await page.evaluate(() => JSON.stringify(Object.entries(localStorage)));
+  expect(dump).not.toContain('41.8062');
+  expect(dump).not.toContain('-6.7567');
+  expect(dump).toContain('Bragança');
 });
 
-test('Pulso vazio ganha descoberta visual e Juntos dá feedback funcional', async ({ page }) => {
+test('Pulso vazio continua social e nunca ganha descoberta Radar ou Juntos', async ({ page }) => {
   const radarItem = {
-    id:'radar-v3-1', type:'news', title:'Eclipse em Bragança', summary:'O céu transforma-se e a cidade prepara-se para observar o fenómeno.',
+    id:'radar-v3-1', type:'news', title:'Eclipse em Bragança', summary:'Notícia que pertence ao Radar.',
     region:'Bragança', source_name:'Radar', external_url:'https://example.com/eclipse', image_url:null,
   };
-  await page.route('**/api/one/local?region=**', async route => {
-    await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ items:[radarItem] }) });
-  });
-  await page.route('**/api/radar?limit=10', async route => {
-    await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ items:[radarItem] }) });
-  });
-  await page.route('**/api/one/together', async route => {
-    if (route.request().method() === 'POST') {
-      await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ id:'11111111-1111-4111-8111-111111111111' }) });
-    } else await route.continue();
-  });
+  await page.route('**/api/one/local?region=**', route => route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ items:[radarItem] }) }));
+  await page.route('**/api/radar?limit=10', route => route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ items:[radarItem] }) }));
+
   await register(page, 'v3pulse');
   await openOne(page);
   await openTab(page, 'Pulso');
-  const discovery = page.locator('.one-v3-discovery');
-  await expect(discovery).toBeVisible();
-  await expect(discovery.getByText('Eclipse em Bragança')).toBeVisible();
-  await discovery.getByRole('button', { name:'Juntos' }).first().click();
-  const sheet = page.locator('.one-v3-together-sheet');
-  await expect(sheet).toBeVisible();
-  await expect(sheet).toContainText('JUNTOS CRIADO');
-  await expect(sheet.getByRole('button', { name:'Partilhar convite' })).toBeVisible();
-  await expect(sheet.getByRole('button', { name:'Entrar na sessão' })).toBeVisible();
+  await expect(page.getByText('Pessoas e momentos. Não notícias.')).toBeVisible();
+  await expect(page.getByText('Eclipse em Bragança')).toHaveCount(0);
+  await expect(page.locator('.one-v3-discovery')).toHaveCount(0);
+  await expect(page.locator('.one-v3-together-sheet')).toHaveCount(0);
+  await expect(page.getByText('Juntos', { exact:true })).toHaveCount(0);
 });

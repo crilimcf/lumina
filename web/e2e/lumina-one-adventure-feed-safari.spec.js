@@ -64,21 +64,22 @@ test('Lumina One é um portal vivo, continua dentro do iPhone e abre o contexto 
   await expect(page.locator('.one-tabs button').nth(MODE_INDEX[modeBeforeOpen])).toHaveClass(/is-on/);
 });
 
-test('Lumina One usa cidade, Juntos, Lumes e Cápsulas reais para personalizar o portal', async ({ page }) => {
+test('Lumina One usa localização, Lumes e Cápsulas reais para personalizar o portal sem Juntos', async ({ page }) => {
   await page.setViewportSize({ width:390, height:844 });
   await page.addInitScript(() => {
-    try { localStorage.setItem('lumina-one-last-mode-v1', 'agora'); } catch {}
+    try {
+      localStorage.setItem('lumina-one-last-mode-v1', 'agora');
+      localStorage.setItem('lumina.radar.location.v1', JSON.stringify({
+        countryCode:'PT', country:'Portugal', city:'Bragança', region:'Bragança',
+        label:'Bragança, Portugal', updatedAt:Date.now(),
+      }));
+    } catch {}
   });
 
   await page.route('**/api/one/preferences', route => route.fulfill({
     status:200,
     contentType:'application/json',
-    body:JSON.stringify({ local_region:'Bragança', context_mode:'auto', boost_topics:[], mute_topics:[] }),
-  }));
-  await page.route('**/api/one/together', route => route.fulfill({
-    status:200,
-    contentType:'application/json',
-    body:JSON.stringify([{ id:'11111111-1111-4111-8111-111111111111', title:'Sessão ativa' }]),
+    body:JSON.stringify({ local_region:'', context_mode:'auto', boost_topics:[], mute_topics:[] }),
   }));
   await page.route('**/api/one/capsules', route => route.fulfill({
     status:200,
@@ -97,27 +98,40 @@ test('Lumina One usa cidade, Juntos, Lumes e Cápsulas reais para personalizar o
     ]),
   }));
 
+  let togetherCalls = 0;
+  page.on('request', request => {
+    if (new URL(request.url()).pathname === '/api/one/together') togetherCalls += 1;
+  });
+
   await register(page);
   const entry = page.locator('.one-v3-feed-entry.one-adventure-entry');
   await expect(entry).toHaveAttribute('data-one-adventure-personalized', '1', { timeout:9000 });
   await expect(entry).toHaveAttribute('data-one-adventure-mode', 'agora');
   await expect(entry.locator('[data-one-adventure-status]')).toContainText('Agora em');
-  await expect(entry.locator('[data-one-adventure-status]')).toContainText('Bragança');
+  await expect(entry.locator('[data-one-adventure-status]')).toContainText('Bragança, Portugal');
 
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent('lumina-one:show-mode', { detail:{ mode:'lumes' } })));
-  await expect(entry).toHaveAttribute('data-one-adventure-mode', 'lumes');
+  const selectModeAndReturn = async (label, mode) => {
+    await entry.click();
+    await expect(page.locator('.lumina-one.one-v3')).toBeVisible();
+    await page.getByRole('button', { name:label, exact:true }).click();
+    await page.getByRole('button', { name:'Voltar ao Feed' }).click();
+    await expect(entry).toBeVisible();
+    await expect(entry).toHaveAttribute('data-one-adventure-mode', mode);
+    await expect(entry).toHaveAttribute('data-one-adventure-personalized', '1');
+  };
+
+  await selectModeAndReturn('Lumes', 'lumes');
   await expect(entry.locator('[data-one-adventure-status]')).toContainText('2');
   await expect(entry.locator('[data-one-adventure-status]')).toContainText('Lumes para ver');
 
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent('lumina-one:show-mode', { detail:{ mode:'capsules' } })));
-  await expect(entry).toHaveAttribute('data-one-adventure-mode', 'capsules');
+  await selectModeAndReturn('Cápsulas', 'capsules');
   await expect(entry.locator('[data-one-adventure-status]')).toContainText('2');
   await expect(entry.locator('[data-one-adventure-status]')).toContainText('Cápsulas contigo');
 
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent('lumina-one:show-mode', { detail:{ mode:'pulse' } })));
-  await expect(entry).toHaveAttribute('data-one-adventure-mode', 'pulse');
-  await expect(entry.locator('[data-one-adventure-status]')).toContainText('1');
-  await expect(entry.locator('[data-one-adventure-status]')).toContainText('Sessões Juntos');
+  await selectModeAndReturn('Pulso', 'pulse');
+  await expect(entry.locator('[data-one-adventure-status]')).not.toContainText('Juntos');
+  await expect(entry).not.toContainText('Juntos');
+  expect(togetherCalls).toBe(0);
 
   const portalAnimation = await entry.locator('.one-adventure-portal').evaluate(node => getComputedStyle(node).animationName);
   expect(portalAnimation).toContain('oneAdventurePortalPulse');

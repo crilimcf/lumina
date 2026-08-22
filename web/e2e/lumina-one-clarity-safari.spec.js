@@ -24,6 +24,7 @@ test('Lumina One separa Pulso social, Agora e Radar', async ({ page }) => {
   await page.getByRole('button', { name: 'Abrir Lumina One' }).click();
 
   await expect(page.getByRole('heading', { name: /Tudo ligado/i })).toBeVisible();
+  await page.getByRole('button', { name: 'Pulso', exact:true }).click();
   await expect(page.getByText('Pessoas e momentos. Não notícias.')).toBeVisible();
   await expect(page.getByText('Juntos', { exact:true })).toHaveCount(0);
   await expect(page.getByText('Ver Juntos', { exact:true })).toHaveCount(0);

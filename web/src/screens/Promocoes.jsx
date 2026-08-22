@@ -223,7 +223,12 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
 
       {scope === 'local' ? <div className="radar-scope-banner">
         <MapPin size={20}/>
-        <div><b>{location?.label || location?.city || 'Localização do iPhone'}</b><p>Mostramos apenas conteúdo do país/região detetados pelo iPhone. O Mundo fica no separador próprio.</p><button type="button" className="radar-refresh-location" onClick={()=>refreshLocation(true)} disabled={locating}>{locating?<RefreshCw size={14}/>:<MapPin size={14}/>} {locating?'A detetar…':'Atualizar localização'}</button></div>
+        <div>
+          <b>{location?.label || location?.city || 'Localização do iPhone'}</b>
+          <p>Mostramos apenas conteúdo do país/região detetados pelo iPhone. O Mundo fica no separador próprio.</p>
+          {location?.countryCode && <a className="radar-osm-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" data-i18n-ignore="true">© OpenStreetMap contributors</a>}
+          <button type="button" className="radar-refresh-location" onClick={()=>refreshLocation(true)} disabled={locating}>{locating?<RefreshCw size={14}/>:<MapPin size={14}/>} {locating?'A detetar…':'Atualizar localização'}</button>
+        </div>
         {location?.countryCode && <span className="radar-scope-country" data-i18n-ignore="true">{location.countryCode}</span>}
       </div> : <div className="radar-scope-banner">
         <Globe2 size={20}/><div><b>Radar Mundo</b><p>Notícias e tendências internacionais. Nada deste separador é usado para preencher o Radar Local.</p></div>

@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, Camera, Clock3, Compass, Flame, Image as ImageIcon, Lock, MapPin,
-  Pause, Play, Plus, Radio, RefreshCw, Search, Send, Share2, SlidersHorizontal,
-  Sparkles, Trash2, Unlock, Users, Video, X,
+  Plus, RefreshCw, Search, Send, Share2, SlidersHorizontal, Sparkles, Trash2,
+  Unlock, UserRound, Video, X,
 } from 'lucide-react';
 import { api } from '../api.js';
+import { detectRadarLocation, readCachedRadarLocation } from '../radar-location.js';
 import { Orb } from '../ui.jsx';
 import '../lumina-one.css';
+import '../lumina-one-v2.css';
 
 const TABS = [
   ['pulse', Flame, 'Pulso'],
@@ -60,102 +62,13 @@ function LumeViewer({ lume, onClose }) {
   </div>;
 }
 
-function TogetherPanel({ sessionId, onClose, ping, onOpenLive }) {
-  const [session, setSession] = useState(null);
-  const [source, setSource] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const videoRef = useRef(null);
-
-  const load = useCallback(async () => {
-    if (!sessionId) return;
-    try {
-      const next = await api.one.togetherSession(sessionId);
-      setSession(next);
-      if (!source) {
-        const preview = await api.one.source(next.source_type, next.source_id).catch(() => null);
-        if (preview) setSource(preview);
-      }
-    } catch (error) {
-      ping(error.message);
-      onClose();
-    } finally { setLoading(false); }
-  }, [sessionId, source, ping, onClose]);
-
-  useEffect(() => { load(); }, [load]);
-  useEffect(() => {
-    if (!sessionId) return undefined;
-    const id = setInterval(load, 2500);
-    return () => clearInterval(id);
-  }, [sessionId, load]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !session || session.mine) return;
-    const desired = Math.max(0, Number(session.state?.positionMs || 0) / 1000);
-    if (Math.abs(video.currentTime - desired) > 1.6 && Number.isFinite(desired)) video.currentTime = desired;
-    if (session.state?.playing) video.play().catch(() => {});
-    else video.pause();
-  }, [session?.state?.playing, session?.state?.positionMs, session?.mine]);
-
-  const updateState = async (patch) => {
-    if (!session?.mine) return;
-    try {
-      const next = await api.one.setTogetherState(session.id, patch);
-      setSession(prev => ({ ...prev, ...next }));
-    } catch (error) { ping(error.message); }
-  };
-
-  const share = async () => {
-    const url = new URL(window.location.href);
-    url.searchParams.set('one', 'together');
-    url.searchParams.set('id', session.id);
-    const text = `Vem ver isto comigo na Lumina · ${session.title}`;
-    try {
-      if (navigator.share) await navigator.share({ title:'Lumina Juntos', text, url:url.toString() });
-      else { await navigator.clipboard.writeText(url.toString()); ping('Convite copiado'); }
-    } catch {}
-  };
-
-  if (loading) return <div className="one-together-overlay"><div className="one-state">A preparar Juntos…</div></div>;
-  if (!session) return null;
-  const isVideo = source?.media_mime?.startsWith('video/') || source?.recording_mime?.startsWith('video/');
-  const videoUrl = source?.media_url || source?.recording_url || null;
-
-  return <div className="one-together-overlay" role="dialog" aria-modal="true" aria-label="Sessão Juntos">
-    <header className="one-together-header">
-      <button onClick={onClose} aria-label="Fechar Juntos"><X size={19}/></button>
-      <div><span>JUNTOS</span><b>{session.title || 'Sessão Lumina'}</b></div>
-      <button onClick={share} aria-label="Partilhar convite"><Share2 size={18}/></button>
-    </header>
-    <div className="one-together-stage">
-      {source?.type === 'post' && isVideo && videoUrl && <video
-        ref={videoRef}
-        src={videoUrl}
-        playsInline
-        controls
-        onPlay={e => updateState({ playing:true, positionMs:Math.round(e.currentTarget.currentTime*1000) })}
-        onPause={e => updateState({ playing:false, positionMs:Math.round(e.currentTarget.currentTime*1000) })}
-        onSeeked={e => updateState({ positionMs:Math.round(e.currentTarget.currentTime*1000) })}
-      />}
-      {source?.type === 'post' && !isVideo && source?.media_url && <img src={source.media_url} alt="" />}
-      {source?.type === 'post' && <div className="one-together-caption"><b>{source.name || source.handle}</b><p>{source.body}</p></div>}
-      {source?.type === 'radar' && <div className="one-together-radar">{source.image_url&&<img src={source.image_url} alt=""/>}<span>RADAR</span><h3>{source.title}</h3><p>{source.summary || source.body}</p></div>}
-      {source?.type === 'live' && <div className="one-together-live"><Radio size={30}/><h3>{source.title}</h3><p>{source.status === 'live' ? 'Está em direto agora.' : 'Replay do direto.'}</p><button className="one-primary" onClick={()=>onOpenLive?.(source.id)}>Abrir direto na Lumina</button></div>}
-      {!source && <div className="one-state">A carregar o conteúdo partilhado…</div>}
-    </div>
-    <div className="one-together-bottom">
-      <div className="one-members-row">{session.members?.slice(0,6).map(member=><Orb key={member.id} p={member.palette} avatarUrl={member.avatar_url} s={34}/>)}<span>{session.members?.length || 1} juntos</span></div>
-      {session.mine ? <div className="one-sync-controls"><button onClick={()=>updateState({playing:!session.state?.playing,positionMs:Math.round((videoRef.current?.currentTime||0)*1000)})}>{session.state?.playing?<Pause size={16}/>:<Play size={16}/>} {session.state?.playing?'Pausar':'Reproduzir'}</button><span>Tu controlas a sessão</span></div> : <div className="one-sync-status"><span className={session.state?.playing?'is-live':''}/>{session.state?.playing?'A reproduzir com o anfitrião':'À espera do anfitrião'}</div>}
-    </div>
-  </div>;
-}
-
-export function LuminaOne({ me, onBack, ping, onOpenLive }) {
+export function LuminaOne({ me, onBack, ping }) {
   const initialOne = new URLSearchParams(window.location.search).get('one');
   const [tab, setTab] = useState(['pulse','lumes','capsules','agora'].includes(initialOne) ? initialOne : 'pulse');
   const [pulseScope, setPulseScope] = useState('for-you');
   const [pulse, setPulse] = useState([]);
   const [pulseLoading, setPulseLoading] = useState(false);
+
   const [lumes, setLumes] = useState([]);
   const [lumeViewer, setLumeViewer] = useState(null);
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -183,12 +96,12 @@ export function LuminaOne({ me, onBack, ping, onOpenLive }) {
   const [prefs, setPrefs] = useState({ boost_topics:[], mute_topics:[], context_mode:'auto', local_region:'' });
   const [boostInput, setBoostInput] = useState('');
   const [muteInput, setMuteInput] = useState('');
-  const [localRegion, setLocalRegion] = useState('');
-  const localRegionEditVersion = useRef(0);
-  const [localItems, setLocalItems] = useState([]);
-  const [together, setTogether] = useState([]);
-  const [togetherId, setTogetherId] = useState(null);
-  const [joinCode, setJoinCode] = useState('');
+  const [deviceLocation, setDeviceLocation] = useState(() => readCachedRadarLocation());
+  const [locating, setLocating] = useState(false);
+
+  const socialPulse = useMemo(() => pulse.filter(item =>
+    item?.id && item?.author_id && item?.handle && !item?.source_name && !item?.external_url && !item?.type
+  ), [pulse]);
 
   const loadPulse = useCallback(async () => {
     setPulseLoading(true);
@@ -196,20 +109,38 @@ export function LuminaOne({ me, onBack, ping, onOpenLive }) {
     catch (error) { ping(error.message); }
     finally { setPulseLoading(false); }
   }, [pulseScope, ping]);
-  const loadLumes = useCallback(async () => { try { setLumes(await api.one.lumes()); } catch (error) { ping(error.message); } }, [ping]);
-  const loadCapsules = useCallback(async () => { try { setCapsules(await api.one.capsules()); } catch (error) { ping(error.message); } }, [ping]);
-  const loadAgora = useCallback(async () => {
-    const regionVersion = localRegionEditVersion.current;
+
+  const loadLumes = useCallback(async () => {
+    try { setLumes(await api.one.lumes()); }
+    catch (error) { ping(error.message); }
+  }, [ping]);
+
+  const loadCapsules = useCallback(async () => {
+    try { setCapsules(await api.one.capsules()); }
+    catch (error) { ping(error.message); }
+  }, [ping]);
+
+  const refreshDeviceLocation = useCallback(async ({ force = false } = {}) => {
+    setLocating(true);
     try {
-      const [nextPrefs, sessions] = await Promise.all([api.one.preferences(), api.one.together()]);
+      const next = await detectRadarLocation({ force });
+      if (next) setDeviceLocation(next);
+      return next;
+    } catch (error) {
+      if (force) ping('Não consegui obter a localização do iPhone. Confirma a permissão de localização.');
+      return readCachedRadarLocation();
+    } finally { setLocating(false); }
+  }, [ping]);
+
+  const loadAgora = useCallback(async () => {
+    try {
+      const nextPrefs = await api.one.preferences();
       setPrefs(nextPrefs);
       setBoostInput((nextPrefs.boost_topics || []).join(', '));
       setMuteInput((nextPrefs.mute_topics || []).join(', '));
-      if (localRegionEditVersion.current === regionVersion) setLocalRegion(nextPrefs.local_region || '');
-      setTogether(sessions || []);
-      if (nextPrefs.local_region) setLocalItems((await api.one.local(nextPrefs.local_region)).items || []);
+      if (!deviceLocation) void refreshDeviceLocation({ force:false });
     } catch (error) { ping(error.message); }
-  }, [ping]);
+  }, [deviceLocation, ping, refreshDeviceLocation]);
 
   useEffect(() => { if (tab === 'pulse') loadPulse(); }, [tab, loadPulse]);
   useEffect(() => { if (tab === 'lumes') loadLumes(); }, [tab, loadLumes]);
@@ -224,29 +155,32 @@ export function LuminaOne({ me, onBack, ping, onOpenLive }) {
       setCameraError('');
       cameraStreamRef.current?.getTracks().forEach(track => track.stop());
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:cameraFacing }, width:{ ideal:1280 }, height:{ ideal:1280 } }, audio:false });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video:{ facingMode:{ ideal:cameraFacing }, width:{ ideal:1280 }, height:{ ideal:1280 } }, audio:false,
+        });
         if (cancelled) return stream.getTracks().forEach(track => track.stop());
         cameraStreamRef.current = stream;
-        if (videoCameraRef.current) { videoCameraRef.current.srcObject = stream; await videoCameraRef.current.play().catch(()=>{}); }
+        if (videoCameraRef.current) {
+          videoCameraRef.current.srcObject = stream;
+          await videoCameraRef.current.play().catch(()=>{});
+        }
       } catch { setCameraError('Não consegui abrir a câmara. Confirma a permissão do iPhone.'); }
     };
     start();
-    return () => { cancelled = true; cameraStreamRef.current?.getTracks().forEach(track=>track.stop()); cameraStreamRef.current=null; };
+    return () => {
+      cancelled = true;
+      cameraStreamRef.current?.getTracks().forEach(track=>track.stop());
+      cameraStreamRef.current = null;
+    };
   }, [cameraOpen, cameraFacing]);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const sharedId = params.get('id');
-    if (params.get('one') !== 'together' || !sharedId) return;
-    api.one.joinTogether(sharedId).then(() => { setTogetherId(sharedId); setTab('agora'); }).catch(error => ping(error.message));
-  }, [ping]);
 
   useEffect(() => {
     const term = inviteQuery.trim();
     if (!capsule || term.length < 2) { setInviteResults([]); return undefined; }
     let alive = true;
-    const id = setTimeout(() => api.users.search(term).then(rows => alive && setInviteResults(rows.slice(0,8))).catch(()=>{}), 280);
-    return () => { alive=false;clearTimeout(id); };
+    const id = setTimeout(() => api.users.search(term)
+      .then(rows => alive && setInviteResults(rows.slice(0,8))).catch(()=>{}), 280);
+    return () => { alive = false; clearTimeout(id); };
   }, [inviteQuery, capsule?.id]);
 
   const captureLume = async () => {
@@ -270,7 +204,10 @@ export function LuminaOne({ me, onBack, ping, onOpenLive }) {
     try {
       const mediaUrl = await api.upload(lumeFile);
       await api.one.createLume({ mediaUrl, effect:lumeEffect });
-      setLumeFile(null); setLumeEffect('normal'); await loadLumes(); ping('Lume enviado aos teus amigos');
+      setLumeFile(null);
+      setLumeEffect('normal');
+      await loadLumes();
+      ping('Lume enviado aos teus amigos');
     } catch (error) { ping(error.message); }
     finally { setLumeBusy(false); }
   };
@@ -288,8 +225,10 @@ export function LuminaOne({ me, onBack, ping, onOpenLive }) {
     try {
       const unlockAt = capsuleUnlock ? new Date(capsuleUnlock).toISOString() : null;
       const created = await api.one.createCapsule({ title:capsuleTitle, description:capsuleDescription, unlockAt });
-      setCapsuleCreate(false); setCapsuleTitle(''); setCapsuleDescription(''); setCapsuleUnlock('');
-      await loadCapsules(); setCapsule(await api.one.capsule(created.id));
+      setCapsuleCreate(false);
+      setCapsuleTitle(''); setCapsuleDescription(''); setCapsuleUnlock('');
+      await loadCapsules();
+      setCapsule(await api.one.capsule(created.id));
     } catch (error) { ping(error.message); }
     finally { setCapsuleBusy(false); }
   };
@@ -305,20 +244,19 @@ export function LuminaOne({ me, onBack, ping, onOpenLive }) {
     try {
       const mediaUrl = capsuleFile ? await api.upload(capsuleFile) : null;
       await api.one.addCapsuleItem(capsule.id, { body:capsuleBody.trim(), mediaUrl });
-      setCapsuleBody(''); setCapsuleFile(null); setCapsule(await api.one.capsule(capsule.id)); ping(capsule.locked?'Guardado dentro da Cápsula':'Adicionado à Cápsula');
+      setCapsuleBody(''); setCapsuleFile(null);
+      setCapsule(await api.one.capsule(capsule.id));
+      ping(capsule.locked ? 'Guardado dentro da Cápsula' : 'Adicionado à Cápsula');
     } catch (error) { ping(error.message); }
     finally { setCapsuleBusy(false); }
   };
 
   const invite = async (person) => {
-    try { await api.one.addCapsuleMember(capsule.id, person.id); setCapsule(await api.one.capsule(capsule.id)); setInviteQuery(''); ping(`${person.name} entrou na Cápsula`); }
-    catch (error) { ping(error.message); }
-  };
-
-  const startTogether = async (item) => {
     try {
-      const created = await api.one.createTogether({ sourceType:'post', sourceId:item.id, title:`${item.name}: ${String(item.body||'').slice(0,70)}` });
-      setTogetherId(created.id); setTab('agora');
+      await api.one.addCapsuleMember(capsule.id, person.id);
+      setCapsule(await api.one.capsule(capsule.id));
+      setInviteQuery('');
+      ping(`${person.name} entrou na Cápsula`);
     } catch (error) { ping(error.message); }
   };
 
@@ -326,43 +264,83 @@ export function LuminaOne({ me, onBack, ping, onOpenLive }) {
     try {
       const boostTopics = boostInput.split(',').map(v=>v.trim()).filter(Boolean);
       const muteTopics = muteInput.split(',').map(v=>v.trim()).filter(Boolean);
-      const next = await api.one.setPreferences({ boostTopics, muteTopics, contextMode:prefs.context_mode, localRegion });
+      const location = deviceLocation || await refreshDeviceLocation({ force:false });
+      const localRegion = location?.city || location?.region || location?.label || prefs.local_region || '';
+      const next = await api.one.setPreferences({
+        boostTopics,
+        muteTopics,
+        contextMode:prefs.context_mode,
+        localRegion,
+      });
       setPrefs(next);
-      setLocalItems(localRegion.trim() ? (await api.one.local(localRegion.trim())).items || [] : []);
-      ping('O teu Pulso foi afinado');
+      ping('A Lumina foi adaptada ao teu momento');
     } catch (error) { ping(error.message); }
   };
 
-  const joinTogether = async () => {
-    const id = joinCode.trim();
-    if (!id) return;
-    try { await api.one.joinTogether(id); setTogetherId(id); setJoinCode(''); }
-    catch (error) { ping(error.message); }
+  const openRadar = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('one');
+    url.searchParams.delete('id');
+    url.searchParams.set('tab', 'promos');
+    window.location.assign(`${url.pathname}${url.search}${url.hash}`);
   };
 
-  return <div className="lumina-one">
+  return <div className="lumina-one one-v2">
     <header className="one-header">
       <button className="one-back" onClick={onBack} aria-label="Voltar ao Feed"><ArrowLeft size={19}/></button>
-      <div className="one-title-wrap"><div className="one-eyebrow"><Sparkles size={13}/> LUMINA ONE</div><h1>Tudo acontece <i>aqui.</i></h1><p>Cria, descobre e vive com a tua rede sem saltar entre apps.</p></div>
+      <div className="one-title-wrap">
+        <div className="one-eyebrow"><Sparkles size={13}/> LUMINA ONE</div>
+        <h1>Tudo ligado. <i>Sem saltar.</i></h1>
+        <p>Cria, descobre e guarda momentos numa experiência contínua — cada área com uma função clara.</p>
+      </div>
     </header>
-    <nav className="one-tabs" aria-label="Experiências Lumina One">{TABS.map(([key,Icon,label])=><button key={key} className={tab===key?'is-on':''} onClick={()=>setTab(key)}><Icon size={18}/><span>{label}</span></button>)}</nav>
+
+    <nav className="one-tabs" aria-label="Experiências Lumina One">
+      {TABS.map(([key,Icon,label]) => <button key={key} className={tab===key?'is-on':''} onClick={()=>setTab(key)}>
+        <Icon size={18}/><span>{label}</span>
+      </button>)}
+    </nav>
 
     {tab==='pulse' && <main className="one-pulse-page">
-      <div className="one-section-toolbar"><div><span>PULSO</span><b>Descoberta em movimento</b></div><div className="one-segment"><button className={pulseScope==='for-you'?'is-on':''} onClick={()=>setPulseScope('for-you')}>Para ti</button><button className={pulseScope==='friends'?'is-on':''} onClick={()=>setPulseScope('friends')}>Amigos</button></div></div>
+      <section className="one-pulse-intro">
+        <span>PULSO</span>
+        <h2>Pessoas e momentos. Não notícias.</h2>
+        <p>O Pulso é descoberta social: publicações, pessoas e conteúdos da tua rede. Notícias, eventos e tendências vivem exclusivamente no Radar.</p>
+      </section>
+      <div className="one-section-toolbar">
+        <div><span>DESCOBERTA SOCIAL</span><b>O que vale o teu tempo</b></div>
+        <div className="one-segment">
+          <button className={pulseScope==='for-you'?'is-on':''} onClick={()=>setPulseScope('for-you')}>Para ti</button>
+          <button className={pulseScope==='friends'?'is-on':''} onClick={()=>setPulseScope('friends')}>Amigos</button>
+        </div>
+      </div>
       {pulseLoading && <div className="one-state">A afinar o teu Pulso…</div>}
-      {!pulseLoading && !pulse.length && <div className="one-state"><Flame size={25}/><b>O Pulso está a aquecer</b><span>Publica ou segue mais pessoas para aparecer conteúdo aqui.</span></div>}
-      <div className="one-pulse-stack">{pulse.map(item=><article key={item.id} className="one-pulse-card">
+      {!pulseLoading && !socialPulse.length && <div className="one-state one-v2-friends-empty">
+        <div className="one-v2-empty-orb"><UserRound size={23}/></div>
+        <b>O teu Pulso social está a aquecer</b>
+        <span>Segue pessoas ou publica algo. O Radar fica separado para notícias e acontecimentos.</span>
+      </div>}
+      <div className="one-pulse-stack">{socialPulse.map(item => <article key={item.id} className="one-pulse-card">
         <PulseMedia item={item}/><div className="one-pulse-shade"/>
-        <div className="one-pulse-copy"><div className="one-pulse-author"><Orb p={item.author_palette} avatarUrl={item.author_avatar_url} s={36}/><div><b>{item.name}</b><span>@{item.handle}</span></div></div><p>{item.body}</p><div className="one-pulse-meta"><span>🔥 {item.fires||0}</span><span>👍 {item.likes||0}</span><span>💬 {item.comments||0}</span></div></div>
-        <div className="one-pulse-actions"><button onClick={()=>startTogether(item)} aria-label="Ver Juntos"><Users size={20}/><span>Juntos</span></button><button onClick={()=>{navigator.clipboard?.writeText(`${window.location.origin}/?post=${item.id}`).then(()=>ping('Ligação copiada')).catch(()=>{})}} aria-label="Partilhar"><Share2 size={20}/><span>Partilhar</span></button></div>
+        <div className="one-pulse-copy">
+          <span className="one-pulse-social-label"><UserRound size={12}/> SOCIAL</span>
+          <div className="one-pulse-author"><Orb p={item.author_palette} avatarUrl={item.author_avatar_url} s={36}/><div><b>{item.name}</b><span>@{item.handle}</span></div></div>
+          <p>{item.body}</p>
+          <div className="one-pulse-meta"><span>🔥 {item.fires||0}</span><span>👍 {item.likes||0}</span><span>💬 {item.comments||0}</span></div>
+        </div>
+        <div className="one-pulse-actions">
+          <button onClick={()=>navigator.clipboard?.writeText(`${window.location.origin}/?post=${item.id}`).then(()=>ping('Ligação copiada')).catch(()=>{})} aria-label="Partilhar">
+            <Share2 size={20}/><span>Partilhar</span>
+          </button>
+        </div>
       </article>)}</div>
-      <button className="one-floating-tune" onClick={()=>setTab('agora')}><SlidersHorizontal size={17}/> Afinar o meu Pulso</button>
+      <button className="one-floating-tune" onClick={()=>setTab('agora')}><SlidersHorizontal size={17}/> Afinar sugestões</button>
     </main>}
 
     {tab==='lumes' && <main className="one-content one-lumes-page">
       <section className="one-hero-card one-lume-hero"><div><span>LUMES</span><h2>Agora. Uma vez. <i>Real.</i></h2><p>Fotografias tiradas neste momento, só para amigos mútuos. Abrem uma vez e desaparecem.</p></div><button className="one-primary" onClick={()=>setCameraOpen(true)}><Camera size={18}/> Tirar um Lume</button></section>
       {lumeFile && <section className="one-lume-draft"><div className="one-lume-preview"><img src={lumePreviewUrl} alt="Pré-visualização do Lume" style={lumeEffectStyle(lumeEffect)}/><button onClick={()=>setLumeFile(null)} aria-label="Descartar"><X size={17}/></button></div><div className="one-effect-row">{EFFECTS.map(([key,label])=><button key={key} className={lumeEffect===key?'is-on':''} onClick={()=>setLumeEffect(key)}>{label}</button>)}</div><button className="one-primary" disabled={lumeBusy} onClick={publishLume}>{lumeBusy?'A enviar…':'Enviar Lume'}</button></section>}
-      <section><div className="one-section-head"><div><span>À tua espera</span><b>Lumes dos teus amigos</b></div><button onClick={loadLumes} aria-label="Atualizar Lumes"><RefreshCw size={16}/></button></div><div className="one-lume-grid">{lumes.map(lume=><button key={lume.id} className="one-lume-tile" onClick={()=>openLume(lume)}><div><Orb p={lume.palette} avatarUrl={lume.avatar_url} s={54}/><span className="one-lume-glow"/></div><b>{lume.mine?'O teu Lume':lume.name.split(' ')[0]}</b><span>{lume.mine?'ativo':'toca para abrir'}</span></button>)}</div>{!lumes.length&&<div className="one-state">Ainda não há Lumes. O primeiro pode ser teu.</div>}</section>
+      <section><div className="one-section-head"><div><span>À TUA ESPERA</span><b>Lumes dos teus amigos</b></div><button onClick={loadLumes} aria-label="Atualizar Lumes"><RefreshCw size={16}/></button></div><div className="one-lume-grid">{lumes.map(lume=><button key={lume.id} className="one-lume-tile" onClick={()=>openLume(lume)}><div><Orb p={lume.palette} avatarUrl={lume.avatar_url} s={54}/><span className="one-lume-glow"/></div><b>{lume.mine?'O teu Lume':lume.name.split(' ')[0]}</b><span>{lume.mine?'ativo':'toca para abrir'}</span></button>)}</div>{!lumes.length&&<div className="one-state">Ainda não há Lumes. O primeiro pode ser teu.</div>}</section>
     </main>}
 
     {tab==='capsules' && <main className="one-content one-capsules-page">
@@ -377,15 +355,29 @@ export function LuminaOne({ me, onBack, ping, onOpenLive }) {
     </main>}
 
     {tab==='agora' && <main className="one-content one-agora-page">
-      <section className="one-hero-card one-agora-hero"><div><span>AGORA</span><h2>A rede adapta-se <i>a ti.</i></h2><p>Tu dizes o que queres ver e em que contexto estás. O algoritmo deixa de ser uma caixa preta.</p></div></section>
-      <section className="one-settings-card"><div className="one-section-head"><div><span>O MEU ALGORITMO</span><b>Afinar o Pulso</b></div><SlidersHorizontal size={20}/></div><label>Quero ver mais<input value={boostInput} onChange={e=>setBoostInput(e.target.value)} placeholder="viagens, carros, tecnologia"/></label><label>Quero ver menos<input value={muteInput} onChange={e=>setMuteInput(e.target.value)} placeholder="política, futebol…"/></label><div className="one-contexts"><span>Modo de agora</span><div>{CONTEXTS.map(([key,label])=><button key={key} className={prefs.context_mode===key?'is-on':''} onClick={()=>setPrefs(prev=>({...prev,context_mode:key}))}>{label}</button>)}</div></div><label>Onde estás / o que queres descobrir<div className="one-region-input"><MapPin size={17}/><input value={localRegion} onChange={e=>{localRegionEditVersion.current+=1;setLocalRegion(e.target.value)}} placeholder="Porto, Lisboa, Braga…"/></div></label><button className="one-primary" onClick={saveAgora}>Guardar e adaptar a Lumina</button></section>
-      <section><div className="one-section-head"><div><span>RADAR LOCAL</span><b>{localRegion||'Perto de ti'}</b></div><MapPin size={19}/></div>{localRegion&&!localItems.length&&<div className="one-state">Ainda não encontrei conteúdo Radar associado a esta zona.</div>}<div className="one-local-grid">{localItems.map(item=><article key={item.id}>{item.image_url&&<img src={item.image_url} alt=""/>}<span>{item.type==='event'?'EVENTO':'RADAR'}{item.region?` · ${item.region}`:''}</span><b>{item.title}</b><p>{item.summary}</p>{item.starts_at&&<time>{new Date(item.starts_at).toLocaleString('pt-PT')}</time>}<button onClick={async()=>{try{const s=await api.one.createTogether({sourceType:'radar',sourceId:item.id,title:item.title});setTogetherId(s.id)}catch(error){ping(error.message)}}}><Users size={16}/> Ver Juntos</button></article>)}</div></section>
-      <section className="one-juntos-section"><div className="one-section-head"><div><span>JUNTOS</span><b>Partilhar o momento</b></div><Users size={20}/></div><div className="one-join"><input value={joinCode} onChange={e=>setJoinCode(e.target.value)} placeholder="Código/ID da sessão"/><button onClick={joinTogether}>Entrar</button></div><div className="one-together-list">{together.map(item=><button key={item.id} onClick={()=>setTogetherId(item.id)}><div><Users size={18}/></div><section><b>{item.title}</b><span>{item.participants} juntos · {item.source_type}</span></section><Play size={16}/></button>)}</div>{!together.length&&<div className="one-state">No Pulso ou Radar, toca em <b>Juntos</b> para iniciar uma sessão.</div>}</section>
+      <section className="one-agora-summary">
+        <span>AGORA</span><h2>Tu defines o contexto. A Lumina adapta-se.</h2>
+        <p>Esta área não é um feed. Serve apenas para dizer à Lumina o que queres descobrir, o que queres evitar e em que contexto estás.</p>
+      </section>
+      <section className="one-settings-card">
+        <div className="one-section-head"><div><span>O MEU ALGORITMO</span><b>O que queres ver agora?</b></div><SlidersHorizontal size={20}/></div>
+        <label>Quero ver mais<input value={boostInput} onChange={e=>setBoostInput(e.target.value)} placeholder="viagens, carros, tecnologia"/></label>
+        <label>Quero ver menos<input value={muteInput} onChange={e=>setMuteInput(e.target.value)} placeholder="política, futebol…"/></label>
+        <div className="one-contexts"><span>Modo de agora</span><div>{CONTEXTS.map(([key,label])=><button key={key} className={prefs.context_mode===key?'is-on':''} onClick={()=>setPrefs(prev=>({...prev,context_mode:key}))}>{label}</button>)}</div></div>
+        <div className="one-radar-handoff">
+          <MapPin size={22}/>
+          <div><b>{deviceLocation?.label || deviceLocation?.city || 'Localização do iPhone'}</b><p>O Radar Local usa a localização real do iPhone. Não misturamos notícias locais com o feed mundial.</p></div>
+          <button className="one-secondary-action" onClick={()=>refreshDeviceLocation({ force:true })} disabled={locating}>{locating?'A detetar…':'Atualizar'}</button>
+        </div>
+        <div className="one-agora-actions">
+          <button className="one-primary" onClick={saveAgora}>Aplicar agora</button>
+          <button className="one-secondary-action" onClick={openRadar}>Abrir Radar Local / Mundo</button>
+        </div>
+      </section>
     </main>}
 
     {cameraOpen && <div className="one-camera" role="dialog" aria-modal="true" aria-label="Câmara Lume"><video ref={videoCameraRef} playsInline muted style={lumeEffectStyle(lumeEffect)}/><div className="one-camera-top"><button onClick={()=>setCameraOpen(false)} aria-label="Fechar câmara"><X size={20}/></button><b>Lume</b><button onClick={()=>setCameraFacing(v=>v==='user'?'environment':'user')} aria-label="Trocar câmara"><RefreshCw size={19}/></button></div>{cameraError&&<div className="one-camera-error">{cameraError}</div>}<div className="one-camera-effects">{EFFECTS.map(([key,label])=><button key={key} className={lumeEffect===key?'is-on':''} onClick={()=>setLumeEffect(key)}>{label}</button>)}</div><button className="one-shutter" onClick={captureLume} aria-label="Tirar fotografia"><span/></button></div>}
     {lumeViewer&&<LumeViewer lume={lumeViewer} onClose={()=>{setLumeViewer(null);loadLumes()}}/>}
     {capsuleCreate&&<div className="one-sheet-backdrop" role="dialog" aria-modal="true" aria-label="Nova Cápsula"><div className="one-sheet"><div className="one-sheet-head"><div><span>NOVA CÁPSULA</span><h3>Guardar para <i>depois.</i></h3></div><button onClick={()=>setCapsuleCreate(false)} aria-label="Fechar"><X size={18}/></button></div><label>Nome<input value={capsuleTitle} onChange={e=>setCapsuleTitle(e.target.value)} placeholder="Verão 2026" maxLength={80}/></label><label>Descrição<textarea value={capsuleDescription} onChange={e=>setCapsuleDescription(e.target.value)} placeholder="O que estamos a guardar?" maxLength={400}/></label><label>Quando pode abrir? <span>(opcional)</span><input type="datetime-local" value={capsuleUnlock} onChange={e=>setCapsuleUnlock(e.target.value)}/></label><button className="one-primary" disabled={capsuleBusy||!capsuleTitle.trim()} onClick={createCapsule}>{capsuleBusy?'A criar…':'Criar Cápsula'}</button></div></div>}
-    {togetherId&&<TogetherPanel sessionId={togetherId} onClose={()=>{setTogetherId(null);loadAgora()}} ping={ping} onOpenLive={onOpenLive}/>} 
   </div>;
 }

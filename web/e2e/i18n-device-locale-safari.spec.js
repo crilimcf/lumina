@@ -67,10 +67,11 @@ test('French iPhone keeps opening and clarified Lumina One fully in French', asy
   await expect(page.locator('.lumina-one')).not.toContainText('Tudo ligado.');
   await expect(page.locator('.lumina-one')).not.toContainText('Sem saltar.');
 
+  const tabs = page.locator('.one-tabs button');
+  await tabs.nth(0).click();
   await expect(page.locator('.one-pulse-intro')).toContainText('Des personnes et des moments. Pas des actualités.');
   await expect(page.locator('.one-pulse-page')).not.toContainText('Juntos');
 
-  const tabs = page.locator('.one-tabs button');
   await tabs.nth(1).click();
   await expect(page.locator('.one-lumes-page')).toContainText('Maintenant. Une fois. Réel.');
   await expect(page.locator('.one-lumes-page')).toContainText('Les Lumes de tes amis');

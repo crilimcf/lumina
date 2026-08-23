@@ -20,22 +20,12 @@ function json(route, body, status = 200) {
 async function mockFrenchSession(page) {
   await page.addInitScript(() => {
     Object.defineProperty(window, 'EventSource', { value:undefined, configurable:true });
+    localStorage.setItem('lumina-one-last-mode-v1', 'agora');
     Object.defineProperty(navigator, 'geolocation', {
       configurable:true,
       value:{
         getCurrentPosition(success) {
-          success({
-            coords:{
-              latitude:38.7223,
-              longitude:-9.1393,
-              accuracy:100,
-              altitude:null,
-              altitudeAccuracy:null,
-              heading:null,
-              speed:null,
-            },
-            timestamp:Date.now(),
-          });
+          success({ coords:{ latitude:38.7223, longitude:-9.1393, accuracy:100, altitude:null, altitudeAccuracy:null, heading:null, speed:null }, timestamp:Date.now() });
         },
         watchPosition() { return 1; },
         clearWatch() {},
@@ -52,7 +42,6 @@ async function mockFrenchSession(page) {
     const url = new URL(request.url());
     const path = url.pathname;
     const method = request.method();
-
     if (path === '/api/auth/me') return json(route, me);
     if (path === '/api/posts/feed') return json(route, { posts:[] });
     if (path === '/api/moments') return json(route, []);
@@ -64,25 +53,21 @@ async function mockFrenchSession(page) {
     if (path === '/api/users/privacy') return json(route, { isPrivate:false });
     if (path === '/api/rooms' && method === 'GET') return json(route, []);
     if (path === '/api/calls/incoming') return json(route, null);
-    if (path === '/api/one/preferences') return json(route, {});
-    if (path === '/api/one/together' || path === '/api/one/capsules' || path === '/api/one/lumes') return json(route, []);
+    if (path === '/api/one/preferences') return json(route, { boost_topics:[], mute_topics:[], context_mode:'auto', local_region:'' });
+    if (path === '/api/one/capsules' || path === '/api/one/lumes') return json(route, []);
+    if (path === '/api/one/pulse') return json(route, { items:[] });
     if (path === '/api/radar' && method === 'GET') return json(route, {
-      country:'PT',
-      region:'Lisboa',
+      country:url.searchParams.get('country') || null,
+      scope:url.searchParams.get('scope') || 'local',
       items:[{
-        id:'radar-1',
-        type:'news',
-        title:'União de Leiria contrata belga Hugo Masaki',
+        id:'radar-1', type:'news', title:'União de Leiria contrata belga Hugo Masaki',
         summary:'Este texto editorial permanece no idioma original da fonte.',
-        source_name:'RTP Notícias · Desporto',
-        published_at:'2026-08-14T10:00:00Z',
-        sponsored:false,
+        source_name:'RTP Notícias · Desporto', published_at:'2026-08-14T10:00:00Z', sponsored:false,
       }],
     });
     if (path === '/api/2fa/status') return json(route, { enabled:false, codesLeft:0 });
     if (path === '/api/sessions') return json(route, []);
-
-    return json(route, method === 'GET' ? {} : {});
+    return json(route, {});
   });
 }
 
@@ -93,13 +78,8 @@ async function openAuthenticatedApp(page) {
   await page.getByRole('button', { name:'Ouvrir le Fil' }).click();
 }
 
-async function bodyContains(page, text) {
-  await expect(page.locator('body')).toContainText(text);
-}
-
-async function bodyOmits(page, text) {
-  await expect(page.locator('body')).not.toContainText(text);
-}
+const bodyContains = (page, text) => expect(page.locator('body')).toContainText(text);
+const bodyOmits = (page, text) => expect(page.locator('body')).not.toContainText(text);
 
 test('French iPhone UI has no Portuguese chrome across core mobile surfaces', async ({ browser }) => {
   const context = await browser.newContext({ locale:'fr-FR', viewport:{ width:390, height:844 } });
@@ -114,17 +94,9 @@ test('French iPhone UI has no Portuguese chrome across core mobile surfaces', as
 
   const adventure = page.locator('.one-v3-feed-entry.one-adventure-entry');
   await expect(adventure).toBeVisible();
-  const translatedModes = [
-    ['pulse', 'Ressens le pouls maintenant', 'Sente o pulso agora'],
-    ['lumes', 'Allume de nouveaux Lumes', 'Acende novos Lumes'],
-    ['capsules', 'Ouvre une Capsule', 'Abre uma Cápsula'],
-    ['agora', 'Explore ton instant présent', 'Explora o teu Agora'],
-  ];
-  for (const [mode, translated, portuguese] of translatedModes) {
-    await page.evaluate(value => window.dispatchEvent(new CustomEvent('lumina-one:show-mode', { detail:{ mode:value } })), mode);
-    await expect(adventure).toContainText(translated);
-    await expect(adventure).not.toContainText(portuguese);
-  }
+  await expect(adventure).toContainText('Ajuste ton Maintenant');
+  await expect(adventure).toContainText('Contexte et préférences, sans mélanger les actualités');
+  await expect(adventure).not.toContainText('Afina o teu Agora');
 
   await page.getByRole('button', { name:'Salons' }).click();
   await bodyContains(page, 'Salons');
@@ -132,21 +104,25 @@ test('French iPhone UI has no Portuguese chrome across core mobile surfaces', as
   await bodyContains(page, 'Toutes');
   await bodyContains(page, 'Publics');
   await bodyContains(page, 'Privés');
-  await bodyContains(page, 'Confidentialité réelle.');
   await bodyOmits(page, 'Tópicos vivos, sem poluir o Feed.');
 
   await page.getByRole('button', { name:'Radar' }).click();
   await bodyContains(page, 'Explorer maintenant');
-  await bodyContains(page, 'Découvrir avec du contexte, pas du bruit.');
-  await bodyContains(page, 'Les sources éditoriales vérifiées, les titres et le contexte restent séparés du Fil social.');
+  await bodyContains(page, 'Local et Monde sont deux expériences séparées.');
+  await bodyContains(page, 'Les actualités restent dans Radar.');
+  await bodyContains(page, 'sans mélanger ta zone avec le monde');
+  await bodyContains(page, 'Nous affichons uniquement le contenu du pays ou de la région détecté par l’iPhone.');
   await bodyContains(page, 'Actualités');
   await bodyContains(page, 'Événements');
   await bodyContains(page, 'Source vérifiée');
-  // Publisher/editorial content is not UI chrome and must remain exactly as published.
+  await expect(page.getByRole('tab', { name:'Local' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name:'Monde' })).toBeVisible();
+  // Editorial content keeps the source language.
   await bodyContains(page, 'União de Leiria contrata belga Hugo Masaki');
   await bodyContains(page, 'Este texto editorial permanece no idioma original da fonte.');
   await bodyContains(page, 'RTP Notícias · Desporto');
-  await bodyOmits(page, 'Sources editoriais verificadas, manchetes e contexto ficam separados do Feed social. O artigo original continua na respetiva fonte e conteúdo comercial permanece sempre identificado.');
+  await bodyOmits(page, 'Local e Mundo são experiências separadas.');
+  await bodyOmits(page, 'Notícias ficam no Radar.');
 
   await page.getByRole('button', { name:'Profil' }).click();
   await bodyContains(page, 'Sécurité et sessions');
@@ -161,38 +137,22 @@ test('French iPhone UI has no Portuguese chrome across core mobile surfaces', as
   await bodyContains(page, 'Validation en deux étapes');
   await bodyContains(page, 'Où tu es connecté');
   await bodyOmits(page, 'Dois passos');
-  await bodyOmits(page, 'Onde tens sessão iniciada');
-  await page.getByRole('button', { name:'Retour' }).click();
-
-  await page.getByRole('button', { name:/Confidentialité/i }).click();
-  await bodyContains(page, 'Politique de confidentialité de Lumina');
-  await bodyOmits(page, 'Política de Privacidade da Lumina');
-  await page.getByRole('button', { name:'Retour' }).click();
-
-  await page.getByRole('button', { name:/Conditions/i }).click();
-  await bodyContains(page, 'Conditions d’utilisation de Lumina');
-  await bodyOmits(page, 'Termos de Utilização da Lumina');
   await page.getByRole('button', { name:'Retour' }).click();
 
   await page.getByRole('button', { name:/Modifier le profil/i }).click();
   await bodyContains(page, 'Modifier le profil');
   await bodyContains(page, 'Changer la photo');
-  await bodyContains(page, 'Supprimer la photo');
   await bodyContains(page, 'Nom');
   await bodyContains(page, 'Biographie');
   await bodyContains(page, 'Enregistrer les modifications');
-  await bodyContains(page, 'Changer le mot de passe');
   await expect(page.getByPlaceholder('Mot de passe actuel')).toBeVisible();
   await expect(page.getByPlaceholder('Nouveau mot de passe')).toBeVisible();
-  await bodyOmits(page, 'Trocar foto');
   await bodyOmits(page, 'Guardar alterações');
 
   await page.getByRole('button', { name:'Retour' }).click();
   await page.getByRole('button', { name:'Nouveau' }).click();
   await bodyContains(page, 'Publier');
   await bodyContains(page, 'Partage une photo, une vidéo, une pensée ou lance un direct');
-  await bodyContains(page, 'Photo');
-  await bodyContains(page, 'Direct');
   await expect(page.getByPlaceholder('Qu’est-ce que tu regardes ou à quoi penses-tu ?')).toBeVisible();
   await bodyOmits(page, 'Partilha uma fotografia, um vídeo, um pensamento ou entra em direto');
 

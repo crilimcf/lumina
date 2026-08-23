@@ -3,6 +3,15 @@ name: Mobile store release
 on:
   workflow_dispatch:
     inputs:
+      target:
+        description: Store target
+        required: true
+        default: ios
+        type: choice
+        options:
+          - ios
+          - android
+          - both
       version:
         description: Public version, for example 1.0.0
         required: true
@@ -20,6 +29,7 @@ concurrency:
 
 jobs:
   android-play-bundle:
+    if: ${{ inputs.target == 'android' || inputs.target == 'both' }}
     name: Signed Google Play bundle
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -84,6 +94,7 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/google-play-service-account.json" node scripts/upload-google-play.mjs
 
   ios-testflight:
+    if: ${{ inputs.target == 'ios' || inputs.target == 'both' }}
     name: Signed iOS archive and TestFlight upload
     runs-on: macos-26
     timeout-minutes: 45

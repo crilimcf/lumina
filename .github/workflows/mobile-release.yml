@@ -63,7 +63,10 @@ jobs:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          test -n "$FIREBASE_JSON" && test -n "$KEYSTORE" && test -n "$STORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD"
+          if [ -z "$FIREBASE_JSON" ] || [ -z "$KEYSTORE" ] || [ -z "$STORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "::error::Missing one or more Android release secrets."
+            exit 1
+          fi
           printf '%s' "$FIREBASE_JSON" | base64 --decode > android/app/google-services.json
           printf '%s' "$KEYSTORE" | base64 --decode > android/app/lumina-release.jks
           {
@@ -89,7 +92,10 @@ jobs:
           PLAY_TRACK: internal
           PLAY_RELEASE_STATUS: completed
         run: |
-          test -n "$PLAY_SERVICE_ACCOUNT"
+          if [ -z "$PLAY_SERVICE_ACCOUNT" ]; then
+            echo "::error::Missing GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64."
+            exit 1
+          fi
           printf '%s' "$PLAY_SERVICE_ACCOUNT" | base64 --decode > "$RUNNER_TEMP/google-play-service-account.json"
           GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/google-play-service-account.json" node scripts/upload-google-play.mjs
 
@@ -111,16 +117,32 @@ jobs:
       - run: npm ci
       - run: npm run native:build-web
       - run: npx cap sync ios
-      - name: Configure App Store Connect key
+      - name: Validate Apple release credentials
         env:
           API_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY_BASE64 }}
           API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          test -n "$API_KEY" && test -n "$API_KEY_ID" && test -n "$API_ISSUER_ID" && test -n "$TEAM_ID"
+          missing=0
+          for name in API_KEY API_KEY_ID API_ISSUER_ID TEAM_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing required Apple release credential: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::Configure APPLE_API_PRIVATE_KEY_BASE64, APPLE_API_KEY_ID, APPLE_API_ISSUER_ID and APPLE_TEAM_ID in GitHub Actions secrets."
+            exit 1
+          fi
+      - name: Configure App Store Connect key
+        env:
+          API_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY_BASE64 }}
+          API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+        run: |
           mkdir -p "$RUNNER_TEMP/private_keys"
           printf '%s' "$API_KEY" | base64 --decode > "$RUNNER_TEMP/private_keys/AuthKey_${API_KEY_ID}.p8"
+          test -s "$RUNNER_TEMP/private_keys/AuthKey_${API_KEY_ID}.p8"
       - name: Archive signed application
         env:
           API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}

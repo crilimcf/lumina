@@ -9,7 +9,7 @@ import { useMoments } from './hooks/useMoments.js';
 import { t } from './i18n-ui.js';
 import './lumina-one-stories.css';
 
-const roots = new WeakMap();
+const roots = new Map();
 
 function PulsoStories() {
   const [me, setMe] = useState(null);
@@ -91,7 +91,16 @@ function PulsoStories() {
   </>;
 }
 
+function cleanupStories() {
+  for (const [host, root] of roots) {
+    if (host.isConnected) continue;
+    root.unmount();
+    roots.delete(host);
+  }
+}
+
 function mountStories() {
+  cleanupStories();
   const intro = document.querySelector('.one-pulse-page .one-pulse-intro');
   if (!intro || !intro.isConnected) return;
   const page = intro.parentElement;
@@ -105,4 +114,5 @@ function mountStories() {
 }
 
 mountStories();
-new MutationObserver(mountStories).observe(document.documentElement, { childList:true, subtree:true });
+const observer = new MutationObserver(mountStories);
+observer.observe(document.documentElement, { childList:true, subtree:true });

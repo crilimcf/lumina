@@ -144,7 +144,9 @@ radarSyncRoutes.get('/', auth, h(async (req, res, next) => {
 
   res.json({
     items,
-    nextCursor: rows.length === limit ? rows.at(-1).published_at : null,
+    // Global is deliberately interleaved by publisher. A timestamp-only cursor cannot
+    // represent that ordering safely, so do not advertise pagination for this scope.
+    nextCursor: scope === 'global' ? null : (rows.length === limit ? rows.at(-1).published_at : null),
     country: country ? country.toUpperCase() : null,
     region,
     scope,

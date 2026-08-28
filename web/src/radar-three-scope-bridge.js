@@ -1,25 +1,31 @@
 import { t } from './i18n-ui.js';
 
-const OLD_COPY = 'O Radar Local usa a localização real do iPhone. Não misturamos notícias locais com o feed mundial.';
-const OLD_CTA = 'Abrir Radar Local / Mundo';
+const GENERIC_LOCATION_LABELS = new Set([
+  'Localização do iPhone',
+  'Localisation de l’iPhone',
+  'Position de l’iPhone',
+  'iPhone location',
+  'Ubicación del iPhone',
+]);
 
 function apply() {
-  document.querySelectorAll('.one-radar-handoff p').forEach(node => {
-    const source = node.dataset.radarScopeSource || node.textContent.trim();
-    if (source === OLD_COPY || node.dataset.radarScopeSource === OLD_COPY) {
-      node.dataset.radarScopeSource = OLD_COPY;
-      const next = t('O Radar usa a localização real do iPhone: Perto de mim, País e Mundo ficam separados.');
-      if (node.textContent !== next) node.textContent = next;
+  document.querySelectorAll('.one-radar-handoff').forEach(section => {
+    const label = section.querySelector('b');
+    if (label && GENERIC_LOCATION_LABELS.has(label.textContent.trim())) {
+      const nextLabel = t('Localização do iPhone');
+      if (label.textContent !== nextLabel) label.textContent = nextLabel;
+    }
+
+    const copy = section.querySelector('p');
+    if (copy) {
+      const nextCopy = t('O Radar usa a localização real do iPhone: Perto de mim, País e Mundo ficam separados.');
+      if (copy.textContent !== nextCopy) copy.textContent = nextCopy;
     }
   });
 
-  document.querySelectorAll('.one-agora-actions button').forEach(node => {
-    const source = node.dataset.radarScopeSource || node.textContent.trim();
-    if (source === OLD_CTA || node.dataset.radarScopeSource === OLD_CTA) {
-      node.dataset.radarScopeSource = OLD_CTA;
-      const next = t('Abrir Radar Perto / País / Mundo');
-      if (node.textContent !== next) node.textContent = next;
-    }
+  document.querySelectorAll('.one-agora-actions .one-secondary-action').forEach(node => {
+    const next = t('Abrir Radar Perto / País / Mundo');
+    if (node.textContent !== next) node.textContent = next;
   });
 }
 

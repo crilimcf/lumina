@@ -3,6 +3,7 @@ import { q } from '../db.js';
 import { audit, auth, bad, forbidden, h, notFound } from '../middleware/auth.js';
 import { syncRadarSources } from '../jobs/radar.js';
 import { syncWebRadarSources } from '../jobs/radar-web.js';
+import { loadNearbyNews } from '../lib/nearby-news.js';
 
 export const radarSyncRoutes = Router();
 const AUTO_RSS_TYPES = new Set(['news', 'trend', 'editorial']);
@@ -48,9 +49,19 @@ function cleanRegion(value) {
   return String(value).trim().slice(0, 80) || null;
 }
 
+function dedupeByUrl(items) {
+  const seen = new Set();
+  return items.filter(item => {
+    const key = String(item?.external_url || item?.id || '').trim();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 // The product exposes three explicit news scopes:
 // nearby = strict city/region match, country = whole current country, global = international.
-// Nearby deliberately returns an empty feed instead of silently falling back to national news.
+// Nearby deliberately never falls back to national content.
 radarSyncRoutes.get('/', auth, h(async (req, res, next) => {
   const scope = String(req.query.scope || '').trim().toLowerCase();
   if (!EXPLICIT_SCOPES.has(scope)) return next();
@@ -121,8 +132,18 @@ radarSyncRoutes.get('/', auth, h(async (req, res, next) => {
     [requestedType, before, countryTag, regionNeedle, scope, limit]
   );
 
+  let items = rows;
+  if (scope === 'nearby' && !before && (!requestedType || requestedType === 'news') && rows.length < limit) {
+    try {
+      const live = await loadNearbyNews({ country, region, limit:limit - rows.length });
+      items = dedupeByUrl([...rows, ...live]).slice(0, limit);
+    } catch (error) {
+      console.warn(`[radar] notícias próximas de ${region} indisponíveis:`, error.message);
+    }
+  }
+
   res.json({
-    items: rows,
+    items,
     nextCursor: rows.length === limit ? rows.at(-1).published_at : null,
     country: country ? country.toUpperCase() : null,
     region,

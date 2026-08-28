@@ -43,17 +43,21 @@ async function mockSession(page) {
   });
 }
 
-test('French iPhone keeps opening and clarified Lumina One fully in French', async ({ browser }) => {
+test('French iPhone keeps splash, greeting and clarified Lumina One fully in French', async ({ browser }) => {
   const context = await browser.newContext({ locale:'fr-FR', viewport:{ width:390, height:844 } });
   const page = await context.newPage();
   await mockSession(page);
   await page.goto('/');
 
   await expect(page.locator('html')).toHaveAttribute('lang', 'fr-FR');
+  await expect(page.locator('.lumina-launch-tagline')).toHaveText('Ta lumière, tes connexions.', { timeout:1800 });
+  await expect(page.locator('body')).toContainText('Bonjour, Angèle', { timeout:8000 });
   await expect(page.locator('body')).toContainText('Personnes dans le Fil.');
   await expect(page.locator('body')).toContainText('Sujets dans les Salons.');
+  await expect(page.locator('body')).not.toContainText('Olá, Angèle');
   await expect(page.locator('body')).not.toContainText('Pessoas no');
   await expect(page.locator('body')).not.toContainText('Tópicos nas');
+  await expect(page.locator('body')).not.toContainText('Sua luz, suas conexões');
 
   await page.getByRole('button', { name:'Ouvrir le Fil' }).click();
   const entry = page.locator('.one-v3-feed-entry');
@@ -88,9 +92,10 @@ test('French iPhone keeps opening and clarified Lumina One fully in French', asy
   await expect(settings).toContainText('Je veux en voir plus');
   await expect(settings).toContainText('Je veux en voir moins');
   await expect(settings).toContainText('Mode actuel');
-  await expect(settings).toContainText('Localisation de l’iPhone');
+  await expect(settings).toContainText('Position de l’iPhone');
+  await expect(settings).toContainText('Près de moi, Pays et Monde restent séparés');
   await expect(settings.getByRole('button', { name:'Appliquer maintenant' })).toBeVisible();
-  await expect(settings.getByRole('button', { name:'Ouvrir Radar Local / Monde' })).toBeVisible();
+  await expect(settings.getByRole('button', { name:'Ouvrir Radar Près / Pays / Monde' })).toBeVisible();
   await expect(settings).not.toContainText('Onde estás / o que queres descobrir');
   await expect(page.locator('.one-v3-location')).toHaveCount(0);
 

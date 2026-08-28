@@ -71,11 +71,13 @@ test('navegação final tem 5 itens; publicação edita/apaga; Radar está realm
 
   await page.getByRole('button', { name:'Radar' }).click();
   await expect(page.getByRole('heading', { name:/Radar/i })).toBeVisible();
-  await expect(page.getByText(/Local e Mundo são experiências separadas/i)).toBeVisible();
+  await expect(page.getByText(/Perto de mim, País e Mundo são experiências separadas/i)).toBeVisible();
   await expect(page.getByText('Notícias ficam no Radar.')).toBeVisible();
-  const local = page.getByRole('tab', { name:'Local' });
+  const nearby = page.getByRole('tab', { name:'Perto de mim' });
+  const country = page.getByRole('tab', { name:'País' });
   const world = page.getByRole('tab', { name:'Mundo' });
-  await expect(local).toHaveAttribute('aria-selected', 'true');
+  await expect(nearby).toHaveAttribute('aria-selected', 'true');
+  await expect(country).toBeVisible();
   await expect(page.getByRole('button', { name:'Notícias' })).toBeVisible();
   await expect(page.getByRole('button', { name:'Promoções' })).toBeVisible();
   await expect(page.getByRole('button', { name:'Eventos' })).toBeVisible();

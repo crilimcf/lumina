@@ -23,9 +23,6 @@ export async function ensureRadarCountrySources() {
        AND NOT (COALESCE(config->'tags', '[]'::jsonb) @> '["country:pt"]'::jsonb)`
   );
 
-  // Eventos e promoções verificadas foram criados antes do Radar passar a usar
-  // country:* como fonte de verdade. Mantém o catálogo existente visível no país
-  // correto sem abrir itens sem proveniência a outros países.
   await q(
     `UPDATE radar_items
      SET tags = array_append(COALESCE(tags, ARRAY[]::text[]), 'country:pt'),
@@ -44,14 +41,24 @@ export async function ensureRadarCountrySources() {
            '{"maxItems":18,"maxAgeDays":3,"priority":18,"autoPublish":true,"region":"France","tags":["country:fr","france","france24"]}'::jsonb),
          ('RFI · Français', 'rss', 'https://www.rfi.fr/fr/rss', 'news', true, true,
            '{"maxItems":16,"maxAgeDays":3,"priority":16,"autoPublish":true,"region":"France","tags":["country:fr","france","rfi"]}'::jsonb),
+
+         -- Mundo: publishers independentes e de regiões editoriais diferentes.
          ('Al Jazeera · English', 'rss', 'https://www.aljazeera.com/xml/rss/all.xml', 'news', true, true,
-           '{"maxItems":20,"maxAgeDays":3,"priority":20,"autoPublish":true,"region":"Global","tags":["country:global","world","aljazeera"]}'::jsonb),
+           '{"maxItems":16,"maxAgeDays":3,"priority":18,"autoPublish":true,"region":"Global","tags":["country:global","world","aljazeera"]}'::jsonb),
          ('Euronews · World News', 'rss', 'https://www.euronews.com/rss?format=mrss&level=theme&name=news', 'news', true, true,
-           '{"maxItems":20,"maxAgeDays":3,"priority":19,"autoPublish":true,"region":"Global","tags":["country:global","world","euronews"]}'::jsonb),
+           '{"maxItems":16,"maxAgeDays":3,"priority":18,"autoPublish":true,"region":"Global","tags":["country:global","world","euronews"]}'::jsonb),
+         ('BBC News · World', 'rss', 'https://feeds.bbci.co.uk/news/world/rss.xml', 'news', true, true,
+           '{"maxItems":16,"maxAgeDays":3,"priority":18,"autoPublish":true,"region":"Global","tags":["country:global","world","bbc"]}'::jsonb),
+         ('The Guardian · World', 'rss', 'https://www.theguardian.com/world/rss', 'news', true, true,
+           '{"maxItems":16,"maxAgeDays":3,"priority":17,"autoPublish":true,"region":"Global","tags":["country:global","world","guardian"]}'::jsonb),
+         ('NPR · World', 'rss', 'https://feeds.npr.org/1004/rss.xml', 'news', true, true,
+           '{"maxItems":14,"maxAgeDays":3,"priority":16,"autoPublish":true,"region":"Global","tags":["country:global","world","npr"]}'::jsonb),
+         ('DW · World', 'rss', 'https://rss.dw.com/syndication/feeds/VAS_CB_Eng_OurVoice.31791-cb.html', 'news', true, true,
+           '{"maxItems":14,"maxAgeDays":3,"priority":16,"autoPublish":true,"region":"Global","tags":["country:global","world","dw"]}'::jsonb),
+         ('Sky News · World', 'rss', 'https://feeds.skynews.com/feeds/rss/world.xml', 'news', true, true,
+           '{"maxItems":14,"maxAgeDays":3,"priority":16,"autoPublish":true,"region":"Global","tags":["country:global","world","sky-news"]}'::jsonb),
 
          -- Google disponibiliza um feed RSS público das pesquisas em alta por país.
-         -- Cada feed pertence ao país e também ao agregado Mundo; a UI remove
-         -- duplicados quando o mesmo item já aparece no bloco local.
          ('Google Trends · Portugal', 'rss', 'https://trends.google.com/trending/rss?geo=PT', 'trend', true, true,
            '{"maxItems":20,"maxAgeDays":2,"priority":24,"autoPublish":true,"region":"Portugal","tags":["country:pt","country:global","google-trends","tendencias"]}'::jsonb),
          ('Google Trends · France', 'rss', 'https://trends.google.com/trending/rss?geo=FR', 'trend', true, true,
@@ -103,9 +110,9 @@ async function runRadarSync() {
 export function startRadarJobs() {
   ensureRadarCountrySources()
     .then(({ inserted }) => {
-      if (inserted) console.log(`[radar] ${inserted} fonte(s) local/global preparada(s) após health`);
+      if (inserted) console.log(`[radar] ${inserted} fonte(s) país/mundo preparada(s) após health`);
     })
-    .catch(error => console.error('[radar] preparação de fontes local/global falhou:', error.message));
+    .catch(error => console.error('[radar] preparação de fontes país/mundo falhou:', error.message));
 
   if (process.env.RUN_JOBS_IN_PROCESS === 'false' || process.env.RADAR_INGEST_ENABLED === 'false') {
     console.log('[radar] ingestão automática desligada neste processo');

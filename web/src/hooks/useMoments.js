@@ -1,5 +1,7 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
+
+const announceMomentsChanged = () => window.dispatchEvent(new CustomEvent('lumina:moments-changed'));
 
 export function useMoments({ me, ping }) {
   const [moments, setMoments] = useState([]);
@@ -13,6 +15,12 @@ export function useMoments({ me, ping }) {
     api.moments.list().then(setMoments).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    const refresh = () => loadMoments();
+    window.addEventListener('lumina:moments-changed', refresh);
+    return () => window.removeEventListener('lumina:moments-changed', refresh);
+  }, [loadMoments]);
+
   const editMoment = useCallback(async (id, file) => {
     if (!file) return false;
     setMomentBusy(true);
@@ -20,6 +28,7 @@ export function useMoments({ me, ping }) {
       const mediaUrl = await api.upload(file);
       const edited = await api.moments.update(id, { mediaUrl });
       setMoments(current => current.map(moment => moment.id === id ? { ...moment, ...edited } : moment));
+      announceMomentsChanged();
       ping('Momento atualizado');
       return true;
     } catch (e) {
@@ -72,8 +81,6 @@ export function useMoments({ me, ping }) {
       return aUnseen === bUnseen ? 0 : aUnseen ? -1 : 1;
     });
 
-    // O viewer 3D só conhece os dois vizinhos imediatos. Não pré-carregamos a
-    // galeria inteira, o que mantém fotos/vídeos dos Momentos leves no iPhone.
     return groups.map((group, index) => ({
       ...group,
       prevGroup: groups[index - 1] || null,
@@ -94,6 +101,7 @@ export function useMoments({ me, ping }) {
       setMomentFile(null);
       setMomentPalette(0);
       loadMoments();
+      announceMomentsChanged();
       ping('Momento publicado. Fica visível 24 horas.');
     } catch (e) {
       ping(e.message);
@@ -115,6 +123,7 @@ export function useMoments({ me, ping }) {
         setViewingAuthor(authorId => authorId && !remaining.some(moment => moment.author_id === authorId) ? null : authorId);
         return remaining;
       });
+      announceMomentsChanged();
       ping('Momento apagado');
     } catch (e) {
       ping(e.message);

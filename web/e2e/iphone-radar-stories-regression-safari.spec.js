@@ -66,9 +66,10 @@ test('Google Trends never opens the raw RSS document from Radar', async ({ brows
   await expect(link).toBeVisible();
   await expect(link).toHaveAttribute('target', '_blank');
   const href = await link.getAttribute('href');
-  expect(href).toContain('https://trends.google.com/trends/explore');
-  expect(href).toContain('geo=PT');
-  expect(decodeURIComponent(href)).toContain('q=crystal palace - city');
+  const target = new URL(href);
+  expect(`${target.origin}${target.pathname}`).toBe('https://trends.google.com/trends/explore');
+  expect(target.searchParams.get('geo')).toBe('PT');
+  expect(target.searchParams.get('q')).toBe('crystal palace - city');
   expect(href).not.toContain('/trending/rss');
   await context.close();
 });

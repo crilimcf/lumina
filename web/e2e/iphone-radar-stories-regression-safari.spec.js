@@ -106,7 +106,8 @@ test('Pulso is story-first with blue unseen ring, grey seen ring and own plus bu
   await expect(lea.locator('.one-story-avatar')).toHaveClass(/is-unseen/);
   await expect(emma.locator('.one-story-avatar')).toHaveClass(/is-seen/);
   await lea.click();
-  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.locator('.reveal')).toBeVisible();
+  await expect(page.getByText('Léa Story', { exact:true })).toBeVisible();
 
   await context.close();
 });

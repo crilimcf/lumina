@@ -96,6 +96,7 @@ test('Agora afina o algoritmo e usa a localização real do iPhone sem virar fee
   await page.getByPlaceholder('política, futebol…').fill('política');
   await page.getByRole('button', { name:'Viagem', exact:true }).click();
   await expect(page.locator('.one-radar-handoff')).toContainText('Bragança, Portugal', { timeout:12000 });
+  await expect(page.locator('.one-radar-handoff')).toContainText('Perto de mim, País e Mundo ficam separados');
 
   const saved = page.waitForResponse(response => {
     const url = new URL(response.url());
@@ -111,7 +112,7 @@ test('Agora afina o algoritmo e usa a localização real do iPhone sem virar fee
     localRegion:'Bragança',
   });
 
-  await expect(page.getByRole('button', { name:'Abrir Radar Local / Mundo' })).toBeVisible();
+  await expect(page.getByRole('button', { name:'Abrir Radar Perto / País / Mundo' })).toBeVisible();
   await expect(page.locator('.one-local-grid')).toHaveCount(0);
   await expect(page.locator('.one-juntos-section')).toHaveCount(0);
   await expect(page.getByPlaceholder('Porto, Lisboa, Braga…')).toHaveCount(0);

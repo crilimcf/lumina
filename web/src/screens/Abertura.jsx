@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowUpRight, DoorOpen, Home } from 'lucide-react';
 import { Orb, Skeleton } from '../ui.jsx';
-import { t, translateDynamic } from '../i18n.js';
+import { t, translateDynamic } from '../i18n-ui.js';
 
 /** Entrada visual curta depois do login/registo, alinhada com Feed + Salas. */
 export function Abertura({ me, onSkip, onRooms }) {

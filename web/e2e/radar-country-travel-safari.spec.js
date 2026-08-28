@@ -18,15 +18,15 @@ async function register(page) {
   await page.getByRole('button', { name:'Entrar no Feed' }).click();
 }
 
-function radarItem({ id, title, summary, source, tags, region }) {
+function radarItem({ id, title, summary, source, tags, region, external = 'https://example.test/story' }) {
   return {
     id, type:'news', title, summary, source_name:source, source_url:null,
-    external_url:'https://example.test/story', image_url:null, sponsored:false, sponsor_label:null,
+    external_url:external, image_url:null, sponsored:false, sponsor_label:null,
     tags, region, starts_at:null, ends_at:null, published_at:new Date().toISOString(), priority:10,
   };
 }
 
-test('Radar separa Local e Mundo e muda o Local de Portugal para França sem mudar a língua da app', async ({ page, context }) => {
+test('Radar separa Perto de mim, País e Mundo e acompanha uma viagem sem mudar a língua da app', async ({ page, context }) => {
   await page.emulateMedia({ colorScheme:'light' });
   await context.addInitScript(() => {
     window.__radarCountry = 'PT';
@@ -65,61 +65,82 @@ test('Radar separa Local e Mundo e muda o Local de Portugal para França sem mud
     const url = new URL(route.request().url());
     const country = url.searchParams.get('country');
     const scope = url.searchParams.get('scope') || 'mixed';
-    radarRequests.push({ country, scope });
+    const region = url.searchParams.get('region');
+    radarRequests.push({ country, scope, region });
     const france = country === 'FR';
-    const global = scope === 'global';
-    const item = global
-      ? radarItem({ id:'world-item', title:'World briefing', summary:'Global&nbsp;&nbsp;editorial signal.', source:'Euronews', tags:['country:global'], region:'Global' })
-      : radarItem({
-          id:france ? 'fr-item' : 'pt-item',
-          title:france ? 'Actualité locale à Paris' : 'Notícia local em Lisboa',
-          summary:france ? 'Contenu&nbsp;&nbsp;éditorial français.' : 'Conteúdo&nbsp;&nbsp;editorial português.',
-          source:france ? 'franceinfo' : 'RTP Notícias',
-          tags:[`country:${String(country || 'pt').toLowerCase()}`],
-          region:france ? 'France' : 'Portugal',
-        });
+    let item;
+    if (scope === 'global') {
+      item = radarItem({ id:'world-item', title:'World briefing', summary:'Global&nbsp;&nbsp;editorial signal.', source:'Euronews', tags:['country:global'], region:'Global' });
+    } else if (scope === 'country') {
+      item = radarItem({
+        id:france ? 'fr-country' : 'pt-country',
+        title:france ? 'France — actualité nationale' : 'Portugal — notícia nacional',
+        summary:france ? 'Actualité de tout le pays.' : 'Notícia do país inteiro.',
+        source:france ? 'franceinfo' : 'RTP Notícias',
+        tags:[`country:${String(country || 'pt').toLowerCase()}`],
+        region:france ? 'France' : 'Portugal',
+      });
+    } else {
+      item = radarItem({
+        id:france ? 'fr-nearby' : 'pt-nearby',
+        title:france ? 'Actualité vraiment proche à Paris' : 'Notícia mesmo perto em Lisboa',
+        summary:france ? 'Contenu&nbsp;&nbsp;local de Paris.' : 'Conteúdo&nbsp;&nbsp;local de Lisboa.',
+        source:france ? 'Paris Local' : 'Lisboa Local',
+        tags:[`country:${String(country || 'pt').toLowerCase()}`, `nearby:${String(region || '').toLowerCase()}`],
+        region:france ? 'Paris' : 'Lisboa',
+      });
+    }
     await route.fulfill({
       status:200,
       contentType:'application/json',
-      body:JSON.stringify({ country, scope, region:france ? 'Paris' : 'Lisboa', nextCursor:null, items:[item] }),
+      body:JSON.stringify({ country, scope, region, nextCursor:null, items:[item] }),
     });
   });
 
   await register(page);
   await page.getByRole('button', { name:'Radar' }).click();
 
-  const localTab = page.getByRole('tab', { name:'Local' });
+  const nearbyTab = page.getByRole('tab', { name:'Perto de mim' });
+  const countryTab = page.getByRole('tab', { name:'País' });
   const worldTab = page.getByRole('tab', { name:'Mundo' });
-  await expect(localTab).toHaveAttribute('aria-selected', 'true');
+  await expect(nearbyTab).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('.radar-scope-banner')).toContainText('Lisboa, Portugal');
-  await expect(page.getByRole('heading', { name:'Notícia local em Lisboa' })).toBeVisible();
+  await expect(page.getByRole('heading', { name:'Notícia mesmo perto em Lisboa' })).toBeVisible();
+  await expect(page.getByRole('heading', { name:'Portugal — notícia nacional' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name:'World briefing' })).toHaveCount(0);
-  await expect(page.getByText('Conteúdo editorial português.', { exact:true })).toBeVisible();
+  await expect(page.getByText('Conteúdo local de Lisboa.', { exact:true })).toBeVisible();
   await expect(page.getByText(/&nbsp;/)).toHaveCount(0);
-  expect(radarRequests.some(req => req.scope === 'local' && req.country === 'PT')).toBe(true);
-  expect(radarRequests.some(req => req.scope === 'global')).toBe(false);
+  expect(radarRequests.some(req => req.scope === 'nearby' && req.country === 'PT' && req.region === 'Lisboa')).toBe(true);
+
+  await countryTab.click();
+  await expect(countryTab).toHaveAttribute('aria-selected', 'true');
+  await expect(nearbyTab).toHaveAttribute('aria-selected', 'false');
+  await expect(page.getByRole('heading', { name:'Portugal — notícia nacional' })).toBeVisible();
+  await expect(page.getByRole('heading', { name:'Notícia mesmo perto em Lisboa' })).toHaveCount(0);
+  expect(radarRequests.some(req => req.scope === 'country' && req.country === 'PT' && req.region === null)).toBe(true);
 
   await worldTab.click();
   await expect(worldTab).toHaveAttribute('aria-selected', 'true');
-  await expect(localTab).toHaveAttribute('aria-selected', 'false');
+  await expect(countryTab).toHaveAttribute('aria-selected', 'false');
   await expect(page.getByRole('heading', { name:'World briefing' })).toBeVisible();
   await expect(page.getByText('Global editorial signal.', { exact:true })).toBeVisible();
-  await expect(page.getByRole('heading', { name:'Notícia local em Lisboa' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name:'Portugal — notícia nacional' })).toHaveCount(0);
   await expect(page.getByRole('button', { name:'Promoções' })).toHaveCount(0);
   await expect(page.getByRole('button', { name:'Eventos' })).toHaveCount(0);
   expect(radarRequests.some(req => req.scope === 'global' && req.country === null)).toBe(true);
 
-  await localTab.click();
+  await nearbyTab.click();
   await page.evaluate(() => { window.__radarCountry = 'FR'; });
   await page.getByRole('button', { name:'Atualizar localização' }).click();
 
   await expect(page.locator('.radar-scope-banner')).toContainText('Paris, France');
-  await expect(page.getByRole('heading', { name:'Actualité locale à Paris' })).toBeVisible();
-  await expect(page.getByText('Contenu éditorial français.', { exact:true })).toBeVisible();
+  await expect(page.getByRole('heading', { name:'Actualité vraiment proche à Paris' })).toBeVisible();
+  await expect(page.getByText('Contenu local de Paris.', { exact:true })).toBeVisible();
+  await expect(page.getByRole('heading', { name:'France — actualité nationale' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name:'World briefing' })).toHaveCount(0);
-  expect(radarRequests.some(req => req.scope === 'local' && req.country === 'FR')).toBe(true);
+  expect(radarRequests.some(req => req.scope === 'nearby' && req.country === 'FR' && req.region === 'Paris')).toBe(true);
 
-  // Travelling changes the Radar country, not the app language.
+  // Travelling changes the Radar country/location, not the app language.
   await expect(page.locator('html')).toHaveAttribute('lang', 'pt-PT');
   await expect(page.getByRole('tab', { name:'Mundo' })).toBeVisible();
 
@@ -130,6 +151,7 @@ test('Radar separa Local e Mundo e muda o Local de Portugal para França sem mud
   await expect(page.locator('.lumina-one.one-v3')).toBeVisible();
   await page.locator('.one-tabs button').filter({ hasText:'Agora' }).click();
   await expect(page.locator('.one-radar-handoff')).toContainText('Paris, France');
+  await expect(page.locator('.one-radar-handoff')).toContainText('Perto de mim, País e Mundo ficam separados');
   await expect(page.locator('.one-local-grid')).toHaveCount(0);
-  await expect(page.getByText('Actualité locale à Paris')).toHaveCount(0);
+  await expect(page.getByText('Actualité vraiment proche à Paris')).toHaveCount(0);
 });

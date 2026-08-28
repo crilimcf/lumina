@@ -110,10 +110,12 @@ export function useMoments({ me, ping }) {
     }
   };
 
-  const viewMoment = (id) => {
-    api.moments.view(id).catch(() => {});
+  const viewMoment = useCallback((id) => {
     setMoments(current => current.map(moment => moment.id === id ? { ...moment, viewed: true } : moment));
-  };
+    api.moments.view(id)
+      .then(() => announceMomentsChanged())
+      .catch(() => {});
+  }, []);
 
   const deleteMoment = async (id) => {
     try {

@@ -2,8 +2,12 @@ import { fetchPublicFeed, parseSyndicationFeed } from '../jobs/radar.js';
 
 const CACHE_TTL_MS = 10 * 60_000;
 const CACHE_MAX_ENTRIES = 100;
+const EXTERNAL_WINDOW_MS = 60_000;
+const MAX_EXTERNAL_FETCHES_PER_WINDOW = 30;
 const cache = new Map();
 const inFlight = new Map();
+let externalWindowStartedAt = 0;
+let externalFetches = 0;
 const LANGUAGE_BY_COUNTRY = Object.freeze({
   pt:'pt-PT', fr:'fr', es:'es', gb:'en-GB', us:'en-US', br:'pt-BR', de:'de', it:'it',
 });
@@ -29,6 +33,16 @@ function pruneCache(now = Date.now()) {
     if (oldestKey === undefined) break;
     cache.delete(oldestKey);
   }
+}
+
+function reserveExternalFetch(now = Date.now()) {
+  if (!externalWindowStartedAt || now - externalWindowStartedAt >= EXTERNAL_WINDOW_MS) {
+    externalWindowStartedAt = now;
+    externalFetches = 0;
+  }
+  if (externalFetches >= MAX_EXTERNAL_FETCHES_PER_WINDOW) return false;
+  externalFetches += 1;
+  return true;
 }
 
 async function fetchNearbyBatch(cleanCountry, cleanRegion) {
@@ -72,6 +86,7 @@ export async function loadNearbyNews({ country, region, limit = 20 } = {}) {
 
   let pending = inFlight.get(key);
   if (!pending) {
+    if (!reserveExternalFetch(now)) return [];
     pending = fetchNearbyBatch(cleanCountry, cleanRegion)
       .then(items => {
         pruneCache();

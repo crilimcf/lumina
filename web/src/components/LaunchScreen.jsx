@@ -1,10 +1,11 @@
 import React from 'react';
+import { t } from '../i18n-ui.js';
 import '../launch-polish.css';
 
 const LETTERS = [...'Lumina'];
 
 export function LaunchScreen() {
-  return <div className="lumina-launch" role="status" aria-label="Lumina a iniciar">
+  return <div className="lumina-launch" role="status" aria-label={t('Lumina a iniciar')}>
     <div className="lumina-launch-lockup">
       <span className="lumina-launch-mark" aria-hidden="true" />
       <div className="lumina-launch-word" aria-label="Lumina">
@@ -16,7 +17,7 @@ export function LaunchScreen() {
         >{letter}</span>)}
       </div>
       <span className="lumina-launch-glint" aria-hidden="true" />
-      <div className="lumina-launch-tagline">Sua luz, suas conexões.</div>
+      <div className="lumina-launch-tagline">{t('Sua luz, suas conexões')}.</div>
     </div>
   </div>;
 }

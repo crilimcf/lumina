@@ -1,7 +1,9 @@
 import { fetchPublicFeed, parseSyndicationFeed } from '../jobs/radar.js';
 
 const CACHE_TTL_MS = 10 * 60_000;
+const CACHE_MAX_ENTRIES = 100;
 const cache = new Map();
+const inFlight = new Map();
 const LANGUAGE_BY_COUNTRY = Object.freeze({
   pt:'pt-PT', fr:'fr', es:'es', gb:'en-GB', us:'en-US', br:'pt-BR', de:'de', it:'it',
 });
@@ -18,20 +20,22 @@ function googleNewsUrl(country, region) {
   return url.toString();
 }
 
-export async function loadNearbyNews({ country, region, limit = 20 } = {}) {
-  if (process.env.NODE_ENV !== 'production') return [];
-  const cleanCountry = String(country || '').trim().toLowerCase();
-  const cleanRegion = String(region || '').trim().slice(0, 80);
-  if (!/^[a-z]{2}$/.test(cleanCountry) || !cleanRegion) return [];
+function pruneCache(now = Date.now()) {
+  for (const [key, value] of cache) {
+    if (!value || now - value.at >= CACHE_TTL_MS) cache.delete(key);
+  }
+  while (cache.size >= CACHE_MAX_ENTRIES) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey === undefined) break;
+    cache.delete(oldestKey);
+  }
+}
 
-  const key = `${cleanCountry}:${cleanRegion.toLocaleLowerCase('en-US')}`;
-  const previous = cache.get(key);
-  if (previous && Date.now() - previous.at < CACHE_TTL_MS) return previous.items.slice(0, limit);
-
+async function fetchNearbyBatch(cleanCountry, cleanRegion) {
   const fetched = await fetchPublicFeed(googleNewsUrl(cleanCountry, cleanRegion));
-  const entries = parseSyndicationFeed(fetched.text)
+  return parseSyndicationFeed(fetched.text)
     .filter(entry => entry.externalUrl && entry.title)
-    .slice(0, Math.min(30, Math.max(1, limit)))
+    .slice(0, 30)
     .map((entry, index) => ({
       id:`nearby-live:${cleanCountry}:${encodeURIComponent(cleanRegion)}:${index}`,
       type:'news',
@@ -51,7 +55,33 @@ export async function loadNearbyNews({ country, region, limit = 20 } = {}) {
       published_at:entry.publishedAt || new Date().toISOString(),
       priority:0,
     }));
+}
 
-  cache.set(key, { at:Date.now(), items:entries });
-  return entries;
+export async function loadNearbyNews({ country, region, limit = 20 } = {}) {
+  if (process.env.NODE_ENV !== 'production') return [];
+  const cleanCountry = String(country || '').trim().toLowerCase();
+  const cleanRegion = String(region || '').trim().slice(0, 80);
+  if (!/^[a-z]{2}$/.test(cleanCountry) || !cleanRegion) return [];
+
+  const safeLimit = Math.min(30, Math.max(1, Number(limit) || 20));
+  const key = `${cleanCountry}:${cleanRegion.toLocaleLowerCase('en-US')}`;
+  const now = Date.now();
+  const previous = cache.get(key);
+  if (previous && now - previous.at < CACHE_TTL_MS) return previous.items.slice(0, safeLimit);
+  if (previous) cache.delete(key);
+
+  let pending = inFlight.get(key);
+  if (!pending) {
+    pending = fetchNearbyBatch(cleanCountry, cleanRegion)
+      .then(items => {
+        pruneCache();
+        cache.set(key, { at:Date.now(), items });
+        return items;
+      })
+      .finally(() => inFlight.delete(key));
+    inFlight.set(key, pending);
+  }
+
+  const items = await pending;
+  return items.slice(0, safeLimit);
 }

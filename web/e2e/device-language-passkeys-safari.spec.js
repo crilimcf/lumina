@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 const user = { id:'11111111-1111-4111-8111-111111111111', handle:'passkey', name:'Passkey User', bio:'', palette:0, avatar_url:null, stars:[], created_at:new Date().toISOString(), session_version:1, csrf:'test-csrf' };
+const json = (route, body, status = 200) => route.fulfill({ status, contentType:'application/json', body:JSON.stringify(body) });
 
 test('Mobile Safari follows the iPhone language', async ({ browser }) => {
   const context = await browser.newContext({ locale:'fr-FR' });
@@ -40,6 +41,49 @@ test('French registration is fully translated and fits a real iPhone viewport', 
   expect(fit.body - fit.viewport).toBeLessThanOrEqual(1);
   expect(fit.card.left).toBeGreaterThanOrEqual(0);
   expect(fit.card.right).toBeLessThanOrEqual(fit.viewport + 1);
+  await context.close();
+});
+
+test('French iPhone security keeps Face ID and passkey controls fully in French', async ({ browser }) => {
+  const context = await browser.newContext({ locale:'fr-FR', viewport:{ width:390, height:844 } });
+  const page = await context.newPage();
+  await page.addInitScript(() => {
+    class FakePublicKeyCredential {
+      static parseCreationOptionsFromJSON(value) { return value; }
+      static parseRequestOptionsFromJSON(value) { return value; }
+    }
+    Object.defineProperty(window, 'PublicKeyCredential', { value:FakePublicKeyCredential, configurable:true });
+    Object.defineProperty(navigator, 'credentials', {
+      value:{ create:async()=>null, get:async()=>null }, configurable:true,
+    });
+    Object.defineProperty(window, 'EventSource', { value:undefined, configurable:true });
+  });
+  await page.route('**/api/**', async route => {
+    const url = new URL(route.request().url());
+    const path = url.pathname;
+    if (path === '/api/auth/me') return json(route, user);
+    if (path === '/api/posts/feed') return json(route, { posts:[] });
+    if (path === '/api/moments') return json(route, []);
+    if (path === '/api/notifications/unread-count') return json(route, { count:0 });
+    if (path === '/api/messages/threads') return json(route, []);
+    if (path === '/api/messages/delivered') return json(route, {});
+    if (path === '/api/calls/incoming') return json(route, null);
+    if (path === '/api/2fa/status') return json(route, { enabled:false, codesLeft:0 });
+    if (path === '/api/sessions') return json(route, []);
+    if (path === '/api/auth/passkeys') return json(route, [{ id:'pk-1', device_name:'iPhone · Face ID' }]);
+    return json(route, {});
+  });
+
+  await page.goto('/?security=1');
+  await expect(page.getByRole('heading', { name:'Sécurité' })).toBeVisible({ timeout:9000 });
+  const passkeyCard = page.locator('[data-passkey-react="setup"]').locator('.card');
+  await expect(passkeyCard).toBeVisible();
+  await expect(passkeyCard).toContainText('Face ID / biométrie');
+  await expect(passkeyCard).toContainText('Active-le sur cet appareil pour te connecter sans saisir ton mot de passe.');
+  await expect(passkeyCard.getByRole('button', { name:'Supprimer' })).toBeVisible();
+  await expect(passkeyCard.getByRole('button', { name:'Ajouter un autre appareil' })).toBeVisible();
+  await expect(passkeyCard).not.toContainText('Ativa neste dispositivo');
+  await expect(passkeyCard).not.toContainText('Adicionar outro dispositivo');
   await context.close();
 });
 

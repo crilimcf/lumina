@@ -57,7 +57,7 @@ before(async () => {
   );
 
   const firstBootstrap = await ensureRadarCountrySources();
-  assert.equal(firstBootstrap.inserted, 11);
+  assert.equal(firstBootstrap.inserted, 16);
   const secondBootstrap = await ensureRadarCountrySources();
   assert.equal(secondBootstrap.inserted, 0);
 
@@ -87,7 +87,7 @@ before(async () => {
      WHERE lower(COALESCE(config->>'region',''))='global'
        AND config->'tags' @> '["country:global"]'::jsonb`
   );
-  assert.equal(globalSources[0].total, 2);
+  assert.equal(globalSources[0].total, 7);
 
   const { rows: trendSources } = await q(
     `SELECT count(*)::int AS total FROM radar_sources
@@ -115,7 +115,7 @@ after(async () => {
   await pool.end();
 });
 
-test('Radar em França mostra França/global e exclui Portugal, incluindo legado', async () => {
+test('Radar legado em França mostra França/global e exclui Portugal', async () => {
   const { response, data } = await request('/radar?country=FR&limit=20');
   assert.equal(response.status, 200, JSON.stringify(data));
   assert.equal(data.country, 'FR');
@@ -129,7 +129,7 @@ test('Radar em França mostra França/global e exclui Portugal, incluindo legado
   assert.equal(titles.includes('Legacy unknown'), false);
 });
 
-test('Radar em Portugal mostra Portugal/global e recupera legado sem misturar desconhecidos', async () => {
+test('Radar legado em Portugal mostra Portugal/global e recupera legado', async () => {
   const { response, data } = await request('/radar?country=PT&limit=20');
   assert.equal(response.status, 200, JSON.stringify(data));
   assert.equal(data.country, 'PT');
@@ -145,17 +145,18 @@ test('Radar em Portugal mostra Portugal/global e recupera legado sem misturar de
   assert.equal(titles.includes('Legacy unknown'), false);
 });
 
-test('Eventos e Promoções verificadas aparecem no scope local de Portugal', async () => {
-  const promotion = await request('/radar?scope=local&country=PT&type=promotion&limit=20');
+test('Eventos e Promoções verificadas aparecem no scope País de Portugal', async () => {
+  const promotion = await request('/radar?scope=country&country=PT&type=promotion&limit=20');
   assert.equal(promotion.response.status, 200, JSON.stringify(promotion.data));
+  assert.equal(promotion.data.scope, 'country');
   assert.equal(promotion.data.items.some(item => item.title === 'Verified Portugal promotion'), true);
 
-  const event = await request('/radar?scope=local&country=PT&type=event&limit=20');
+  const event = await request('/radar?scope=country&country=PT&type=event&limit=20');
   assert.equal(event.response.status, 200, JSON.stringify(event.data));
   assert.equal(event.data.items.some(item => item.title === 'Verified Portugal event'), true);
 });
 
-test('cidade atual tem prioridade dentro do país sem furar o filtro nacional', async () => {
+test('compatibilidade antiga continua a priorizar a cidade dentro do país', async () => {
   const { response, data } = await request('/radar?country=FR&region=Paris&limit=20');
   assert.equal(response.status, 200, JSON.stringify(data));
   assert.equal(data.region, 'Paris');
@@ -164,10 +165,10 @@ test('cidade atual tem prioridade dentro do país sem furar o filtro nacional', 
   assert.equal(data.items.some(item => item.title === 'Legacy Portugal item'), false);
 });
 
-test('scope local devolve só o país atual e nunca mistura Global', async () => {
-  const { response, data } = await request('/radar?scope=local&country=FR&region=Paris&limit=20');
+test('scope País devolve o país atual e nunca mistura Mundo', async () => {
+  const { response, data } = await request('/radar?scope=country&country=FR&limit=20');
   assert.equal(response.status, 200, JSON.stringify(data));
-  assert.equal(data.scope, 'local');
+  assert.equal(data.scope, 'country');
   const titles = data.items.map(item => item.title);
   assert.equal(titles.includes('France only'), true);
   assert.equal(titles.includes('Paris local'), true);
@@ -175,7 +176,16 @@ test('scope local devolve só o país atual e nunca mistura Global', async () =>
   assert.equal(titles.includes('Portugal only'), false);
 });
 
-test('scope global funciona sem localização e devolve apenas Mundo', async () => {
+test('scope Perto de mim exige cidade/região e devolve apenas correspondência próxima', async () => {
+  const { response, data } = await request('/radar?scope=nearby&country=FR&region=Paris&limit=20');
+  assert.equal(response.status, 200, JSON.stringify(data));
+  assert.equal(data.scope, 'nearby');
+  assert.equal(data.region, 'Paris');
+  const titles = data.items.map(item => item.title);
+  assert.deepEqual(titles, ['Paris local']);
+});
+
+test('scope Mundo funciona sem localização e devolve apenas Mundo', async () => {
   const { response, data } = await request('/radar?scope=global&limit=20');
   assert.equal(response.status, 200, JSON.stringify(data));
   assert.equal(data.scope, 'global');
@@ -184,10 +194,14 @@ test('scope global funciona sem localização e devolve apenas Mundo', async () 
   assert.deepEqual(titles, ['Global item']);
 });
 
-test('scope local exige país e scope inválido é rejeitado', async () => {
-  const local = await request('/radar?scope=local');
-  assert.equal(local.response.status, 400);
-  assert.equal(local.data.code, 'missing_radar_country');
+test('scopes de localização exigem os parâmetros necessários e scope inválido é rejeitado', async () => {
+  const country = await request('/radar?scope=country');
+  assert.equal(country.response.status, 400);
+  assert.equal(country.data.code, 'bad_country');
+
+  const nearby = await request('/radar?scope=nearby&country=PT');
+  assert.equal(nearby.response.status, 400);
+  assert.equal(nearby.data.code, 'missing_radar_region');
 
   const invalid = await request('/radar?scope=planet');
   assert.equal(invalid.response.status, 400);

@@ -128,4 +128,6 @@ export async function loadRadarForLocation({ type, cursor, limit = 30, country, 
   return data;
 }
 
+export const loadNearbyRadar = ({ country, region, ...options } = {}) => loadRadarForLocation({ ...options, country, region, scope:'nearby' });
+export const loadCountryRadar = ({ country, ...options } = {}) => loadRadarForLocation({ ...options, country, region:null, scope:'country' });
 export const loadGlobalRadar = options => loadRadarForLocation({ ...options, scope:'global', country:null, region:null });

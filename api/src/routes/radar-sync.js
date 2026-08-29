@@ -3,10 +3,12 @@ import { q } from '../db.js';
 import { audit, auth, bad, forbidden, h, notFound } from '../middleware/auth.js';
 import { syncRadarSources } from '../jobs/radar.js';
 import { syncWebRadarSources } from '../jobs/radar-web.js';
+import { loadNearbyNews } from '../lib/nearby-news.js';
 
 export const radarSyncRoutes = Router();
 const AUTO_RSS_TYPES = new Set(['news', 'trend', 'editorial']);
 const RADAR_TYPES = new Set(['news', 'promotion', 'event', 'trend', 'editorial']);
+const EXPLICIT_SCOPES = new Set(['nearby', 'country', 'global']);
 const LEGACY_COUNTRY_REGIONS = Object.freeze({ pt:'portugal', fr:'france' });
 
 function requireStaff(req, _res, next) {
@@ -47,10 +49,111 @@ function cleanRegion(value) {
   return String(value).trim().slice(0, 80) || null;
 }
 
-// Country-aware compatibility path. Explicit country tags remain authoritative, while
-// pre-schema-35 items can still be scoped by their own/source region without rewriting
-// the historical radar_items table during Railway startup. Explicit new scopes bypass
-// this compatibility layer so radar.js can enforce local/global separation.
+function dedupeByUrl(items) {
+  const seen = new Set();
+  return items.filter(item => {
+    const key = String(item?.external_url || item?.id || '').trim();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+// The product exposes three explicit news scopes:
+// nearby = strict city/region match, country = whole current country, global = international.
+// Nearby deliberately never falls back to national content.
+radarSyncRoutes.get('/', auth, h(async (req, res, next) => {
+  const scope = String(req.query.scope || '').trim().toLowerCase();
+  if (!EXPLICIT_SCOPES.has(scope)) return next();
+
+  const country = scope === 'global' ? null : cleanCountry(req.query.country);
+  const countryTag = country ? `country:${country}` : null;
+  const region = cleanRegion(req.query.region);
+  if (scope === 'nearby' && !region) throw bad('Radar perto de mim precisa da cidade/região atual', 'missing_radar_region');
+
+  const requestedType = req.query.type ? cleanRadarType(req.query.type) : null;
+  const before = optionalDate(req.query.before, 'Cursor');
+  const regionNeedle = region ? `%${region}%` : null;
+  const asked = Number(req.query.limit);
+  const limit = Number.isInteger(asked) && asked > 0 ? Math.min(asked, 50) : 20;
+
+  const { rows } = await q(
+    `WITH candidates AS (
+       SELECT ri.id, ri.type, ri.title, ri.summary, ri.body, ri.image_url, ri.external_url,
+              COALESCE(ri.source_name, rs.name) AS source_name,
+              COALESCE(ri.source_url, rs.url) AS source_url,
+              ri.sponsored, ri.sponsor_label, ri.tags, ri.region,
+              ri.starts_at, ri.ends_at, ri.published_at, ri.priority,
+              row_number() OVER (
+                PARTITION BY COALESCE(ri.source_name, rs.name, 'Radar')
+                ORDER BY ri.priority DESC, ri.published_at DESC, ri.id DESC
+              ) AS publisher_rank
+       FROM radar_items ri
+       LEFT JOIN radar_sources rs ON rs.id = ri.source_id
+       WHERE ri.status = 'published'
+         AND ri.published_at <= now()
+         AND (
+           (ri.type = 'promotion'
+             AND (ri.starts_at IS NULL OR ri.starts_at <= now())
+             AND (ri.ends_at IS NULL OR ri.ends_at > now()))
+           OR
+           (ri.type = 'event'
+             AND COALESCE(ri.ends_at, ri.starts_at + interval '12 hours') > now())
+           OR
+           (ri.type NOT IN ('promotion','event')
+             AND (ri.ends_at IS NULL OR ri.ends_at > now()))
+         )
+         AND ($1::text IS NULL OR ri.type = $1)
+         AND ($2::timestamptz IS NULL OR ri.published_at < $2)
+         AND (
+           ($5::text = 'global' AND 'country:global' = ANY(COALESCE(ri.tags, ARRAY[]::text[])))
+           OR ($5::text = 'country' AND $3::text = ANY(COALESCE(ri.tags, ARRAY[]::text[])))
+           OR ($5::text = 'nearby'
+             AND $3::text = ANY(COALESCE(ri.tags, ARRAY[]::text[]))
+             AND $4::text IS NOT NULL
+             AND (
+               COALESCE(ri.region, '') ILIKE $4
+               OR EXISTS (
+                 SELECT 1 FROM unnest(COALESCE(ri.tags, ARRAY[]::text[])) tag
+                 WHERE tag ILIKE $4
+               )
+             )
+           )
+         )
+     )
+     SELECT id, type, title, summary, body, image_url, external_url,
+            source_name, source_url, sponsored, sponsor_label, tags, region,
+            starts_at, ends_at, published_at, priority
+     FROM candidates
+     ORDER BY
+       CASE WHEN $5::text = 'global' THEN publisher_rank ELSE 0 END ASC,
+       priority DESC, published_at DESC, id DESC
+     LIMIT $6`,
+    [requestedType, before, countryTag, regionNeedle, scope, limit]
+  );
+
+  let items = rows;
+  if (scope === 'nearby' && !before && (!requestedType || requestedType === 'news') && rows.length < limit) {
+    try {
+      const live = await loadNearbyNews({ country, region, limit:limit - rows.length });
+      items = dedupeByUrl([...rows, ...live]).slice(0, limit);
+    } catch (error) {
+      console.warn(`[radar] notícias próximas de ${region} indisponíveis:`, error.message);
+    }
+  }
+
+  res.json({
+    items,
+    // Global is deliberately interleaved by publisher. A timestamp-only cursor cannot
+    // represent that ordering safely, so do not advertise pagination for this scope.
+    nextCursor: scope === 'global' ? null : (rows.length === limit ? rows.at(-1).published_at : null),
+    country: country ? country.toUpperCase() : null,
+    region,
+    scope,
+  });
+}));
+
+// Country-aware compatibility path for older clients without an explicit scope.
 radarSyncRoutes.get('/', auth, h(async (req, res, next) => {
   if (req.query.scope !== undefined && req.query.scope !== null && req.query.scope !== '') return next();
   if (req.query.country === undefined || req.query.country === null || req.query.country === '') return next();

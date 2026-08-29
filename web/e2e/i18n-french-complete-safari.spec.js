@@ -58,7 +58,8 @@ async function mockFrenchSession(page) {
     if (path === '/api/one/pulse') return json(route, { items:[] });
     if (path === '/api/radar' && method === 'GET') return json(route, {
       country:url.searchParams.get('country') || null,
-      scope:url.searchParams.get('scope') || 'local',
+      scope:url.searchParams.get('scope') || 'nearby',
+      region:url.searchParams.get('region') || null,
       items:[{
         id:'radar-1', type:'news', title:'União de Leiria contrata belga Hugo Masaki',
         summary:'Este texto editorial permanece no idioma original da fonte.',
@@ -108,20 +109,22 @@ test('French iPhone UI has no Portuguese chrome across core mobile surfaces', as
 
   await page.getByRole('button', { name:'Radar' }).click();
   await bodyContains(page, 'Explorer maintenant');
-  await bodyContains(page, 'Local et Monde sont deux expériences séparées.');
+  await bodyContains(page, 'Près de moi, Pays et Monde sont trois espaces distincts.');
   await bodyContains(page, 'Les actualités restent dans Radar.');
-  await bodyContains(page, 'sans mélanger ta zone avec le monde');
-  await bodyContains(page, 'Nous affichons uniquement le contenu du pays ou de la région détecté par l’iPhone.');
+  await bodyContains(page, 'sans mélanger ta zone, ton pays et le monde');
+  await bodyContains(page, 'Actualités réellement proches de toi');
+  await bodyContains(page, 'Nous ne remplaçons pas les actualités locales par des actualités nationales.');
   await bodyContains(page, 'Actualités');
   await bodyContains(page, 'Événements');
   await bodyContains(page, 'Source vérifiée');
-  await expect(page.getByRole('tab', { name:'Local' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name:'Près de moi' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name:'Pays' })).toBeVisible();
   await expect(page.getByRole('tab', { name:'Monde' })).toBeVisible();
   // Editorial content keeps the source language.
   await bodyContains(page, 'União de Leiria contrata belga Hugo Masaki');
   await bodyContains(page, 'Este texto editorial permanece no idioma original da fonte.');
   await bodyContains(page, 'RTP Notícias · Desporto');
-  await bodyOmits(page, 'Local e Mundo são experiências separadas.');
+  await bodyOmits(page, 'Perto de mim, País e Mundo são experiências separadas.');
   await bodyOmits(page, 'Notícias ficam no Radar.');
 
   await page.getByRole('button', { name:'Profil' }).click();

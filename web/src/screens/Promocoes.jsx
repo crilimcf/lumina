@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   BadgeCheck, BadgePercent, CalendarDays, ChevronRight, ExternalLink, Globe2, MapPin,
-  Newspaper, RefreshCw, Settings2, ShieldCheck, Sparkles, TrendingUp,
+  Newspaper, RefreshCw, Settings2, ShieldCheck, Sparkles, TrendingUp, Flag,
 } from 'lucide-react';
-import { detectRadarLocation, loadGlobalRadar, loadRadarForLocation, readCachedRadarLocation } from '../radar-location.js';
+import { detectRadarLocation, loadCountryRadar, loadGlobalRadar, loadNearbyRadar, readCachedRadarLocation } from '../radar-location.js';
 import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
 import { ScrollToTopButton } from '../components/ScrollToTopButton.jsx';
+import { t } from '../i18n-ui.js';
 import '../explore-facelift.css';
 import '../radar-location.css';
 import '../radar-split-v2.css';
@@ -75,7 +76,7 @@ function SourceLine({ item }) {
     <PublisherMark name={name}/>
     <div className="explore-source-copy">
       <div className="explore-source-name">{name}{!item.sponsored && <BadgeCheck size={13} fill="#7b61ff" color="#fff"/>}</div>
-      <div className="explore-source-status">{item.sponsored ? 'Parceiro identificado' : 'Fonte verificada'}</div>
+      <div className="explore-source-status">{t(item.sponsored ? 'Parceiro identificado' : 'Fonte verificada')}</div>
     </div>
   </div>;
 }
@@ -88,25 +89,44 @@ function RadarImage({ item }) {
   return <div className="explore-media"><img src={src} alt="" loading="lazy" decoding="async" onError={()=>setSource(current => current === 'proxy' ? 'direct' : 'none')}/></div>;
 }
 
+function safeArticleUrl(item) {
+  const raw = String(item.external_url || '').trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw, window.location.origin);
+    const source = String(item.source_name || '').toLowerCase();
+    if ((url.hostname === 'trends.google.com' || source.includes('google trends')) && /\/trending\/rss/i.test(url.pathname)) {
+      const tag = Array.isArray(item.tags) ? item.tags.find(value => /^country:[a-z]{2}$/i.test(value)) : null;
+      const geo = tag ? tag.split(':')[1].toUpperCase() : (url.searchParams.get('geo') || '').toUpperCase();
+      const explore = new URL('https://trends.google.com/trends/explore');
+      if (geo) explore.searchParams.set('geo', geo);
+      explore.searchParams.set('q', cleanEditorialText(item.title));
+      return explore.toString();
+    }
+    return url.toString();
+  } catch { return null; }
+}
+
 function RadarCard({ item, hero = false }) {
   const displayDate = item.type === 'event' ? item.starts_at : item.published_at;
   const Title = hero ? 'h2' : 'h3';
   const title = cleanEditorialText(item.title);
   const summary = cleanEditorialText(item.summary || item.body);
   const sourceName = cleanEditorialText(item.source_name || '');
+  const externalHref = safeArticleUrl(item);
   return <article className={`explore-card in${hero ? ' is-hero' : ''}`}>
     <RadarImage item={item}/>
     <div className="explore-card-body">
       <div className="explore-card-meta">
-        <span className="explore-type-badge"><ItemIcon type={item.type}/>{TYPE_LABEL[item.type] || 'Radar'}</span>
-        {item.sponsored && <span className="explore-sponsored-badge">Patrocinado</span>}
+        <span className="explore-type-badge"><ItemIcon type={item.type}/>{t(TYPE_LABEL[item.type] || 'Radar')}</span>
+        {item.sponsored && <span className="explore-sponsored-badge">{t('Patrocinado')}</span>}
         <span className="explore-date">{formatDate(displayDate)}</span>
       </div>
       <Title>{title}</Title>
       {summary && <div className="explore-card-summary">{summary}</div>}
       <div className="explore-card-footer">
         <SourceLine item={item}/>
-        {item.external_url && <a className="explore-external" href={item.external_url} target="_blank" rel="noopener noreferrer" aria-label={`Abrir na fonte ${sourceName}`}><span>Ler na fonte</span><ExternalLink size={15}/></a>}
+        {externalHref && <a className="explore-external" href={externalHref} target="_blank" rel="noopener noreferrer external" aria-label={`${t('Abrir na fonte')} ${sourceName}`}><span>{t('Ler na fonte')}</span><ExternalLink size={15}/></a>}
       </div>
     </div>
   </article>;
@@ -125,13 +145,13 @@ function RadarSkeleton() {
 function RadarFeed({ items, loading, empty }) {
   const hero = items[0] || null;
   const rest = hero ? items.slice(1) : [];
-  if (loading) return <div className="radar-skeleton-grid" role="status" aria-label="A sintonizar o Radar…"><RadarSkeleton/><RadarSkeleton/></div>;
+  if (loading) return <div className="radar-skeleton-grid" role="status" aria-label={t('A sintonizar o Radar…')}><RadarSkeleton/><RadarSkeleton/></div>;
   if (!items.length) return <div className="explore-empty radar-scope-empty">{empty}</div>;
   return <div className="explore-grid">{hero && <RadarCard item={hero} hero/>}{rest.length > 0 && <div className="explore-rest">{rest.map(item => <RadarCard key={item.id} item={item}/>)}</div>}</div>;
 }
 
 export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThread, ping, toast, unreadCount }) {
-  const [scope, setScope] = useState('local');
+  const [scope, setScope] = useState('nearby');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
@@ -140,7 +160,8 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
   const [locationReady, setLocationReady] = useState(false);
   const [locating, setLocating] = useState(false);
 
-  const filters = scope === 'local' ? LOCAL_FILTERS : GLOBAL_FILTERS;
+  const filters = scope === 'global' ? GLOBAL_FILTERS : LOCAL_FILTERS;
+  const nearbyRegion = location?.city || location?.region || '';
 
   const refreshLocation = useCallback(async (force = false) => {
     setLocating(true);
@@ -148,7 +169,7 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
       const next = await detectRadarLocation({ force });
       if (next) setLocation(next);
     } catch {
-      if (force) ping('Não consegui obter a localização do iPhone. Confirma a permissão de localização.');
+      if (force) ping(t('Não consegui obter a localização do iPhone. Confirma a permissão de localização.'));
     } finally {
       setLocationReady(true);
       setLocating(false);
@@ -164,96 +185,100 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
 
   useEffect(() => {
     let active = true;
-    if (scope === 'local' && !locationReady) return () => { active = false; };
-    if (scope === 'local' && !location?.countryCode) {
+    if (scope !== 'global' && !locationReady) return () => { active = false; };
+    if (scope !== 'global' && !location?.countryCode) {
       setItems([]);
       setLoading(false);
       return () => { active = false; };
     }
+    if (scope === 'nearby' && !nearbyRegion) {
+      setItems([]);
+      setLoading(false);
+      return () => { active = false; };
+    }
+
     setLoading(true);
+    const common = { type:filter || undefined, limit:40 };
     const request = scope === 'global'
-      ? loadGlobalRadar({ type:filter || undefined, limit:40 })
-      : loadRadarForLocation({
-          type:filter || undefined,
-          limit:40,
-          country:location.countryCode,
-          region:location.city || location.region,
-          scope:'local',
-        });
+      ? loadGlobalRadar(common)
+      : scope === 'country'
+        ? loadCountryRadar({ ...common, country:location.countryCode })
+        : loadNearbyRadar({ ...common, country:location.countryCode, region:nearbyRegion });
+
     request
       .then(result => { if (active) setItems(result.items || []); })
       .catch(error => { if (active) { setItems([]); ping(error.message); } })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [scope, filter, locationReady, location?.countryCode, location?.city, location?.region, ping]);
+  }, [scope, filter, locationReady, location?.countryCode, nearbyRegion, ping]);
 
   const publishers = useMemo(() => [...new Set(items.map(item => cleanEditorialText(item.source_name)).filter(Boolean))]
     .sort((a,b)=>a.localeCompare(b, navigator.language || undefined)), [items]);
   const visible = publisher ? items.filter(item => cleanEditorialText(item.source_name) === publisher) : items;
 
-  const emptyCopy = scope === 'global'
-    ? (filter === 'trend' ? 'Ainda não há tendências globais disponíveis.' : 'Ainda não há conteúdo mundial nesta categoria.')
-    : filter === 'promotion' ? 'Ainda não há promoções verificadas na tua localização.'
-      : filter === 'event' ? 'Ainda não há eventos futuros verificados na tua localização.'
-        : filter === 'trend' ? 'Ainda não há tendências locais disponíveis.'
-          : 'Ainda não há conteúdo local disponível.';
+  const emptyCopy = scope === 'nearby'
+    ? t('Ainda não há notícias realmente próximas desta localização.')
+    : scope === 'country'
+      ? (filter === 'promotion' ? t('Ainda não há promoções verificadas na tua localização.')
+        : filter === 'event' ? t('Ainda não há eventos futuros verificados na tua localização.')
+          : filter === 'trend' ? t('Ainda não há tendências locais disponíveis.')
+            : t('Ainda não há conteúdo local disponível.'))
+      : (filter === 'trend' ? t('Ainda não há tendências globais disponíveis.') : t('Ainda não há conteúdo mundial nesta categoria.'));
+
+  const needsLocation = scope !== 'global';
 
   return <div className="lumina-facelift lumina-explore">
     <div className="explore-shell">
       <header className="explore-header">
         <div className="explore-title-row">
           <div className="explore-title-copy">
-            <div className="explore-eyebrow">Explorar agora</div>
+            <div className="explore-eyebrow">{t('Explorar agora')}</div>
             <h1>Radar</h1>
-            <p>Local e Mundo são experiências separadas. O local segue a localização real do teu iPhone.</p>
+            <p>{t('Perto de mim, País e Mundo são experiências separadas. A localização vem diretamente do teu iPhone.')}</p>
           </div>
           <TopActions tab={tab} setTab={setTab} setThread={setThread} unreadCount={unreadCount}/>
         </div>
       </header>
 
-      <section className="explore-trust-panel" aria-label="Como funciona o Radar">
+      <section className="explore-trust-panel" aria-label={t('Como funciona o Radar')}>
         <span className="explore-trust-icon"><ShieldCheck size={20}/></span>
-        <div className="explore-trust-copy"><strong>Notícias ficam no Radar.</strong><p>O Pulso é social. Aqui encontras notícias, eventos, promoções e tendências com origem identificada — sem misturar a tua zona com o mundo.</p></div>
+        <div className="explore-trust-copy"><strong>{t('Notícias ficam no Radar.')}</strong><p>{t('O Pulso é social. Aqui encontras notícias, eventos, promoções e tendências com origem identificada — sem misturar a tua zona com o país ou o mundo.')}</p></div>
       </section>
 
-      <div className="radar-split-switch" role="tablist" aria-label="Âmbito do Radar">
-        <button type="button" role="tab" aria-selected={scope==='local'} className={scope==='local'?'is-active':''} onClick={()=>setScope('local')}><MapPin size={18}/> Local</button>
-        <button type="button" role="tab" aria-selected={scope==='global'} className={scope==='global'?'is-active':''} onClick={()=>setScope('global')}><Globe2 size={18}/> Mundo</button>
+      <div className="radar-split-switch radar-three-way" role="tablist" aria-label={t('Âmbito do Radar')}>
+        <button type="button" role="tab" aria-selected={scope==='nearby'} className={scope==='nearby'?'is-active':''} onClick={()=>setScope('nearby')}><MapPin size={18}/> {t('Perto de mim')}</button>
+        <button type="button" role="tab" aria-selected={scope==='country'} className={scope==='country'?'is-active':''} onClick={()=>setScope('country')}><Flag size={18}/> {t('País')}</button>
+        <button type="button" role="tab" aria-selected={scope==='global'} className={scope==='global'?'is-active':''} onClick={()=>setScope('global')}><Globe2 size={18}/> {t('Mundo')}</button>
       </div>
 
-      {scope === 'local' ? <div className="radar-scope-banner">
-        <MapPin size={20}/>
-        <div>
-          <b>{location?.label || location?.city || 'Localização do iPhone'}</b>
-          <p>Mostramos apenas conteúdo do país/região detetados pelo iPhone. O Mundo fica no separador próprio.</p>
-          {location?.countryCode && <a className="radar-osm-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" data-i18n-ignore="true">© OpenStreetMap contributors</a>}
-          <button type="button" className="radar-refresh-location" onClick={()=>refreshLocation(true)} disabled={locating}>{locating?<RefreshCw size={14}/>:<MapPin size={14}/>} {locating?'A detetar…':'Atualizar localização'}</button>
-        </div>
-        {location?.countryCode && <span className="radar-scope-country" data-i18n-ignore="true">{location.countryCode}</span>}
+      {scope === 'nearby' ? <div className="radar-scope-banner">
+        <MapPin size={20}/><div><b>{location?.label || location?.city || t('Localização do iPhone')}</b><p>{t('Notícias mesmo da tua zona')}. {t('Não substituímos notícias locais por notícias nacionais.')}</p>{location?.countryCode && <a className="radar-osm-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" data-i18n-ignore="true">© OpenStreetMap contributors</a>}<button type="button" className="radar-refresh-location" onClick={()=>refreshLocation(true)} disabled={locating}>{locating?<RefreshCw size={14}/>:<MapPin size={14}/>} {locating?t('A detetar…'):t('Atualizar localização')}</button></div>{location?.countryCode && <span className="radar-scope-country" data-i18n-ignore="true">{location.countryCode}</span>}
+      </div> : scope === 'country' ? <div className="radar-scope-banner">
+        <Flag size={20}/><div><b>{location?.country || location?.countryCode || t('País')}</b><p>{t('Notícias do teu país')}.</p><button type="button" className="radar-refresh-location" onClick={()=>refreshLocation(true)} disabled={locating}>{locating?<RefreshCw size={14}/>:<MapPin size={14}/>} {locating?t('A detetar…'):t('Atualizar localização')}</button></div>{location?.countryCode && <span className="radar-scope-country" data-i18n-ignore="true">{location.countryCode}</span>}
       </div> : <div className="radar-scope-banner">
-        <Globe2 size={20}/><div><b>Radar Mundo</b><p>Notícias e tendências internacionais. Nada deste separador é usado para preencher o Radar Local.</p></div>
+        <Globe2 size={20}/><div><b>{t('Radar Mundo')}</b><p>{t('Notícias de várias partes do mundo')}. {t('Nada deste separador é usado para preencher o Radar Local.')}</p></div>
       </div>}
 
-      {me?.is_staff && <button type="button" className="p explore-staff-button" onClick={()=>setScreen?.('radar-admin')}><Settings2 size={15}/>Gerir Radar</button>}
+      {me?.is_staff && <button type="button" className="p explore-staff-button" onClick={()=>setScreen?.('radar-admin')}><Settings2 size={15}/>{t('Gerir Radar')}</button>}
 
-      <div aria-label="Filtros do Radar" className="explore-filter-rail">
+      <div aria-label={t('Filtros do Radar')} className="explore-filter-rail">
         {filters.map(([value,Icon,label]) => {
           const active = filter === value;
-          return <button key={value || 'all'} type="button" onClick={()=>setFilter(value)} aria-pressed={active} className={`explore-filter-chip${active ? ' is-active' : ''}`}><Icon size={14}/>{label}</button>;
+          return <button key={value || 'all'} type="button" onClick={()=>setFilter(value)} aria-pressed={active} className={`explore-filter-chip${active ? ' is-active' : ''}`}><Icon size={14}/>{t(label)}</button>;
         })}
       </div>
 
-      {filter === 'news' && publishers.length > 1 && <section className="explore-sources" aria-label="Fontes de notícias">
-        <div className="explore-section-label">Fontes</div>
+      {filter === 'news' && publishers.length > 1 && <section className="explore-sources" aria-label={t('Fontes de notícias')}>
+        <div className="explore-section-label">{t('Fontes')}</div>
         <div className="explore-source-rail">
-          <button type="button" onClick={()=>setPublisher('')} className={`explore-source-chip${!publisher ? ' is-active' : ''}`}>Todas</button>
+          <button type="button" onClick={()=>setPublisher('')} className={`explore-source-chip${!publisher ? ' is-active' : ''}`}>{t('Todas')}</button>
           {publishers.map(name => <button type="button" key={name} onClick={()=>setPublisher(name)} className={`explore-source-chip${publisher === name ? ' is-active' : ''}`}><PublisherMark name={name} size={27}/><span>{name}</span><ChevronRight size={12}/></button>)}
         </div>
       </section>}
 
       <div className="radar-single-feed">
-        {scope === 'local' && locationReady && !location?.countryCode
-          ? <div className="radar-local-missing"><MapPin size={24}/><b>Precisamos da localização do iPhone</b><p>Ativa a localização para o Radar Local usar a tua posição real. Podes continuar a usar o separador Mundo sem localização.</p><button type="button" className="radar-refresh-location" onClick={()=>refreshLocation(true)}>Detetar onde estou</button></div>
+        {needsLocation && locationReady && (!location?.countryCode || (scope === 'nearby' && !nearbyRegion))
+          ? <div className="radar-local-missing"><MapPin size={24}/><b>{t('Precisamos da localização do iPhone')}</b><p>{t('Ativa a localização para o Radar Local usar a tua posição real. Podes continuar a usar o separador Mundo sem localização.')}</p><button type="button" className="radar-refresh-location" onClick={()=>refreshLocation(true)}>{t('Detetar onde estou')}</button></div>
           : <RadarFeed items={visible} loading={loading} empty={emptyCopy}/>
         }
       </div>

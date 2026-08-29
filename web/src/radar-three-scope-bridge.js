@@ -30,4 +30,8 @@ function apply() {
 }
 
 apply();
-new MutationObserver(apply).observe(document.documentElement, { childList:true, subtree:true });
+new MutationObserver(apply).observe(document.documentElement, {
+  childList:true,
+  characterData:true,
+  subtree:true,
+});

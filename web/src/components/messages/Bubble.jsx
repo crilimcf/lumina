@@ -29,11 +29,37 @@ export function Bubble({ msg, mine, onReveal, onEdit, onDelete }) {
   const [reactions, setReactions] = useState(Array.isArray(msg.reactions) ? msg.reactions : []);
   const [myReaction, setMyReaction] = useState(msg.my_reaction || null);
   const hold = useRef({ timer:0, x:0, y:0 });
+  const rootRef = useRef(null);
 
   useEffect(() => { setDraft(msg.body || ''); }, [msg.body]);
   useEffect(() => { setReactions(Array.isArray(msg.reactions) ? msg.reactions : []); }, [msg.reactions]);
   useEffect(() => { setMyReaction(msg.my_reaction || null); }, [msg.my_reaction]);
   useEffect(() => () => window.clearTimeout(hold.current.timer), []);
+  useEffect(() => {
+    if (!reactionOpen && !menu) return undefined;
+    const dismiss = event => {
+      if (rootRef.current?.contains(event.target)) return;
+      setReactionOpen(false);
+      setMenu(false);
+    };
+    const dismissOnScroll = () => {
+      setReactionOpen(false);
+      setMenu(false);
+    };
+    const dismissOnKey = event => {
+      if (event.key !== 'Escape') return;
+      setReactionOpen(false);
+      setMenu(false);
+    };
+    document.addEventListener('pointerdown', dismiss, true);
+    window.addEventListener('scroll', dismissOnScroll, true);
+    document.addEventListener('keydown', dismissOnKey);
+    return () => {
+      document.removeEventListener('pointerdown', dismiss, true);
+      window.removeEventListener('scroll', dismissOnScroll, true);
+      document.removeEventListener('keydown', dismissOnKey);
+    };
+  }, [reactionOpen, menu]);
   useEffect(() => {
     if (left === null || left > 0) {
       if (left > 0) {
@@ -190,7 +216,7 @@ export function Bubble({ msg, mine, onReveal, onEdit, onDelete }) {
   const media = content?.mediaUrl ?? msg.media_url;
   const mediaType = content?.mediaType ?? msg.media_type;
 
-  return <div className={wrapClass} style={side} {...holdProps}>
+  return <div ref={rootRef} className={wrapClass} style={side} {...holdProps}>
     {editing ? <div style={{display:'grid',gap:7,minWidth:230}}><textarea value={draft} autoFocus onChange={event=>setDraft(event.target.value)} maxLength={4000} style={{minHeight:76,resize:'vertical'}}/><div style={{display:'flex',justifyContent:'flex-end',gap:7}}><button className="p p-sm" onClick={()=>{setEditing(false);setDraft(msg.body||'')}}><X size={14}/> {t('Cancelar')}</button><button className="p p-sm p-brand" disabled={busy||!draft.trim()} onClick={saveEdit}><Check size={14}/> {t('Guardar')}</button></div></div>
       : media ? (mediaType==='video' ? <video className="message-media" src={media} controls playsInline preload="metadata" style={{width:'min(280px,72vw)',maxHeight:360,borderRadius:20,display:'block',background:'#080711'}}/> : <button onClick={()=>setMediaOpen(true)} aria-label={t('Abrir fotografia')} style={{padding:0,border:0,background:'transparent',display:'block'}}><img className="message-media" src={media} alt={t('Fotografia enviada')} style={{width:'min(280px,72vw)',maxHeight:360,objectFit:'cover',borderRadius:20,display:'block'}}/></button>)
       : <div data-i18n-ignore="true" className={`message-bubble ${mine ? 'message-bubble-mine' : 'message-bubble-theirs'}`} style={{padding:'12px 16px',fontSize:15,lineHeight:1.4,borderRadius:mine?'20px 20px 6px 20px':'20px 20px 20px 6px',background:mine?'var(--cobalt)':'var(--card)',color:mine?'#fff':'var(--ink)',boxShadow:mine?'0 5px 16px rgba(43,43,247,.32)':'0 3px 12px rgba(30,16,90,.12)'}}>{body}</div>}

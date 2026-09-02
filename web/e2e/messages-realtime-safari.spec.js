@@ -13,7 +13,7 @@ function registration(handle, name) {
   };
 }
 
-test('mensagens chegam à conversa por SSE sem esperar pelo polling antigo', async ({ page, request }) => {
+test('mensagens chegam por SSE, reagem e mantêm o compositor focado no Safari', async ({ page, request }) => {
   const suffix = `${Date.now()}${Math.floor(Math.random()*1000)}`;
   const callerHandle = `rtcall${suffix}`.slice(0,22);
   const calleeHandle = `rtrecv${suffix}`.slice(0,22);
@@ -79,4 +79,36 @@ test('mensagens chegam à conversa por SSE sem esperar pelo polling antigo', asy
 
   await expect(page.getByText(body, { exact:true })).toBeVisible({ timeout:2500 });
   expect(Date.now() - startedAt).toBeLessThan(3000);
+
+  const received = page.locator('.message-wrap-theirs').filter({ hasText:body });
+  await expect(received).toBeVisible();
+  await received.getByRole('button', { name:'Reagir à mensagem' }).click();
+  await expect(received.locator('.message-reaction-tray')).toBeVisible();
+  const reactionResponse = page.waitForResponse(response =>
+    response.url().includes(`/api/messages/${messageResponse.ok ? '' : ''}`) === false
+      ? false
+      : response.request().method() === 'POST'
+  ).catch(() => null);
+  await received.getByRole('menuitem', { name:'❤️' }).click();
+  await reactionResponse;
+  await expect(received.locator('.message-reaction-pill')).toContainText('❤️');
+  await expect(received.locator('.message-reaction-pill')).toContainText('1');
+
+  const composer = page.getByPlaceholder('Escrever…');
+  const reply = `Resposta sem fechar teclado ${Date.now()}`;
+  await composer.fill(reply);
+  await expect(composer).toBeFocused();
+
+  const replySent = page.waitForResponse(response =>
+    response.url().includes(`/api/messages/threads/${thread.id}/messages`)
+      && response.request().method() === 'POST'
+      && response.status() === 201
+  );
+  await page.locator('.messages-composer-row .messages-send-button').click();
+  await replySent;
+  await expect(composer).toBeFocused();
+  await expect(page.getByText(reply, { exact:true })).toBeVisible({ timeout:2500 });
+
+  const threadStyle = await page.locator('.lumina-messages-thread.messages-visual-viewport').getAttribute('style');
+  expect(threadStyle || '').not.toMatch(/(?:^|;)\s*(?:top|left|width)\s*:/);
 });

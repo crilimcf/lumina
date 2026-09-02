@@ -76,6 +76,7 @@ test('mensagens chegam por SSE, reagem e mantêm o compositor focado no Safari',
     data:{ kind:'text', mode:'normal', body, palette:0 },
   });
   expect(messageResponse.status()).toBe(201);
+  const createdMessage = await messageResponse.json();
 
   await expect(page.getByText(body, { exact:true })).toBeVisible({ timeout:2500 });
   expect(Date.now() - startedAt).toBeLessThan(3000);
@@ -85,10 +86,10 @@ test('mensagens chegam por SSE, reagem e mantêm o compositor focado no Safari',
   await received.getByRole('button', { name:'Reagir à mensagem' }).click();
   await expect(received.locator('.message-reaction-tray')).toBeVisible();
   const reactionResponse = page.waitForResponse(response =>
-    response.url().includes(`/api/messages/${messageResponse.ok ? '' : ''}`) === false
-      ? false
-      : response.request().method() === 'POST'
-  ).catch(() => null);
+    response.url().includes(`/api/messages/${createdMessage.id}/reaction`)
+      && response.request().method() === 'POST'
+      && response.status() === 200
+  );
   await received.getByRole('menuitem', { name:'❤️' }).click();
   await reactionResponse;
   await expect(received.locator('.message-reaction-pill')).toContainText('❤️');

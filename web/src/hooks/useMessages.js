@@ -76,7 +76,26 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
   const syncThread = useCallback(async (threadId) => {
     if (!threadId || threadRef.current?.id !== threadId) return [];
     const hadUnread = Number(unreadSnapshot.current.get(threadId) || 0) > 0;
-    const next = await api.messages.list(threadId);
+    const [messages, reactionPayload] = await Promise.all([
+      api.messages.list(threadId),
+      api.messages.reactions(threadId).catch(() => ({ reactions:[] })),
+    ]);
+    const grouped = new Map();
+    for (const row of reactionPayload?.reactions || []) {
+      const entry = grouped.get(row.message_id) || { counts:new Map(), mine:null };
+      entry.counts.set(row.emoji, (entry.counts.get(row.emoji) || 0) + 1);
+      if (row.mine) entry.mine = row.emoji;
+      grouped.set(row.message_id, entry);
+    }
+    const next = messages.map(message => {
+      const entry = grouped.get(message.id);
+      if (!entry) return { ...message, reactions:[], my_reaction:null };
+      return {
+        ...message,
+        reactions:[...entry.counts.entries()].map(([emoji, count]) => ({ emoji, count })),
+        my_reaction:entry.mine,
+      };
+    });
     if (threadRef.current?.id !== threadId) return next;
     setMsgs(next);
     setThreads(rows => rows.map(row => row.id === threadId ? { ...row, unread:0 } : row));

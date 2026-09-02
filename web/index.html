@@ -36,7 +36,13 @@
     <link rel="stylesheet" href="/src/premium-polish.css" />
     <link rel="stylesheet" href="/src/wow-polish.css" />
     <link rel="stylesheet" href="/src/lumina-one-clarity.css" />
-    <style>html,body,#root{min-height:100%;background:#07101E}html{background:#07101E}body{margin:0;background:#07101E}</style>
+    <style>
+      html,body,#root{min-height:100%;background:#07101E}html{background:#07101E}body{margin:0;background:#07101E}
+      /* WebKit can turn overflow-x:clip into a horizontally scrollable box when
+         the same auth surface owns overflow-y:auto. Keep vertical scrolling on
+         the document so iPhone focus changes can never shift the form sideways. */
+      .lumina-auth{overflow-x:clip!important;overflow-y:visible!important}
+    </style>
     <title>Lumina</title>
   </head>
   <body>

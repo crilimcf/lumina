@@ -10,35 +10,9 @@ on:
       - 'feature/**'
       - 'fix/**'
 
-permissions:
-  contents: write
-
 jobs:
-  patch-chat:
-    name: Apply staged chat repair
-    if: github.ref == 'refs/heads/fix/chat-iphone-reactions' && github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: fix/chat-iphone-reactions
-          fetch-depth: 0
-      - name: Apply deterministic patch
-        run: python3 scripts/chat-iphone-patch.py
-      - name: Restore normal CI and commit repaired sources
-        run: |
-          git checkout origin/master -- .github/workflows/ci.yml
-          rm -f scripts/chat-iphone-patch.py .github/workflows/chat-iphone-patch.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git diff --cached --check
-          git commit -m "fix: repair iPhone chat composer and add message reactions"
-          git push origin HEAD:fix/chat-iphone-reactions
-
   web-build:
     name: Web build
-    if: github.ref != 'refs/heads/fix/chat-iphone-reactions' || github.actor == 'github-actions[bot]'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -57,7 +31,6 @@ jobs:
 
   api-tests:
     name: API integration tests
-    if: github.ref != 'refs/heads/fix/chat-iphone-reactions' || github.actor == 'github-actions[bot]'
     runs-on: ubuntu-latest
     services:
       postgres:

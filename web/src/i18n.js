@@ -5,12 +5,13 @@ import EN_EXTRA from './locales/en-extra.js';
 import FR_EXTRA from './locales/fr-extra.js';
 import ES_EXTRA from './locales/es-extra.js';
 import { EN_REMAINING, FR_REMAINING, ES_REMAINING } from './locales/remaining-extra.js';
+import { EN_CHAT, FR_CHAT, ES_CHAT } from './locales/chat-extra.js';
 
 const catalogs = {
   pt:{},
-  en:{ ...EN, ...EN_EXTRA, ...EN_REMAINING },
-  fr:{ ...FR, ...FR_EXTRA, ...FR_REMAINING },
-  es:{ ...ES, ...ES_EXTRA, ...ES_REMAINING },
+  en:{ ...EN, ...EN_EXTRA, ...EN_REMAINING, ...EN_CHAT },
+  fr:{ ...FR, ...FR_EXTRA, ...FR_REMAINING, ...FR_CHAT },
+  es:{ ...ES, ...ES_EXTRA, ...ES_REMAINING, ...ES_CHAT },
 };
 const locales = { pt:'pt-PT', en:'en-US', fr:'fr-FR', es:'es-ES' };
 const supported = new Set(Object.keys(catalogs));
@@ -180,7 +181,7 @@ const dynamicRules = {
     [/^(\d+) conversas$/u, '{1} conversaciones'],
     [/^Alertas, (\d+) por ler$/u, 'Alertas, {1} sin leer'],
     [/^Agora segues (.+)$/u, 'Ahora sigues a {1}'],
-    [/^Deixaste de seguir (.+)$/u, 'Has dejado de seguir a {1}'],
+    [/^Deixaste de seguir (.+)$/u, 'Dejaste de seguir a {1}'],
     [/^(.+) bloqueado$/u, '{1} bloqueado'],
     [/^(.+) desbloqueado$/u, '{1} desbloqueado'],
     [/^Convite enviado a (.+)$/u, 'Invitación enviada a {1}'],
@@ -191,8 +192,8 @@ const dynamicRules = {
     [/^Vídeo do momento de (.+)$/u, 'Vídeo del Momento de {1}'],
     [/^Abrir na fonte\s*(.*)$/u, 'Abrir en la fuente {1}'],
     [/^(\d+) seguidores$/u, '{1} seguidores'],
-    [/^(\d+) a seguir$/u, '{1} seguidos'],
-    [/^Restam-te (\d+) códigos de emergência\.$/u, 'Te quedan {1} códigos de recuperación.'],
+    [/^(\d+) a seguir$/u, '{1} siguiendo'],
+    [/^Restam-te (\d+) códigos de emergência\.$/u, 'Te quedan {1} códigos de emergencia.'],
     [/^(\d+) novidade por ver$/u, '{1} novedad por ver'],
     [/^(\d+) novidades por ver$/u, '{1} novedades por ver'],
     [/^há (\d+) min$/u, 'hace {1} min'],
@@ -209,25 +210,23 @@ const dynamicRules = {
   ],
 };
 
-function renderDynamic(replacement, match) {
-  return String(replacement)
-    .replace(/\{value\}/g, match[1] ?? '')
-    .replace(/\{(\d+)\}/g, (_token, index) => match[Number(index)] ?? '');
-}
-
-export function translateDynamic(source) {
-  if (source === undefined || source === null) return '';
-  const input = String(source);
-  const exact = t(input);
-  if (exact !== input || language === 'pt') return exact;
-
-  for (const [pattern, replacement] of dynamicRules[language] || []) {
+export function translateDynamic(source, lang = language) {
+  const input = String(source ?? '');
+  if (lang === 'pt') return input;
+  const rules = dynamicRules[lang] || [];
+  for (const [pattern, replacement] of rules) {
     const match = input.match(pattern);
     if (!match) continue;
-    return renderDynamic(replacement, match);
+    return replacement.replace(/\{(\d+)\}/g, (_token, index) => match[Number(index)] ?? '');
   }
-  return input;
+  return t(input);
 }
 
-export const formatDate = (value, options) => new Intl.DateTimeFormat(locale, options).format(new Date(value));
-export const formatNumber = (value, options) => new Intl.NumberFormat(locale, options).format(value);
+export function installI18n(root = document) {
+  if (!root?.querySelectorAll) return;
+  root.documentElement?.setAttribute?.('lang', locale);
+  root.querySelectorAll('[data-i18n]').forEach(node => {
+    const source = node.getAttribute('data-i18n') || node.textContent;
+    node.textContent = t(source);
+  });
+}

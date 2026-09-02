@@ -15,6 +15,7 @@ import { startLuminaOneJobs } from './jobs/lumina-one-cleanup.js';
 import { authRoutes } from './routes/auth.js';
 import { postRoutes } from './routes/posts.js';
 import { messageRoutes } from './routes/messages.js';
+import { messageReactionRoutes } from './routes/message-reactions.js';
 import { reportRoutes } from './routes/reports.js';
 import { accountRoutes } from './routes/account.js';
 import { uploadRoutes } from './routes/uploads.js';
@@ -189,6 +190,7 @@ const mountApi = (prefix = '') => {
   app.use(`${prefix}/radar-images`, radarImageRoutes);
   app.use(`${prefix}/radar`, radarSyncRoutes);
   app.use(`${prefix}/radar`, radarRoutes);
+  app.use(`${prefix}/messages`, messageReactionRoutes);
   app.use(`${prefix}/messages`, messageRoutes);
   app.use(`${prefix}/rooms`, roomMessagePrivacyRoutes);
   app.use(`${prefix}/rooms`, roomRoutes);

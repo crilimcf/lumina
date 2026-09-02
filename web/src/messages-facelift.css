@@ -799,3 +799,114 @@
   .messages-thread-card,
   .messages-contact-card { transition: none; }
 }
+
+
+/* iPhone chat keyboard + message reactions */
+.lumina-messages-thread.messages-visual-viewport {
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+}
+
+.messages-composer-shell:focus-within {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: #080b16;
+}
+
+.messages-composer-input {
+  position: relative;
+  z-index: 1;
+  caret-color: #9b82ff;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+.message-wrap {
+  position: relative;
+}
+
+.message-reaction-trigger {
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  color: inherit;
+  background: transparent;
+  opacity: .7;
+}
+
+.message-reaction-trigger:active,
+.message-reaction-trigger.is-active {
+  opacity: 1;
+  background: rgba(139,112,255,.13);
+}
+
+.message-reaction-tray {
+  width: max-content;
+  max-width: min(330px, 84vw);
+  margin-top: 6px;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 999px;
+  background: rgba(14,18,34,.96);
+  box-shadow: 0 12px 34px rgba(0,0,0,.34);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+  z-index: 24;
+}
+
+.message-wrap-mine .message-reaction-tray { margin-left: auto; }
+
+.message-reaction-choice {
+  width: 39px;
+  height: 39px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.message-reaction-choice:active,
+.message-reaction-choice.is-selected {
+  background: rgba(139,112,255,.20);
+  transform: scale(1.08);
+}
+
+.message-reaction-summary {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.message-wrap-mine .message-reaction-summary { justify-content: flex-end; }
+
+.message-reaction-pill {
+  min-height: 27px;
+  padding: 2px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 999px;
+  color: #e9e7f6;
+  background: rgba(255,255,255,.07);
+  font-size: 13px;
+}
+
+.message-reaction-pill.is-mine {
+  border-color: rgba(139,112,255,.42);
+  background: rgba(139,112,255,.17);
+}

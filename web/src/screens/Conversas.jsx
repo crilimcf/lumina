@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ArrowLeft, BellRing, Camera, CheckCircle2, Eye, MessageSquare, Phone, Search, Send, Sparkles, Timer, Video, X } from 'lucide-react';
 import { api } from '../api.js';
 import { Orb } from '../ui.jsx';
@@ -31,7 +31,8 @@ export function Conversas({
   const [query, setQuery] = useState('');
   const [callPush, setCallPush] = useState({ checking:true, supported:true, standalone:true, permission:'default', subscribed:false });
   const [callPushBusy, setCallPushBusy] = useState(false);
-  const [visualFrame, setVisualFrame] = useState(null);
+  const [visualHeight, setVisualHeight] = useState(null);
+  const composerInputRef = useRef(null);
 
   const normalizedQuery = query.trim().toLocaleLowerCase(locale);
   const filteredThreads = useMemo(() => {
@@ -44,25 +45,18 @@ export function Conversas({
   }, [availableContacts, normalizedQuery]);
 
   useEffect(() => {
-    if (!thread || !window.visualViewport) { setVisualFrame(null); return undefined; }
+    if (!thread || !window.visualViewport) { setVisualHeight(null); return undefined; }
     const viewport = window.visualViewport;
     let raf = 0;
     const sync = () => {
       cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => setVisualFrame({
-        top:viewport.offsetTop,
-        left:viewport.offsetLeft,
-        width:viewport.width,
-        height:viewport.height,
-      }));
+      raf = requestAnimationFrame(() => setVisualHeight(Math.max(1, Math.round(viewport.height))));
     };
     sync();
     viewport.addEventListener('resize', sync);
-    viewport.addEventListener('scroll', sync);
     return () => {
       cancelAnimationFrame(raf);
       viewport.removeEventListener('resize', sync);
-      viewport.removeEventListener('scroll', sync);
     };
   }, [thread?.id]);
 
@@ -143,19 +137,29 @@ export function Conversas({
   </label>;
 
   const focusComposer = () => {
-    window.setTimeout(() => end?.current?.scrollIntoView?.({ block:'end', behavior:'smooth' }), 80);
+    requestAnimationFrame(() => end?.current?.scrollIntoView?.({ block:'end', behavior:'auto' }));
+  };
+
+  const keepComposerFocused = event => {
+    if (document.activeElement === composerInputRef.current) event.preventDefault();
+  };
+
+  const sendWithComposerFocus = () => {
+    void send();
+    requestAnimationFrame(() => composerInputRef.current?.focus?.({ preventScroll:true }));
+  };
+
+  const sendOnEnter = event => {
+    if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
+    event.preventDefault();
+    sendWithComposerFocus();
   };
 
   if (thread) {
     const modes = [['normal',MessageSquare,t('Normal')],['timer',Timer,t('Efémera')],['once',Eye,t('Uma vez')]];
-    const viewportStyle = visualFrame
-      ? {
-          top:`${visualFrame.top}px`,
-          left:`${visualFrame.left}px`,
-          width:`${visualFrame.width}px`,
-          height:`${visualFrame.height}px`,
-        }
-      : { top:0, left:0, width:'100%', height:'100dvh' };
+    const viewportStyle = visualHeight
+      ? { height:`${visualHeight}px` }
+      : { height:'100dvh' };
     return <div className="lumina-facelift lumina-messages lumina-messages-thread messages-visual-viewport" style={viewportStyle}>
       <header className="messages-thread-header">
         <button className="messages-thread-back" onClick={()=>setThread(null)} aria-label={t('Voltar às conversas')}><ArrowLeft size={18}/></button>
@@ -187,12 +191,12 @@ export function Conversas({
           {!mediaReady && mediaPicker(t('Escolher foto ou vídeo'))}
           <button className="messages-once-send" onClick={send} disabled={!mediaReady||sending} aria-label={t('Enviar uma vez')}>{sending?t('A enviar…'):`${t('Enviar')} ${t(mediaReady?.type==='video'?'vídeo':'foto')} · ${t('Uma vez').toLocaleLowerCase(locale)}`}</button>
         </div> : mode==='timer' ? <div className="messages-composer-row">
-          <input className="messages-composer-input" value={text} onChange={e=>setText(e.target.value)} onFocus={focusComposer} onKeyDown={e=>e.key==='Enter'&&send()} placeholder={t('Mensagem efémera…')}/>
-          <button className="messages-send-button" onClick={send} disabled={sending||!text.trim()} aria-label={t('Enviar mensagem')}><Send size={17}/></button>
+          <input ref={composerInputRef} className="messages-composer-input" value={text} onChange={e=>setText(e.target.value)} onFocus={focusComposer} onKeyDown={sendOnEnter} placeholder={t('Mensagem efémera…')}/>
+          <button className="messages-send-button" onPointerDown={keepComposerFocused} onClick={sendWithComposerFocus} disabled={sending||!text.trim()} aria-label={t('Enviar mensagem')}><Send size={17}/></button>
         </div> : <div className="messages-composer-row">
           {!mediaReady && mediaPicker('')}
-          <input className="messages-composer-input" value={text} disabled={!!mediaReady} onChange={e=>setText(e.target.value)} onFocus={focusComposer} onKeyDown={e=>e.key==='Enter'&&send()} placeholder={mediaReady?t('Media pronta para enviar'):t('Escrever…')}/>
-          <button className="messages-send-button" onClick={send} disabled={sending||(!text.trim()&&!mediaReady)} aria-label={t('Enviar')}><Send size={17}/></button>
+          <input ref={composerInputRef} className="messages-composer-input" value={text} disabled={!!mediaReady} onChange={e=>setText(e.target.value)} onFocus={focusComposer} onKeyDown={sendOnEnter} placeholder={mediaReady?t('Media pronta para enviar'):t('Escrever…')}/>
+          <button className="messages-send-button" onPointerDown={keepComposerFocused} onClick={sendWithComposerFocus} disabled={sending||(!text.trim()&&!mediaReady)} aria-label={t('Enviar')}><Send size={17}/></button>
         </div>}
       </div>
       {mediaDraft && <MediaEditor file={mediaDraft} onCancel={clearMedia} onReady={acceptMedia}/>} 

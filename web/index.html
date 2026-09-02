@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#07101E" />
     <meta name="description" content="Feed, Rooms, Moments and conversations in one place for your network." />
-    <meta name="lumina-ui-release" content="radar-stories-2026-08-28" />
+    <meta name="lumina-ui-release" content="chat-iphone-reactions-2026-09-02" />
     <meta name="format-detection" content="telephone=no, date=no, email=no" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -36,7 +36,13 @@
     <link rel="stylesheet" href="/src/premium-polish.css" />
     <link rel="stylesheet" href="/src/wow-polish.css" />
     <link rel="stylesheet" href="/src/lumina-one-clarity.css" />
-    <style>html,body,#root{min-height:100%;background:#07101E}html{background:#07101E}body{margin:0;background:#07101E}</style>
+    <style>
+      html,body,#root{min-height:100%;background:#07101E}html{background:#07101E}body{margin:0;background:#07101E}
+      /* WebKit can turn overflow-x:clip into a horizontally scrollable box when
+         the same auth surface owns overflow-y:auto. Keep vertical scrolling on
+         the document so iPhone focus changes can never shift the form sideways. */
+      .lumina-auth{overflow-x:clip!important;overflow-y:visible!important}
+    </style>
     <title>Lumina</title>
   </head>
   <body>

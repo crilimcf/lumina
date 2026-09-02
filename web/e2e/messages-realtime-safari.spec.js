@@ -13,7 +13,38 @@ function registration(handle, name) {
   };
 }
 
-test('mensagens chegam por SSE, reagem e mantêm o compositor focado no Safari', async ({ page, request }) => {
+test('mensagens chegam por SSE, reações fecham fora e compositor acompanha o teclado no Safari', async ({ page, request }) => {
+  await page.addInitScript(() => {
+    const state = {
+      width:window.innerWidth,
+      height:window.innerHeight,
+      offsetTop:0,
+      offsetLeft:0,
+    };
+    const events = new EventTarget();
+    const fakeViewport = {
+      get width() { return state.width; },
+      get height() { return state.height; },
+      get offsetTop() { return state.offsetTop; },
+      get offsetLeft() { return state.offsetLeft; },
+      get pageTop() { return state.offsetTop; },
+      get pageLeft() { return state.offsetLeft; },
+      get scale() { return 1; },
+      addEventListener(...args) { events.addEventListener(...args); },
+      removeEventListener(...args) { events.removeEventListener(...args); },
+    };
+    try {
+      Object.defineProperty(window, 'visualViewport', { configurable:true, value:fakeViewport });
+      window.__luminaTestVisualViewport = (next) => {
+        Object.assign(state, next || {});
+        events.dispatchEvent(new Event('resize'));
+        events.dispatchEvent(new Event('scroll'));
+      };
+    } catch {
+      window.__luminaTestVisualViewport = null;
+    }
+  });
+
   const suffix = `${Date.now()}${Math.floor(Math.random()*1000)}`;
   const callerHandle = `rtcall${suffix}`.slice(0,22);
   const calleeHandle = `rtrecv${suffix}`.slice(0,22);
@@ -85,6 +116,11 @@ test('mensagens chegam por SSE, reagem e mantêm o compositor focado no Safari',
   await expect(received).toBeVisible();
   await received.getByRole('button', { name:'Reagir à mensagem' }).click();
   await expect(received.locator('.message-reaction-tray')).toBeVisible();
+  await page.locator('.messages-thread-header').click();
+  await expect(received.locator('.message-reaction-tray')).toBeHidden();
+
+  await received.getByRole('button', { name:'Reagir à mensagem' }).click();
+  await expect(received.locator('.message-reaction-tray')).toBeVisible();
   const reactionResponse = page.waitForResponse(response =>
     response.url().includes(`/api/messages/${createdMessage.id}/reaction`)
       && response.request().method() === 'POST'
@@ -94,6 +130,21 @@ test('mensagens chegam por SSE, reagem e mantêm o compositor focado no Safari',
   await reactionResponse;
   await expect(received.locator('.message-reaction-pill')).toContainText('❤️');
   await expect(received.locator('.message-reaction-pill')).toContainText('1');
+
+  const canMockViewport = await page.evaluate(() => typeof window.__luminaTestVisualViewport === 'function');
+  if (canMockViewport) {
+    await page.evaluate(() => window.__luminaTestVisualViewport({ height:430, offsetTop:64 }));
+    const threadFrame = page.locator('.lumina-messages-thread.messages-visual-viewport');
+    await expect.poll(() => threadFrame.evaluate(element => ({
+      top:element.style.top,
+      height:element.style.height,
+    }))).toEqual({ top:'64px', height:'430px' });
+
+    const composerBox = await page.locator('.messages-composer-shell').boundingBox();
+    expect(composerBox).not.toBeNull();
+    expect(composerBox.y).toBeGreaterThanOrEqual(64);
+    expect(composerBox.y + composerBox.height).toBeLessThanOrEqual(495);
+  }
 
   const composer = page.getByPlaceholder('Escrever…');
   const reply = `Resposta sem fechar teclado ${Date.now()}`;
@@ -110,6 +161,10 @@ test('mensagens chegam por SSE, reagem e mantêm o compositor focado no Safari',
   await expect(composer).toBeFocused();
   await expect(page.getByText(reply, { exact:true })).toBeVisible({ timeout:2500 });
 
-  const threadStyle = await page.locator('.lumina-messages-thread.messages-visual-viewport').getAttribute('style');
-  expect(threadStyle || '').not.toMatch(/(?:^|;)\s*(?:top|left|width)\s*:/);
+  const scrollState = await page.evaluate(() => ({
+    windowY:window.scrollY,
+    threadTop:document.querySelector('.lumina-messages-thread')?.getBoundingClientRect().top,
+  }));
+  expect(scrollState.windowY).toBe(0);
+  if (canMockViewport) expect(Math.round(scrollState.threadTop)).toBe(64);
 });

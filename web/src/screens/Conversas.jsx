@@ -31,8 +31,15 @@ export function Conversas({
   const [query, setQuery] = useState('');
   const [callPush, setCallPush] = useState({ checking:true, supported:true, standalone:true, permission:'default', subscribed:false });
   const [callPushBusy, setCallPushBusy] = useState(false);
-  const [visualHeight, setVisualHeight] = useState(null);
+  const [visualFrame, setVisualFrame] = useState(null);
   const composerInputRef = useRef(null);
+  const threadScrollRef = useRef(null);
+
+  const scrollThreadToEnd = useCallback(() => {
+    const scroller = threadScrollRef.current;
+    if (!scroller) return;
+    scroller.scrollTop = scroller.scrollHeight;
+  }, []);
 
   const normalizedQuery = query.trim().toLocaleLowerCase(locale);
   const filteredThreads = useMemo(() => {
@@ -45,18 +52,43 @@ export function Conversas({
   }, [availableContacts, normalizedQuery]);
 
   useEffect(() => {
-    if (!thread || !window.visualViewport) { setVisualHeight(null); return undefined; }
+    if (!thread || !window.visualViewport) { setVisualFrame(null); return undefined; }
     const viewport = window.visualViewport;
     let raf = 0;
     const sync = () => {
       cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => setVisualHeight(Math.max(1, Math.round(viewport.height))));
+      raf = requestAnimationFrame(() => {
+        setVisualFrame({
+          height:Math.max(1, Math.round(viewport.height)),
+          top:Math.max(0, Math.round(viewport.offsetTop || 0)),
+        });
+        if (document.activeElement === composerInputRef.current) scrollThreadToEnd();
+      });
     };
     sync();
     viewport.addEventListener('resize', sync);
+    viewport.addEventListener('scroll', sync);
     return () => {
       cancelAnimationFrame(raf);
       viewport.removeEventListener('resize', sync);
+      viewport.removeEventListener('scroll', sync);
+    };
+  }, [thread?.id, scrollThreadToEnd]);
+
+  useEffect(() => {
+    if (!thread) return undefined;
+    const html = document.documentElement;
+    const body = document.body;
+    const previousHtmlOverflow = html.style.overflow;
+    const previousBodyOverflow = body.style.overflow;
+    const previousScrollY = window.scrollY;
+    html.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    if (previousScrollY) window.scrollTo(0, 0);
+    return () => {
+      html.style.overflow = previousHtmlOverflow;
+      body.style.overflow = previousBodyOverflow;
+      if (previousScrollY) requestAnimationFrame(() => window.scrollTo(0, previousScrollY));
     };
   }, [thread?.id]);
 
@@ -137,7 +169,10 @@ export function Conversas({
   </label>;
 
   const focusComposer = () => {
-    requestAnimationFrame(() => end?.current?.scrollIntoView?.({ block:'end', behavior:'auto' }));
+    requestAnimationFrame(() => {
+      scrollThreadToEnd();
+      requestAnimationFrame(scrollThreadToEnd);
+    });
   };
 
   const keepComposerFocused = event => {
@@ -146,7 +181,10 @@ export function Conversas({
 
   const sendWithComposerFocus = () => {
     void send();
-    requestAnimationFrame(() => composerInputRef.current?.focus?.({ preventScroll:true }));
+    requestAnimationFrame(() => {
+      composerInputRef.current?.focus?.({ preventScroll:true });
+      scrollThreadToEnd();
+    });
   };
 
   const sendOnEnter = event => {
@@ -157,9 +195,9 @@ export function Conversas({
 
   if (thread) {
     const modes = [['normal',MessageSquare,t('Normal')],['timer',Timer,t('Efémera')],['once',Eye,t('Uma vez')]];
-    const viewportStyle = visualHeight
-      ? { height:`${visualHeight}px` }
-      : { height:'100dvh' };
+    const viewportStyle = visualFrame
+      ? { height:`${visualFrame.height}px`, top:`${visualFrame.top}px` }
+      : { height:'100dvh', top:0 };
     return <div className="lumina-facelift lumina-messages lumina-messages-thread messages-visual-viewport" style={viewportStyle}>
       <header className="messages-thread-header">
         <button className="messages-thread-back" onClick={()=>setThread(null)} aria-label={t('Voltar às conversas')}><ArrowLeft size={18}/></button>
@@ -174,7 +212,7 @@ export function Conversas({
         <button className="messages-thread-call" onClick={()=>startCall?.(thread,'video')} disabled={callBusy} aria-label={translateDynamic(`Fazer videochamada com ${thread.name}`)}><Video size={18}/></button>
       </header>
       {callReadiness(true)}
-      <div className="ns messages-thread-scroll">
+      <div ref={threadScrollRef} className="ns messages-thread-scroll">
         {msgs.length === 0 && <div className="messages-thread-empty">{t('Diz olá e começa uma conversa.')}</div>}
         {msgs.map(message => <Bubble key={message.id} msg={message} mine={message.sender_id===me.id} onReveal={api.messages.reveal} onEdit={editMessage} onDelete={removeMessage}/>)}
         <div ref={end}/>

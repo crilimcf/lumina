@@ -5,11 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#07101E" />
     <meta name="description" content="Feed, Rooms, Moments and conversations in one place for your network." />
-    <meta name="lumina-ui-release" content="chat-iphone-reactions-2026-09-02" />
+    <meta name="lumina-ui-release" content="android-pwa-push-2026-09-06" />
     <meta name="format-detection" content="telephone=no, date=no, email=no" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Lumina" />
+    <link id="lumina-manifest" rel="manifest" href="/manifest.webmanifest" />
     <script>
       (() => {
         const locales = { pt:'pt-PT', en:'en-US', fr:'fr-FR', es:'es-ES' };
@@ -24,13 +25,10 @@
         document.documentElement.lang = locales[language];
         document.querySelector('meta[name="description"]')?.setAttribute('content', descriptions[language]);
         window.__luminaDeviceLanguage = language;
-        const manifest = document.createElement('link');
-        manifest.rel = 'manifest';
-        manifest.href = `/manifest-${language}.webmanifest`;
-        document.head.appendChild(manifest);
+        document.getElementById('lumina-manifest')?.setAttribute('href', `/manifest-${language}.webmanifest?v=3`);
       })();
     </script>
-    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="icon" type="image/svg+xml" href="/lumina-icon.svg?v=3" />
     <link rel="apple-touch-icon" sizes="180x180" href="/lumina-orbit-ios-v2.png" />
     <link rel="apple-touch-icon-precomposed" href="/lumina-orbit-ios-v2.png" />
     <link rel="stylesheet" href="/src/premium-polish.css" />

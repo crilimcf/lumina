@@ -107,15 +107,15 @@ async function boot() {
   window.addEventListener('scroll', handleAnyScroll, { passive:true });
   window.addEventListener('pageshow', () => setDockHidden(false));
 
-  // Web Push standards-based. Em iOS o prompt só aparece numa web app instalada
-  // no ecrã principal e é sempre iniciado por um toque explícito em "Ativar".
-  // Safari 18.4+ expõe window.pushManager: essa subscrição sobrevive mesmo se o
-  // Service Worker for removido pelo sistema, e é partilhada com o SW de raiz.
+  // Web Push standards-based. O pedido de permissão tem de acontecer diretamente
+  // no gesto do utilizador (antes de qualquer await de rede/service worker), em
+  // particular no Edge/Chrome Android. Depois da permissão, fazemos a subscrição.
   const supportsWebPush = 'Notification' in window && (
     'pushManager' in window || ('serviceWorker' in navigator && 'PushManager' in window)
   );
   const supportsPush = isNativeApp || supportsWebPush;
   const standalone = isNativeApp || window.matchMedia?.('(display-mode: standalone)')?.matches || window.navigator.standalone === true;
+  const isAndroidWeb = !isNativeApp && /Android/i.test(navigator.userAgent || '');
   let pushBanner = null;
   let pushBusy = false;
   let pushConfigured = false;
@@ -135,8 +135,36 @@ async function boot() {
 
   const getPushManager = (registration) => window.pushManager || registration?.pushManager || null;
 
+  const requestWebPushPermission = async ({ ask = false } = {}) => {
+    if (!supportsWebPush) return 'unsupported';
+    let permission = Notification.permission;
+    if (permission === 'default' && ask) {
+      try {
+        // IMPORTANT: this is intentionally the first awaited operation after the
+        // activation click. Moving it below service-worker/network awaits breaks
+        // the permission prompt on some Android browsers.
+        permission = await Notification.requestPermission();
+      } catch (error) {
+        console.debug('[push] pedido de permissão', error?.message);
+        permission = Notification.permission;
+      }
+    }
+    return permission;
+  };
+
   const registerPush = async ({ ask = false } = {}) => {
     if (!supportsPush || pushBusy) return false;
+
+    // Web permission must be requested while the click still owns transient
+    // user activation. Do this before setting up the SW or fetching VAPID.
+    if (!isNativeApp) {
+      const permission = await requestWebPushPermission({ ask });
+      if (permission !== 'granted') {
+        window.dispatchEvent(new CustomEvent('lumina:push-state'));
+        return false;
+      }
+    }
+
     pushBusy = true;
     try {
       if (isNativeApp) {
@@ -149,12 +177,10 @@ async function boot() {
         }
         return ok;
       }
+
       const registration = await getRegistration().catch(() => null);
       const manager = getPushManager(registration);
       if (!manager) return false;
-      let permission = Notification.permission;
-      if (permission === 'default' && ask) permission = await Notification.requestPermission();
-      if (permission !== 'granted') return false;
 
       let subscription = await manager.getSubscription();
       if (!subscription) {
@@ -233,7 +259,8 @@ async function boot() {
       background:'rgba(20,18,42,.96)', color:'#fff', boxShadow:'0 16px 44px rgba(20,18,42,.32)',
       fontFamily:'Manrope,system-ui,sans-serif', display:'flex', gap:'12px', alignItems:'center',
     });
-    box.innerHTML = '<div style="flex:1"><div style="font-weight:800;font-size:14px">Não percas mensagens nem chamadas</div><div style="font-size:11px;opacity:.72;margin-top:3px;line-height:1.35">Ativa as notificações da Lumina neste iPhone.</div></div>';
+    const deviceName = isAndroidWeb ? 'Android' : 'iPhone';
+    box.innerHTML = `<div style="flex:1"><div style="font-weight:800;font-size:14px">Não percas mensagens nem chamadas</div><div style="font-size:11px;opacity:.72;margin-top:3px;line-height:1.35">Ativa as notificações da Lumina neste ${deviceName}.</div></div>`;
     const activate = document.createElement('button');
     activate.textContent = 'Ativar';
     Object.assign(activate.style, { border:0,borderRadius:'999px',padding:'10px 14px',fontWeight:'800',background:'#fff',color:'#14122A' });

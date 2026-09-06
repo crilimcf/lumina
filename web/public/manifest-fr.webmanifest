@@ -1,5 +1,5 @@
 {
-  "id": "/",
+  "id": "/?lumina=pwa-2026-09",
   "name": "Lumina",
   "short_name": "Lumina",
   "description": "Fil, Salons, Moments et conversations réunis dans un seul espace pour ton réseau.",
@@ -10,8 +10,5 @@
   "theme_color": "#070914",
   "orientation": "portrait",
   "lang": "fr-FR",
-  "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
-  ]
+  "icons": [{ "src": "/lumina-icon-2026.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
 }

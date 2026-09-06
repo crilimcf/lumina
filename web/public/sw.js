@@ -33,10 +33,10 @@ self.addEventListener('push', (event) => {
     try { direct = event.data?.json?.() || null; } catch {}
 
     let notification = null;
-  let badgeCount = null;
-  if (direct?.web_push === 8030 && direct?.notification?.title) {
-    badgeCount = Number(direct.app_badge);
-    notification = {
+    let badgeCount = null;
+    if (direct?.web_push === 8030 && direct?.notification?.title) {
+      badgeCount = Number(direct.app_badge);
+      notification = {
         title: direct.notification.title,
         body: direct.notification.body || '',
         tag: direct.notification.tag || 'lumina:activity',
@@ -52,11 +52,12 @@ self.addEventListener('push', (event) => {
           credentials: 'include',
           cache: 'no-store',
           headers: { 'cache-control': 'no-cache' },
-        });      if (response.ok) {
-      const payload = await response.json();
-      notification = payload?.notification || null;
-      badgeCount = Number(payload?.unread);
-    }
+        });
+        if (response.ok) {
+          const payload = await response.json();
+          notification = payload?.notification || null;
+          badgeCount = Number(payload?.unread);
+        }
       } catch {}
     }
 
@@ -69,18 +70,18 @@ self.addEventListener('push', (event) => {
     };
 
     await Promise.all([
-    syncAppBadge(badgeCount),
-    self.registration.showNotification(notification.title || 'Lumina', {
-      body: notification.body,
-      tag: notification.tag,
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
-      data: { url: notification.url || '/?tab=alerts' },
-      renotify: true,
-      silent: false,
-      requireInteraction: notification.type === 'incoming_call',
-    }),
-  ]);
+      syncAppBadge(badgeCount),
+      self.registration.showNotification(notification.title || 'Lumina', {
+        body: notification.body,
+        tag: notification.tag,
+        icon: '/lumina-icon-192-v3.png',
+        badge: '/lumina-badge-96-v3.png',
+        data: { url: notification.url || '/?tab=alerts' },
+        renotify: true,
+        silent: false,
+        requireInteraction: notification.type === 'incoming_call',
+      }),
+    ]);
   })());
 });
 

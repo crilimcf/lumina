@@ -5,11 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#07101E" />
     <meta name="description" content="Feed, Rooms, Moments and conversations in one place for your network." />
-    <meta name="lumina-ui-release" content="ios-icon-browser-shortcut-2026-09-06" />
+    <meta name="lumina-ui-release" content="android-pwa-install-2026-09-06" />
     <meta name="format-detection" content="telephone=no, date=no, email=no" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Lumina" />
+    <link rel="manifest" id="lumina-manifest" href="/manifest.webmanifest?v=2026-09-06c" />
     <script>
       (() => {
         const locales = { pt:'pt-PT', en:'en-US', fr:'fr-FR', es:'es-ES' };
@@ -24,13 +25,11 @@
         document.documentElement.lang = locales[language];
         document.querySelector('meta[name="description"]')?.setAttribute('content', descriptions[language]);
         window.__luminaDeviceLanguage = language;
-        const manifest = document.createElement('link');
-        manifest.rel = 'manifest';
-        manifest.href = `/manifest-${language}.webmanifest?v=2026-09-06b`;
-        document.head.appendChild(manifest);
+        const manifest = document.getElementById('lumina-manifest');
+        if (manifest) manifest.href = `/manifest-${language}.webmanifest?v=2026-09-06c`;
       })();
     </script>
-    <link rel="icon" type="image/svg+xml" href="/lumina-icon-2026.svg" />
+    <link rel="icon" type="image/svg+xml" href="/lumina-icon-2026.svg?v=2026-09-06c" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=lumina-lamp-20260906" />
     <link rel="apple-touch-icon-precomposed" href="/apple-touch-icon.png?v=lumina-lamp-20260906" />
     <link rel="stylesheet" href="/src/premium-polish.css" />
@@ -57,5 +56,14 @@
     <script type="module" src="/src/adaptiveDock.js"></script>
     <script type="module" src="/src/lumina-one-v3.js"></script>
     <script type="module" src="/src/lumina-one-feed-adventure.js"></script>
+    <script>
+      if ('serviceWorker' in navigator && location.protocol === 'https:') {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js', { scope:'/', updateViaCache:'none' }).catch((error) => {
+            console.warn('[pwa-install] service worker registration failed', error?.message || error);
+          });
+        }, { once:true });
+      }
+    </script>
   </body>
 </html>

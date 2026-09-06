@@ -10,5 +10,9 @@
   "theme_color": "#070914",
   "orientation": "portrait",
   "lang": "es-ES",
-  "icons": [{ "src": "/lumina-icon-2026.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "/lumina-icon-2026.svg?v=2026-09-06c", "sizes": "192x192", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/lumina-icon-2026.svg?v=2026-09-06c", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
 }

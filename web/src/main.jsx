@@ -107,10 +107,9 @@ async function boot() {
   window.addEventListener('scroll', handleAnyScroll, { passive:true });
   window.addEventListener('pageshow', () => setDockHidden(false));
 
-  // Web Push standards-based. Em iOS o prompt só aparece numa web app instalada
-  // no ecrã principal e é sempre iniciado por um toque explícito em "Ativar".
-  // Safari 18.4+ expõe window.pushManager: essa subscrição sobrevive mesmo se o
-  // Service Worker for removido pelo sistema, e é partilhada com o SW de raiz.
+  // Web Push standards-based. A permissão tem de ser pedida imediatamente dentro
+  // do gesto do utilizador. Chrome/Samsung Internet no Android podem perder a
+  // ativação transitória se esperarmos primeiro pelo Service Worker.
   const supportsWebPush = 'Notification' in window && (
     'pushManager' in window || ('serviceWorker' in navigator && 'PushManager' in window)
   );
@@ -119,6 +118,13 @@ async function boot() {
   let pushBanner = null;
   let pushBusy = false;
   let pushConfigured = false;
+  let pushLastError = null;
+
+  const emitPushState = () => window.dispatchEvent(new CustomEvent('lumina:push-state'));
+  const setPushError = (value) => {
+    pushLastError = value || null;
+    emitPushState();
+  };
 
   const b64ToBytes = (value) => {
     const padding = '='.repeat((4 - value.length % 4) % 4);
@@ -138,6 +144,7 @@ async function boot() {
   const registerPush = async ({ ask = false } = {}) => {
     if (!supportsPush || pushBusy) return false;
     pushBusy = true;
+    pushLastError = null;
     try {
       if (isNativeApp) {
         const ok = await enableNativePush();
@@ -145,22 +152,46 @@ async function boot() {
           pushConfigured = true;
           pushBanner?.remove(); pushBanner = null;
           sessionStorage.removeItem('lumina-push-later');
-          window.dispatchEvent(new CustomEvent('lumina:push-state'));
-        }
+          setPushError(null);
+        } else setPushError('native-registration-failed');
         return ok;
       }
-      const registration = await getRegistration().catch(() => null);
-      const manager = getPushManager(registration);
-      if (!manager) return false;
+
+      // CRÍTICO para Android: requestPermission vem antes de qualquer await que
+      // possa consumir o toque do utilizador.
       let permission = Notification.permission;
-      if (permission === 'default' && ask) permission = await Notification.requestPermission();
-      if (permission !== 'granted') return false;
+      if (permission === 'default' && ask) {
+        try { permission = await Notification.requestPermission(); }
+        catch { permission = Notification.permission; }
+      }
+      if (permission !== 'granted') {
+        setPushError(permission === 'denied' ? 'permission-denied' : 'permission-dismissed');
+        return false;
+      }
+
+      const registration = await getRegistration().catch(() => null);
+      if (!registration) {
+        setPushError('service-worker-unavailable');
+        return false;
+      }
+      const manager = getPushManager(registration);
+      if (!manager) {
+        setPushError('push-manager-unavailable');
+        return false;
+      }
 
       let subscription = await manager.getSubscription();
       if (!subscription) {
         const keyResponse = await fetch('/api/notifications/push/key', { credentials:'include', cache:'no-store' });
-        if (!keyResponse.ok) return false;
+        if (!keyResponse.ok) {
+          setPushError('push-key-unavailable');
+          return false;
+        }
         const { publicKey } = await keyResponse.json();
+        if (!publicKey) {
+          setPushError('push-key-unavailable');
+          return false;
+        }
         subscription = await manager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: b64ToBytes(publicKey),
@@ -170,29 +201,33 @@ async function boot() {
         method:'POST', credentials:'include', headers:{ 'content-type':'application/json' },
         body:JSON.stringify(subscription.toJSON()),
       });
-      if (!save.ok) return false;
+      if (!save.ok) {
+        setPushError('subscription-save-failed');
+        return false;
+      }
       pushConfigured = true;
       pushBanner?.remove(); pushBanner = null;
       sessionStorage.removeItem('lumina-push-later');
-      window.dispatchEvent(new CustomEvent('lumina:push-state'));
+      setPushError(null);
       return true;
     } catch (error) {
       console.debug('[push] subscrição', error?.message);
+      setPushError('subscription-failed');
       return false;
     } finally { pushBusy = false; }
   };
 
   window.__luminaEnablePush = () => registerPush({ ask:true });
   window.__luminaPushSnapshot = async () => {
-    if (isNativeApp) return nativePushSnapshot();
-    if (!supportsPush) return { supported:false, standalone, permission:'unsupported', subscribed:false };
+    if (isNativeApp) return { ...(await nativePushSnapshot()), lastError:pushLastError };
+    if (!supportsPush) return { supported:false, standalone, permission:'unsupported', subscribed:false, lastError:'unsupported' };
     try {
       const registration = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration('/') : null;
       const manager = getPushManager(registration);
       const subscription = await manager?.getSubscription?.();
-      return { supported:true, standalone, permission:Notification.permission, subscribed:!!subscription };
+      return { supported:true, standalone, permission:Notification.permission, subscribed:!!subscription, lastError:pushLastError };
     } catch {
-      return { supported:true, standalone, permission:Notification.permission, subscribed:false };
+      return { supported:true, standalone, permission:Notification.permission, subscribed:false, lastError:pushLastError };
     }
   };
 
@@ -217,7 +252,8 @@ async function boot() {
       }
     } finally {
       pushConfigured = false;
-      window.dispatchEvent(new CustomEvent('lumina:push-state'));
+      pushLastError = null;
+      emitPushState();
     }
   };
 
@@ -233,7 +269,7 @@ async function boot() {
       background:'rgba(20,18,42,.96)', color:'#fff', boxShadow:'0 16px 44px rgba(20,18,42,.32)',
       fontFamily:'Manrope,system-ui,sans-serif', display:'flex', gap:'12px', alignItems:'center',
     });
-    box.innerHTML = '<div style="flex:1"><div style="font-weight:800;font-size:14px">Não percas mensagens nem chamadas</div><div style="font-size:11px;opacity:.72;margin-top:3px;line-height:1.35">Ativa as notificações da Lumina neste iPhone.</div></div>';
+    box.innerHTML = '<div style="flex:1"><div style="font-weight:800;font-size:14px">Não percas mensagens nem chamadas</div><div style="font-size:11px;opacity:.72;margin-top:3px;line-height:1.35">Ativa as notificações da Lumina neste dispositivo.</div></div>';
     const activate = document.createElement('button');
     activate.textContent = 'Ativar';
     Object.assign(activate.style, { border:0,borderRadius:'999px',padding:'10px 14px',fontWeight:'800',background:'#fff',color:'#14122A' });
@@ -242,7 +278,7 @@ async function boot() {
       const ok = await registerPush({ ask:true });
       if (!ok) {
         activate.disabled = false;
-        activate.textContent = !isNativeApp && Notification.permission === 'denied' ? 'Bloqueadas' : 'Tentar';
+        activate.textContent = !isNativeApp && Notification.permission === 'denied' ? 'Bloqueadas' : 'Tentar novamente';
       }
     });
     const later = document.createElement('button');
@@ -295,7 +331,7 @@ async function boot() {
       setDockHidden(false);
       checkForNewDeployment();
       if (supportsPush && !pushConfigured) maybeSetupPush().catch(() => {});
-      window.dispatchEvent(new CustomEvent('lumina:push-state'));
+      emitPushState();
     }
   });
   window.addEventListener('pageshow', checkForNewDeployment);

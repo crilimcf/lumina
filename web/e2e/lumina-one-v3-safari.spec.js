@@ -71,14 +71,15 @@ test('Lume 2.0 abre o compositor e a captura mobile no iPhone', async ({ page })
 
   await expect(page.getByText('LUME 2.0', { exact:true })).toBeVisible();
   await page.getByRole('button', { name:/Acender um Lume/ }).click();
-  await expect(page.getByRole('heading', { name:'Acender um Lume' })).toBeVisible();
-  await expect(page.getByText('Uma fotografia para amigos escolhidos.')).toBeVisible();
+  const composer = page.locator('.social-loop-backdrop').last();
+  await expect(composer.getByRole('heading', { name:'Acender um Lume' })).toBeVisible();
+  await expect(composer.getByRole('button', { name:/Direto.*Uma fotografia para amigos escolhidos/i })).toBeVisible();
 
-  await page.getByRole('button', { name:/Tirar fotografia/ }).click();
-  await expect(page.getByRole('heading', { name:'Câmara' })).toBeVisible();
+  await composer.getByRole('button', { name:/Tirar fotografia/ }).click();
+  const camera = page.locator('.social-loop-backdrop').last();
+  await expect(camera.getByRole('heading', { name:'Câmara' })).toBeVisible();
 
-  const backdrop = page.locator('.social-loop-backdrop').last();
-  const layout = await backdrop.evaluate(node => {
+  const layout = await camera.evaluate(node => {
     const style = getComputedStyle(node);
     const rect = node.getBoundingClientRect();
     return {

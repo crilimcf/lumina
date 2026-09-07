@@ -34,9 +34,11 @@ test('Lumina One separa Pulso social, Stories, Agora e Radar', async ({ page }) 
   await expect(page.getByText('Ver Juntos', { exact:true })).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Agora' }).click();
-  await expect(page.getByText('Faz acontecer. Agora.')).toBeVisible();
-  await expect(page.getByRole('button', { name: /Criar um Agora/ })).toBeVisible();
-  await expect(page.getByText(/localização pública é aproximada/i)).toBeVisible();
+  const agoraPanel = page.locator('.social-agora-mount .social-loop-panel');
+  await expect(agoraPanel).toBeVisible();
+  await expect(agoraPanel.locator('.social-loop-title')).toContainText('Faz acontecer. Agora');
+  await expect(agoraPanel.getByRole('button', { name: /Criar um Agora/ })).toBeVisible();
+  await expect(agoraPanel).toContainText(/localização pública é aproximada/i);
 });
 
 test('Radar mantém Perto de mim, País e Mundo e acrescenta Dos meus separado', async ({ page }) => {

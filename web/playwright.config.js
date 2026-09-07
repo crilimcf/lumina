@@ -13,6 +13,11 @@ export default defineConfig({
   use: {
     baseURL,
     ignoreHTTPSErrors: baseURL.startsWith('https://'),
+    // The app registers a real PWA service worker. E2E tests mock API calls with
+    // page.route(), and Playwright cannot reliably intercept requests handled by
+    // a service worker. Blocking it here keeps the Safari suite deterministic;
+    // service-worker/PWA behaviour is validated separately by dedicated tests.
+    serviceWorkers: 'block',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

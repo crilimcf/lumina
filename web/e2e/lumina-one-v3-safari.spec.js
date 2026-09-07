@@ -63,18 +63,22 @@ test('One v3 é compacto, sem onboarding permanente, e suporta swipe entre modos
   await expect(page.locator('.one-tabs button.is-on')).toContainText('Lumes');
 });
 
-test('Lumes abre a câmara em ecrã inteiro no iPhone', async ({ page }) => {
+test('Lume 2.0 abre o compositor e a captura mobile no iPhone', async ({ page }) => {
   await page.setViewportSize({ width:390, height:844 });
   await register(page, 'v3lume');
   await openOne(page);
   await openTab(page, 'Lumes');
 
-  await page.getByRole('button', { name:'Tirar um Lume' }).click();
-  const camera = page.getByRole('dialog', { name:'Câmara Lume' });
-  await expect(camera).toBeVisible();
-  await expect(camera.getByRole('button', { name:'Tirar fotografia' })).toBeVisible();
+  await expect(page.getByText('LUME 2.0', { exact:true })).toBeVisible();
+  await page.getByRole('button', { name:/Acender um Lume/ }).click();
+  await expect(page.getByRole('heading', { name:'Acender um Lume' })).toBeVisible();
+  await expect(page.getByText('Uma fotografia para amigos escolhidos.')).toBeVisible();
 
-  const layout = await camera.evaluate(node => {
+  await page.getByRole('button', { name:/Tirar fotografia/ }).click();
+  await expect(page.getByRole('heading', { name:'Câmara' })).toBeVisible();
+
+  const backdrop = page.locator('.social-loop-backdrop').last();
+  const layout = await backdrop.evaluate(node => {
     const style = getComputedStyle(node);
     const rect = node.getBoundingClientRect();
     return {

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, Eye, Loader2, MoreHorizontal, Pencil, SmilePlus, Timer, Trash2, X } from 'lucide-react';
+import { Check, Eye, Languages, Loader2, MoreHorizontal, Pencil, SmilePlus, Timer, Trash2, X } from 'lucide-react';
 import { api } from '../../api.js';
 import { PAL } from '../../ui.jsx';
 import { locale, t } from '../../i18n.js';
@@ -28,10 +28,19 @@ export function Bubble({ msg, mine, onReveal, onEdit, onDelete }) {
   const [reactionBusy, setReactionBusy] = useState(false);
   const [reactions, setReactions] = useState(Array.isArray(msg.reactions) ? msg.reactions : []);
   const [myReaction, setMyReaction] = useState(msg.my_reaction || null);
+  const [translation, setTranslation] = useState('');
+  const [translationError, setTranslationError] = useState('');
+  const [translationOpen, setTranslationOpen] = useState(false);
+  const [translationBusy, setTranslationBusy] = useState(false);
   const hold = useRef({ timer:0, x:0, y:0 });
   const rootRef = useRef(null);
 
-  useEffect(() => { setDraft(msg.body || ''); }, [msg.body]);
+  useEffect(() => {
+    setDraft(msg.body || '');
+    setTranslation('');
+    setTranslationError('');
+    setTranslationOpen(false);
+  }, [msg.body]);
   useEffect(() => { setReactions(Array.isArray(msg.reactions) ? msg.reactions : []); }, [msg.reactions]);
   useEffect(() => { setMyReaction(msg.my_reaction || null); }, [msg.my_reaction]);
   useEffect(() => () => window.clearTimeout(hold.current.timer), []);
@@ -98,6 +107,27 @@ export function Bubble({ msg, mine, onReveal, onEdit, onDelete }) {
   };
 
   const reactable = msg.mode === 'normal' && !msg.deleted_at && !msg.purged_at && !dying;
+  const translatable = reactable && msg.kind === 'text' && Boolean(String(msg.body || '').trim());
+  const translateMessage = async () => {
+    if (!translatable || translationBusy) return;
+    if (translation || translationError) {
+      setTranslationOpen(value => !value);
+      return;
+    }
+    setTranslationBusy(true);
+    setTranslationError('');
+    try {
+      const result = await api.ai.translate(msg.body, navigator.language || locale || 'pt-PT');
+      setTranslation(result.translation || '');
+      setTranslationOpen(true);
+    } catch (error) {
+      setTranslationError(error.message || t('Não foi possível traduzir.'));
+      setTranslationOpen(true);
+    } finally {
+      setTranslationBusy(false);
+    }
+  };
+
   const chooseReaction = async emoji => {
     if (!reactable || reactionBusy) return;
     const previous = myReaction;
@@ -150,6 +180,7 @@ export function Bubble({ msg, mine, onReveal, onEdit, onDelete }) {
   const receipt = msg.read_at ? t('Vista') : msg.delivered_at ? t('Entregue') : t('Enviada');
   const stamp = (extra) => <div className="m message-stamp" style={{ marginTop:5, textAlign:mine?'right':'left', display:'flex', justifyContent:mine?'flex-end':'flex-start', gap:5, alignItems:'center', flexWrap:'wrap' }}>
     <span>{when}</span>{msg.edited_at && !msg.deleted_at && <span>· {t('editada')}</span>}{mine && <span>· {receipt}</span>}{extra && <span>· {extra}</span>}
+    {translatable && <button type="button" className={`message-translation-trigger${translationOpen?' is-active':''}`} onClick={translateMessage} disabled={translationBusy} aria-label={t('Traduzir com IA')}>{translationBusy?<Loader2 size={14} className="spin"/>:<Languages size={14}/>}</button>}
     {reactable && <button type="button" className={`message-reaction-trigger${reactionOpen?' is-active':''}`} onClick={()=>{setMenu(false);setReactionOpen(value=>!value)}} aria-label={t('Reagir à mensagem')}><SmilePlus size={14}/></button>}
     {mine && !msg.deleted_at && !dying && <span style={{ position:'relative' }}><button type="button" onClick={()=>{setReactionOpen(false);setMenu(value=>!value)}} aria-label={t('Opções da mensagem')} style={{ border:0,background:'transparent',padding:2,color:'inherit',opacity:.75 }}><MoreHorizontal size={15}/></button>{menu && <span className="message-menu" style={{ position:'absolute',right:0,bottom:22,zIndex:12,background:'var(--card)',border:'1px solid var(--edge)',borderRadius:13,padding:5,boxShadow:'0 10px 28px rgba(20,18,42,.16)',display:'grid',minWidth:125 }}>
       {msg.mode==='normal' && msg.kind==='text' && <button onClick={()=>{setEditing(true);setMenu(false)}} style={{border:0,background:'transparent',padding:'9px 10px',textAlign:'left',display:'flex',gap:7,alignItems:'center'}}><Pencil size={14}/>{t('Editar')}</button>}
@@ -220,6 +251,7 @@ export function Bubble({ msg, mine, onReveal, onEdit, onDelete }) {
     {editing ? <div style={{display:'grid',gap:7,minWidth:230}}><textarea value={draft} autoFocus onChange={event=>setDraft(event.target.value)} maxLength={4000} style={{minHeight:76,resize:'vertical'}}/><div style={{display:'flex',justifyContent:'flex-end',gap:7}}><button className="p p-sm" onClick={()=>{setEditing(false);setDraft(msg.body||'')}}><X size={14}/> {t('Cancelar')}</button><button className="p p-sm p-brand" disabled={busy||!draft.trim()} onClick={saveEdit}><Check size={14}/> {t('Guardar')}</button></div></div>
       : media ? (mediaType==='video' ? <video className="message-media" src={media} controls playsInline preload="metadata" style={{width:'min(280px,72vw)',maxHeight:360,borderRadius:20,display:'block',background:'#080711'}}/> : <button onClick={()=>setMediaOpen(true)} aria-label={t('Abrir fotografia')} style={{padding:0,border:0,background:'transparent',display:'block'}}><img className="message-media" src={media} alt={t('Fotografia enviada')} style={{width:'min(280px,72vw)',maxHeight:360,objectFit:'cover',borderRadius:20,display:'block'}}/></button>)
       : <div data-i18n-ignore="true" className={`message-bubble ${mine ? 'message-bubble-mine' : 'message-bubble-theirs'}`} style={{padding:'12px 16px',fontSize:15,lineHeight:1.4,borderRadius:mine?'20px 20px 6px 20px':'20px 20px 20px 6px',background:mine?'var(--cobalt)':'var(--card)',color:mine?'#fff':'var(--ink)',boxShadow:mine?'0 5px 16px rgba(43,43,247,.32)':'0 3px 12px rgba(30,16,90,.12)'}}>{body}</div>}
+    {translationOpen && translatable && <div className={`message-ai-translation${translationError?' is-error':''}`} data-i18n-ignore="true"><span>{t('Tradução IA')}</span><p>{translationError || translation}</p></div>}
     {reactionControls}
     {stamp(left>0?t('apaga em {seconds} s', { seconds:left }):undefined)}
     {mediaOpen && mediaType!=='video' && <div onClick={()=>setMediaOpen(false)} style={{position:'fixed',inset:0,zIndex:220,background:'rgba(5,4,12,.95)',display:'grid',placeItems:'center',padding:16}}><img src={media} alt={t('Fotografia em tamanho grande')} style={{maxWidth:'100%',maxHeight:'90dvh',objectFit:'contain'}}/><button onClick={()=>setMediaOpen(false)} aria-label={t('Fechar')} style={{position:'absolute',top:'calc(12px + env(safe-area-inset-top))',right:14,width:42,height:42,borderRadius:99,border:0,background:'rgba(255,255,255,.14)',color:'#fff',display:'grid',placeItems:'center'}}><X size={20}/></button></div>}

@@ -34,6 +34,7 @@ import { liveRoutes } from './routes/live.js';
 import { oneRoutes } from './routes/one.js';
 import { oneSourceRoutes } from './routes/one-source.js';
 import { mobileAuthRoutes } from './routes/mobile-auth.js';
+import { aiRoutes } from './routes/ai.js';
 
 const app = express();
 const webDir = path.resolve(process.cwd(), 'public');
@@ -117,6 +118,20 @@ app.use(['/radar-images/:itemId', '/api/radar-images/:itemId'], rateLimit({
   legacyHeaders: false,
   skip: skipInTests,
 }));
+app.use(['/ai', '/api/ai'], rateLimit({
+  windowMs: 60_000,
+  limit: 30,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skip: skipInTests,
+}));
+app.use(['/ai/image/generate', '/api/ai/image/generate', '/ai/image/edit', '/api/ai/image/edit'], rateLimit({
+  windowMs: 60 * 60_000,
+  limit: 12,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skip: skipInTests,
+}));
 app.use(['/auth/login', '/api/auth/login', '/auth/passkeys/login', '/api/auth/passkeys/login'], rateLimit({
   windowMs: 15 * 60_000, limit: 10,
   keyGenerator: (req) => `${req.ip}:${String(req.body?.email || 'passkey').toLowerCase()}`,
@@ -132,6 +147,7 @@ const callRelaySource = env.TURN_CLOUDFLARE_KEY_ID && env.TURN_CLOUDFLARE_API_TO
 const health = async (_req, res) => {
   if (releaseSha) res.setHeader('X-Lumina-Release', releaseSha);
   res.setHeader('X-Lumina-Call-Relay', callRelaySource);
+  res.setHeader('X-Lumina-AI', env.OPENAI_API_KEY ? 'configured' : 'off');
   try {
     const schemaVersion = await getAppliedSchemaVersion();
     const { rows } = await pool.query(
@@ -198,6 +214,7 @@ const mountApi = (prefix = '') => {
   app.use(`${prefix}/live`, liveRoutes);
   app.use(`${prefix}/one`, oneSourceRoutes);
   app.use(`${prefix}/one`, oneRoutes);
+  app.use(`${prefix}/ai`, aiRoutes);
   app.use(`${prefix}/payments`, paymentRoutes);
   app.use(`${prefix}/notifications`, notificationRoutes);
   app.use(`${prefix}/reports`, reportRoutes);

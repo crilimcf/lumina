@@ -34,23 +34,25 @@ test('Lumina One separa Pulso social, Stories, Agora e Radar', async ({ page }) 
   await expect(page.getByText('Ver Juntos', { exact:true })).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Agora' }).click();
-  await expect(page.getByText('Esta área não é um feed.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Aplicar agora' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Abrir Radar Perto / País / Mundo' })).toBeVisible();
-  await expect(page.locator('.one-radar-handoff')).toContainText('Perto de mim, País e Mundo ficam separados');
-  await expect(page.getByText('RADAR LOCAL', { exact:true })).toHaveCount(0);
+  const agoraPanel = page.locator('.social-agora-mount .social-loop-panel');
+  await expect(agoraPanel).toBeVisible();
+  await expect(agoraPanel.locator('.social-loop-title')).toContainText('Faz acontecer. Agora');
+  await expect(agoraPanel.getByRole('button', { name: /Criar um Agora/ })).toBeVisible();
+  await expect(agoraPanel).toContainText(/localização pública é aproximada/i);
 });
 
-test('Radar mantém Perto de mim, País e Mundo em superfícies separadas', async ({ page }) => {
+test('Radar mantém Perto de mim, País e Mundo e acrescenta Dos meus separado', async ({ page }) => {
   await openLumina(page);
   await page.getByRole('button', { name: 'Radar' }).click();
 
   const nearby = page.getByRole('tab', { name: 'Perto de mim' });
   const country = page.getByRole('tab', { name: 'País' });
   const world = page.getByRole('tab', { name: 'Mundo' });
+  const network = page.getByRole('tab', { name: /Dos meus/ });
   await expect(nearby).toHaveAttribute('aria-selected', 'true');
   await expect(country).toHaveAttribute('aria-selected', 'false');
   await expect(world).toHaveAttribute('aria-selected', 'false');
+  await expect(network).toHaveAttribute('aria-selected', 'false');
 
   await country.click();
   await expect(country).toHaveAttribute('aria-selected', 'true');
@@ -62,6 +64,12 @@ test('Radar mantém Perto de mim, País e Mundo em superfícies separadas', asyn
   await expect(nearby).toHaveAttribute('aria-selected', 'false');
   await expect(page.getByText('Radar Mundo')).toBeVisible();
   await expect(page.getByText(/Nada deste separador é usado para preencher o Radar Local/i)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Promoções' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Eventos' })).toHaveCount(0);
+
+  await network.click();
+  await expect(network).toHaveAttribute('aria-selected', 'true');
+  await expect(nearby).toHaveAttribute('aria-selected', 'false');
+  await expect(country).toHaveAttribute('aria-selected', 'false');
+  await expect(world).toHaveAttribute('aria-selected', 'false');
+  await expect(page.getByText('O que está a circular entre os teus.')).toBeVisible();
+  await expect(page.getByText(/Mostramos a força do sinal, nunca quem fez o quê/i)).toBeVisible();
 });

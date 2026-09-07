@@ -23,6 +23,36 @@
   let deferredInstallPrompt = null;
   let installState = 'unknown';
 
+  const isIOSWeb = () => {
+    const ua = navigator.userAgent || '';
+    const touchMac = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+    return (/iPad|iPhone|iPod/i.test(ua) || touchMac) && !window.Capacitor?.isNativePlatform?.();
+  };
+
+  const installCopy = {
+    pt:{
+      ios:'No Safari, toca em Partilhar (quadrado com seta) → Adicionar ao ecrã principal → Adicionar. “Marcador/Favoritos” não instala a app.',
+      generic:'Abre o menu deste browser e escolhe Instalar aplicação ou Adicionar ao ecrã principal.',
+    },
+    en:{
+      ios:'In Safari, tap Share (square with arrow) → Add to Home Screen → Add. “Bookmark/Favorites” does not install the app.',
+      generic:'Open this browser menu and choose Install app or Add to Home Screen.',
+    },
+    fr:{
+      ios:'Dans Safari, touche Partager (carré avec flèche) → Sur l’écran d’accueil → Ajouter. “Signet/Favoris” n’installe pas l’app.',
+      generic:'Ouvre le menu du navigateur et choisis Installer l’app ou Ajouter à l’écran d’accueil.',
+    },
+    es:{
+      ios:'En Safari, toca Compartir (cuadrado con flecha) → Añadir a pantalla de inicio → Añadir. “Marcador/Favoritos” no instala la app.',
+      generic:'Abre el menú del navegador y elige Instalar aplicación o Añadir a pantalla de inicio.',
+    },
+  };
+
+  const manualInstruction = () => {
+    const copy = installCopy[language] || installCopy.en;
+    return isIOSWeb() ? copy.ios : copy.generic;
+  };
+
   const isStandalone = () => (
     window.matchMedia?.('(display-mode: standalone)')?.matches
     || window.matchMedia?.('(display-mode: fullscreen)')?.matches
@@ -36,6 +66,8 @@
     state:isStandalone() ? 'installed' : installState,
     serviceWorkerSupported:'serviceWorker' in navigator,
     serviceWorkerReady:window.__luminaPwaServiceWorkerReady === true,
+    platform:isIOSWeb() ? 'ios-web' : 'web',
+    instruction:manualInstruction(),
   });
 
   const dispatchInstallState = (name) => {
@@ -94,7 +126,6 @@
 
   window.__luminaPwaInstallHelp = () => ({
     status:isStandalone() ? 'installed' : 'manual',
-    instruction:'Abre o menu deste browser e escolhe Instalar aplicação ou Adicionar ao ecrã principal.',
     ...installSnapshot(),
   });
 

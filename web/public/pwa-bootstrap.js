@@ -16,10 +16,6 @@
   document.querySelector('meta[name="description"]')?.setAttribute('content', descriptions[language]);
   window.__luminaDeviceLanguage = language;
 
-  // Keep one stable manifest URL from the first HTML parse. Some Android browsers
-  // discover/install PWAs earlier than others, so swapping the manifest at runtime
-  // can make the same site look installable in one browser and like a plain shortcut
-  // in another. The app itself remains localized independently from the manifest.
   let deferredInstallPrompt = null;
   let installState = 'unknown';
 
@@ -31,26 +27,93 @@
 
   const installCopy = {
     pt:{
-      ios:'No Safari, toca em Partilhar (quadrado com seta) → Adicionar ao ecrã principal → Adicionar. “Marcador/Favoritos” não instala a app.',
+      title:'Instalar Lumina no iPhone',
+      ios:'No Safari: Partilhar → Adicionar ao ecrã principal → Adicionar.',
       generic:'Abre o menu deste browser e escolhe Instalar aplicação ou Adicionar ao ecrã principal.',
+      steps:['Toca no botão Partilhar (quadrado com seta).','Na lista, escolhe “Adicionar ao ecrã principal”.','No ecrã seguinte, confirma em “Adicionar”.'],
+      warning:'Não escolhas “Marcador” ou “Favoritos”: Guardar aí cria apenas um favorito e não instala a app.',
+      close:'Entendido',
     },
     en:{
-      ios:'In Safari, tap Share (square with arrow) → Add to Home Screen → Add. “Bookmark/Favorites” does not install the app.',
+      title:'Install Lumina on iPhone',
+      ios:'In Safari: Share → Add to Home Screen → Add.',
       generic:'Open this browser menu and choose Install app or Add to Home Screen.',
+      steps:['Tap Share (square with arrow).','Choose “Add to Home Screen”.','On the next screen, confirm with “Add”.'],
+      warning:'Do not choose “Bookmark” or “Favorites”: saving there only creates a bookmark and does not install the app.',
+      close:'Got it',
     },
     fr:{
-      ios:'Dans Safari, touche Partager (carré avec flèche) → Sur l’écran d’accueil → Ajouter. “Signet/Favoris” n’installe pas l’app.',
+      title:'Installer Lumina sur iPhone',
+      ios:'Dans Safari : Partager → Sur l’écran d’accueil → Ajouter.',
       generic:'Ouvre le menu du navigateur et choisis Installer l’app ou Ajouter à l’écran d’accueil.',
+      steps:['Touche Partager (carré avec flèche).','Choisis “Sur l’écran d’accueil”.','Sur l’écran suivant, confirme avec “Ajouter”.'],
+      warning:'Ne choisis pas “Signet” ou “Favoris” : cela crée seulement un favori et n’installe pas l’app.',
+      close:'Compris',
     },
     es:{
-      ios:'En Safari, toca Compartir (cuadrado con flecha) → Añadir a pantalla de inicio → Añadir. “Marcador/Favoritos” no instala la app.',
+      title:'Instalar Lumina en iPhone',
+      ios:'En Safari: Compartir → Añadir a pantalla de inicio → Añadir.',
       generic:'Abre el menú del navegador y elige Instalar aplicación o Añadir a pantalla de inicio.',
+      steps:['Toca Compartir (cuadrado con flecha).','Elige “Añadir a pantalla de inicio”.','En la pantalla siguiente, confirma con “Añadir”.'],
+      warning:'No elijas “Marcador” o “Favoritos”: solo guarda un favorito y no instala la app.',
+      close:'Entendido',
     },
   };
 
   const manualInstruction = () => {
     const copy = installCopy[language] || installCopy.en;
     return isIOSWeb() ? copy.ios : copy.generic;
+  };
+
+  const showIOSInstallGuide = () => {
+    if (!isIOSWeb() || document.getElementById('lumina-pwa-install-guide')) return;
+    const copy = installCopy[language] || installCopy.en;
+    const backdrop = document.createElement('div');
+    backdrop.id = 'lumina-pwa-install-guide';
+    backdrop.setAttribute('role', 'dialog');
+    backdrop.setAttribute('aria-modal', 'true');
+    backdrop.setAttribute('aria-label', copy.title);
+    Object.assign(backdrop.style, {
+      position:'fixed', inset:'0', zIndex:'2147483647', display:'grid', alignItems:'end',
+      background:'rgba(4,7,16,.58)', backdropFilter:'blur(9px)', WebkitBackdropFilter:'blur(9px)',
+      padding:'max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom))', boxSizing:'border-box',
+    });
+
+    const card = document.createElement('div');
+    Object.assign(card.style, {
+      width:'min(100%, 520px)', margin:'0 auto', borderRadius:'28px', padding:'22px', boxSizing:'border-box',
+      background:'#fff', color:'#101322', boxShadow:'0 28px 90px rgba(0,0,0,.32)', fontFamily:'-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
+    });
+    const title = document.createElement('div');
+    title.textContent = copy.title;
+    Object.assign(title.style, { fontSize:'22px', fontWeight:'800', letterSpacing:'-.02em', marginBottom:'14px' });
+    card.appendChild(title);
+
+    const list = document.createElement('ol');
+    Object.assign(list.style, { margin:'0', paddingLeft:'23px', display:'grid', gap:'11px', fontSize:'16px', lineHeight:'1.35', fontWeight:'650' });
+    copy.steps.forEach(step => {
+      const item = document.createElement('li');
+      item.textContent = step;
+      list.appendChild(item);
+    });
+    card.appendChild(list);
+
+    const warning = document.createElement('div');
+    warning.textContent = copy.warning;
+    Object.assign(warning.style, { marginTop:'17px', padding:'13px 14px', borderRadius:'16px', background:'#fff2ef', color:'#8f281c', fontSize:'14px', lineHeight:'1.4', fontWeight:'700' });
+    card.appendChild(warning);
+
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = copy.close;
+    Object.assign(close.style, { width:'100%', marginTop:'16px', border:'0', borderRadius:'16px', padding:'14px 16px', background:'#1717e8', color:'#fff', fontSize:'16px', fontWeight:'800' });
+    const remove = () => backdrop.remove();
+    close.addEventListener('click', remove);
+    backdrop.addEventListener('click', event => { if (event.target === backdrop) remove(); });
+    card.appendChild(close);
+    backdrop.appendChild(card);
+    document.body.appendChild(backdrop);
+    close.focus({ preventScroll:true });
   };
 
   const isStandalone = () => (
@@ -75,10 +138,6 @@
     window.dispatchEvent(new CustomEvent('lumina:pwa-install-state', { detail:installSnapshot() }));
   };
 
-  // Capability-based install flow: no Chrome, Samsung Internet, Edge, Brave,
-  // Opera or Firefox special case is required. Browsers that expose the native
-  // install prompt use it; browsers that do not still keep their own menu-based
-  // Install/Add-to-home-screen flow with the same manifest and service worker.
   window.addEventListener('beforeinstallprompt', event => {
     event.preventDefault();
     deferredInstallPrompt = event;
@@ -93,11 +152,13 @@
   });
 
   window.__luminaPwaInstallSnapshot = async () => installSnapshot();
+  window.__luminaShowPwaInstallGuide = showIOSInstallGuide;
   window.__luminaInstallPwa = async () => {
     if (isStandalone()) return { status:'installed', ...installSnapshot() };
     if (!deferredInstallPrompt) {
       installState = 'manual';
       dispatchInstallState('lumina:pwa-manual-install');
+      showIOSInstallGuide();
       return { status:'manual', ...installSnapshot() };
     }
 
@@ -116,6 +177,7 @@
     } catch (error) {
       installState = 'manual';
       dispatchInstallState('lumina:pwa-manual-install');
+      showIOSInstallGuide();
       return {
         status:'manual',
         error:String(error?.message || error || 'install_prompt_failed'),

@@ -73,8 +73,8 @@ self.addEventListener('push', (event) => {
     self.registration.showNotification(notification.title || 'Lumina', {
       body: notification.body,
       tag: notification.tag,
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
+      icon: '/lumina-app-icon-current-20260907c.png',
+      badge: '/lumina-app-icon-current-20260907c.png',
       data: { url: notification.url || '/?tab=alerts' },
       renotify: true,
       silent: false,

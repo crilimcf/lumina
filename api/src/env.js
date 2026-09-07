@@ -20,6 +20,12 @@ export const env = {
   RESEND_API_KEY: process.env.RESEND_API_KEY,
   EMAIL_FROM: process.env.EMAIL_FROM || 'Lumina <ola@lumina.app>',
 
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+  OPENAI_TEXT_MODEL: process.env.OPENAI_TEXT_MODEL || 'gpt-5.6-luna',
+  OPENAI_EMBEDDING_MODEL: process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small',
+  OPENAI_IMAGE_MODEL: process.env.OPENAI_IMAGE_MODEL || 'gpt-image-2',
+  OPENAI_IMAGE_QUALITY: process.env.OPENAI_IMAGE_QUALITY || 'low',
+
   S3_ENDPOINT: process.env.S3_ENDPOINT || '',
   S3_BUCKET: process.env.S3_BUCKET || '',
   S3_REGION: process.env.S3_REGION || 'auto',

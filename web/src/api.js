@@ -24,13 +24,13 @@ export class ApiError extends Error {
   }
 }
 
-async function call(path, { method = 'GET', body, auth = true } = {}) {
+async function call(path, { method = 'GET', body, auth = true, timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
   const headers = { ...nativeAuthHeaders() };
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (!SAFE_METHODS.has(method) && csrfToken) headers['x-csrf-token'] = csrfToken;
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   let res;
   try {
     res = await fetch(BASE + path, {
@@ -118,6 +118,14 @@ export const api = {
     sources: () => call('/radar/sources'),
     createSource: (body) => call('/radar/sources', { method: 'POST', body }),
     editSource: (id, body) => call(`/radar/sources/${id}`, { method: 'PATCH', body }),
+  },
+  ai: {
+    status: () => call('/ai/status'),
+    translate: (text, targetLanguage) => call('/ai/translate', { method:'POST', body:{ text, targetLanguage }, timeoutMs:30_000 }),
+    rewrite: (text, mode = 'clearer', language = 'pt-PT') => call('/ai/rewrite', { method:'POST', body:{ text, mode, language }, timeoutMs:30_000 }),
+    search: (query, scope = 'all') => call('/ai/search', { method:'POST', body:{ query, scope }, timeoutMs:35_000 }),
+    generateImage: (prompt) => call('/ai/image/generate', { method:'POST', body:{ prompt }, timeoutMs:120_000 }),
+    editImage: (sourceUrl, prompt) => call('/ai/image/edit', { method:'POST', body:{ sourceUrl, prompt }, timeoutMs:150_000 }),
   },
   messages: {
     eventsUrl: () => `${BASE}/messages/events`,

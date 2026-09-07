@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { q } from '../db.js';
 import { auth, h, bad, HttpError } from '../middleware/auth.js';
+import { removeUploadIfUnreferenced } from '../lib/uploads.js';
 import {
   editImage,
   embedTexts,
@@ -116,7 +117,7 @@ async function searchCandidates(userId, scope) {
             concat_ws('. ',r.title,r.summary) AS text,
             COALESCE(r.source_name,'Radar') AS label,NULL::uuid AS parent_id,r.external_url,r.published_at AS created_at
        FROM radar_items r
-      WHERE r.status='published' AND (r.expires_at IS NULL OR r.expires_at>now())
+      WHERE r.status='published' AND (r.ends_at IS NULL OR r.ends_at>now())
         AND r.published_at>now()-interval '90 days'
       ORDER BY r.published_at DESC LIMIT 55`
   ));
@@ -209,6 +210,7 @@ aiRoutes.post('/image/edit', auth, h(async (req, res) => {
 
   const edited = await editImage({ sourceBuffer, sourceMime:source.rows[0].mime, prompt });
   const saved = await saveGeneratedImage({ userId:req.user.id, buffer:edited.buffer });
+  await removeUploadIfUnreferenced(sourceUrl).catch(error => console.error('[openai] fonte temporária fica para cleanup', error.message));
   await recordAiUsage(req.user.id, 'image_edit', edited, 1);
   res.status(201).json({ url:saved.url, provenance:'edited_ai', model:edited.model });
 }));

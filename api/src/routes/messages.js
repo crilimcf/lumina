@@ -56,6 +56,12 @@ async function ownMessage(messageId, userId) {
   return message;
 }
 
+function preferenceBoolean(body, key) {
+  if (!Object.prototype.hasOwnProperty.call(body || {}, key)) return null;
+  if (typeof body[key] !== 'boolean') throw bad('Preferência inválida', 'bad_thread_preference');
+  return body[key];
+}
+
 messageRoutes.get('/events', auth, h(async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -109,10 +115,18 @@ messageRoutes.get('/threads', auth, h(async (req, res) => {
                  AND presence.last_seen >= now() - interval '90 seconds'
             ) AS online,
             last.body, last.mode, last.kind, last.media_type, last.purged_at, last.deleted_at, last.created_at,
-            (SELECT count(*) FROM messages m
-              WHERE m.thread_id=t.id AND m.sender_id<>$1 AND m.read_at IS NULL AND m.deleted_at IS NULL)::int AS unread
+            COALESCE(pref.muted,false) AS muted,
+            COALESCE(pref.archived,false) AS archived,
+            COALESCE(pref.pinned,false) AS pinned,
+            COALESCE(pref.marked_unread,false) AS marked_unread,
+            GREATEST(
+              (SELECT count(*) FROM messages m
+                WHERE m.thread_id=t.id AND m.sender_id<>$1 AND m.read_at IS NULL AND m.deleted_at IS NULL)::int,
+              CASE WHEN COALESCE(pref.marked_unread,false) THEN 1 ELSE 0 END
+            )::int AS unread
        FROM threads t
        JOIN users u ON u.id=CASE WHEN t.user_a=$1 THEN t.user_b ELSE t.user_a END
+       LEFT JOIN thread_preferences pref ON pref.user_id=$1 AND pref.thread_id=t.id
        LEFT JOIN LATERAL (
          SELECT body,mode,kind,media_type,purged_at,deleted_at,created_at
            FROM messages m WHERE m.thread_id=t.id ORDER BY m.created_at DESC LIMIT 1
@@ -121,7 +135,8 @@ messageRoutes.get('/threads', auth, h(async (req, res) => {
         AND u.suspended_at IS NULL
         AND NOT EXISTS (SELECT 1 FROM blocks bl
           WHERE (bl.blocker_id=$1 AND bl.blocked_id=u.id) OR (bl.blocked_id=$1 AND bl.blocker_id=u.id))
-      ORDER BY last.created_at DESC NULLS LAST LIMIT 100`, [req.user.id]
+      ORDER BY COALESCE(pref.pinned,false) DESC, last.created_at DESC NULLS LAST
+      LIMIT 100`, [req.user.id]
   );
   res.json(rows.map(r => ({
     ...r,
@@ -138,6 +153,53 @@ messageRoutes.post('/threads', auth, h(async (req, res) => {
   const thread = await findOrCreateThread(req.user.id, req.body.userId);
   await publishRealtime([thread.user_a, thread.user_b], 'thread_changed', { threadId:thread.id });
   res.status(201).json(thread);
+}));
+
+messageRoutes.patch('/threads/:threadId/preferences', auth, h(async (req, res) => {
+  const thread = await assertParticipant(req.params.threadId, req.user.id);
+  const muted = preferenceBoolean(req.body, 'muted');
+  const archived = preferenceBoolean(req.body, 'archived');
+  const pinned = preferenceBoolean(req.body, 'pinned');
+  const markedUnread = preferenceBoolean(req.body, 'markedUnread');
+  if ([muted, archived, pinned, markedUnread].every(value => value === null)) {
+    throw bad('Nenhuma preferência para alterar', 'thread_preference_required');
+  }
+
+  const { rows } = await q(
+    `INSERT INTO thread_preferences (user_id,thread_id,muted,archived,pinned,marked_unread)
+     VALUES ($1,$2,COALESCE($3,false),COALESCE($4,false),COALESCE($5,false),COALESCE($6,false))
+     ON CONFLICT (user_id,thread_id) DO UPDATE SET
+       muted=COALESCE($3,thread_preferences.muted),
+       archived=COALESCE($4,thread_preferences.archived),
+       pinned=COALESCE($5,thread_preferences.pinned),
+       marked_unread=COALESCE($6,thread_preferences.marked_unread),
+       updated_at=now()
+     RETURNING muted,archived,pinned,marked_unread,updated_at`,
+    [req.user.id, req.params.threadId, muted, archived, pinned, markedUnread]
+  );
+  await publishRealtime([req.user.id], 'thread_changed', { threadId:thread.id });
+  res.json(rows[0]);
+}));
+
+messageRoutes.get('/threads/:threadId/preview', auth, h(async (req, res) => {
+  await assertParticipant(req.params.threadId, req.user.id);
+  const { rows } = await q(
+    `SELECT * FROM (
+       SELECT id,sender_id,kind,mode,media_type,palette,opened_at,expires_at,purged_at,
+              created_at,delivered_at,read_at,edited_at,deleted_at,
+              CASE WHEN deleted_at IS NOT NULL OR purged_at IS NOT NULL THEN NULL
+                   WHEN kind='media' THEN NULL
+                   WHEN mode<>'normal' AND sender_id<>$2 AND opened_at IS NULL THEN NULL
+                   ELSE body END AS body
+         FROM messages
+        WHERE thread_id=$1
+        ORDER BY created_at DESC
+        LIMIT 12
+     ) preview
+     ORDER BY created_at`,
+    [req.params.threadId, req.user.id]
+  );
+  res.json({ messages:rows });
 }));
 
 messageRoutes.post('/delivered', auth, h(async (req, res) => {
@@ -160,6 +222,12 @@ messageRoutes.post('/delivered', auth, h(async (req, res) => {
 
 messageRoutes.get('/threads/:threadId/messages', auth, h(async (req, res) => {
   const thread = await assertParticipant(req.params.threadId, req.user.id);
+  await q(
+    `UPDATE thread_preferences
+        SET marked_unread=false,updated_at=now()
+      WHERE user_id=$1 AND thread_id=$2 AND marked_unread=true`,
+    [req.user.id, req.params.threadId]
+  );
   const { rows: readRows } = await q(
     `UPDATE messages SET delivered_at=COALESCE(delivered_at,now()), read_at=COALESCE(read_at,now())
       WHERE thread_id=$1 AND sender_id<>$2 AND read_at IS NULL AND deleted_at IS NULL
@@ -225,8 +293,19 @@ messageRoutes.post('/threads/:threadId/messages', auth, h(async (req, res) => {
     return rows[0];
   });
   const recipientId = thread.user_a === req.user.id ? thread.user_b : thread.user_a;
+  await q(
+    `UPDATE thread_preferences SET archived=false,updated_at=now()
+      WHERE thread_id=$1 AND user_id IN ($2,$3) AND archived=true`,
+    [req.params.threadId, req.user.id, recipientId]
+  );
   await publishRealtime([req.user.id, recipientId], 'message_created', { threadId:req.params.threadId, messageId:message.id });
-  sendPushToUser(recipientId).catch(error => console.debug('[push] mensagem', error?.message));
+  const { rows: recipientPreferences } = await q(
+    'SELECT muted FROM thread_preferences WHERE user_id=$1 AND thread_id=$2',
+    [recipientId, req.params.threadId]
+  );
+  if (!recipientPreferences[0]?.muted) {
+    sendPushToUser(recipientId).catch(error => console.debug('[push] mensagem', error?.message));
+  }
   res.status(201).json(message);
 }));
 

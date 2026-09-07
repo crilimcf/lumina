@@ -31,7 +31,7 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
       for (const row of next) {
         const before = Number(previous.get(row.id) || 0);
         const after = Number(row.unread || 0);
-        if (after > before && threadRef.current?.id !== row.id) {
+        if (after > before && threadRef.current?.id !== row.id && !row.muted) {
           ping(`${row.name}: nova mensagem`);
           break;
         }
@@ -98,7 +98,7 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
     });
     if (threadRef.current?.id !== threadId) return next;
     setMsgs(next);
-    setThreads(rows => rows.map(row => row.id === threadId ? { ...row, unread:0 } : row));
+    setThreads(rows => rows.map(row => row.id === threadId ? { ...row, unread:0, marked_unread:false } : row));
     unreadSnapshot.current.set(threadId, 0);
     if (hadUnread) notifyActivityChanged();
     return next;

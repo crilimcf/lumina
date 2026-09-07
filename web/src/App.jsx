@@ -141,7 +141,7 @@ export default function App() {
 
   useEffect(() => {
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
-    const timer = setTimeout(() => setLaunchReady(true), reduced ? 120 : 2300);
+    const timer = setTimeout(() => setLaunchReady(true), reduced ? 0 : 280);
     return () => clearTimeout(timer);
   }, []);
 

@@ -1,9 +1,45 @@
-function sdk() {
+const IVS_SDK_SRC = 'https://web-broadcast.live-video.net/1.37.0/amazon-ivs-web-broadcast.js';
+let sdkPromise = null;
+
+function currentSdk() {
   const value = globalThis.IVSBroadcastClient;
-  if (!value?.Stage || !value?.LocalStageStream || !value?.SubscribeType || !value?.StageEvents) {
-    throw new Error('Amazon IVS Web Broadcast SDK não carregado');
-  }
-  return value;
+  return value?.Stage && value?.LocalStageStream && value?.SubscribeType && value?.StageEvents ? value : null;
+}
+
+async function sdk() {
+  const ready = currentSdk();
+  if (ready) return ready;
+  if (typeof document === 'undefined') throw new Error('Amazon IVS Web Broadcast SDK indisponível');
+
+  sdkPromise ||= new Promise((resolve, reject) => {
+    const finish = () => {
+      const loaded = currentSdk();
+      if (loaded) resolve(loaded);
+      else reject(new Error('Amazon IVS Web Broadcast SDK não carregado'));
+    };
+
+    const existing = [...document.scripts].find(node => node.src === IVS_SDK_SRC || node.dataset.luminaIvsSdk === '1');
+    if (existing) {
+      if (currentSdk()) return finish();
+      existing.addEventListener('load', finish, { once:true });
+      existing.addEventListener('error', () => reject(new Error('Falha ao carregar Amazon IVS Web Broadcast SDK')), { once:true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = IVS_SDK_SRC;
+    script.crossOrigin = 'anonymous';
+    script.async = true;
+    script.dataset.luminaIvsSdk = '1';
+    script.addEventListener('load', finish, { once:true });
+    script.addEventListener('error', () => reject(new Error('Falha ao carregar Amazon IVS Web Broadcast SDK')), { once:true });
+    document.head.appendChild(script);
+  }).catch(error => {
+    sdkPromise = null;
+    throw error;
+  });
+
+  return sdkPromise;
 }
 
 function safeLeave(stage) {
@@ -14,7 +50,7 @@ export async function createIvsPublisher(token, mediaStream) {
   if (!token) throw new Error('Token de emissão em falta');
   if (!mediaStream) throw new Error('Câmara e microfone indisponíveis');
 
-  const { Stage, LocalStageStream, SubscribeType } = sdk();
+  const { Stage, LocalStageStream, SubscribeType } = await sdk();
   const audioTrack = mediaStream.getAudioTracks()[0] || null;
   const videoTrack = mediaStream.getVideoTracks()[0] || null;
   const audioStageStream = audioTrack ? new LocalStageStream(audioTrack) : null;
@@ -58,7 +94,7 @@ export async function createIvsPublisher(token, mediaStream) {
 export async function createIvsViewer(token, onStream) {
   if (!token) throw new Error('Token de reprodução em falta');
 
-  const { Stage, SubscribeType, StageEvents } = sdk();
+  const { Stage, SubscribeType, StageEvents } = await sdk();
   const remote = new MediaStream();
   let announced = false;
 

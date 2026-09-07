@@ -76,6 +76,52 @@ test('mensagem evolui de enviada para entregue e vista e limpa a notificação a
   assert.ok(readAlert.read_at);
 });
 
+test('pré-visualização privada não marca como vista e preferências da conversa são locais', async () => {
+  const alice = await register('preview.alice');
+  const bob = await register('preview.bob');
+  const thread = await request('/messages/threads', { method:'POST', token:alice.token, body:{ userId:bob.user.id } });
+  assert.equal(thread.response.status, 201);
+
+  const sent = await request(`/messages/threads/${thread.data.id}/messages`, {
+    method:'POST', token:alice.token, body:{ kind:'text', mode:'normal', body:'Mensagem que pode ser pré-visualizada' },
+  });
+  assert.equal(sent.response.status, 201);
+
+  const preview = await request(`/messages/threads/${thread.data.id}/preview`, { token:bob.token });
+  assert.equal(preview.response.status, 200);
+  assert.equal(preview.data.messages.at(-1).body, 'Mensagem que pode ser pré-visualizada');
+
+  let stored = await q('SELECT read_at FROM messages WHERE id=$1', [sent.data.id]);
+  assert.equal(stored.rows[0].read_at, null, 'pré-visualizar nunca envia confirmação de leitura');
+
+  const prefs = await request(`/messages/threads/${thread.data.id}/preferences`, {
+    method:'PATCH', token:bob.token, body:{ muted:true, archived:true, pinned:true, markedUnread:true },
+  });
+  assert.equal(prefs.response.status, 200);
+  assert.equal(prefs.data.muted, true);
+  assert.equal(prefs.data.archived, true);
+  assert.equal(prefs.data.pinned, true);
+  assert.equal(prefs.data.marked_unread, true);
+
+  let inbox = await request('/messages/threads', { token:bob.token });
+  let row = inbox.data.find(item=>item.id===thread.data.id);
+  assert.equal(row.muted, true);
+  assert.equal(row.archived, true);
+  assert.equal(row.pinned, true);
+  assert.equal(row.marked_unread, true);
+  assert.equal(row.unread, 1);
+
+  const opened = await request(`/messages/threads/${thread.data.id}/messages`, { token:bob.token });
+  assert.equal(opened.response.status, 200);
+  stored = await q('SELECT read_at FROM messages WHERE id=$1', [sent.data.id]);
+  assert.ok(stored.rows[0].read_at, 'abrir a conversa normalmente continua a marcar como vista');
+
+  inbox = await request('/messages/threads', { token:bob.token });
+  row = inbox.data.find(item=>item.id===thread.data.id);
+  assert.equal(row.marked_unread, false, 'abrir a conversa limpa o marcador local não lido');
+  assert.equal(row.unread, 0);
+});
+
 test('autor pode editar texto normal e apagar para todos; destinatário não pode editar', async () => {
   const alice = await register('edit.alice');
   const bob = await register('edit.bob');

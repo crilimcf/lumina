@@ -9,8 +9,8 @@ export async function setCallAudioRoute(route = 'receiver') {
 
   if (isNativeApp) {
     try {
-      await AudioRoute.setRoute({ route:target });
-      return true;
+      const result = await AudioRoute.setRoute({ route:target });
+      return result?.applied !== false;
     } catch (error) {
       console.debug('[call] native audio route', error?.message);
     }

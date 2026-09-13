@@ -8,6 +8,7 @@ import { CallOverlay } from './components/calls/CallOverlay.jsx';
 import { GroupCallOverlay } from './components/calls/GroupCallOverlay.jsx';
 import { GroupCallHub } from './components/calls/GroupCallHub.jsx';
 import { Entrada } from './screens/Entrada.jsx';
+import { ResetPassword } from './screens/ResetPassword.jsx';
 import { Abertura } from './screens/Abertura.jsx';
 import { useFeed } from './hooks/useFeed.js';
 import { useMessages } from './hooks/useMessages.js';
@@ -43,6 +44,8 @@ const initialTab = () => {
   const requested = new URLSearchParams(window.location.search).get('tab');
   return ['feed','rooms','promos','alerts','dms','me'].includes(requested) ? requested : 'feed';
 };
+
+const isPasswordResetRoute = () => window.location.pathname.replace(/\/+$/, '') === '/recuperar';
 
 const ScreenFallback = () => <div style={{minHeight:'78dvh',display:'grid',placeItems:'center'}}><div className="d" style={{fontSize:26,opacity:.24}}>Lumi<span className="it">na</span></div></div>;
 const LegacySurface = ({ kind, children }) => <div className={`lumina-consolidated lumina-legacy-${kind}`}>{children}</div>;
@@ -236,6 +239,10 @@ export default function App() {
   }
 
   useEffect(() => {
+    if (isPasswordResetRoute()) {
+      setBooting(false);
+      return;
+    }
     (async () => {
       try { await afterLogin(await api.auth.me()); }
       catch { /* sem sessão */ }
@@ -314,6 +321,7 @@ export default function App() {
   </>;
 
   if (booting || !launchReady) return <LaunchScreen/>;
+  if (isPasswordResetRoute()) return <ResetPassword/>;
   if (!me) return <Entrada onIn={afterLogin}/>;
   if (showWelcome) return withCalls(<LegacySurface kind="welcome"><Welcome onContinue={()=>setShowWelcome(false)}/></LegacySurface>);
   if (opening) return withCalls(<Abertura me={me} onSkip={()=>setOpening(false)} onRooms={()=>{setOpening(false);setTab('rooms')}}/>);

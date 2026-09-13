@@ -44,8 +44,11 @@ test('recuperação continua pública mesmo quando já existe uma sessão válid
   expect(authMeCalls).toBe(0);
 });
 
-test('recuperação usa a língua francesa do dispositivo', async ({ browser, baseURL }) => {
-  const context = await browser.newContext({ locale: 'fr-FR', baseURL });
+test('recuperação usa a língua francesa do dispositivo', async ({ browser }, testInfo) => {
+  const context = await browser.newContext({
+    locale: 'fr-FR',
+    baseURL: testInfo.project.use.baseURL,
+  });
   const page = await context.newPage();
   try {
     await page.goto('/recuperar?token=token-fr');

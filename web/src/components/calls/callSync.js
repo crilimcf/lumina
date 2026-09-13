@@ -1,4 +1,6 @@
-const BASE = import.meta.env.VITE_API_URL || '/api';
+import { isNativeApp, nativeApiOrigin, nativeAuthHeaders } from '../../native/session.js';
+
+const BASE = isNativeApp ? nativeApiOrigin : (import.meta.env.VITE_API_URL || '/api');
 
 async function getJson(url, timeoutMs = 8000) {
   const controller = new AbortController();
@@ -6,6 +8,7 @@ async function getJson(url, timeoutMs = 8000) {
   try {
     const response = await fetch(url, {
       credentials: 'include',
+      headers: nativeAuthHeaders(),
       signal: controller.signal,
       cache: 'no-store',
     });

@@ -10,15 +10,19 @@ export async function setCallAudioRoute(route = 'receiver') {
   if (isNativeApp) {
     try {
       const result = await AudioRoute.setRoute({ route:target });
+      // Keep WebKit's own audio-session state aligned with the native route.
+      // This also prevents a later component mount from resetting the session
+      // to `auto` after the microphone has already started.
+      if (target === 'receiver') preferCallReceiver();
       return result?.applied !== false;
     } catch (error) {
       console.debug('[call] native audio route', error?.message);
     }
   }
 
-  // Web/PWA fallback: WebKit exposes only the call audio-session category,
-  // not a portable speaker/earpiece selector. Keep normal voice calls on the
-  // phone-call (receiver/headset) category instead of forcing loudspeaker.
+  // Web/PWA fallback: the Audio Session API cannot name the receiver as a
+  // sink, but `play-and-record` after getUserMedia is iOS/WebKit's call route
+  // and normally selects the receiver/headset instead of loudspeaker.
   if (target === 'receiver') return preferCallReceiver();
   return false;
 }

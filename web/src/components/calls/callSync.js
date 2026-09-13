@@ -18,6 +18,10 @@ async function getJson(url, timeoutMs = 8000) {
   } finally { clearTimeout(timer); }
 }
 
+export function shouldStartOffer({ caller, status, offerSent }) {
+  return !!caller && status === 'active' && !offerSent;
+}
+
 export function syncCall(callId, after = 0) {
   return getJson(`${BASE}/calls/${encodeURIComponent(callId)}/sync?after=${encodeURIComponent(after)}`);
 }

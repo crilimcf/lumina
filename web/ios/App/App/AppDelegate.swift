@@ -70,6 +70,17 @@ public class AudioRoutePlugin: CAPPlugin, CAPBridgedPlugin {
         return session.currentRoute.outputs.contains { $0.portType == .builtInSpeaker }
     }
 
+    private func hasExternalInput(_ session: AVAudioSession = AVAudioSession.sharedInstance()) -> Bool {
+        return session.availableInputs?.contains { input in
+            switch input.portType {
+            case .builtInMic:
+                return false
+            default:
+                return true
+            }
+        } ?? false
+    }
+
     private func applyRoute(_ route: String) throws {
         let session = AVAudioSession.sharedInstance()
         // Voice calls must use the receiver/headset unless the user explicitly
@@ -84,13 +95,17 @@ public class AudioRoutePlugin: CAPPlugin, CAPBridgedPlugin {
 
         try session.overrideOutputAudioPort(.none)
 
-        // If WebRTC inherited the ringtone/playback speaker route, nudging the
-        // built-in microphone as preferred input makes playAndRecord recalculate
-        // the normal phone-call route. External headsets/Bluetooth are left alone.
-        if isBuiltInSpeaker(session),
+        // If WebRTC inherited the ringtone/playback speaker route, nudge the
+        // built-in microphone only when there is no external headset/input.
+        // Always clear the preferred-input override immediately afterwards so
+        // Bluetooth/wired devices remain free to become the active call route.
+        if isBuiltInSpeaker(session), !hasExternalInput(session),
            let builtInMic = session.availableInputs?.first(where: { $0.portType == .builtInMic }) {
             try? session.setPreferredInput(builtInMic)
             try session.overrideOutputAudioPort(.none)
+            try? session.setPreferredInput(nil)
+        } else {
+            try? session.setPreferredInput(nil)
         }
     }
 

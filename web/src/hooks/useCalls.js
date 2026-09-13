@@ -133,13 +133,13 @@ export function useCalls({ enabled, ping }) {
     setBusy(true);
     let mediaStream = null;
     try {
-      // Audio calls always start on receiver/headset. Loudspeaker is an explicit
-      // action inside CallOverlay and is never enabled merely by starting a call.
-      if (voiceCall) await setCallAudioRoute('receiver');
-      // getUserMedia starts directly from the user's tap. Mobile Safari and
-      // Samsung Internet can otherwise leave media acquisition pending after
-      // the async API round-trip that creates the call.
+      // Keep getUserMedia as the first asynchronous operation from the user's
+      // tap. Mobile Safari/Samsung can lose the media user activation if an
+      // audio-route or API await happens first.
       mediaStream = await acquireCallMedia(mode);
+      // Once media permission is secured, route voice calls to the receiver.
+      // Loudspeaker remains an explicit action in CallOverlay.
+      if (voiceCall) await setCallAudioRoute('receiver');
       const call = await api.calls.start(thread.id, mode);
       setActiveCall({
         call,
@@ -179,13 +179,13 @@ export function useCalls({ enabled, ping }) {
     setBusy(true);
     let mediaStream = null;
     try {
-      await audioRef.current?.resume?.().catch(() => {});
-      // Accepting an audio call must never turn on loudspeaker. Route to the
-      // phone receiver/headset before microphone acquisition and before Answer.
-      if (voiceCall) await setCallAudioRoute('receiver');
-      // Keep media permission/acquisition inside the Accept button activation.
-      // Only after media is ready do we mark the server-side call active.
+      // Do not await AudioContext/audio routing before getUserMedia: accepting
+      // must preserve the Safari user gesture all the way to media acquisition.
+      audioRef.current?.resume?.().catch(() => {});
       if (!incoming.group) mediaStream = await acquireCallMedia(incoming.mode);
+      // After the microphone/camera is acquired, force voice calls to the
+      // receiver/headset. This never enables loudspeaker automatically.
+      if (voiceCall) await setCallAudioRoute('receiver');
       const call = await api.calls.answer(incoming.id);
       if (incoming.group || call.group) {
         stopCallMedia(mediaStream);

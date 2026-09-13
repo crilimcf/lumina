@@ -4,6 +4,7 @@ import { api } from '../../api.js';
 import { Orb } from '../../ui.jsx';
 import { fetchIceConfig, syncCall } from './callSync.js';
 import { callCopy } from './callCopy.js';
+import { acquireCallMedia, hasLiveCallMedia } from './callMedia.js';
 import { preferCallReceiver, prepareCallAudioSession, resetCallAudioSession } from './audioSession.js';
 
 const FALLBACK_ICE_SERVERS = [{
@@ -30,6 +31,7 @@ const LEGACY_TURN = (() => {
 })();
 
 const NO_ANSWER_MS = 45_000;
+const SIGNAL_POLL_MS = 1500;
 
 function initialDeliveryHint(call, caller) {
   if (!caller) return '';
@@ -41,14 +43,14 @@ function initialDeliveryHint(call, caller) {
 }
 
 /** WebRTC 1:1; a API troca apenas signaling autenticado, nunca o áudio/vídeo. */
-export function CallOverlay({ call, caller, person, onClosed, ping }) {
+export function CallOverlay({ call, caller, person, mediaStream, onClosed, ping }) {
   const [phase,setPhase]=useState(caller?(call?.callee_seen_at?'A tocar…':'A chamar…'):'A ligar…');
   const [muted,setMuted]=useState(false);
   const [cameraOff,setCameraOff]=useState(false);
   const [remoteReady,setRemoteReady]=useState(false);
   const [needsAudioTap,setNeedsAudioTap]=useState(false);
   const [networkHint,setNetworkHint]=useState(()=>initialDeliveryHint(call,caller));
-  const localVideo=useRef(null),remoteMedia=useRef(null),pcRef=useRef(null),streamRef=useRef(null),pollRef=useRef(null),lastSignalRef=useRef(0),closedRef=useRef(false),pendingIceRef=useRef([]),handlingOfferRef=useRef(false),restartRef=useRef(0),connectedRef=useRef(false),startedAtRef=useRef(Date.now()),relayConfiguredRef=useRef(false),noAnswerRef=useRef(false);
+  const localVideo=useRef(null),remoteMedia=useRef(null),pcRef=useRef(null),streamRef=useRef(null),pollRef=useRef(null),lastSignalRef=useRef(0),closedRef=useRef(false),pendingIceRef=useRef([]),handlingOfferRef=useRef(false),restartRef=useRef(0),connectedRef=useRef(false),startedAtRef=useRef(Date.now()),relayConfiguredRef=useRef(false),noAnswerRef=useRef(false),offerSentRef=useRef(false),pollBusyRef=useRef(false);
 
   const preferReceiver=()=>{if(call.mode==='audio')preferCallReceiver()};
   const cleanup=async({notify=false}={})=>{if(closedRef.current)return;closedRef.current=true;clearInterval(pollRef.current);pollRef.current=null;try{pcRef.current?.close()}catch{}pcRef.current=null;streamRef.current?.getTracks?.().forEach(t=>t.stop());streamRef.current=null;if(call.mode==='audio')resetCallAudioSession();if(notify)await api.calls.end(call.id).catch(()=>{});onClosed?.();};
@@ -72,6 +74,22 @@ export function CallOverlay({ call, caller, person, onClosed, ping }) {
       const local=stats.get(selected.localCandidateId),remote=stats.get(selected.remoteCandidateId);
       console.debug('[call] ICE route',{local:local?.candidateType,remote:remote?.candidateType,protocol:local?.protocol,relayConfigured:relayConfiguredRef.current});
     }catch{}
+  };
+
+  const sendOffer=async({iceRestart=false}={})=>{
+    const pc=pcRef.current;
+    if(!caller||!pc||closedRef.current)return false;
+    if(!iceRestart&&offerSentRef.current)return true;
+    if(!iceRestart)offerSentRef.current=true;
+    try{
+      const offer=await pc.createOffer(iceRestart?{iceRestart:true}:undefined);
+      await pc.setLocalDescription(offer);
+      await sendDescription('offer',offer);
+      return true;
+    }catch(error){
+      if(!iceRestart)offerSentRef.current=false;
+      throw error;
+    }
   };
 
   const handleSignal=async signal=>{
@@ -111,11 +129,7 @@ export function CallOverlay({ call, caller, person, onClosed, ping }) {
     setPhase('A restabelecer…');
     try{
       pc.restartIce?.();
-      if(caller){
-        const offer=await pc.createOffer({iceRestart:true});
-        await pc.setLocalDescription(offer);
-        await sendDescription('offer',offer);
-      }
+      if(caller)await sendOffer({iceRestart:true});
       return true;
     }catch(e){console.debug('[call] ICE restart',e?.message);return false}
   };
@@ -133,6 +147,8 @@ export function CallOverlay({ call, caller, person, onClosed, ping }) {
   const startPolling=()=>{
     clearInterval(pollRef.current);
     const poll=async()=>{
+      if(pollBusyRef.current||closedRef.current)return;
+      pollBusyRef.current=true;
       try{
         const state=await syncCall(call.id,lastSignalRef.current);
         for(const signal of state.signals||[]){
@@ -157,19 +173,28 @@ export function CallOverlay({ call, caller, person, onClosed, ping }) {
           }
           if(elapsed>NO_ANSWER_MS)return finishNoAnswer();
         }
-        if(state.status==='active'&&!connectedRef.current){setPhase('A ligar…');setNetworkHint('A negociar a ligação de áudio…')}
+        // Do not emit the SDP offer while the peer is still ringing. In the
+        // real iPhone↔Android flow the callee overlay is only mounted after
+        // Answer; waiting for active prevents the offer/ICE burst being sent
+        // before the receiving WebRTC peer exists.
+        if(caller&&state.status==='active'&&!offerSentRef.current){
+          await sendOffer();
+        }
+        if(state.status==='active'&&!connectedRef.current){setPhase('A ligar…');setNetworkHint(`A negociar a ligação de ${call.mode==='video'?'vídeo':'áudio'}…`)}
         if(state.status==='active'&&!connectedRef.current&&elapsed>32000)setNetworkHint(relayConfiguredRef.current?'A tentar uma rota TURN alternativa…':'Esta rede está a bloquear a ligação direta…');
       }catch(e){if(!closedRef.current)console.debug('[call] sync',e?.message)}
+      finally{pollBusyRef.current=false}
     };
     poll();
-    pollRef.current=setInterval(poll,2500);
+    pollRef.current=setInterval(poll,SIGNAL_POLL_MS);
   };
 
   useEffect(()=>{let mounted=true;(async()=>{try{
-    if(!navigator.mediaDevices?.getUserMedia||typeof RTCPeerConnection==='undefined')throw new Error('Este dispositivo/browser não permite chamadas WebRTC.');
+    if(typeof RTCPeerConnection==='undefined')throw new Error('Este dispositivo/browser não permite chamadas WebRTC.');
     if(call.mode==='audio')prepareCallAudioSession();
+    const localMedia=hasLiveCallMedia(mediaStream)?mediaStream:null;
     const [stream,iceConfig]=await Promise.all([
-      navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:call.mode==='video'?{facingMode:'user',width:{ideal:1280},height:{ideal:720}}:false}),
+      localMedia?Promise.resolve(localMedia):acquireCallMedia(call.mode),
       fetchIceConfig().catch(error=>{console.debug('[call] ICE config fallback',error?.message);return null}),
     ]);
     if(!mounted){stream.getTracks().forEach(t=>t.stop());return;}
@@ -179,6 +204,7 @@ export function CallOverlay({ call, caller, person, onClosed, ping }) {
     const serverIce=Array.isArray(iceConfig?.iceServers)&&iceConfig.iceServers.length?iceConfig.iceServers:FALLBACK_ICE_SERVERS;
     const iceServers=iceConfig?.relayConfigured?serverIce:[...serverIce,...LEGACY_TURN];
     relayConfiguredRef.current=!!iceConfig?.relayConfigured||LEGACY_TURN.length>0;
+    console.debug('[call] ICE config',{relayConfigured:relayConfiguredRef.current,relaySource:iceConfig?.relaySource||'fallback'});
     const pc=new RTCPeerConnection({iceServers,iceCandidatePoolSize:4});
     pcRef.current=pc;
     stream.getTracks().forEach(t=>pc.addTrack(t,stream));
@@ -205,7 +231,6 @@ export function CallOverlay({ call, caller, person, onClosed, ping }) {
       if(pc.connectionState==='failed'&&!closedRef.current)restartIce();
     };
     startPolling();
-    if(caller){const offer=await pc.createOffer();await pc.setLocalDescription(offer);await sendDescription('offer',offer)}
   }catch(e){ping?.(e?.name==='NotAllowedError'?'Permite microfone/câmara para fazer a chamada.':e.message);cleanup({notify:true})}})();return()=>{mounted=false;cleanup()};},[call.id]);
 
   const toggleMute=()=>{const next=!muted;streamRef.current?.getAudioTracks?.().forEach(t=>{t.enabled=!next});setMuted(next)};

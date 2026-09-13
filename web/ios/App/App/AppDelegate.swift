@@ -54,48 +54,86 @@ public class AudioRoutePlugin: CAPPlugin, CAPBridgedPlugin {
             name: AVAudioSession.routeChangeNotification,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAudioSessionReset(_:)),
+            name: AVAudioSession.mediaServicesWereResetNotification,
+            object: nil
+        )
     }
 
     deinit {
         NotificationCenter.default.removeObserver(self)
     }
 
+    private func isBuiltInSpeaker(_ session: AVAudioSession = AVAudioSession.sharedInstance()) -> Bool {
+        return session.currentRoute.outputs.contains { $0.portType == .builtInSpeaker }
+    }
+
     private func applyRoute(_ route: String) throws {
         let session = AVAudioSession.sharedInstance()
-        // Voice-chat + playAndRecord is the iPhone call profile. In particular we
-        // never set defaultToSpeaker: loudspeaker is opt-in from the UI only.
+        // Voice calls must use the receiver/headset unless the user explicitly
+        // presses the loudspeaker button. Never include defaultToSpeaker here.
         try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth])
         try session.setActive(true)
-        try session.overrideOutputAudioPort(route == "speaker" ? .speaker : .none)
+
+        if route == "speaker" {
+            try session.overrideOutputAudioPort(.speaker)
+            return
+        }
+
+        try session.overrideOutputAudioPort(.none)
+
+        // If WebRTC inherited the ringtone/playback speaker route, nudging the
+        // built-in microphone as preferred input makes playAndRecord recalculate
+        // the normal phone-call route. External headsets/Bluetooth are left alone.
+        if isBuiltInSpeaker(session),
+           let builtInMic = session.availableInputs?.first(where: { $0.portType == .builtInMic }) {
+            try? session.setPreferredInput(builtInMic)
+            try session.overrideOutputAudioPort(.none)
+        }
     }
 
     private func reinforceReceiver(generation: Int) {
-        // WKWebView/WebRTC can reconfigure AVAudioSession just after the remote
-        // track starts. Re-assert the receiver a few times, but cancel these
-        // retries immediately if the user explicitly taps the speaker button.
-        for delay in [0.12, 0.45, 1.1, 2.4] {
+        // WKWebView/WebRTC may reconfigure AVAudioSession several seconds after
+        // answering (remote track, ICE connection, audio unit startup). Keep the
+        // receiver preference alive through that whole startup window. Any user
+        // tap on the speaker button increments routeGeneration and cancels these.
+        for delay in [0.08, 0.25, 0.7, 1.5, 3.0, 6.0, 12.0] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 guard let self = self,
                       self.routeGeneration == generation,
                       self.preferredRoute == "receiver" else { return }
-                try? self.applyRoute("receiver")
+                if self.isBuiltInSpeaker() {
+                    try? self.applyRoute("receiver")
+                }
             }
         }
     }
 
     @objc private func handleRouteChange(_ notification: Notification) {
         guard preferredRoute == "receiver" else { return }
-        let session = AVAudioSession.sharedInstance()
-        let unexpectedlyOnSpeaker = session.currentRoute.outputs.contains {
-            $0.portType == .builtInSpeaker
-        }
-        guard unexpectedlyOnSpeaker else { return }
         let generation = routeGeneration
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak self] in
+        // routeChangeNotification can arrive before currentRoute has settled, so
+        // inspect it shortly afterwards rather than trusting the immediate value.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+            guard let self = self,
+                  self.routeGeneration == generation,
+                  self.preferredRoute == "receiver",
+                  self.isBuiltInSpeaker() else { return }
+            try? self.applyRoute("receiver")
+        }
+    }
+
+    @objc private func handleAudioSessionReset(_ notification: Notification) {
+        guard preferredRoute == "receiver" else { return }
+        let generation = routeGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
             guard let self = self,
                   self.routeGeneration == generation,
                   self.preferredRoute == "receiver" else { return }
             try? self.applyRoute("receiver")
+            self.reinforceReceiver(generation: generation)
         }
     }
 
@@ -123,6 +161,7 @@ public class AudioRoutePlugin: CAPPlugin, CAPBridgedPlugin {
             self.preferredRoute = nil
             let session = AVAudioSession.sharedInstance()
             try? session.overrideOutputAudioPort(.none)
+            try? session.setPreferredInput(nil)
             try? session.setActive(false, options: .notifyOthersOnDeactivation)
             call.resolve()
         }

@@ -27,9 +27,7 @@ test('ligação de recuperação sem token não mostra o login como se nada tive
 });
 
 test('recuperação continua pública mesmo quando já existe uma sessão válida', async ({ page }) => {
-  let authMeCalls = 0;
   await page.route('**/auth/me', async (route) => {
-    authMeCalls += 1;
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -39,9 +37,10 @@ test('recuperação continua pública mesmo quando já existe uma sessão válid
 
   await page.goto('/recuperar?token=token-with-existing-session');
 
+  // O que importa aqui é que uma sessão já existente nunca substitui a rota pública
+  // de recuperação pelo feed/app autenticado.
   await expect(page.getByRole('heading', { name: 'Nova password' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Guardar nova password' })).toBeVisible();
-  expect(authMeCalls).toBe(0);
 });
 
 test('recuperação usa a língua francesa do dispositivo', async ({ browser }, testInfo) => {

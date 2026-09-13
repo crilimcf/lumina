@@ -50,9 +50,10 @@ export function CallOverlay({ call, caller, person, mediaStream, onClosed, ping 
   const [remoteReady,setRemoteReady]=useState(false);
   const [needsAudioTap,setNeedsAudioTap]=useState(false);
   const [networkHint,setNetworkHint]=useState(()=>initialDeliveryHint(call,caller));
-  const localVideo=useRef(null),remoteMedia=useRef(null),pcRef=useRef(null),streamRef=useRef(null),pollRef=useRef(null),lastSignalRef=useRef(0),closedRef=useRef(false),pendingIceRef=useRef([]),handlingOfferRef=useRef(false),restartRef=useRef(0),connectedRef=useRef(false),startedAtRef=useRef(Date.now()),relayConfiguredRef=useRef(false),noAnswerRef=useRef(false),offerSentRef=useRef(false),pollBusyRef=useRef(false),speakerRef=useRef(false);
+  const localVideo=useRef(null),remoteMedia=useRef(null),pcRef=useRef(null),streamRef=useRef(null),pollRef=useRef(null),lastSignalRef=useRef(0),closedRef=useRef(false),pendingIceRef=useRef([]),handlingOfferRef=useRef(false),restartRef=useRef(0),connectedRef=useRef(false),startedAtRef=useRef(Date.now()),relayConfiguredRef=useRef(false),noAnswerRef=useRef(false),offerSentRef=useRef(false),pollBusyRef=useRef(false),speakerRef=useRef(false),effectRunRef=useRef(0),effectCallRef=useRef(null);
 
-  const cleanup=async({notify=false}={})=>{if(closedRef.current)return;closedRef.current=true;clearInterval(pollRef.current);pollRef.current=null;try{pcRef.current?.close()}catch{}pcRef.current=null;streamRef.current?.getTracks?.().forEach(t=>t.stop());streamRef.current=null;if(call.mode==='audio')await resetCallAudioRoute();if(notify)await api.calls.end(call.id).catch(()=>{});onClosed?.();};
+  const releaseLocal=async()=>{clearInterval(pollRef.current);pollRef.current=null;try{pcRef.current?.close()}catch{}pcRef.current=null;streamRef.current?.getTracks?.().forEach(t=>t.stop());streamRef.current=null;if(call.mode==='audio')await resetCallAudioRoute();};
+  const cleanup=async({notify=false}={})=>{if(closedRef.current)return;closedRef.current=true;await releaseLocal();if(notify)await api.calls.end(call.id).catch(()=>{});onClosed?.();};
   const flushIce=async()=>{const pc=pcRef.current;if(!pc?.remoteDescription)return;for(const c of pendingIceRef.current.splice(0)){try{await pc.addIceCandidate(new RTCIceCandidate(c))}catch(e){console.debug('[call] ICE rejeitado',e?.message)}}};
   const sendDescription=(kind,d)=>api.calls.signal(call.id,kind,{type:d.type,sdp:d.sdp});
 
@@ -179,7 +180,7 @@ export function CallOverlay({ call, caller, person, mediaStream, onClosed, ping 
     pollRef.current=setInterval(poll,SIGNAL_POLL_MS);
   };
 
-  useEffect(()=>{let mounted=true;(async()=>{try{
+  useEffect(()=>{const effectRun=++effectRunRef.current;effectCallRef.current=call.id;let mounted=true;(async()=>{try{
     if(typeof RTCPeerConnection==='undefined')throw new Error('Este dispositivo/browser não permite chamadas WebRTC.');
     if(call.mode==='audio'){
       prepareCallAudioSession();
@@ -192,7 +193,11 @@ export function CallOverlay({ call, caller, person, mediaStream, onClosed, ping 
       localMedia?Promise.resolve(localMedia):acquireCallMedia(call.mode),
       fetchIceConfig().catch(error=>{console.debug('[call] ICE config fallback',error?.message);return null}),
     ]);
-    if(!mounted){stream.getTracks().forEach(t=>t.stop());return;}
+    if(!mounted){
+      const replayedSameCall=effectRunRef.current!==effectRun&&effectCallRef.current===call.id;
+      if(!replayedSameCall||stream!==mediaStream)stream.getTracks().forEach(t=>t.stop());
+      return;
+    }
     streamRef.current=stream;
     if(call.mode==='audio'&&!speakerRef.current)await setCallAudioRoute('receiver');
     if(localVideo.current){localVideo.current.srcObject=stream;localVideo.current.play?.().catch(()=>{})}
@@ -226,7 +231,7 @@ export function CallOverlay({ call, caller, person, mediaStream, onClosed, ping 
       if(pc.connectionState==='failed'&&!closedRef.current)restartIce();
     };
     startPolling();
-  }catch(e){ping?.(e?.name==='NotAllowedError'?'Permite microfone/câmara para fazer a chamada.':e.message);cleanup({notify:true})}})();return()=>{mounted=false;cleanup()};},[call.id]);
+  }catch(e){ping?.(e?.name==='NotAllowedError'?'Permite microfone/câmara para fazer a chamada.':e.message);cleanup({notify:true})}})();return()=>{mounted=false;queueMicrotask(()=>{const replayedSameCall=effectRunRef.current!==effectRun&&effectCallRef.current===call.id;if(!replayedSameCall&&!closedRef.current)void releaseLocal()})};},[call.id]);
 
   const toggleMute=()=>{const next=!muted;streamRef.current?.getAudioTracks?.().forEach(t=>{t.enabled=!next});setMuted(next)};
   const toggleCamera=()=>{if(call.mode!=='video')return;const next=!cameraOff;streamRef.current?.getVideoTracks?.().forEach(t=>{t.enabled=!next});setCameraOff(next)};

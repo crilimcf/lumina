@@ -175,7 +175,7 @@ test('ingestão deduplica, auto-publica só fonte verificada e respeita arquivo'
     `INSERT INTO radar_sources (name, kind, url, default_type, active, trusted, config)
      VALUES ('Fonte verificada','rss','https://feed.example.test/rss','news',true,true,$1)
      RETURNING *`,
-    [{ tags: ['Portugal'], priority: 7, maxItems: 10, maxAgeDays: 30 }]
+    [{ tags: ['Portugal'], priority: 7, maxItems: 10, maxAgeDays: 90 }]
   );
   const source = trusted.rows[0];
   const fetchFeedImpl = async () => ({ notModified: false, text: RSS, etag: '"v1"', lastModified: 'Sun, 09 Aug 2026 18:30:00 GMT' });
@@ -203,7 +203,7 @@ test('ingestão deduplica, auto-publica só fonte verificada e respeita arquivo'
     `INSERT INTO radar_sources (name, kind, url, default_type, active, trusted, config)
      VALUES ('Fonte por rever','rss','https://other.example.test/rss','news',true,false,$1)
      RETURNING *`,
-    [{ maxAgeDays: 30 }]
+    [{ maxAgeDays: 90 }]
   );
   const untrustedRss = RSS
     .replace('https://news.example.test/story-1', 'https://news.example.test/story-untrusted')

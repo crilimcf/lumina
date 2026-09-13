@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { callCopy } from '../components/calls/callCopy.js';
+import { acquireCallMedia, stopCallMedia } from '../components/calls/callMedia.js';
+import { resetCallAudioRoute, setCallAudioRoute } from '../components/calls/audioRoute.js';
 
 const INCOMING_POLL_MS = 1200;
 
@@ -19,6 +21,16 @@ function setVoiceAudioSession(active) {
 }
 
 const notifyActivityChanged = () => window.dispatchEvent(new CustomEvent('lumina:notifications-changed'));
+
+function mediaErrorMessage(error) {
+  if (error?.name === 'NotAllowedError' || error?.name === 'PermissionDeniedError') {
+    return 'Permite o microfone e a câmara para fazer a chamada.';
+  }
+  if (error?.name === 'NotFoundError' || error?.name === 'DevicesNotFoundError') {
+    return 'Não foi encontrado microfone/câmara disponível neste dispositivo.';
+  }
+  return error?.message || 'Não foi possível preparar o microfone/câmara.';
+}
 
 function createRingtone(audioRef) {
   try {
@@ -119,15 +131,32 @@ export function useCalls({ enabled, ping }) {
     const voiceCall = mode === 'audio';
     if (voiceCall) setVoiceAudioSession(true);
     setBusy(true);
+    let mediaStream = null;
     try {
+      // Keep getUserMedia as the first asynchronous operation from the user's
+      // tap. Mobile Safari/Samsung can lose the media user activation if an
+      // audio-route or API await happens first.
+      mediaStream = await acquireCallMedia(mode);
+      // Once media permission is secured, route voice calls to the receiver.
+      // Loudspeaker remains an explicit action in CallOverlay.
+      if (voiceCall) await setCallAudioRoute('receiver');
       const call = await api.calls.start(thread.id, mode);
-      setActiveCall({ call, caller:true, group:false, person:{ name:thread.name, handle:thread.handle, palette:thread.palette, avatar_url:thread.avatar_url } });
-      if (call.callee_push_ready === false) {
-        ping(callCopy.pushDisabledToast);
-      }
+      setActiveCall({
+        call,
+        caller:true,
+        group:false,
+        mediaStream,
+        person:{ name:thread.name, handle:thread.handle, palette:thread.palette, avatar_url:thread.avatar_url },
+      });
+      mediaStream = null; // CallOverlay owns and closes it from here.
+      if (call.callee_push_ready === false) ping(callCopy.pushDisabledToast);
     } catch (e) {
-      if (voiceCall) setVoiceAudioSession(false);
-      ping(e.message);
+      stopCallMedia(mediaStream);
+      if (voiceCall) {
+        setVoiceAudioSession(false);
+        await resetCallAudioRoute();
+      }
+      ping(mediaErrorMessage(e));
     } finally { setBusy(false); }
   }, [busy, ping]);
 
@@ -146,22 +175,41 @@ export function useCalls({ enabled, ping }) {
   const acceptIncoming = useCallback(async () => {
     if (!incoming || busy) return;
     const voiceCall = !incoming.group && incoming.mode === 'audio';
-    // Must be set before CallOverlay mounts and asks getUserMedia for the microphone.
     if (voiceCall) setVoiceAudioSession(true);
     setBusy(true);
+    let mediaStream = null;
     try {
-      await audioRef.current?.resume?.().catch(() => {});
+      // Do not await AudioContext/audio routing before getUserMedia: accepting
+      // must preserve the Safari user gesture all the way to media acquisition.
+      audioRef.current?.resume?.().catch(() => {});
+      if (!incoming.group) mediaStream = await acquireCallMedia(incoming.mode);
+      // After the microphone/camera is acquired, force voice calls to the
+      // receiver/headset. This never enables loudspeaker automatically.
+      if (voiceCall) await setCallAudioRoute('receiver');
       const call = await api.calls.answer(incoming.id);
       if (incoming.group || call.group) {
+        stopCallMedia(mediaStream);
+        mediaStream = null;
         setActiveCall({ call, caller:false, group:true, groupInfo:{ id:call.group_id || call.room_id, name:call.group_name || call.name } });
       } else {
-        setActiveCall({ call, caller:false, group:false, person:{ name:incoming.name, handle:incoming.handle, palette:incoming.palette, avatar_url:incoming.avatar_url } });
+        setActiveCall({
+          call,
+          caller:false,
+          group:false,
+          mediaStream,
+          person:{ name:incoming.name, handle:incoming.handle, palette:incoming.palette, avatar_url:incoming.avatar_url },
+        });
+        mediaStream = null; // CallOverlay owns and closes it from here.
       }
       setIncoming(null);
       notifyActivityChanged();
     } catch (e) {
-      if (voiceCall) setVoiceAudioSession(false);
-      ping(e.message);
+      stopCallMedia(mediaStream);
+      if (voiceCall) {
+        setVoiceAudioSession(false);
+        await resetCallAudioRoute();
+      }
+      ping(mediaErrorMessage(e));
       setIncoming(null);
     } finally { setBusy(false); }
   }, [incoming, busy, ping]);
@@ -178,6 +226,7 @@ export function useCalls({ enabled, ping }) {
 
   const closeActiveCall = useCallback(() => {
     setVoiceAudioSession(false);
+    void resetCallAudioRoute();
     setActiveCall(null);
     notifyActivityChanged();
   }, []);

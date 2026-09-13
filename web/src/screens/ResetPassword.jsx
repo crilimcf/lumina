@@ -40,7 +40,11 @@ export function ResetPassword() {
       window.history.replaceState(window.history.state, '', '/recuperar');
       setDone(true);
     } catch (error) {
-      setErr(error);
+      if (error?.code === 'invalid_token') {
+        setErr(new Error(t('A ligação de recuperação é inválida ou expirou. Pede uma nova ligação.')));
+      } else {
+        setErr(error);
+      }
     } finally {
       setBusy(false);
     }

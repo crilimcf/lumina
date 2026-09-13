@@ -5,7 +5,8 @@ import { Orb } from '../../ui.jsx';
 import { fetchIceConfig, syncCall } from './callSync.js';
 import { callCopy } from './callCopy.js';
 import { acquireCallMedia, hasLiveCallMedia } from './callMedia.js';
-import { preferCallReceiver, prepareCallAudioSession, resetCallAudioSession } from './audioSession.js';
+import { prepareCallAudioSession } from './audioSession.js';
+import { resetCallAudioRoute, setCallAudioRoute } from './audioRoute.js';
 
 const FALLBACK_ICE_SERVERS = [{
   urls: [
@@ -22,8 +23,6 @@ const browserSafeIceUrl = (value) => {
   return url;
 };
 
-// Compatibilidade temporária com builds antigos. A configuração segura vem do
-// backend e estas variáveis deixam de ser necessárias quando TURN server-side estiver ativo.
 const LEGACY_TURN = (() => {
   const urls = String(import.meta.env.VITE_TURN_URL || '').split(',').map(browserSafeIceUrl).filter(Boolean);
   if (!urls.length) return [];
@@ -47,20 +46,24 @@ export function CallOverlay({ call, caller, person, mediaStream, onClosed, ping 
   const [phase,setPhase]=useState(caller?(call?.callee_seen_at?'A tocar…':'A chamar…'):'A ligar…');
   const [muted,setMuted]=useState(false);
   const [cameraOff,setCameraOff]=useState(false);
+  const [speakerOn,setSpeakerOn]=useState(false);
   const [remoteReady,setRemoteReady]=useState(false);
   const [needsAudioTap,setNeedsAudioTap]=useState(false);
   const [networkHint,setNetworkHint]=useState(()=>initialDeliveryHint(call,caller));
-  const localVideo=useRef(null),remoteMedia=useRef(null),pcRef=useRef(null),streamRef=useRef(null),pollRef=useRef(null),lastSignalRef=useRef(0),closedRef=useRef(false),pendingIceRef=useRef([]),handlingOfferRef=useRef(false),restartRef=useRef(0),connectedRef=useRef(false),startedAtRef=useRef(Date.now()),relayConfiguredRef=useRef(false),noAnswerRef=useRef(false),offerSentRef=useRef(false),pollBusyRef=useRef(false);
+  const localVideo=useRef(null),remoteMedia=useRef(null),pcRef=useRef(null),streamRef=useRef(null),pollRef=useRef(null),lastSignalRef=useRef(0),closedRef=useRef(false),pendingIceRef=useRef([]),handlingOfferRef=useRef(false),restartRef=useRef(0),connectedRef=useRef(false),startedAtRef=useRef(Date.now()),relayConfiguredRef=useRef(false),noAnswerRef=useRef(false),offerSentRef=useRef(false),pollBusyRef=useRef(false),speakerRef=useRef(false);
 
-  const preferReceiver=()=>{if(call.mode==='audio')preferCallReceiver()};
-  const cleanup=async({notify=false}={})=>{if(closedRef.current)return;closedRef.current=true;clearInterval(pollRef.current);pollRef.current=null;try{pcRef.current?.close()}catch{}pcRef.current=null;streamRef.current?.getTracks?.().forEach(t=>t.stop());streamRef.current=null;if(call.mode==='audio')resetCallAudioSession();if(notify)await api.calls.end(call.id).catch(()=>{});onClosed?.();};
+  const cleanup=async({notify=false}={})=>{if(closedRef.current)return;closedRef.current=true;clearInterval(pollRef.current);pollRef.current=null;try{pcRef.current?.close()}catch{}pcRef.current=null;streamRef.current?.getTracks?.().forEach(t=>t.stop());streamRef.current=null;if(call.mode==='audio')await resetCallAudioRoute();if(notify)await api.calls.end(call.id).catch(()=>{});onClosed?.();};
   const flushIce=async()=>{const pc=pcRef.current;if(!pc?.remoteDescription)return;for(const c of pendingIceRef.current.splice(0)){try{await pc.addIceCandidate(new RTCIceCandidate(c))}catch(e){console.debug('[call] ICE rejeitado',e?.message)}}};
   const sendDescription=(kind,d)=>api.calls.signal(call.id,kind,{type:d.type,sdp:d.sdp});
 
   const playRemote=async()=>{
     const node=remoteMedia.current;
     if(!node)return;
-    try{await node.play?.();preferReceiver();setNeedsAudioTap(false)}catch{setNeedsAudioTap(true)}
+    try{
+      await node.play?.();
+      if(call.mode==='audio'&&!speakerRef.current)await setCallAudioRoute('receiver');
+      setNeedsAudioTap(false);
+    }catch{setNeedsAudioTap(true)}
   };
 
   const logSelectedRoute=async()=>{
@@ -159,27 +162,14 @@ export function CallOverlay({ call, caller, person, mediaStream, onClosed, ping 
         if(state.status==='ended'){cleanup();return}
         const elapsed=Date.now()-startedAtRef.current;
         if(caller&&state.status==='ringing'){
-          if(state.calleeSeenAt){
-            setPhase('A tocar…');
-            setNetworkHint(callCopy.received);
-          }else if(Number(state.pushAccepted||0)>0){
-            setNetworkHint(callCopy.waiting);
-          }else if(Number(state.pushAttempted||0)>0){
-            setNetworkHint('O serviço de notificações não aceitou o aviso desta chamada.');
-          }else if(call?.callee_push_ready===false){
-            setNetworkHint(callCopy.backgroundDisabled);
-          }else if(elapsed>12000){
-            setNetworkHint(callCopy.reaching);
-          }
+          if(state.calleeSeenAt){setPhase('A tocar…');setNetworkHint(callCopy.received)}
+          else if(Number(state.pushAccepted||0)>0)setNetworkHint(callCopy.waiting);
+          else if(Number(state.pushAttempted||0)>0)setNetworkHint('O serviço de notificações não aceitou o aviso desta chamada.');
+          else if(call?.callee_push_ready===false)setNetworkHint(callCopy.backgroundDisabled);
+          else if(elapsed>12000)setNetworkHint(callCopy.reaching);
           if(elapsed>NO_ANSWER_MS)return finishNoAnswer();
         }
-        // Do not emit the SDP offer while the peer is still ringing. In the
-        // real iPhone↔Android flow the callee overlay is only mounted after
-        // Answer; waiting for active prevents the offer/ICE burst being sent
-        // before the receiving WebRTC peer exists.
-        if(caller&&state.status==='active'&&!offerSentRef.current){
-          await sendOffer();
-        }
+        if(caller&&state.status==='active'&&!offerSentRef.current)await sendOffer();
         if(state.status==='active'&&!connectedRef.current){setPhase('A ligar…');setNetworkHint(`A negociar a ligação de ${call.mode==='video'?'vídeo':'áudio'}…`)}
         if(state.status==='active'&&!connectedRef.current&&elapsed>32000)setNetworkHint(relayConfiguredRef.current?'A tentar uma rota TURN alternativa…':'Esta rede está a bloquear a ligação direta…');
       }catch(e){if(!closedRef.current)console.debug('[call] sync',e?.message)}
@@ -191,7 +181,12 @@ export function CallOverlay({ call, caller, person, mediaStream, onClosed, ping 
 
   useEffect(()=>{let mounted=true;(async()=>{try{
     if(typeof RTCPeerConnection==='undefined')throw new Error('Este dispositivo/browser não permite chamadas WebRTC.');
-    if(call.mode==='audio')prepareCallAudioSession();
+    if(call.mode==='audio'){
+      prepareCallAudioSession();
+      speakerRef.current=false;
+      setSpeakerOn(false);
+      await setCallAudioRoute('receiver');
+    }
     const localMedia=hasLiveCallMedia(mediaStream)?mediaStream:null;
     const [stream,iceConfig]=await Promise.all([
       localMedia?Promise.resolve(localMedia):acquireCallMedia(call.mode),
@@ -199,7 +194,7 @@ export function CallOverlay({ call, caller, person, mediaStream, onClosed, ping 
     ]);
     if(!mounted){stream.getTracks().forEach(t=>t.stop());return;}
     streamRef.current=stream;
-    preferReceiver();
+    if(call.mode==='audio'&&!speakerRef.current)await setCallAudioRoute('receiver');
     if(localVideo.current){localVideo.current.srcObject=stream;localVideo.current.play?.().catch(()=>{})}
     const serverIce=Array.isArray(iceConfig?.iceServers)&&iceConfig.iceServers.length?iceConfig.iceServers:FALLBACK_ICE_SERVERS;
     const iceServers=iceConfig?.relayConfigured?serverIce:[...serverIce,...LEGACY_TURN];
@@ -235,10 +230,18 @@ export function CallOverlay({ call, caller, person, mediaStream, onClosed, ping 
 
   const toggleMute=()=>{const next=!muted;streamRef.current?.getAudioTracks?.().forEach(t=>{t.enabled=!next});setMuted(next)};
   const toggleCamera=()=>{if(call.mode!=='video')return;const next=!cameraOff;streamRef.current?.getVideoTracks?.().forEach(t=>{t.enabled=!next});setCameraOff(next)};
+  const toggleSpeaker=async()=>{
+    if(call.mode!=='audio')return;
+    const next=!speakerRef.current;
+    const applied=await setCallAudioRoute(next?'speaker':'receiver');
+    if(applied===false&&next){ping?.('O dispositivo não permite escolher o altifalante nesta versão.');return;}
+    speakerRef.current=next;
+    setSpeakerOn(next);
+  };
 
   return <div role="dialog" aria-label={`${call.mode==='video'?'Videochamada':'Chamada áudio'} com ${person.name}`} style={{position:'fixed',inset:0,zIndex:180,background:'#080711',color:'#fff',display:'grid',overflow:'hidden'}}>
     {call.mode==='video'?<><video ref={remoteMedia} playsInline autoPlay aria-label="Vídeo remoto" style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',background:'#090713'}}/>{!remoteReady&&<div style={{position:'absolute',inset:0,display:'grid',placeItems:'center',background:'radial-gradient(circle at 50% 35%,#342466,#080711 65%)'}}><div style={{textAlign:'center',padding:24}}><Orb p={person.palette} avatarUrl={person.avatar_url} s={112}/><div className="d" style={{fontSize:31,marginTop:15,color:'#fff'}}>{person.name}</div><div style={{opacity:.68,marginTop:7}}>{phase}</div>{networkHint&&<div style={{opacity:.58,fontSize:12,marginTop:9,maxWidth:300,lineHeight:1.4}}>{networkHint}</div>}</div></div>}<div style={{position:'absolute',top:'calc(16px + env(safe-area-inset-top))',right:14,width:108,height:154,borderRadius:22,overflow:'hidden',border:'1px solid rgba(255,255,255,.3)',background:'#171425',boxShadow:'0 12px 30px rgba(0,0,0,.34)'}}><video ref={localVideo} playsInline autoPlay muted aria-label="O teu vídeo" style={{width:'100%',height:'100%',objectFit:'cover',transform:'scaleX(-1)'}}/></div></>:<div style={{position:'absolute',inset:0,display:'grid',placeItems:'center',background:'radial-gradient(circle at 50% 30%,#47327D,#17102E 46%,#080711 78%)'}}><div style={{textAlign:'center',transform:'translateY(-45px)',padding:24}}><div style={{padding:7,borderRadius:'50%',background:'linear-gradient(135deg,#FF6558,#624DFF)',display:'inline-grid'}}><Orb p={person.palette} avatarUrl={person.avatar_url} s={122}/></div><div className="d" style={{fontSize:34,marginTop:19,color:'#fff'}}>{person.name}</div><div style={{opacity:.68,marginTop:8}}>{phase}</div>{networkHint&&<div style={{opacity:.58,fontSize:12,marginTop:9,maxWidth:300,lineHeight:1.4}}>{networkHint}</div>}</div><audio ref={remoteMedia} autoPlay playsInline/></div>}
     {needsAudioTap&&<button onClick={playRemote} style={{position:'absolute',left:'50%',transform:'translateX(-50%)',bottom:'calc(108px + env(safe-area-inset-bottom))',zIndex:5,border:0,borderRadius:999,padding:'11px 16px',background:'#fff',color:'#14122A',fontWeight:800,display:'flex',alignItems:'center',gap:8}}><Volume2 size={17}/>Ativar áudio</button>}
-    <div style={{position:'absolute',left:0,right:0,bottom:'calc(28px + env(safe-area-inset-bottom))',display:'flex',justifyContent:'center',gap:16,zIndex:3}}><button onClick={toggleMute} aria-label={muted?'Ativar microfone':'Desativar microfone'} style={{width:58,height:58,borderRadius:99,border:0,background:'rgba(255,255,255,.16)',backdropFilter:'blur(13px)',color:'#fff',display:'grid',placeItems:'center'}}>{muted?<MicOff/>:<Mic/>}</button>{call.mode==='video'&&<button onClick={toggleCamera} aria-label={cameraOff?'Ativar câmara':'Desativar câmara'} style={{width:58,height:58,borderRadius:99,border:0,background:'rgba(255,255,255,.16)',backdropFilter:'blur(13px)',color:'#fff',display:'grid',placeItems:'center'}}>{cameraOff?<CameraOff/>:<Camera/>}</button>}<button onClick={()=>cleanup({notify:true})} aria-label="Terminar chamada" style={{width:64,height:64,borderRadius:99,border:0,background:'#FF5149',color:'#fff',display:'grid',placeItems:'center',boxShadow:'0 10px 30px rgba(255,81,73,.34)'}}><PhoneOff size={28}/></button></div>
+    <div style={{position:'absolute',left:0,right:0,bottom:'calc(28px + env(safe-area-inset-bottom))',display:'flex',justifyContent:'center',gap:16,zIndex:3}}><button onClick={toggleMute} aria-label={muted?'Ativar microfone':'Desativar microfone'} style={{width:58,height:58,borderRadius:99,border:0,background:'rgba(255,255,255,.16)',backdropFilter:'blur(13px)',color:'#fff',display:'grid',placeItems:'center'}}>{muted?<MicOff/>:<Mic/>}</button>{call.mode==='audio'&&<button onClick={toggleSpeaker} aria-pressed={speakerOn} aria-label={speakerOn?'Desativar alta-voz':'Ativar alta-voz'} style={{width:58,height:58,borderRadius:99,border:0,background:speakerOn?'#fff':'rgba(255,255,255,.16)',backdropFilter:'blur(13px)',color:speakerOn?'#17102E':'#fff',display:'grid',placeItems:'center'}}><Volume2/></button>}{call.mode==='video'&&<button onClick={toggleCamera} aria-label={cameraOff?'Ativar câmara':'Desativar câmara'} style={{width:58,height:58,borderRadius:99,border:0,background:'rgba(255,255,255,.16)',backdropFilter:'blur(13px)',color:'#fff',display:'grid',placeItems:'center'}}>{cameraOff?<CameraOff/>:<Camera/>}</button>}<button onClick={()=>cleanup({notify:true})} aria-label="Terminar chamada" style={{width:64,height:64,borderRadius:99,border:0,background:'#FF5149',color:'#fff',display:'grid',placeItems:'center',boxShadow:'0 10px 30px rgba(255,81,73,.34)'}}><PhoneOff size={28}/></button></div>
   </div>;
 }

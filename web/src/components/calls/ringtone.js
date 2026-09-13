@@ -1,6 +1,7 @@
 let audioContext = null;
 let ringtoneTimer = null;
 let vibrationTimer = null;
+let primeSuspendTimer = null;
 let active = false;
 
 function context() {
@@ -9,6 +10,21 @@ function context() {
   if (!AudioContextClass) return null;
   audioContext = new AudioContextClass();
   return audioContext;
+}
+
+function clearTimers() {
+  if (ringtoneTimer) window.clearInterval(ringtoneTimer);
+  if (vibrationTimer) window.clearInterval(vibrationTimer);
+  if (primeSuspendTimer) window.clearTimeout(primeSuspendTimer);
+  ringtoneTimer = null;
+  vibrationTimer = null;
+  primeSuspendTimer = null;
+}
+
+function suspendContext() {
+  const ctx = audioContext;
+  if (!ctx || ctx.state !== 'running') return;
+  ctx.suspend?.().catch(() => {});
 }
 
 function scheduleTone(ctx, startAt, frequency, duration = 0.24, volume = 0.055) {
@@ -40,8 +56,9 @@ function vibrateBurst() {
 
 /**
  * Desbloqueia o AudioContext durante uma interação explícita do utilizador.
- * Isto permite que uma chamada recebida mais tarde, enquanto a Lumina está
- * aberta, consiga tocar automaticamente mesmo no Safari/iOS.
+ * Depois do pulso inaudível suspendemo-lo novamente para que um contexto de
+ * playback não fique a prender o iPhone ao altifalante quando começa uma
+ * chamada de voz.
  */
 export async function primeCallAudio() {
   const ctx = context();
@@ -49,7 +66,6 @@ export async function primeCallAudio() {
   try {
     if (ctx.state === 'suspended') await ctx.resume();
     if (ctx.state !== 'running') return false;
-    // Pulso inaudível para garantir que a pipeline de áudio fica desbloqueada.
     const oscillator = ctx.createOscillator();
     const gain = ctx.createGain();
     gain.gain.value = 0.00001;
@@ -57,6 +73,11 @@ export async function primeCallAudio() {
     gain.connect(ctx.destination);
     oscillator.start();
     oscillator.stop(ctx.currentTime + 0.015);
+    if (primeSuspendTimer) window.clearTimeout(primeSuspendTimer);
+    primeSuspendTimer = window.setTimeout(() => {
+      primeSuspendTimer = null;
+      if (!active) suspendContext();
+    }, 40);
     return true;
   } catch {
     return false;
@@ -65,7 +86,7 @@ export async function primeCallAudio() {
 
 /** Toca enquanto a chamada recebida estiver visível na app. */
 export async function startCallRingtone() {
-  stopCallRingtone();
+  clearTimers();
   active = true;
   const ctx = context();
   if (ctx) {
@@ -80,11 +101,14 @@ export async function startCallRingtone() {
   return () => stopCallRingtone();
 }
 
+/**
+ * Pára o toque e, crucialmente, suspende o AudioContext de playback. Deixar
+ * este contexto ativo durante getUserMedia faz o iOS conservar a rota de
+ * altifalante que estava a usar para o toque da chamada.
+ */
 export function stopCallRingtone() {
   active = false;
-  if (ringtoneTimer) window.clearInterval(ringtoneTimer);
-  if (vibrationTimer) window.clearInterval(vibrationTimer);
-  ringtoneTimer = null;
-  vibrationTimer = null;
+  clearTimers();
   try { navigator.vibrate?.(0); } catch {}
+  suspendContext();
 }

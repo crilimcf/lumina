@@ -2,23 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { callCopy } from '../components/calls/callCopy.js';
 import { acquireCallMedia, stopCallMedia } from '../components/calls/callMedia.js';
+import { prepareCallAudioSession } from '../components/calls/audioSession.js';
 import { resetCallAudioRoute, setCallAudioRoute } from '../components/calls/audioRoute.js';
+import { primeCallAudio, stopCallRingtone } from '../components/calls/ringtone.js';
 
 const INCOMING_POLL_MS = 1200;
-
-function setVoiceAudioSession(active) {
-  const session = navigator.audioSession;
-  if (!session) return;
-  try {
-    if (active) {
-      session.type = 'play-and-record';
-    } else {
-      // WebKit needs an explicit playback -> auto reset after microphone use.
-      session.type = 'playback';
-      session.type = 'auto';
-    }
-  } catch {}
-}
 
 const notifyActivityChanged = () => window.dispatchEvent(new CustomEvent('lumina:notifications-changed'));
 
@@ -32,52 +20,18 @@ function mediaErrorMessage(error) {
   return error?.message || 'Não foi possível preparar o microfone/câmara.';
 }
 
-function createRingtone(audioRef) {
-  try {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) return () => {};
-    if (!audioRef.current || audioRef.current.state === 'closed') audioRef.current = new AudioContext();
-    const ctx = audioRef.current;
-    ctx.resume?.().catch(() => {});
-    const play = () => {
-      if (ctx.state !== 'running') { ctx.resume?.().catch(() => {}); return; }
-      const now = ctx.currentTime;
-      for (const offset of [0, .24]) {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(740, now + offset);
-        osc.frequency.exponentialRampToValueAtTime(880, now + offset + .16);
-        gain.gain.setValueAtTime(0.0001, now + offset);
-        gain.gain.exponentialRampToValueAtTime(0.13, now + offset + .018);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + .2);
-        osc.connect(gain); gain.connect(ctx.destination);
-        osc.start(now + offset); osc.stop(now + offset + .22);
-      }
-    };
-    play();
-    const timer = setInterval(play, 1450);
-    return () => clearInterval(timer);
-  } catch { return () => {}; }
-}
-
 export function useCalls({ enabled, ping }) {
   const [activeCall, setActiveCall] = useState(null);
   const [incoming, setIncoming] = useState(null);
   const [busy, setBusy] = useState(false);
-  const audioRef = useRef(null);
   const checkingRef = useRef(false);
 
+  // Prime the ringtone AudioContext only while idle. Never resume a playback
+  // context while a call is ringing or active because iOS may keep that
+  // speaker route when getUserMedia starts.
   useEffect(() => {
-    if (!enabled) return;
-    const unlock = () => {
-      try {
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (!AudioContext) return;
-        if (!audioRef.current || audioRef.current.state === 'closed') audioRef.current = new AudioContext();
-        audioRef.current.resume?.().catch(() => {});
-      } catch {}
-    };
+    if (!enabled || activeCall || incoming) return;
+    const unlock = () => { void primeCallAudio(); };
     document.addEventListener('pointerdown', unlock, { passive:true, capture:true });
     document.addEventListener('touchend', unlock, { passive:true, capture:true });
     document.addEventListener('click', unlock, { passive:true, capture:true });
@@ -86,7 +40,7 @@ export function useCalls({ enabled, ping }) {
       document.removeEventListener('touchend', unlock, true);
       document.removeEventListener('click', unlock, true);
     };
-  }, [enabled]);
+  }, [enabled, activeCall, incoming]);
 
   useEffect(() => {
     if (!enabled || activeCall) return;
@@ -119,26 +73,22 @@ export function useCalls({ enabled, ping }) {
     };
   }, [enabled, activeCall]);
 
-  useEffect(() => {
-    if (!incoming || activeCall) return;
-    const stop = createRingtone(audioRef);
-    try { navigator.vibrate?.([500,250,500,250,500]); } catch {}
-    return () => { stop(); try { navigator.vibrate?.(0); } catch {} };
-  }, [incoming, activeCall]);
-
   const startCall = useCallback(async (thread, mode) => {
     if (!thread || busy) return;
     const voiceCall = mode === 'audio';
-    if (voiceCall) setVoiceAudioSession(true);
+    if (voiceCall) {
+      // The reliable iOS/WebKit sequence is:
+      // ringtone/playback off -> audioSession auto -> getUserMedia ->
+      // play-and-record/receiver. Do not put play-and-record before the mic.
+      stopCallRingtone();
+      prepareCallAudioSession();
+    }
     setBusy(true);
     let mediaStream = null;
     try {
-      // Keep getUserMedia as the first asynchronous operation from the user's
-      // tap. Mobile Safari/Samsung can lose the media user activation if an
-      // audio-route or API await happens first.
+      // Keep getUserMedia as the first awaited operation from the user's tap.
+      // Mobile Safari/Samsung can lose media user activation otherwise.
       mediaStream = await acquireCallMedia(mode);
-      // Once media permission is secured, route voice calls to the receiver.
-      // Loudspeaker remains an explicit action in CallOverlay.
       if (voiceCall) await setCallAudioRoute('receiver');
       const call = await api.calls.start(thread.id, mode);
       setActiveCall({
@@ -152,10 +102,7 @@ export function useCalls({ enabled, ping }) {
       if (call.callee_push_ready === false) ping(callCopy.pushDisabledToast);
     } catch (e) {
       stopCallMedia(mediaStream);
-      if (voiceCall) {
-        setVoiceAudioSession(false);
-        await resetCallAudioRoute();
-      }
+      if (voiceCall) await resetCallAudioRoute();
       ping(mediaErrorMessage(e));
     } finally { setBusy(false); }
   }, [busy, ping]);
@@ -175,16 +122,17 @@ export function useCalls({ enabled, ping }) {
   const acceptIncoming = useCallback(async () => {
     if (!incoming || busy) return;
     const voiceCall = !incoming.group && incoming.mode === 'audio';
-    if (voiceCall) setVoiceAudioSession(true);
+    if (voiceCall) {
+      // Stop the ringtone's playback AudioContext before opening the mic. The
+      // old flow resumed a speaker-routed AudioContext here, which made iOS
+      // keep loudspeaker active even though the UI button was off.
+      stopCallRingtone();
+      prepareCallAudioSession();
+    }
     setBusy(true);
     let mediaStream = null;
     try {
-      // Do not await AudioContext/audio routing before getUserMedia: accepting
-      // must preserve the Safari user gesture all the way to media acquisition.
-      audioRef.current?.resume?.().catch(() => {});
       if (!incoming.group) mediaStream = await acquireCallMedia(incoming.mode);
-      // After the microphone/camera is acquired, force voice calls to the
-      // receiver/headset. This never enables loudspeaker automatically.
       if (voiceCall) await setCallAudioRoute('receiver');
       const call = await api.calls.answer(incoming.id);
       if (incoming.group || call.group) {
@@ -205,10 +153,7 @@ export function useCalls({ enabled, ping }) {
       notifyActivityChanged();
     } catch (e) {
       stopCallMedia(mediaStream);
-      if (voiceCall) {
-        setVoiceAudioSession(false);
-        await resetCallAudioRoute();
-      }
+      if (voiceCall) await resetCallAudioRoute();
       ping(mediaErrorMessage(e));
       setIncoming(null);
     } finally { setBusy(false); }
@@ -216,6 +161,7 @@ export function useCalls({ enabled, ping }) {
 
   const declineIncoming = useCallback(async () => {
     const current = incoming;
+    stopCallRingtone();
     setIncoming(null);
     if (!current) return;
     try {
@@ -225,7 +171,6 @@ export function useCalls({ enabled, ping }) {
   }, [incoming, ping]);
 
   const closeActiveCall = useCallback(() => {
-    setVoiceAudioSession(false);
     void resetCallAudioRoute();
     setActiveCall(null);
     notifyActivityChanged();

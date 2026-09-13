@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { ErrorNote } from '../ui.jsx';
 import { Legal } from '../Seguranca.jsx';
 import { t } from '../i18n.js';
+import { ResetPassword } from './ResetPassword.jsx';
 
 /** Entrada na aplicação: login, registo e recuperação de password. */
 export function Entrada({ onIn }) {
@@ -15,6 +16,7 @@ export function Entrada({ onIn }) {
   const [needsCode, setNeedsCode] = useState(false);
   const [code, setCode] = useState('');
   const [legalPage, setLegalPage] = useState(null);
+  const isPasswordReset = window.location.pathname.replace(/\/+$/, '') === '/recuperar';
   // Use a functional update so browser autofill/password managers changing
   // several fields in the same render cannot overwrite sibling values.
   const set = (k) => (e) => {
@@ -22,6 +24,7 @@ export function Entrada({ onIn }) {
     setF((current) => ({ ...current, [k]: value }));
   };
 
+  if (isPasswordReset) return <ResetPassword />;
   if (legalPage) return <Legal page={legalPage} onBack={() => setLegalPage(null)} />;
 
   const submit = async (e) => {

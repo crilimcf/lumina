@@ -43,3 +43,16 @@ test('recuperação continua pública mesmo quando já existe uma sessão válid
   await expect(page.getByRole('button', { name: 'Guardar nova password' })).toBeVisible();
   expect(authMeCalls).toBe(0);
 });
+
+test('recuperação usa a língua francesa do dispositivo', async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ locale: 'fr-FR', baseURL });
+  const page = await context.newPage();
+  try {
+    await page.goto('/recuperar?token=token-fr');
+    await expect(page.getByRole('heading', { name: 'Nouveau mot de passe' })).toBeVisible();
+    await expect(page.getByPlaceholder('Confirmer le nouveau mot de passe')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Enregistrer le nouveau mot de passe' })).toBeVisible();
+  } finally {
+    await context.close();
+  }
+});

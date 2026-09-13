@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { callCopy } from '../components/calls/callCopy.js';
 import { acquireCallMedia, stopCallMedia } from '../components/calls/callMedia.js';
+import { resetCallAudioRoute, setCallAudioRoute } from '../components/calls/audioRoute.js';
 
 const INCOMING_POLL_MS = 1200;
 
@@ -132,6 +133,9 @@ export function useCalls({ enabled, ping }) {
     setBusy(true);
     let mediaStream = null;
     try {
+      // Audio calls always start on receiver/headset. Loudspeaker is an explicit
+      // action inside CallOverlay and is never enabled merely by starting a call.
+      if (voiceCall) await setCallAudioRoute('receiver');
       // getUserMedia starts directly from the user's tap. Mobile Safari and
       // Samsung Internet can otherwise leave media acquisition pending after
       // the async API round-trip that creates the call.
@@ -148,7 +152,10 @@ export function useCalls({ enabled, ping }) {
       if (call.callee_push_ready === false) ping(callCopy.pushDisabledToast);
     } catch (e) {
       stopCallMedia(mediaStream);
-      if (voiceCall) setVoiceAudioSession(false);
+      if (voiceCall) {
+        setVoiceAudioSession(false);
+        await resetCallAudioRoute();
+      }
       ping(mediaErrorMessage(e));
     } finally { setBusy(false); }
   }, [busy, ping]);
@@ -173,6 +180,9 @@ export function useCalls({ enabled, ping }) {
     let mediaStream = null;
     try {
       await audioRef.current?.resume?.().catch(() => {});
+      // Accepting an audio call must never turn on loudspeaker. Route to the
+      // phone receiver/headset before microphone acquisition and before Answer.
+      if (voiceCall) await setCallAudioRoute('receiver');
       // Keep media permission/acquisition inside the Accept button activation.
       // Only after media is ready do we mark the server-side call active.
       if (!incoming.group) mediaStream = await acquireCallMedia(incoming.mode);
@@ -195,7 +205,10 @@ export function useCalls({ enabled, ping }) {
       notifyActivityChanged();
     } catch (e) {
       stopCallMedia(mediaStream);
-      if (voiceCall) setVoiceAudioSession(false);
+      if (voiceCall) {
+        setVoiceAudioSession(false);
+        await resetCallAudioRoute();
+      }
       ping(mediaErrorMessage(e));
       setIncoming(null);
     } finally { setBusy(false); }
@@ -213,6 +226,7 @@ export function useCalls({ enabled, ping }) {
 
   const closeActiveCall = useCallback(() => {
     setVoiceAudioSession(false);
+    void resetCallAudioRoute();
     setActiveCall(null);
     notifyActivityChanged();
   }, []);

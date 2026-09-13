@@ -10,8 +10,8 @@ test('ligação de recuperação abre formulário e permite definir nova passwor
   await page.goto('/recuperar?token=token-regression-test');
 
   await expect(page.getByRole('heading', { name: 'Nova password' })).toBeVisible();
-  await page.getByPlaceholder('Nova password').fill('NovaPassword-123');
-  await page.getByPlaceholder('Confirmar nova password').fill('NovaPassword-123');
+  await page.getByPlaceholder('Nova password', { exact: true }).fill('NovaPassword-123');
+  await page.getByPlaceholder('Confirmar nova password', { exact: true }).fill('NovaPassword-123');
   await page.getByRole('button', { name: 'Guardar nova password' }).click();
 
   await expect(page.getByRole('heading', { name: 'Password atualizada' })).toBeVisible();

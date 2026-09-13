@@ -15,7 +15,7 @@ function registration(handle, name) {
   };
 }
 
-test('copy de chamada é neutro ao dispositivo e a sessão de áudio usa modo de chamada', () => {
+test('copy de chamada é neutro ao dispositivo e a sessão de áudio mantém a rota de chamada', () => {
   const copy = Object.values(callCopy).join(' ');
   expect(copy).not.toContain('iPhone');
   expect(copy).not.toContain('outro amigo');
@@ -32,6 +32,9 @@ test('copy de chamada é neutro ao dispositivo e a sessão de áudio usa modo de
 
   expect(prepareCallAudioSession(fakeNavigator)).toBe(true);
   expect(preferCallReceiver(fakeNavigator)).toBe(true);
+  // A montagem do overlay acontece depois de getUserMedia. Não pode voltar a
+  // `auto` nessa altura, porque no iPhone isso pode reativar o altifalante.
+  expect(prepareCallAudioSession(fakeNavigator)).toBe(true);
   expect(resetCallAudioSession(fakeNavigator)).toBe(true);
   expect(history).toEqual(['auto', 'play-and-record', 'playback', 'auto']);
 });

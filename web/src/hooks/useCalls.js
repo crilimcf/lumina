@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { callCopy } from '../components/calls/callCopy.js';
+import { acquireCallMedia, stopCallMedia } from '../components/calls/callMedia.js';
 
 const INCOMING_POLL_MS = 1200;
 
@@ -19,6 +20,16 @@ function setVoiceAudioSession(active) {
 }
 
 const notifyActivityChanged = () => window.dispatchEvent(new CustomEvent('lumina:notifications-changed'));
+
+function mediaErrorMessage(error) {
+  if (error?.name === 'NotAllowedError' || error?.name === 'PermissionDeniedError') {
+    return 'Permite o microfone e a câmara para fazer a chamada.';
+  }
+  if (error?.name === 'NotFoundError' || error?.name === 'DevicesNotFoundError') {
+    return 'Não foi encontrado microfone/câmara disponível neste dispositivo.';
+  }
+  return error?.message || 'Não foi possível preparar o microfone/câmara.';
+}
 
 function createRingtone(audioRef) {
   try {
@@ -119,15 +130,26 @@ export function useCalls({ enabled, ping }) {
     const voiceCall = mode === 'audio';
     if (voiceCall) setVoiceAudioSession(true);
     setBusy(true);
+    let mediaStream = null;
     try {
+      // getUserMedia starts directly from the user's tap. Mobile Safari and
+      // Samsung Internet can otherwise leave media acquisition pending after
+      // the async API round-trip that creates the call.
+      mediaStream = await acquireCallMedia(mode);
       const call = await api.calls.start(thread.id, mode);
-      setActiveCall({ call, caller:true, group:false, person:{ name:thread.name, handle:thread.handle, palette:thread.palette, avatar_url:thread.avatar_url } });
-      if (call.callee_push_ready === false) {
-        ping(callCopy.pushDisabledToast);
-      }
+      setActiveCall({
+        call,
+        caller:true,
+        group:false,
+        mediaStream,
+        person:{ name:thread.name, handle:thread.handle, palette:thread.palette, avatar_url:thread.avatar_url },
+      });
+      mediaStream = null; // CallOverlay owns and closes it from here.
+      if (call.callee_push_ready === false) ping(callCopy.pushDisabledToast);
     } catch (e) {
+      stopCallMedia(mediaStream);
       if (voiceCall) setVoiceAudioSession(false);
-      ping(e.message);
+      ping(mediaErrorMessage(e));
     } finally { setBusy(false); }
   }, [busy, ping]);
 
@@ -146,22 +168,35 @@ export function useCalls({ enabled, ping }) {
   const acceptIncoming = useCallback(async () => {
     if (!incoming || busy) return;
     const voiceCall = !incoming.group && incoming.mode === 'audio';
-    // Must be set before CallOverlay mounts and asks getUserMedia for the microphone.
     if (voiceCall) setVoiceAudioSession(true);
     setBusy(true);
+    let mediaStream = null;
     try {
       await audioRef.current?.resume?.().catch(() => {});
+      // Keep media permission/acquisition inside the Accept button activation.
+      // Only after media is ready do we mark the server-side call active.
+      if (!incoming.group) mediaStream = await acquireCallMedia(incoming.mode);
       const call = await api.calls.answer(incoming.id);
       if (incoming.group || call.group) {
+        stopCallMedia(mediaStream);
+        mediaStream = null;
         setActiveCall({ call, caller:false, group:true, groupInfo:{ id:call.group_id || call.room_id, name:call.group_name || call.name } });
       } else {
-        setActiveCall({ call, caller:false, group:false, person:{ name:incoming.name, handle:incoming.handle, palette:incoming.palette, avatar_url:incoming.avatar_url } });
+        setActiveCall({
+          call,
+          caller:false,
+          group:false,
+          mediaStream,
+          person:{ name:incoming.name, handle:incoming.handle, palette:incoming.palette, avatar_url:incoming.avatar_url },
+        });
+        mediaStream = null; // CallOverlay owns and closes it from here.
       }
       setIncoming(null);
       notifyActivityChanged();
     } catch (e) {
+      stopCallMedia(mediaStream);
       if (voiceCall) setVoiceAudioSession(false);
-      ping(e.message);
+      ping(mediaErrorMessage(e));
       setIncoming(null);
     } finally { setBusy(false); }
   }, [incoming, busy, ping]);

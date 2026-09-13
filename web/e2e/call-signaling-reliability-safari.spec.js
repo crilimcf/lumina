@@ -20,7 +20,7 @@ test('constraints de chamada mantêm áudio e só ativam câmara em vídeo', () 
   expect(callMediaConstraints('video').video.facingMode).toBe('user');
 });
 
-test('destinatário reutiliza media do toque e responde a oferta enviada antes de atender', async ({ page, request }) => {
+test('destinatário reutiliza media do toque, mantém alta-voz desligada e responde a oferta antiga', async ({ page, request }) => {
   await page.addInitScript(() => {
     window.__luminaTestGetUserMediaCalls = 0;
 
@@ -133,8 +133,6 @@ test('destinatário reutiliza media do toque e responde a oferta enviada antes d
   expect(callResponse.status()).toBe(201);
   const call = await callResponse.json();
 
-  // Reproduz o comportamento da versão antiga: oferta já persistida antes de
-  // o destinatário tocar em Atender. A versão nova tem de conseguir recuperá-la.
   const offerResponse = await request.post(`/api/calls/${call.id}/signals`, {
     headers:callerHeaders,
     data:{ kind:'offer', payload:{ type:'offer', sdp:'v=0\r\na=lumina-pre-answer-offer\r\n' } },
@@ -146,6 +144,11 @@ test('destinatário reutiliza media do toque e responde a oferta enviada antes d
   await page.getByRole('button', { name:'Atender chamada' }).click();
 
   await expect(page.getByRole('dialog', { name:'Chamada áudio com Caller Signal' })).toBeVisible({ timeout:6000 });
+
+  // A voice call must start on receiver/headset. Speaker is an explicit user action.
+  const speakerButton = page.getByRole('button', { name:'Ativar alta-voz' });
+  await expect(speakerButton).toBeVisible();
+  await expect(speakerButton).toHaveAttribute('aria-pressed', 'false');
 
   // Media is acquired once by the Accept user action and then handed to the
   // WebRTC overlay; no second delayed getUserMedia call is allowed.

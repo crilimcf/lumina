@@ -126,6 +126,7 @@ export function Feed({
         {loadingFeed ? <div className="lumina-feed-list">{[0,1].map(i => <div key={i} className="lumina-post" style={{ padding: '13px 0' }}><div style={{ display: 'flex', gap: 11, padding: '0 14px 13px', alignItems: 'center' }}><Skeleton w={38} h={38} r={99} /><div style={{ flex: 1 }}><Skeleton w="45%" h={13} /></div></div><Skeleton w="calc(100% - 16px)" h={280} r={19} /><div style={{ padding: '14px' }}><Skeleton w="70%" h={13} /></div></div>)}</div> : feed.length === 0 ? <div className="lumina-v2-empty lumina-feed-empty" role="status">
           <Sparkles size={28} aria-hidden="true"/>
           <h2>{t('As melhores histórias começam contigo.')}</h2>
+          <p>{t('O teu Feed está vazio.')}</p>
           <p>{t('O teu espaço está pronto. Descobre pessoas com quem te identificas ou partilha um primeiro momento.')}</p>
           <div className="lumina-v2-empty-actions">
             <button type="button" onClick={() => setScreen('amigos')}>{t('Descobrir pessoas')}</button>

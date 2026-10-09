@@ -59,8 +59,8 @@ test('registo, reload e publicação direta funcionam em Mobile Safari', async (
   await expect(page.locator('article').filter({ hasText: publishedText })).toBeVisible();
 
   await page.reload();
-  await expect(page.getByText('Olá, Safari')).toBeVisible();
-  await page.getByRole('button', { name: 'Entrar no Feed' }).click();
+  await expect(page.getByRole('button', { name:'Novo' })).toBeVisible();
+  await expect(page.getByRole('button', { name:'Entrar no Feed' })).toHaveCount(0);
   await expect(page.locator('article').filter({ hasText: publishedText })).toBeVisible();
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

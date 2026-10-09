@@ -377,6 +377,7 @@ export function Conversas({
         </label>
       </header>
 
+      <div id="lumina-group-call-anchor" className="messages-group-actions" aria-label="Videochamadas de grupo"/>
       {callReadiness(false)}
 
       {archivedCount > 0 && <div className="messages-inbox-filters" role="group" aria-label={t('Filtrar conversas')}>

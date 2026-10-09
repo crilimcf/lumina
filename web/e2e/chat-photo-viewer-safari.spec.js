@@ -76,8 +76,8 @@ test('received chat photo opens full-screen and can be sent to the iPhone save s
   await mockSession(page);
 
   await page.goto('/');
-  await expect(page.getByRole('button', { name:'Entrar no Feed' })).toBeVisible({ timeout:9000 });
-  await page.getByRole('button', { name:'Entrar no Feed' }).click();
+  // An existing authenticated member opens directly on the Feed.
+  await expect(page.getByRole('button', { name:'Novo' })).toBeVisible({ timeout:9000 });
   await page.getByRole('button', { name:'Conversas' }).click();
   await page.getByRole('button', { name:'Abrir conversa com Amigo Foto' }).click();
 

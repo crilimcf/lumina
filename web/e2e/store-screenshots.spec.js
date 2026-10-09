@@ -134,8 +134,7 @@ async function captureDevice(browser, output, contextOptions, identity='midnight
   const page = await context.newPage();
   await mockStoreSession(page);
   await page.goto('/');
-  await expect(page.getByRole('button', { name:'Entrar no Feed' })).toBeVisible({ timeout:10_000 });
-  await page.getByRole('button', { name:'Entrar no Feed' }).click();
+  await expect(page.getByRole('button', { name:'Novo' })).toBeVisible({ timeout:10_000 });
   await expect(page.getByRole('button', { name:'Novo' })).toBeVisible();
 
   const shot = async (name) => {

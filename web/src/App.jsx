@@ -231,8 +231,9 @@ export default function App() {
 
   async function afterLogin(user, isNewAccount = false) {
     setMe(user);
-    if (isNewAccount) setShowWelcome(true);
-    setOpening(true);
+    setShowWelcome(isNewAccount);
+    // Returning users go straight to the Feed; onboarding is only for new accounts.
+    setOpening(isNewAccount);
     feedState.loadFeed();
     momentState.loadMoments();
     api.notifications.unread().then(r => setUnreadCount(r.count || 0)).catch(() => {});

@@ -75,8 +75,7 @@ async function mockFrenchSession(page) {
 async function openAuthenticatedApp(page) {
   await page.goto('/');
   await expect(page.locator('html')).toHaveAttribute('lang', 'fr-FR');
-  await expect(page.getByRole('button', { name:'Ouvrir le Fil' })).toBeVisible({ timeout:9000 });
-  await page.getByRole('button', { name:'Ouvrir le Fil' }).click();
+  await expect(page.locator('.lumina-feed')).toBeVisible({ timeout:9000 });
 }
 
 const bodyContains = (page, text) => expect(page.locator('body')).toContainText(text);

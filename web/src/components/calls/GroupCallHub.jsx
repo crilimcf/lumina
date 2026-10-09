@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, Plus, Trash2, UsersRound, Video, X } from 'lucide-react';
 import { api } from '../../api.js';
 import { Orb } from '../../ui.jsx';
@@ -25,6 +26,10 @@ export function GroupCallHub({ me, contacts = [], hidden = false, startGroupCall
   const [deletingId,setDeletingId]=useState(null);
   const [name,setName]=useState('');
   const [selected,setSelected]=useState([]);
+  const [launcherHost,setLauncherHost]=useState(null);
+  useEffect(() => {
+    setLauncherHost(hidden ? null : document.getElementById('lumina-group-call-anchor'));
+  }, [hidden]);
 
   const people=useMemo(()=>contacts.filter(person=>person.id!==me?.id),[contacts,me?.id]);
 
@@ -75,7 +80,7 @@ export function GroupCallHub({ me, contacts = [], hidden = false, startGroupCall
   };
 
   return <>
-    <button type="button" onClick={()=>setOpen(true)} aria-label={copy.launcher} style={{position:'fixed',right:14,bottom:'calc(88px + env(safe-area-inset-bottom))',zIndex:72,border:0,borderRadius:999,padding:'12px 16px',display:'flex',alignItems:'center',gap:8,background:'linear-gradient(135deg,#6C55FF,#FF5A79)',color:'#fff',fontWeight:850,boxShadow:'0 14px 34px rgba(38,25,99,.32)'}}><UsersRound size={18}/><span>{copy.launcher}</span></button>
+    {launcherHost&&createPortal(<button type="button" className="messages-group-launcher" onClick={()=>setOpen(true)} aria-label={copy.launcher}><UsersRound size={18}/><span>{copy.launcher}</span></button>, launcherHost)}
     {open&&<div role="dialog" aria-modal="true" aria-label={copy.title} style={{position:'fixed',inset:0,zIndex:190,background:'rgba(6,8,18,.72)',backdropFilter:'blur(14px)',display:'grid',alignItems:'end'}}>
       <section style={{width:'100%',maxWidth:620,justifySelf:'center',maxHeight:'92dvh',overflow:'auto',background:'#F8F8FC',color:'#151426',borderRadius:'28px 28px 0 0',padding:'18px 16px calc(24px + env(safe-area-inset-bottom))',boxShadow:'0 -24px 60px rgba(0,0,0,.22)'}}>
         <header style={{display:'flex',alignItems:'flex-start',gap:12}}><div style={{flex:1}}><div style={{fontSize:12,fontWeight:850,letterSpacing:'.08em',textTransform:'uppercase',opacity:.5}}>Lumina Direct</div><h2 style={{margin:'4px 0 4px',fontSize:27}}>{copy.title}</h2><p style={{margin:0,opacity:.62,fontSize:14}}>{copy.subtitle}</p></div><button onClick={()=>setOpen(false)} aria-label={copy.close} style={{width:40,height:40,borderRadius:99,border:'1px solid #deddea',background:'#fff',display:'grid',placeItems:'center'}}><X size={19}/></button></header>

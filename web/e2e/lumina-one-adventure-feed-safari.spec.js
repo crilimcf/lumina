@@ -50,7 +50,9 @@ test('Lumina One é um portal vivo, continua dentro do iPhone e abre o contexto 
   expect(geometry.left).toBeGreaterThanOrEqual(0);
   expect(geometry.right).toBeLessThanOrEqual(geometry.viewport);
   expect(geometry.portalLeft).toBeLessThan(geometry.viewport);
-  expect(geometry.portalRight).toBeGreaterThan(geometry.viewport);
+  // In the premium mobile layout the animation remains interactive but fully visible.
+  expect(geometry.portalLeft).toBeGreaterThanOrEqual(0);
+  expect(geometry.portalRight).toBeLessThanOrEqual(geometry.viewport);
   expect(['hidden', 'clip']).toContain(geometry.htmlOverflow);
 
   const firstPrompt = await entry.locator('[data-one-adventure-prompt]').innerText();

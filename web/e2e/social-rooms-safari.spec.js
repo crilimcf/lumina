@@ -41,7 +41,7 @@ test('navegação final tem 5 itens; publicação edita/apaga; Radar está realm
   await expect(page.getByRole('button', { name:'Feed' })).toBeVisible();
   await expect(page.getByRole('button', { name:'Salas' })).toBeVisible();
   await expect(page.getByRole('button', { name:'Novo' })).toBeVisible();
-  await expect(page.getByRole('button', { name:'Radar' })).toBeVisible();
+  await expect(page.locator('.nav').getByRole('button', { name:'Radar', exact:true })).toBeVisible();
   await expect(page.getByRole('button', { name:'Conversas' })).toBeVisible();
   await expect(page.getByRole('button', { name:/Alertas/ })).toBeVisible();
   await expect(page.getByRole('button', { name:'Perfil' })).toBeVisible();

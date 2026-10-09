@@ -1,5 +1,6 @@
 import { language, t as baseT, translateDynamic as baseDynamic } from './i18n.js';
 import { EN_MISC, FR_MISC, ES_MISC } from './locales/misc-extra.js';
+import { V2_EN, V2_FR, V2_ES } from './locales/lumina-v2.js';
 import { EN_DEVICE, FR_DEVICE, ES_DEVICE, translateDeviceDynamic } from './locales/device-extra.js';
 import { EN_QUALITY, FR_QUALITY, ES_QUALITY } from './locales/quality-extra.js';
 import { EN_PRODUCT_CLARITY, FR_PRODUCT_CLARITY, ES_PRODUCT_CLARITY } from './locales/product-clarity-extra.js';
@@ -140,9 +141,9 @@ const CRITICAL = {
 };
 
 const catalogs = {
-  en:{ ...EN_MISC, ...EN_DEVICE, ...EN_QUALITY, ...EN_PRODUCT_CLARITY, ...CRITICAL.en },
-  fr:{ ...FR_MISC, ...FR_DEVICE, ...FR_QUALITY, ...FR_PRODUCT_CLARITY, ...CRITICAL.fr },
-  es:{ ...ES_MISC, ...ES_DEVICE, ...ES_QUALITY, ...ES_PRODUCT_CLARITY, ...CRITICAL.es },
+  en:{ ...EN_MISC, ...EN_DEVICE, ...EN_QUALITY, ...EN_PRODUCT_CLARITY, ...CRITICAL.en, ...V2_EN },
+  fr:{ ...FR_MISC, ...FR_DEVICE, ...FR_QUALITY, ...FR_PRODUCT_CLARITY, ...CRITICAL.fr, ...V2_FR },
+  es:{ ...ES_MISC, ...ES_DEVICE, ...ES_QUALITY, ...ES_PRODUCT_CLARITY, ...CRITICAL.es, ...V2_ES },
 };
 
 const normalize = value => String(value ?? '').trim().replace(/\s+/gu, ' ').toLocaleLowerCase('pt-PT');

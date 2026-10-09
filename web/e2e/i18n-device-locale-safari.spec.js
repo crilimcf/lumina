@@ -51,15 +51,14 @@ test('French iPhone keeps splash, greeting and clarified Lumina One fully in Fre
 
   await expect(page.locator('html')).toHaveAttribute('lang', 'fr-FR');
   await expect(page.locator('.lumina-launch-tagline')).toHaveText('Ta lumière, tes connexions.', { timeout:1800 });
-  await expect(page.locator('body')).toContainText('Bonjour, Angèle', { timeout:8000 });
-  await expect(page.locator('body')).toContainText('Personnes dans le Fil.');
-  await expect(page.locator('body')).toContainText('Sujets dans les Salons.');
+  // Returning users go directly to the translated Feed; the one-time entry is skipped.
+  await expect(page.locator('.lumina-feed')).toBeVisible({ timeout:9000 });
+  await expect(page.locator('body')).toContainText('Ton Fil est vide.');
   await expect(page.locator('body')).not.toContainText('Olá, Angèle');
   await expect(page.locator('body')).not.toContainText('Pessoas no');
   await expect(page.locator('body')).not.toContainText('Tópicos nas');
   await expect(page.locator('body')).not.toContainText('Sua luz, suas conexões');
 
-  await page.getByRole('button', { name:'Ouvrir le Fil' }).click();
   const entry = page.locator('.one-v3-feed-entry');
   await expect(entry).toBeVisible({ timeout:9000 });
   await entry.click();

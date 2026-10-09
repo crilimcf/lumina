@@ -1,0 +1,61 @@
+.one-v3-feed-entry.one-adventure-entry {
+  display:flex;flex-direction:column;align-items:stretch;
+  position:relative;overflow:hidden;isolation:isolate;
+  width:100%;min-height:102px;margin-top:13px;padding:13px 17px;
+  border:1px solid rgba(216,214,255,.26);border-radius:22px;
+  background:linear-gradient(124deg,#1e3158,#3c3778 58%,#273958);
+  color:#fff;cursor:pointer;text-align:left;
+  box-shadow:0 14px 30px rgba(4,9,29,.23);
+  -webkit-tap-highlight-color:transparent;
+}
+.one-v3-feed-entry .one-adventure-portal {
+  position:absolute;z-index:-1;
+  width:150%;height:115%;
+  left:50%;top:-10%;
+  border-radius:50%;
+  transform:translateX(-30%);
+  background:radial-gradient(ellipse at 50% 40%,rgba(176,140,255,.34),rgba(93,125,245,.13) 48%,transparent 75%);
+  animation:oneAdventurePortalPulse 6s ease-in-out infinite;
+}
+@keyframes oneAdventurePortalPulse {
+  0%,100%{opacity:.58;transform:translateX(-30%) scale(.95)}
+  50%{opacity:1;transform:translateX(-30%) scale(1.08)}
+}
+.one-v3-feed-entry .one-adventure-top {
+  display:flex;align-items:center;gap:6px;
+  font-size:10px;line-height:1;font-weight:900;letter-spacing:.15em;
+  color:#edeaff;
+}
+.one-v3-feed-entry .one-adventure-top svg:last-child {margin-left:auto;}
+.one-v3-feed-entry .one-adventure-content {
+  display:flex;align-items:center;gap:11px;margin-top:11px;
+}
+.one-v3-feed-entry .one-adventure-symbol {
+  display:grid;place-items:center;flex:0 0 38px;
+  width:38px;height:38px;border-radius:13px;
+  background:rgba(222,213,255,.16);border:1px solid rgba(231,225,255,.28);
+  color:#fff;
+}
+.one-v3-feed-entry .one-adventure-copy {
+  min-width:0;display:flex;flex-direction:column;gap:4px;
+}
+.one-v3-feed-entry [data-one-adventure-prompt] {
+  font-size:15px;font-weight:850;line-height:1.15;letter-spacing:-.035em;
+}
+.one-v3-feed-entry [data-one-adventure-status]{
+  font-size:11px;line-height:1.25;color:#d7e0fc;
+}
+.one-v3-feed-entry .one-adventure-dots {
+  position:absolute;display:flex;gap:5px;bottom:12px;right:15px;
+}
+.one-v3-feed-entry .one-adventure-dots i {
+  display:block;width:4px;height:4px;border-radius:999px;
+  background:rgba(218,225,255,.38);transition:all .2s;
+}
+.one-v3-feed-entry .one-adventure-dots i.is-on{
+  width:14px;background:#e4ddff;
+}
+.one-v3-feed-entry:active {transform:scale(.99);}
+@media(prefers-reduced-motion:reduce) {
+  .one-v3-feed-entry .one-adventure-portal{animation:none;opacity:.9}
+}

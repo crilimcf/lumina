@@ -377,8 +377,8 @@ export function Conversas({
         </label>
       </header>
 
-      {callReadiness(false)}
       <div id="lumina-group-call-anchor" className="messages-group-actions" aria-label="Videochamadas de grupo"/>
+      {callReadiness(false)}
 
       {archivedCount > 0 && <div className="messages-inbox-filters" role="group" aria-label={t('Filtrar conversas')}>
         <button type="button" className={`messages-inbox-filter${inboxView==='recent'?' is-active':''}`} onClick={()=>setInboxView('recent')}>{t('Recentes')} · {recentCount}</button>

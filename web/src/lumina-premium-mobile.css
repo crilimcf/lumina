@@ -1,0 +1,301 @@
+/* Lumina 2.1 – mobile editorial polish, grounded in the real product.
+   Applied only when Lumina 2 is active; all existing app events remain intact. */
+body.lumina-v2 {
+  --v3-ink:#f6f8ff;
+  --v3-muted:#b9c7df;
+  --v3-panel:#13223c;
+  --v3-stroke:rgba(196,215,255,.14);
+}
+body.lumina-v2 .lumina-facelift.lumina-feed {
+  padding-bottom:calc(140px + env(safe-area-inset-bottom))!important;
+  overflow-x:clip;
+  background:radial-gradient(ellipse 95% 30% at 92% 0%,rgba(107,97,228,.18),transparent 75%),
+             linear-gradient(180deg,#0f1b32 0%,#0d182b 58%,#0a1325 100%)!important;
+}
+body.lumina-v2 .lumina-feed-header {
+  background:rgba(11,21,40,.94)!important;
+  border-color:var(--v3-stroke)!important;
+  box-shadow:none!important;
+}
+body.lumina-v2 .lumina-feed-bar {
+  min-height:66px;padding:10px 17px!important;gap:7px;
+}
+body.lumina-v2 .lumina-brand-lockup {gap:10px}
+body.lumina-v2 .lumina-brand-title {
+  font-size:clamp(24px,6.5vw,29px)!important;
+  line-height:1.03;letter-spacing:-.07em;
+}
+body.lumina-v2 .lumina-brand-subtitle {font-size:10px!important;color:#a9bbda!important}
+body.lumina-v2 .lumina-brand-spark {
+  width:35px;height:35px;border-radius:13px;
+  background:linear-gradient(145deg,#736cff,#9e63e9 67%,#ba77e9);
+  box-shadow:0 6px 24px rgba(113,100,249,.22),inset 0 1px rgba(255,255,255,.45);
+}
+body.lumina-v2 .lumina-facelift .top-action,
+body.lumina-v2 .lumina-facelift .lumina-search-button {
+  width:39px!important;height:39px!important;min-width:39px!important;min-height:39px!important;
+  border-radius:14px!important;background:rgba(154,181,255,.07)!important;
+  border:1px solid rgba(196,215,255,.15)!important;
+  box-shadow:none!important;
+}
+body.lumina-v2 .lumina-moments-wrap {
+  max-width:680px;padding:14px 15px 0!important;
+}
+body.lumina-v2 .lumina-section-heading {gap:12px;margin-bottom:9px}
+body.lumina-v2 .lumina-section-heading strong {
+  font-size:16px!important;letter-spacing:-.035em;
+}
+body.lumina-v2 .lumina-section-heading span {font-size:10px!important;color:#a6bad7!important}
+body.lumina-v2 .lumina-moments {padding:3px 0 9px!important;gap:12px!important}
+body.lumina-v2 .lumina-moment-name {font-size:10.5px!important}
+body.lumina-v2 .lumina-v3-discovery {margin:5px 0 14px}
+body.lumina-v2 .one-v3-feed-entry.one-adventure-entry {
+  width:100%!important;max-width:100%!important;
+  min-height:130px!important;margin:0!important;
+  padding:14px 90px 14px 14px!important;
+  grid-template-columns:45px minmax(0,1fr)!important;
+  gap:10px!important;align-items:center;
+  border-radius:22px!important;overflow:hidden!important;
+  background:
+    radial-gradient(ellipse 50% 90% at 99% 0%,rgba(var(--one-a),.29),transparent 92%),
+    radial-gradient(ellipse 90% 110% at 0% 100%,rgba(var(--one-b),.12),transparent 72%),
+    linear-gradient(118deg,#20254a,#141f3e 78%)!important;
+  border:1px solid rgba(178,157,255,.22)!important;
+  box-shadow:0 12px 27px rgba(2,8,25,.17)!important;
+  transform:none!important;filter:none!important;
+}
+body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-orbit {
+  width:45px!important;height:45px!important;border-radius:15px!important;
+}
+body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-copy {
+  min-width:0;width:100%;gap:4px;
+}
+body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-copy>small {
+  font-size:8px!important;letter-spacing:.17em!important;
+}
+body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-copy>b {
+  font-size:clamp(17px,5vw,21px)!important;
+  line-height:1.12!important;letter-spacing:-.045em!important;
+  max-width:100%!important;overflow-wrap:normal!important;
+  text-wrap:balance;
+}
+body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-copy>em {
+  font-size:10px!important;line-height:1.35!important;
+  max-width:100%!important;color:#cfdaed!important;
+}
+body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-prompt-line {
+  margin-top:4px;min-width:0;max-width:100%;gap:5px;
+}
+body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-prompt-pill {
+  min-width:0;max-width:100%!important;
+  font-size:9px!important;padding:6px 9px!important;
+  border-radius:10px!important;background:rgba(196,173,255,.11)!important;
+  border-color:rgba(214,203,255,.14)!important;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-status {
+  max-width:100%;font-size:9px!important;line-height:1.3;
+  color:#c0cde6!important;
+}
+body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-flow {display:none!important}
+body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-portal {
+  right:11px!important;top:50%!important;
+  width:66px!important;height:73px!important;border-radius:21px!important;
+  box-shadow:0 10px 23px rgba(29,13,90,.3),inset 0 1px rgba(255,255,255,.3)!important;
+  pointer-events:auto!important;
+}
+body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-symbol {scale:.74!important}
+body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-orbit-ring {
+  box-shadow:none!important;
+}
+body.lumina-v2 .lumina-feed-content {
+  width:100%;max-width:680px;padding:0 15px 28px!important;
+}
+body.lumina-v2 .lumina-feed-switch {
+  padding:0 0 14px!important;margin:0 0 2px;gap:7px;
+}
+body.lumina-v2 .lumina-feed-switch button {
+  font-size:12px!important;font-weight:800!important;
+  min-height:37px!important;padding:8px 13px!important;
+  border-radius:13px!important;
+}
+body.lumina-v2 .lumina-feed-switch button.is-active {
+  background:linear-gradient(130deg,#fff,#dfe8ff)!important;color:#162540!important;
+  box-shadow:0 6px 16px rgba(3,12,29,.14);
+}
+body.lumina-v2 .lumina-feed-switch .lumina-switch-hint {
+  max-width:92px;font-size:9px;line-height:1.3;
+}
+body.lumina-v2 .lumina-v3-empty {
+  text-align:left!important;
+  padding:19px!important;margin:0 0 18px!important;
+  border-radius:22px!important;
+  border:1px solid rgba(170,189,245,.21)!important;
+  background:
+    radial-gradient(ellipse 75% 78% at 100% 0%,rgba(132,105,239,.16),transparent 79%),
+    linear-gradient(145deg,#1b2c4d,#15243f)!important;
+  box-shadow:0 13px 30px rgba(4,10,27,.13)!important;
+}
+body.lumina-v2 .lumina-v3-empty-header {
+  display:flex;align-items:center;gap:8px;margin-bottom:9px;
+}
+body.lumina-v2 .lumina-v3-empty-symbol {
+  display:grid;place-items:center;width:32px;height:32px;
+  color:#d4c8ff;background:rgba(158,142,255,.15);
+  border-radius:11px;border:1px solid rgba(188,179,255,.16);
+}
+body.lumina-v2 .lumina-v3-empty-kicker {
+  letter-spacing:.12em;font-size:9px;font-weight:850;color:#c0b8ff;
+}
+body.lumina-v2 .lumina-v3-empty h2 {
+  max-width:290px;font-size:clamp(20px,5.9vw,26px)!important;
+  line-height:1.13;margin:0 0 9px!important;
+  letter-spacing:-.047em;
+}
+body.lumina-v2 .lumina-v3-empty .lumina-v3-empty-subtitle {
+  text-align:left;max-width:100%;
+  margin:0 0 16px!important;font-size:12px!important;
+  line-height:1.5!important;color:#c9d6ea!important;
+}
+body.lumina-v2 .lumina-v3-empty .lumina-v2-empty-actions {
+  justify-content:flex-start;gap:8px;margin-bottom:0;flex-wrap:wrap;
+}
+body.lumina-v2 .lumina-v3-empty .lumina-v2-empty-actions button {
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  min-height:41px;padding:10px 13px;border-radius:12px;
+  font-size:11.5px!important;
+}
+body.lumina-v2 .lumina-v3-empty .lumina-v2-empty-actions button:first-child {
+  background:#e9ecff!important;color:#132440!important;
+}
+body.lumina-v2 .lumina-v3-suggestions {
+  border-top:1px solid rgba(209,222,255,.12);
+  padding-top:14px;margin-top:17px;
+}
+body.lumina-v2 .lumina-v3-suggestions-heading {
+  display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;
+}
+body.lumina-v2 .lumina-v3-suggestions-heading strong {font-size:12px}
+body.lumina-v2 .lumina-v3-suggestions-heading button {
+  border:0;background:transparent;color:#c0b5ff;font-size:11px;font-weight:750;
+}
+body.lumina-v2 .lumina-v3-people {display:grid;gap:7px}
+body.lumina-v2 .lumina-v3-person {
+  display:flex;align-items:center;gap:10px;min-width:0;
+  width:100%;padding:8px 9px;border-radius:14px;
+  border:1px solid rgba(205,218,255,.1);
+  background:rgba(212,223,255,.04);color:#fff;text-align:left;
+}
+body.lumina-v2 .lumina-v3-person>span:nth-child(2) {
+  flex:1;display:grid;gap:2px;min-width:0;
+}
+body.lumina-v2 .lumina-v3-person strong {font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body.lumina-v2 .lumina-v3-person small {font-size:10px;color:#a4b7d5}
+body.lumina-v2 .lumina-v3-person-arrow {font-size:17px;color:#c8bbff}
+body.lumina-v2 .nav {
+  bottom:calc(8px + env(safe-area-inset-bottom))!important;
+  left:12px!important;right:12px!important;max-width:480px!important;
+  padding:6px 6px!important;
+  border-radius:21px!important;background:rgba(14,24,44,.97)!important;
+  box-shadow:0 15px 35px rgba(0,5,18,.36),0 0 0 1px rgba(210,223,255,.06)!important;
+}
+body.lumina-v2 .nav .nb {min-height:49px!important;gap:3px!important;border-radius:14px!important}
+body.lumina-v2 .nav .nb span {font-size:10px!important}
+body.lumina-v2 .nav .nb-on:not(.nb-create) {background:rgba(115,118,240,.13)!important}
+body.lumina-v2 .nav .nb-create svg {
+  width:37px!important;height:37px!important;padding:8px!important;
+  border-radius:13px!important;box-shadow:0 6px 18px rgba(120,91,238,.28);
+}
+/* The opening view should offer a confident choice, not an empty half-screen. */
+body.lumina-v2 .lumina-opening {
+  background:
+    radial-gradient(ellipse 90% 55% at 83% 0%,rgba(122,93,234,.27),transparent 75%),
+    linear-gradient(180deg,#18274a,#0f1b32 100%)!important;
+}
+body.lumina-v2 .lumina-opening .opening-shell {
+  max-width:500px!important;min-height:100dvh;
+  padding:calc(22px + env(safe-area-inset-top)) 22px calc(24px + env(safe-area-inset-bottom))!important;
+  justify-content:flex-start;gap:0;
+}
+body.lumina-v2 .lumina-opening .opening-shell>div:first-child {margin-bottom:24px!important}
+body.lumina-v2 .lumina-opening .opening-kicker {font-size:10px;letter-spacing:.11em}
+body.lumina-v2 .lumina-opening .opening-title {
+  font-size:clamp(34px,9vw,45px)!important;
+  line-height:1.04!important;letter-spacing:-.055em!important;
+  padding:0 1px 6px!important;
+}
+body.lumina-v2 .lumina-opening .opening-copy {
+  font-size:13px!important;line-height:1.5!important;
+  max-width:390px;margin-top:14px!important;
+  color:#c6d3e8!important;
+}
+body.lumina-v2 .lumina-opening .opening-constellation {
+  position:relative;
+  flex:0 0 auto;align-self:center;
+  width:min(80%,280px);height:132px;
+  margin:0 auto 12px;
+  isolation:isolate;
+}
+body.lumina-v2 .lumina-opening .opening-orbit {
+  display:grid;place-items:center;position:absolute;
+  border-radius:23px;color:#fff;font-size:26px;
+  border:1px solid rgba(227,221,255,.3);
+  box-shadow:0 14px 33px rgba(7,11,33,.35),inset 0 1px rgba(255,255,255,.24);
+}
+body.lumina-v2 .lumina-opening .opening-orbit-a {
+  width:82px;height:82px;left:50%;top:8px;transform:translateX(-50%);
+  background:linear-gradient(145deg,#6a78ee,#b280fb);
+}
+body.lumina-v2 .lumina-opening .opening-orbit-b {
+  width:57px;height:57px;left:13%;top:58px;
+  background:linear-gradient(145deg,#3788ce,#7656d2);
+}
+body.lumina-v2 .lumina-opening .opening-orbit-c {
+  width:57px;height:57px;right:12%;top:58px;
+  background:linear-gradient(145deg,#a355c9,#ed8bca);
+}
+body.lumina-v2 .lumina-opening .opening-orbit-line {
+  position:absolute;top:71px;width:82px;height:1px;z-index:-1;
+  background:linear-gradient(90deg,rgba(117,152,255,.1),rgba(198,183,255,.6),rgba(117,152,255,.1));
+}
+body.lumina-v2 .lumina-opening .opening-orbit-line-a {left:24%;transform:rotate(-24deg)}
+body.lumina-v2 .lumina-opening .opening-orbit-line-b {right:23%;transform:rotate(24deg)}
+body.lumina-v2 .lumina-opening .opening-actions {
+  margin-top:0!important;width:100%;max-width:450px;
+}
+body.lumina-v2 .lumina-opening .opening-choice-label {
+  font-size:10px;color:#bbc9e4!important;margin-bottom:12px!important;
+}
+body.lumina-v2 .lumina-opening .opening-primary-action,
+body.lumina-v2 .lumina-opening .opening-secondary-action {
+  min-height:53px!important;padding:13px!important;
+  font-size:14px!important;border-radius:17px!important;
+  box-shadow:0 12px 25px rgba(10,17,47,.16)!important;
+}
+body.lumina-v2 .lumina-opening .opening-primary-action {
+  color:#182442!important;background:linear-gradient(110deg,#e2e6ff,#bfc8ff)!important;
+}
+body.lumina-v2 .lumina-opening .opening-secondary-action {
+  color:#eaf0ff!important;
+  background:rgba(158,170,245,.12)!important;
+  border:1px solid rgba(204,218,255,.22)!important;
+  margin-top:9px!important;
+}
+@media(max-width:385px){
+  body.lumina-v2 .lumina-section-heading span {display:none}
+  body.lumina-v2 .lumina-feed-switch .lumina-switch-hint {display:none}
+  body.lumina-v2 .one-v3-feed-entry.one-adventure-entry {
+    grid-template-columns:40px minmax(0,1fr)!important;
+    padding-left:11px!important;padding-right:78px!important;
+  }
+  body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-portal {width:58px!important;height:67px!important;right:9px!important}
+  body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-copy>b {font-size:17px!important}
+}
+@media(max-height:690px) {
+  body.lumina-v2 .lumina-opening .opening-constellation {height:86px;transform:scale(.74);margin-bottom:0}
+  body.lumina-v2 .lumina-opening .opening-shell>div:first-child {margin-bottom:15px!important}
+}
+@media(prefers-reduced-motion:reduce) {
+  body.lumina-v2 .lumina-opening .opening-orbit,
+  body.lumina-v2 .one-v3-feed-entry.one-adventure-entry {animation:none!important;transition:none!important}
+}

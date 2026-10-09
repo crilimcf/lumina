@@ -2,7 +2,7 @@
 export const V2_EN = {
   'Início':'Home','Criar':'Create','Explorar':'Explore','Chat':'Chat',
   'A seguir':'Following','Para ti':'For you','Pessoas primeiro, sempre.':'People first, always.',
-  'As melhores histórias começam contigo.':'The best stories start with you.',
+  'As melhores histórias começam contigo.':'The best stories start with you.','O teu Feed está vazio.':'Your feed is empty.',
   'O teu espaço está pronto. Descobre pessoas com quem te identificas ou partilha um primeiro momento.':'Your space is ready. Find your people or share your first moment.',
   'Descobrir pessoas':'Find people','Criar publicação':'Create a post',
   'Gosto':'Like','Adoro':'Love','Comentários':'Comments',
@@ -13,12 +13,12 @@ export const V2_EN = {
   'Vídeo publicado':'Video post','Publicação':'Post',
   'Encontra pessoas, comunidades e o que está a acontecer à tua volta — ao teu ritmo.':'Find people, communities and what is happening around you — at your own pace.',
   'Pulso':'Pulse','Descoberta social':'Social discovery','Encontra a tua comunidade':'Find your community',
-  'Notícias e eventos':'News and events','Explorar a Lumina':'Explore Lumina',
+  'Notícias e eventos':'News and events','Notícias e tendências':'News and trends','Explorar a Lumina':'Explore Lumina',
 };
 export const V2_FR = {
   'Início':'Accueil','Criar':'Créer','Explorar':'Explorer','Chat':'Messages',
   'A seguir':'Abonnements','Para ti':'Pour toi','Pessoas primeiro, sempre.':'Les personnes avant tout.',
-  'As melhores histórias começam contigo.':'Les plus belles histoires commencent avec toi.',
+  'As melhores histórias começam contigo.':'Les plus belles histoires commencent avec toi.','O teu Feed está vazio.':'Ton Fil est vide.',
   'O teu espaço está pronto. Descobre pessoas com quem te identificas ou partilha um primeiro momento.':'Ton espace est prêt. Rencontre des personnes qui te ressemblent ou partage ton premier moment.',
   'Descobrir pessoas':'Découvrir des personnes','Criar publicação':'Créer une publication',
   'Gosto':"J’aime",'Adoro':"J’adore",'Comentários':'Commentaires',
@@ -29,12 +29,12 @@ export const V2_FR = {
   'Vídeo publicado':'Vidéo publiée','Publicação':'Publication',
   'Encontra pessoas, comunidades e o que está a acontecer à tua volta — ao teu ritmo.':'Découvre des personnes, des communautés et ce qui se passe autour de toi — à ton rythme.',
   'Pulso':'Pouls','Descoberta social':'Découverte sociale','Encontra a tua comunidade':'Trouve ta communauté',
-  'Notícias e eventos':'Actualités et événements','Explorar a Lumina':'Explorer Lumina',
+  'Notícias e eventos':'Actualités et événements','Notícias e tendências':'Actualités et tendances','Explorar a Lumina':'Explorer Lumina',
 };
 export const V2_ES = {
   'Início':'Inicio','Criar':'Crear','Explorar':'Explorar','Chat':'Mensajes',
   'A seguir':'Siguiendo','Para ti':'Para ti','Pessoas primeiro, sempre.':'Las personas primero, siempre.',
-  'As melhores histórias começam contigo.':'Las mejores historias empiezan contigo.',
+  'As melhores histórias começam contigo.':'Las mejores historias empiezan contigo.','O teu Feed está vazio.':'Tu feed está vacío.',
   'O teu espaço está pronto. Descobre pessoas com quem te identificas ou partilha um primeiro momento.':'Tu espacio está listo. Descubre personas afines o comparte tu primer momento.',
   'Descobrir pessoas':'Descubrir personas','Criar publicação':'Crear publicación',
   'Gosto':'Me gusta','Adoro':'Me encanta','Comentários':'Comentarios',
@@ -45,5 +45,5 @@ export const V2_ES = {
   'Vídeo publicado':'Vídeo publicado','Publicação':'Publicación',
   'Encontra pessoas, comunidades e o que está a acontecer à tua volta — ao teu ritmo.':'Descubre personas, comunidades y lo que sucede a tu alrededor — a tu ritmo.',
   'Pulso':'Pulso','Descoberta social':'Descubrimiento social','Encontra a tua comunidade':'Encuentra tu comunidad',
-  'Notícias e eventos':'Noticias y eventos','Explorar a Lumina':'Explorar Lumina',
+  'Notícias e eventos':'Noticias y eventos','Notícias e tendências':'Noticias y tendencias','Explorar a Lumina':'Explorar Lumina',
 };

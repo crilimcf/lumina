@@ -368,3 +368,25 @@ body.lumina-v2[data-lumina-identity="air"] .nav .nb-create svg {
 @media(prefers-reduced-motion:reduce) {
   body.lumina-v2 .messages-group-launcher {transition:none!important;}
 }
+
+/* Lumina One's animated CTA must not become white-on-lavender in Air. */
+body.lumina-v2[data-lumina-identity="air"] .one-v3-feed-entry.one-adventure-entry .one-adventure-copy > b {
+  color:#202949!important;
+  text-shadow:none!important;
+}
+body.lumina-v2[data-lumina-identity="air"] .one-v3-feed-entry.one-adventure-entry .one-adventure-copy > em,
+body.lumina-v2[data-lumina-identity="air"] .one-v3-feed-entry.one-adventure-entry .one-adventure-status {
+  color:#485a79!important;
+  opacity:1!important;
+}
+body.lumina-v2[data-lumina-identity="air"] .one-v3-feed-entry.one-adventure-entry .one-adventure-prompt-pill {
+  background:rgba(223,219,255,.96)!important;
+  border:1px solid #bdb4ea!important;
+  color:#2d285b!important;
+  text-shadow:none!important;
+}
+body.lumina-v2[data-lumina-identity="air"] .one-v3-feed-entry.one-adventure-entry .one-adventure-prompt-pill span,
+body.lumina-v2[data-lumina-identity="air"] .one-v3-feed-entry.one-adventure-entry .one-adventure-prompt-pill i {
+  color:#362f74!important;
+  opacity:1!important;
+}

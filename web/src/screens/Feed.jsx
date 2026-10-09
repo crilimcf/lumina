@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Edit3, Flag, MoreHorizontal, Plus, Repeat2, Search, Send, Trash2, X, Heart, Flame, MessageCircle, Sparkles, Compass } from 'lucide-react';
 import { api } from '../api.js';
 import { t } from '../i18n-ui.js';
+import { OneDiscoveryPortal } from '../components/OneDiscoveryPortal.jsx';
 import { Orb, Skeleton, ErrorNote, Empty } from '../ui.jsx';
 import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
 import { MomentComposer, MomentRing } from '../components/Moments.jsx';
@@ -113,12 +114,13 @@ export function Feed({
           </button>
           {momentGroups.filter(g => g.author.id !== me.id).map(g => <button key={g.author.id} className="lumina-moment-button" onClick={() => setViewingAuthor(g.author.id)}><MomentRing palette={g.author.palette} avatarUrl={g.author.avatarUrl} allSeen={g.items.every(i => i.viewed)} size={52} /><span className="lumina-moment-name">{g.author.name.split(' ')[0]}</span></button>)}
         </div>
+        <OneDiscoveryPortal onEnter={() => setScreen('one')}/>
       </section>
 
       <main className="lumina-feed-content">
         <div className="lumina-feed-switch" role="group" aria-label="Descoberta social">
           <button type="button" className="is-active" aria-current="page">{t('A seguir')}</button>
-          <button type="button" onClick={() => setScreen('one')} aria-label="Abrir Lumina One"><Sparkles size={16}/> {t('Para ti')}</button>
+          <button type="button" onClick={() => setScreen('one')} aria-label="Abrir o Pulso e descobrir conteúdo"><Sparkles size={16}/> {t('Para ti')}</button>
           <span className="lumina-switch-hint">{t('Pessoas primeiro, sempre.')}</span>
         </div>
         <LiveNow onOpen={onOpenLive} />

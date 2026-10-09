@@ -18,7 +18,7 @@ body.lumina-v2 .lumina-feed-header {
   box-shadow:none!important;
 }
 body.lumina-v2 .lumina-feed-bar {
-  min-height:66px;padding:10px 17px!important;gap:7px;
+  min-height:66px;padding:12px 17px 10px!important;gap:7px;
 }
 body.lumina-v2 .lumina-brand-lockup {gap:10px}
 body.lumina-v2 .lumina-brand-title {
@@ -194,16 +194,18 @@ body.lumina-v2 .lumina-v3-person small {font-size:10px;color:#a4b7d5}
 body.lumina-v2 .lumina-v3-person-arrow {font-size:17px;color:#c8bbff}
 body.lumina-v2 .nav {
   bottom:calc(8px + env(safe-area-inset-bottom))!important;
-  left:12px!important;right:12px!important;max-width:480px!important;
-  padding:6px 6px!important;
+  width:min(calc(100vw - 24px),480px)!important;
+  left:50%!important;right:auto!important;max-width:480px!important;
+  transform:translateX(-50%)!important;margin:0!important;
+  padding:5px 6px!important;
   border-radius:21px!important;background:rgba(14,24,44,.97)!important;
   box-shadow:0 15px 35px rgba(0,5,18,.36),0 0 0 1px rgba(210,223,255,.06)!important;
 }
-body.lumina-v2 .nav .nb {min-height:49px!important;gap:3px!important;border-radius:14px!important}
+body.lumina-v2 .nav .nb {min-height:48px!important;max-height:52px!important;gap:2px!important;padding:2px 1px!important;border-radius:14px!important}
 body.lumina-v2 .nav .nb span {font-size:10px!important}
 body.lumina-v2 .nav .nb-on:not(.nb-create) {background:rgba(115,118,240,.13)!important}
 body.lumina-v2 .nav .nb-create svg {
-  width:37px!important;height:37px!important;padding:8px!important;
+  width:34px!important;height:34px!important;padding:7px!important;
   border-radius:13px!important;box-shadow:0 6px 18px rgba(120,91,238,.28);
 }
 /* The opening view should offer a confident choice, not an empty half-screen. */

@@ -7,6 +7,7 @@ import { disableNativePush, enableNativePush, nativePushSnapshot } from './nativ
 import { isNativeApp } from './native/session.js';
 import './index.css';
 import './lumina-v2.css';
+import './lumina-premium-mobile.css';
 
 document.body.classList.add('lumina-v2');
 

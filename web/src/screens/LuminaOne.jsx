@@ -381,12 +381,12 @@ export function LuminaOne({ me, onBack, ping }) {
         <div className="one-contexts"><span>Modo de agora</span><div>{CONTEXTS.map(([key,label])=><button key={key} className={prefs.context_mode===key?'is-on':''} onClick={()=>setPrefs(prev=>({...prev,context_mode:key}))}>{label}</button>)}</div></div>
         <div className="one-radar-handoff">
           <MapPin size={22}/>
-          <div><b>{deviceLocation?.label || deviceLocation?.city || 'Localização do iPhone'}</b><p>O Radar Local usa a localização real do iPhone. Não misturamos notícias locais com o feed mundial.</p></div>
+          <div><b>{deviceLocation?.label || deviceLocation?.city || 'Localização do iPhone'}</b><p>O Radar usa a localização real do iPhone. Perto de mim, País e Mundo ficam separados.</p></div>
           <button className="one-secondary-action" onClick={()=>refreshDeviceLocation({ force:true })} disabled={locating}>{locating?'A detetar…':'Atualizar'}</button>
         </div>
         <div className="one-agora-actions">
           <button className="one-primary" onClick={saveAgora}>Aplicar agora</button>
-          <button className="one-secondary-action" onClick={openRadar}>Abrir Radar Local / Mundo</button>
+          <button className="one-secondary-action" onClick={openRadar}>Abrir Radar Perto / País / Mundo</button>
         </div>
       </section>
     </main>}

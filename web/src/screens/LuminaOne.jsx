@@ -75,6 +75,7 @@ export function LuminaOne({ me, onBack, ping }) {
   const [lumes, setLumes] = useState([]);
   const [lumeViewer, setLumeViewer] = useState(null);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [lumeComposerOpen, setLumeComposerOpen] = useState(false);
   const [cameraFacing, setCameraFacing] = useState('user');
   const [cameraError, setCameraError] = useState('');
   const [lumeFile, setLumeFile] = useState(null);
@@ -379,7 +380,7 @@ export function LuminaOne({ me, onBack, ping }) {
     </main>}
 
     {tab==='lumes' && <main className="one-content one-lumes-page">
-      <section className="one-hero-card one-lume-hero"><div><span>LUMES</span><h2>{t('Agora. Uma vez.')} <i>{t('Real.')}</i></h2><p>{t('Fotografias tiradas neste momento, só para amigos mútuos. Abrem uma vez e desaparecem.')}</p></div><button className="one-primary" onClick={()=>setCameraOpen(true)}><Camera size={18}/> {t('Tirar um Lume')}</button></section>
+      <section className="one-hero-card one-lume-hero"><div><span>LUME 2.0</span><h2>{t('Agora. Uma vez.')} <i>{t('Real.')}</i></h2><p>{t('Fotografias tiradas neste momento, só para amigos mútuos. Abrem uma vez e desaparecem.')}</p></div><button className="one-primary" onClick={()=>setLumeComposerOpen(true)}><Camera size={18}/> {t('Acender um Lume')}</button></section>
       {lumeFile && <section className="one-lume-draft"><div className="one-lume-preview"><img src={lumePreviewUrl} alt="Pré-visualização do Lume" style={lumeEffectStyle(lumeEffect)}/><button onClick={()=>setLumeFile(null)} aria-label="Descartar"><X size={17}/></button></div><div className="one-effect-row">{EFFECTS.map(([key,label])=><button key={key} className={lumeEffect===key?'is-on':''} onClick={()=>setLumeEffect(key)}>{label}</button>)}</div><button className="one-primary" disabled={lumeBusy} onClick={publishLume}>{lumeBusy?'A enviar…':'Enviar Lume'}</button></section>}
       <section><div className="one-section-head"><div><span>À TUA ESPERA</span><b>{t('Lumes dos teus amigos')}</b></div><button onClick={loadLumes} aria-label="Atualizar Lumes"><RefreshCw size={16}/></button></div><div className="one-lume-grid">{lumes.map(lume=><button key={lume.id} className="one-lume-tile" onClick={()=>openLume(lume)}><div><Orb p={lume.palette} avatarUrl={lume.avatar_url} s={54}/><span className="one-lume-glow"/></div><b>{lume.mine?'O teu Lume':lume.name.split(' ')[0]}</b><span>{lume.mine?'ativo':'toca para abrir'}</span></button>)}</div>{!lumes.length&&<div className="one-state">Ainda não há Lumes. O primeiro pode ser teu.</div>}</section>
     </main>}
@@ -417,7 +418,15 @@ export function LuminaOne({ me, onBack, ping }) {
       </section>
     </main>}
 
-    {cameraOpen && <div className="one-camera" role="dialog" aria-modal="true" aria-label="Câmara Lume"><video ref={videoCameraRef} playsInline muted style={lumeEffectStyle(lumeEffect)}/><div className="one-camera-top"><button onClick={()=>setCameraOpen(false)} aria-label="Fechar câmara"><X size={20}/></button><b>Lume</b><button onClick={()=>setCameraFacing(v=>v==='user'?'environment':'user')} aria-label="Trocar câmara"><RefreshCw size={19}/></button></div>{cameraError&&<div className="one-camera-error">{cameraError}</div>}<div className="one-camera-effects">{EFFECTS.map(([key,label])=><button key={key} className={lumeEffect===key?'is-on':''} onClick={()=>setLumeEffect(key)}>{label}</button>)}</div><button className="one-shutter" onClick={captureLume} aria-label="Tirar fotografia"><span/></button></div>}
+    {lumeComposerOpen && !cameraOpen && <div className="social-loop-backdrop one-v2-lume-compose" role="dialog" aria-modal="true" aria-label={t('Acender um Lume')}>
+      <section className="one-v2-lume-compose-card">
+        <div className="one-v2-lume-compose-header"><h2>{t('Acender um Lume')}</h2><button type="button" onClick={()=>setLumeComposerOpen(false)} aria-label={t('Fechar')}><X size={20}/></button></div>
+        <p>{t('Uma fotografia real, só para amigos mútuos. Abre uma vez e desaparece.')}</p>
+        <button type="button" className="one-v2-lume-context" aria-label={t('Direto · Uma fotografia para amigos escolhidos')}><Camera size={24}/><span><b>{t('Direto')}</b><small>{t('Uma fotografia para amigos escolhidos')}</small></span></button>
+        <button type="button" className="one-primary" onClick={()=>{setLumeComposerOpen(false);setCameraOpen(true)}}><Camera size={18}/>{t('Tirar fotografia')}</button>
+      </section>
+    </div>}
+    {cameraOpen && <div className="one-camera social-loop-backdrop" role="dialog" aria-modal="true" aria-label={t('Câmara')}><h2 className="one-camera-heading">{t('Câmara')}</h2><video ref={videoCameraRef} playsInline muted style={lumeEffectStyle(lumeEffect)}/><div className="one-camera-top"><button onClick={()=>setCameraOpen(false)} aria-label="Fechar câmara"><X size={20}/></button><b>Lume</b><button onClick={()=>setCameraFacing(v=>v==='user'?'environment':'user')} aria-label="Trocar câmara"><RefreshCw size={19}/></button></div>{cameraError&&<div className="one-camera-error">{cameraError}</div>}<div className="one-camera-effects">{EFFECTS.map(([key,label])=><button key={key} className={lumeEffect===key?'is-on':''} onClick={()=>setLumeEffect(key)}>{label}</button>)}</div><button className="one-shutter" onClick={captureLume} aria-label="Tirar fotografia"><span/></button></div>}
     {lumeViewer&&<LumeViewer lume={lumeViewer} onClose={()=>{setLumeViewer(null);loadLumes()}}/>}
     {capsuleCreate&&<div className="one-sheet-backdrop" role="dialog" aria-modal="true" aria-label="Nova Cápsula"><div className="one-sheet"><div className="one-sheet-head"><div><span>NOVA CÁPSULA</span><h3>Guardar para <i>depois.</i></h3></div><button onClick={()=>setCapsuleCreate(false)} aria-label="Fechar"><X size={18}/></button></div><label>Nome<input value={capsuleTitle} onChange={e=>setCapsuleTitle(e.target.value)} placeholder="Verão 2026" maxLength={80}/></label><label>Descrição<textarea value={capsuleDescription} onChange={e=>setCapsuleDescription(e.target.value)} placeholder="O que estamos a guardar?" maxLength={400}/></label><label>Quando pode abrir? <span>(opcional)</span><input type="datetime-local" value={capsuleUnlock} onChange={e=>setCapsuleUnlock(e.target.value)}/></label><button className="one-primary" disabled={capsuleBusy||!capsuleTitle.trim()} onClick={createCapsule}>{capsuleBusy?'A criar…':'Criar Cápsula'}</button></div></div>}
   </div>;

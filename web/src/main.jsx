@@ -6,6 +6,9 @@ import { initializeNativeRuntime, revealNativeApp } from './native/runtime.js';
 import { disableNativePush, enableNativePush, nativePushSnapshot } from './native/push.js';
 import { isNativeApp } from './native/session.js';
 import './index.css';
+import './lumina-v2.css';
+
+document.body.classList.add('lumina-v2');
 
 const CANONICAL_HOST = 'lumina-snowy-ten.vercel.app';
 const host = window.location.hostname;

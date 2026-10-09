@@ -36,7 +36,9 @@ test('Midnight Air and Pulse are real persistent appearance choices', async ({pa
 
   await page.reload();
   await expect(page.locator('body')).toHaveAttribute('data-lumina-identity','air');
-  await page.getByRole('button',{name:'Entrar no Feed'}).click();
+  // Existing members must not see the opening decision after reloading.
+  await expect(page.getByRole('button',{name:'Novo'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Entrar no Feed'})).toHaveCount(0);
 
   await page.getByRole('button',{name:'Perfil',exact:true}).first().click();
   await options.getByRole('button',{name:/Pulse,/}).click();

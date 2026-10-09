@@ -160,6 +160,8 @@ async function captureDevice(browser, output, contextOptions, identity='midnight
 }
 
 test('gera screenshots determinísticos para App Store e Google Play', async ({ browser }) => {
+  // Four real device/appearance passes need more than the 45-second default.
+  test.setTimeout(180_000);
   const root = '../mobile/store-assets/screenshots';
   await fs.mkdir(`${root}/iphone-6.7`, { recursive:true });
   await fs.mkdir(`${root}/android-phone`, { recursive:true });

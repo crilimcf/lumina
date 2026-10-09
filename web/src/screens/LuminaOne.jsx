@@ -65,6 +65,7 @@ function LumeViewer({ lume, onClose }) {
 export function LuminaOne({ me, onBack, ping }) {
   const initialOne = new URLSearchParams(window.location.search).get('one');
   const [tab, setTab] = useState(['pulse','lumes','capsules','agora'].includes(initialOne) ? initialOne : 'pulse');
+  const swipeStart = useRef(null);
   const [pulseScope, setPulseScope] = useState('for-you');
   const [pulse, setPulse] = useState([]);
   const [pulseLoading, setPulseLoading] = useState(false);
@@ -142,6 +143,10 @@ export function LuminaOne({ me, onBack, ping }) {
     } catch (error) { ping(error.message); }
   }, [deviceLocation, ping, refreshDeviceLocation]);
 
+  useEffect(() => {
+    try { localStorage.setItem('lumina-one-last-mode-v1', tab); } catch {}
+    window.dispatchEvent(new Event('lumina:one-mode-changed'));
+  }, [tab]);
   useEffect(() => { if (tab === 'pulse') loadPulse(); }, [tab, loadPulse]);
   useEffect(() => { if (tab === 'lumes') loadLumes(); }, [tab, loadLumes]);
   useEffect(() => { if (tab === 'capsules') loadCapsules(); }, [tab, loadCapsules]);
@@ -285,7 +290,17 @@ export function LuminaOne({ me, onBack, ping }) {
     window.location.assign(`${url.pathname}${url.search}${url.hash}`);
   };
 
-  return <div className="lumina-one one-v2">
+  return <div className="lumina-one one-v2 one-v3"
+    onPointerDown={e => { if (e.target.closest('button, input, textarea, select, video, a')) return; swipeStart.current = { x:e.clientX,y:e.clientY }; }}
+    onPointerUp={e => {
+      if (!swipeStart.current) return;
+      const dx=e.clientX-swipeStart.current.x,dy=e.clientY-swipeStart.current.y;
+      swipeStart.current=null;
+      if (Math.abs(dx)<85 || Math.abs(dy)>60) return;
+      const index=TABS.findIndex(([key])=>key===tab);
+      const next=TABS[index+(dx<0?1:-1)];
+      if(next)setTab(next[0]);
+    }}>
     <header className="one-header">
       <button className="one-back" onClick={onBack} aria-label="Voltar ao Feed"><ArrowLeft size={19}/></button>
       <div className="one-title-wrap">

@@ -9,6 +9,7 @@ import './index.css';
 import './lumina-v2.css';
 import './lumina-premium-mobile.css';
 import './lumina-identities.css';
+import './lumina-air-readability.css';
 import { readLuminaIdentity, applyLuminaIdentity } from './components/LuminaAppearance.jsx';
 
 document.body.classList.add('lumina-v2');

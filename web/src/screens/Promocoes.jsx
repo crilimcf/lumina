@@ -235,6 +235,7 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
             <div className="explore-eyebrow">{t('Explorar agora')}</div>
             <h1>{t('Explorar')}</h1>
             <p>{t('Encontra pessoas, comunidades e o que está a acontecer à tua volta — ao teu ritmo.')}</p>
+            <p className="lumina-v2-radar-intro">{t('Perto de mim, País e Mundo são experiências separadas. A localização vem diretamente do teu iPhone.')}</p>
           </div>
           <TopActions tab={tab} setTab={setTab} setThread={setThread} unreadCount={unreadCount}/>
         </div>
@@ -251,7 +252,7 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
         </button>
         <button type="button" className="is-current" aria-current="page">
           <Compass size={21} aria-hidden="true"/>
-          <span>Radar<small>{t('Notícias e eventos')}</small></span>
+          <span>Radar<small>{t('Notícias e tendências')}</small></span>
         </button>
       </div>
       <section className="explore-trust-panel" aria-label={t('Como funciona o Radar')}>

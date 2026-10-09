@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowUpRight, Download, Flag, LogOut, Pencil, Search, Shield, Sparkles, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { api } from '../api.js';
-import { t } from '../i18n.js';
+import { t } from '../i18n-ui.js';
 import { Orb } from '../ui.jsx';
 import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
 import '../facelift.css';
@@ -233,23 +233,23 @@ export function Perfil({ me, blocked, setBlocked, setScreen, onOpenProfile, logo
       </section>
 
       <section className="lumina-profile-section lumina-v2-stories">
-        <div className="lumina-profile-section-head"><strong>As tuas histórias</strong><span>{myPosts.length} publicações</span></div>
-        {postsLoading ? <div className="lumina-v2-gallery-caption" role="status">A carregar as tuas publicações…</div> : myPosts.length > 0
+        <div className="lumina-profile-section-head"><strong>{t('As tuas histórias')}</strong><span>{myPosts.length} publicações</span></div>
+        {postsLoading ? <div className="lumina-v2-gallery-caption" role="status">{t('A carregar as tuas publicações…')}</div> : myPosts.length > 0
           ? <>
               <div className="lumina-v2-gallery" aria-label="Galeria das tuas publicações">
                 {myPosts.slice(0,9).map(post => <div key={post.id} className={`lumina-v2-gallery-item${post.media_url?'':' is-text'}`}>
                   {post.media_url
                     ? (post.media_mime?.startsWith('video/')
-                        ? <video src={post.media_url} preload="metadata" muted playsInline aria-label="Vídeo publicado"/>
-                        : <img src={post.media_url} alt={post.body ? post.body.slice(0,100) : 'Fotografia publicada'} loading="lazy"/>)
-                    : <span>{post.body?.slice(0,110) || 'Publicação'}</span>}
+                        ? <video src={post.media_url} preload="metadata" muted playsInline aria-label={t('Vídeo publicado')}/>
+                        : <img src={post.media_url} alt={post.body ? post.body.slice(0,100) : t('Fotografia publicada')} loading="lazy"/>)
+                    : <span>{post.body?.slice(0,110) || t('Publicação')}</span>}
                 </div>)}
               </div>
-              <p className="lumina-v2-gallery-caption">As tuas publicações, num só lugar.</p>
+              <p className="lumina-v2-gallery-caption">{t('As tuas publicações, num só lugar.')}</p>
             </>
           : <div className="lumina-v2-empty lumina-v2-gallery-start">
-              <p>O teu perfil merece mostrar o que te faz único.</p>
-              <div className="lumina-v2-empty-actions"><button type="button" onClick={() => setComp({ title:'Publicar' })}>Criar a primeira publicação</button></div>
+              <p>{t('O teu perfil merece mostrar o que te faz único.')}</p>
+              <div className="lumina-v2-empty-actions"><button type="button" onClick={() => setComp({ title:'Publicar' })}>{t('Criar a primeira publicação')}</button></div>
             </div>}
       </section>
 

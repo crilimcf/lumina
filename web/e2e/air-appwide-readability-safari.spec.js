@@ -31,7 +31,9 @@ async function register(page) {
 }
 
 test('Air readable across entry, Feed, Direct, Rooms and Explore on iPhone', async ({ page }) => {
+  console.log('[air-qa] register start');
   await register(page);
+  console.log('[air-qa] entry loaded');
   await expect(page.locator('body')).toHaveAttribute('data-lumina-identity','air');
 
   // The two entry choices must remain distinct, not light text on a light card.
@@ -42,6 +44,7 @@ test('Air readable across entry, Feed, Direct, Rooms and Explore on iPhone', asy
   await page.getByRole('button',{ name:'Entrar no Feed' }).click();
 
   // The dynamic Lumina One discovery prompt is bright on Air, never white-on-white.
+  console.log('[air-qa] feed loaded');
   const discoveryPill = page.locator('.one-adventure-prompt-pill').first();
   await expect(discoveryPill).toBeVisible();
   expect(await contrastOnPaleSurface(discoveryPill)).toBeGreaterThan(4.5);
@@ -54,6 +57,7 @@ test('Air readable across entry, Feed, Direct, Rooms and Explore on iPhone', asy
     expect(await contrastOnPaleSurface(page.locator('.lumina-v3-empty-subtitle'))).toBeGreaterThan(4.5);
   }
 
+  console.log('[air-qa] starting Direct');
   await page.locator('.nav').getByRole('button',{ name:'Conversas' }).click();
   await expect(page.locator('.messages-title-row h1')).toBeVisible();
   expect(await contrastOnPaleSurface(page.locator('.messages-title-row p'))).toBeGreaterThan(4.5);
@@ -65,6 +69,7 @@ test('Air readable across entry, Feed, Direct, Rooms and Explore on iPhone', asy
   const navBounds = await page.locator('.nav').boundingBox();
   expect(groupBounds.bottom).toBeLessThan(navBounds.top);
 
+  console.log('[air-qa] starting Rooms');
   await page.locator('.nav').getByRole('button',{ name:'Salas' }).click();
   await expect(page.locator('.rooms-header')).toBeVisible();
   expect(await contrastOnPaleSurface(page.locator('.rooms-header .m'))).toBeGreaterThan(4.5);
@@ -75,6 +80,7 @@ test('Air readable across entry, Feed, Direct, Rooms and Explore on iPhone', asy
     expect(await contrastOnPaleSurface(page.locator('.rooms-empty-state p'))).toBeGreaterThan(4.5);
   }
 
+  console.log('[air-qa] starting Explore');
   await page.locator('.nav').getByRole('button',{ name:'Radar' }).click();
   await expect(page.locator('.explore-title-row h1')).toBeVisible();
   expect(await contrastOnPaleSurface(page.locator('.explore-title-row p').first())).toBeGreaterThan(4.5);

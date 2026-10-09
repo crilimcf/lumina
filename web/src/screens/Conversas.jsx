@@ -19,7 +19,7 @@ function PresenceAvatar({ person, size }) {
 }
 
 export function Conversas({
-  me, tab, setTab, setComp, unreadCount, threads, contacts = [], openContact, loadThreads, ping,
+  me, tab, setTab, setScreen, setComp, unreadCount, threads, contacts = [], openContact, loadThreads, ping,
   thread, setThread, msgs, text, setText, mode, setMode,
   mediaDraft, mediaReady, chooseMedia, acceptMedia, clearMedia,
   sending, send, editMessage, removeMessage, end,
@@ -388,6 +388,7 @@ export function Conversas({
         <span className="messages-empty-icon"><Sparkles size={22}/></span>
         <strong>{t('As conversas começam nas conexões.')}</strong>
         <p>{t('Segue alguém ou aceita um seguidor para começares a trocar mensagens na Lumina.')}</p>
+        <button type="button" className="messages-discover-cta" onClick={()=>setScreen?.('amigos')}>{t('Descobrir pessoas')} <span aria-hidden="true">↗</span></button>
       </div>}
 
       {hasAnyPeople && normalizedQuery && !hasViewResults && <div className="messages-no-results">{t('Não encontrámos conversas ou pessoas para “{query}”.', { query:query.trim() })}</div>}

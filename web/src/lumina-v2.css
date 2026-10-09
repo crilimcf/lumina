@@ -401,3 +401,38 @@ body.lumina-v2 .lumina-auth .auth-card {
   color:#17182f;
 }
 body.lumina-v2 .lumina-auth .auth-lede {color:#525976!important;}
+
+/* Authentication is deliberately part of the same dark palette. The legacy
+ * login component still has an inline light gradient, so override it here. */
+body.lumina-v2 .lumina-auth {
+  background:radial-gradient(ellipse 80% 40% at 95% 0%,rgba(141,111,242,.28),transparent 75%),
+    radial-gradient(ellipse 70% 40% at -18% 100%,rgba(83,156,239,.16),transparent 77%),
+    linear-gradient(180deg,#1b2d4d,#0b1428)!important;
+  color:#f7f8ff;
+  color-scheme:dark;
+}
+body.lumina-v2 .lumina-auth .auth-shell {padding-top:calc(44px + env(safe-area-inset-top))!important;}
+body.lumina-v2 .lumina-auth .auth-title {color:#f8f9ff!important;letter-spacing:-.085em;}
+body.lumina-v2 .lumina-auth .auth-kicker {color:#ccd8ef!important;}
+body.lumina-v2 .lumina-auth .auth-lede {color:#c4d1e9!important;}
+body.lumina-v2 .lumina-auth .auth-card {
+  background:rgba(22,39,66,.90)!important;
+  border:1px solid rgba(208,220,255,.20)!important;
+  box-shadow:0 20px 50px rgba(3,9,23,.23)!important;
+  border-radius:28px!important;
+  color:#f6f8ff;
+}
+body.lumina-v2 .lumina-auth .auth-card input:not([type="checkbox"]),
+body.lumina-v2 .lumina-auth .auth-card textarea {
+  min-height:49px;border-radius:16px;
+  color:#f6f8ff!important;background:rgba(12,25,45,.8)!important;
+  border:1px solid rgba(205,218,255,.23)!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.02);
+}
+body.lumina-v2 .lumina-auth .auth-card input:focus {
+  border-color:#a2a5ff!important;outline:2px solid rgba(143,167,255,.26);
+}
+body.lumina-v2 .lumina-auth .auth-card input::placeholder {color:#b2c2de;}
+body.lumina-v2 .lumina-auth .auth-card .m,
+body.lumina-v2 .lumina-auth .auth-terms {color:#c6d3eb!important;}
+body.lumina-v2 .lumina-auth .auth-card a {color:#bbaaff;}

@@ -43,7 +43,7 @@ body.lumina-v2 button:focus-visible,body.lumina-v2 a:focus-visible {
 body.lumina-v2 .lumina-feed-header,
 body.lumina-v2 .explore-header,
 body.lumina-v2 .lumina-profile-topbar {
-  background:rgba(13,24,44,.84)!important;
+  background:linear-gradient(180deg,rgba(13,24,44,.97),rgba(13,24,44,.80))!important;
   border-bottom:1px solid rgba(218,229,255,.12)!important;
   box-shadow:0 14px 36px rgba(3,11,26,.16);
   -webkit-backdrop-filter:blur(22px) saturate(130%);
@@ -79,7 +79,7 @@ body.lumina-v2 .lumina-facelift .lumina-search-button {
 body.lumina-v2 .nav {
   bottom:calc(12px + env(safe-area-inset-bottom));
   max-width:490px;left:12px;right:12px;
-  padding:9px 7px;border-radius:25px;
+  padding:8px 7px;border-radius:25px;
   background:rgba(17,29,53,.96)!important;
   border:1px solid rgba(195,207,255,.21)!important;
   box-shadow:0 20px 46px rgba(2,8,22,.45),inset 0 1px rgba(255,255,255,.07)!important;

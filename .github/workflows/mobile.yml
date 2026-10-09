@@ -39,6 +39,10 @@ jobs:
           java-version: 21
           cache: gradle
       - uses: android-actions/setup-android@v3
+        with:
+          # Google removed the legacy SDK 'tools' package in 2026.
+          # Explicitly request only the supported platform tools.
+          packages: 'platform-tools'
       - run: npm ci
       - run: npm run native:build-web
       - run: npx cap sync android

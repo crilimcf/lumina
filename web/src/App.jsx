@@ -351,7 +351,7 @@ export default function App() {
 
   let activeScreen;
   if (tab==='dms') activeScreen=<>
-    <Conversas me={me} {...navProps} comp={comp} {...messageState} startCall={callState.startCall} callBusy={callState.busy}/>
+    <Conversas me={me} {...navProps} setScreen={setScreen} comp={comp} {...messageState} startCall={callState.startCall} callBusy={callState.busy}/>
     <GroupCallHub me={me} contacts={messageState.contacts} hidden={!!messageState.thread} startGroupCall={callState.startGroupCall} callBusy={callState.busy} ping={ping}/>
   </>;
   else if (tab==='rooms') activeScreen=<Salas me={me} {...navProps}/>;

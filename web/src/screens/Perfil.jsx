@@ -4,6 +4,7 @@ import { api } from '../api.js';
 import { t } from '../i18n-ui.js';
 import { Orb } from '../ui.jsx';
 import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
+import { LuminaAppearance } from '../components/LuminaAppearance.jsx';
 import '../facelift.css';
 import '../profileFacelift.css';
 
@@ -145,6 +146,7 @@ export function Perfil({ me, blocked, setBlocked, setScreen, onOpenProfile, logo
   const [following, setFollowing] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [myPosts, setMyPosts] = useState([]);
+  const [viewingPost, setViewingPost] = useState(null);
   const [postsLoading, setPostsLoading] = useState(true);
   const [connections, setConnections] = useState(null);
   const [discover, setDiscover] = useState(false);
@@ -171,6 +173,13 @@ export function Perfil({ me, blocked, setBlocked, setScreen, onOpenProfile, logo
       .finally(() => { if (active) setPostsLoading(false); });
     return () => { active = false; };
   }, [me?.handle]);
+
+  useEffect(() => {
+    if (!viewingPost) return undefined;
+    const onKey = event => { if (event.key === 'Escape') setViewingPost(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [viewingPost]);
 
   const exportAccount = async () => {
     if (accountBusy) return;
@@ -237,13 +246,16 @@ export function Perfil({ me, blocked, setBlocked, setScreen, onOpenProfile, logo
         {postsLoading ? <div className="lumina-v2-gallery-caption" role="status">{t('A carregar as tuas publicações…')}</div> : myPosts.length > 0
           ? <>
               <div className="lumina-v2-gallery" aria-label="Galeria das tuas publicações">
-                {myPosts.slice(0,9).map(post => <div key={post.id} className={`lumina-v2-gallery-item${post.media_url?'':' is-text'}`}>
+                {myPosts.slice(0,9).map(post => <button type="button" key={post.id}
+                  className={`lumina-v2-gallery-item${post.media_url?'':' is-text'}`}
+                  aria-label={`${t('Publicação')}: ${(post.body || post.id).slice(0,80)}`}
+                  onClick={()=>setViewingPost(post)}>
                   {post.media_url
                     ? (post.media_mime?.startsWith('video/')
                         ? <video src={post.media_url} preload="metadata" muted playsInline aria-label={t('Vídeo publicado')}/>
                         : <img src={post.media_url} alt={post.body ? post.body.slice(0,100) : t('Fotografia publicada')} loading="lazy"/>)
                     : <span>{post.body?.slice(0,110) || t('Publicação')}</span>}
-                </div>)}
+                </button>)}
               </div>
               <p className="lumina-v2-gallery-caption">{t('As tuas publicações, num só lugar.')}</p>
             </>
@@ -268,6 +280,8 @@ export function Perfil({ me, blocked, setBlocked, setScreen, onOpenProfile, logo
           </button>
         </div>
       </section>
+
+      <LuminaAppearance />
 
       <section className="lumina-profile-section">
         <div className="lumina-profile-section-head"><strong>Conta & segurança</strong><span>Controlo e privacidade</span></div>
@@ -316,6 +330,19 @@ export function Perfil({ me, blocked, setBlocked, setScreen, onOpenProfile, logo
 
       <button className="lumina-profile-logout" onClick={logout}><LogOut size={16} />Sair da Lumina</button>
     </main>
+
+    {viewingPost && <div className="lumina-gallery-backdrop" onClick={()=>setViewingPost(null)}>
+      <section className="lumina-gallery-viewer" role="dialog" aria-modal="true" aria-label={t('Publicação')} onClick={event=>event.stopPropagation()}>
+        <div className="lumina-gallery-viewer-header">
+          <strong>{t('As tuas histórias')}</strong>
+          <button type="button" onClick={()=>setViewingPost(null)} aria-label={t('Fechar')}><X size={20}/></button>
+        </div>
+        {viewingPost.media_url && (viewingPost.media_mime?.startsWith('video/')
+          ? <video src={viewingPost.media_url} controls playsInline preload="metadata" aria-label={t('Vídeo publicado')}/>
+          : <img src={viewingPost.media_url} alt={viewingPost.body?.slice(0,110) || t('Fotografia publicada')}/>)}
+        {viewingPost.body && <p>{viewingPost.body}</p>}
+      </section>
+    </div>}
 
     <Nav tab={tab} setTab={setTab} setThread={setThread} setComp={setComp} threads={threads} />
     <Toast text={toast} />

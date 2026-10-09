@@ -37,7 +37,13 @@ export function Abertura({ me, onSkip, onRooms }) {
           </>}
         </div>
 
-        <div className="opening-action-spacer" style={{height:'clamp(70px,13vh,122px)',flex:'0 0 auto'}} />
+        <div className="opening-constellation" aria-hidden="true">
+          <span className="opening-orbit opening-orbit-a"><span>✦</span></span>
+          <span className="opening-orbit opening-orbit-b"><span>◈</span></span>
+          <span className="opening-orbit opening-orbit-c"><span>✧</span></span>
+          <span className="opening-orbit-line opening-orbit-line-a"/>
+          <span className="opening-orbit-line opening-orbit-line-b"/>
+        </div>
 
         <div className="opening-actions" style={{marginTop:0,paddingBottom:'max(8px, env(safe-area-inset-bottom))'}}>
           {step===0?<Skeleton w="100%" h={56} r={99}/>:step>=2&&<>

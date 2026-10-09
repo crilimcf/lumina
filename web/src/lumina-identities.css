@@ -422,3 +422,54 @@ body.lumina-v2[data-lumina-identity="air"] .messages-discover-cta{color:#fff!imp
 @media (prefers-reduced-motion:reduce){
   body.lumina-v2 .lumina-identity-choice {transition:none!important;}
 }
+
+/* Interactive media gallery: keyboard-closeable, accessible, privacy-neutral. */
+body.lumina-v2 .lumina-v2-gallery-item {
+  display:flex;align-items:center;justify-content:center;
+  min-width:0;min-height:0;padding:0;border:0;text-align:center;
+  color:#fff;cursor:pointer;overflow:hidden;
+  transition:filter .2s,transform .18s;
+}
+body.lumina-v2 .lumina-v2-gallery-item img,
+body.lumina-v2 .lumina-v2-gallery-item video {
+  width:100%;height:100%;object-fit:cover;
+}
+body.lumina-v2 .lumina-v2-gallery-item:active {transform:scale(.975)}
+body.lumina-v2 .lumina-gallery-backdrop {
+  position:fixed;inset:0;z-index:130;
+  display:flex;align-items:center;justify-content:center;
+  padding:calc(18px + env(safe-area-inset-top)) 14px calc(18px + env(safe-area-inset-bottom));
+  background:rgba(5,10,25,.90);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);
+}
+body.lumina-v2 .lumina-gallery-viewer {
+  width:min(100%,650px);display:flex;flex-direction:column;gap:13px;
+  padding:14px;max-height:92dvh;overflow:auto;
+  border:1px solid rgba(224,224,255,.24);
+  border-radius:24px;background:#14213a;color:#f5f8ff;
+  box-shadow:0 25px 85px rgba(0,0,0,.47);
+}
+body.lumina-v2 .lumina-gallery-viewer-header {
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+}
+body.lumina-v2 .lumina-gallery-viewer-header strong {font-size:15px}
+body.lumina-v2 .lumina-gallery-viewer-header button {
+  display:grid;place-items:center;width:43px;height:43px;
+  border-radius:14px;border:1px solid rgba(214,222,255,.16);
+  color:#fff;background:rgba(255,255,255,.08);
+}
+body.lumina-v2 .lumina-gallery-viewer img,
+body.lumina-v2 .lumina-gallery-viewer video {
+  max-height:min(68dvh,800px);width:100%;object-fit:contain;border-radius:12px;
+  background:rgba(4,10,21,.68);
+}
+body.lumina-v2 .lumina-gallery-viewer p {
+  font-size:14px;line-height:1.6;color:#e8eefd;
+  margin:0;overflow-wrap:anywhere;
+}
+body.lumina-v2 .lumina-identity-choice:focus-visible,
+body.lumina-v2 .lumina-v2-gallery-item:focus-visible {
+  outline:3px solid #bdb4ff;outline-offset:3px;
+}
+@media(hover:hover){
+  body.lumina-v2 .lumina-v2-gallery-item:hover {filter:brightness(1.10)}
+}

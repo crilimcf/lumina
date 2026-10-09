@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   BadgeCheck, BadgePercent, CalendarDays, ChevronRight, ExternalLink, Globe2, MapPin,
-  Newspaper, RefreshCw, Settings2, ShieldCheck, Sparkles, TrendingUp, Flag,
+  Newspaper, RefreshCw, Settings2, ShieldCheck, Sparkles, TrendingUp, Flag, Users, Compass,
 } from 'lucide-react';
 import { detectRadarLocation, loadCountryRadar, loadGlobalRadar, loadNearbyRadar, readCachedRadarLocation } from '../radar-location.js';
 import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
@@ -233,18 +233,37 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
         <div className="explore-title-row">
           <div className="explore-title-copy">
             <div className="explore-eyebrow">{t('Explorar agora')}</div>
-            <h1>Radar</h1>
-            <p>{t('Perto de mim, País e Mundo são experiências separadas. A localização vem diretamente do teu iPhone.')}</p>
+            <h1>{t('Explorar')}</h1>
+            <p>{t('Encontra pessoas, comunidades e o que está a acontecer à tua volta — ao teu ritmo.')}</p>
+            <p className="lumina-v2-radar-intro">{t('Perto de mim, País e Mundo são experiências separadas. A localização vem diretamente do teu iPhone.')}</p>
           </div>
           <TopActions tab={tab} setTab={setTab} setThread={setThread} unreadCount={unreadCount}/>
         </div>
       </header>
 
+      <div className="lumina-explore-portals" role="group" aria-label={t('Explorar a Lumina')}>
+        <button type="button" onClick={() => setScreen?.('one')}>
+          <Sparkles size={21} aria-hidden="true"/>
+          <span>{t('Pulso')}<small>{t('Descoberta social')}</small></span>
+        </button>
+        <button type="button" onClick={() => setTab('rooms')}>
+          <Users size={21} aria-hidden="true"/>
+          <span>{t('Salas')}<small>{t('Encontra a tua comunidade')}</small></span>
+        </button>
+        <div className="is-current" aria-current="page">
+          <Compass size={21} aria-hidden="true"/>
+          <span>Radar<small>{t('Notícias e tendências')}</small></span>
+        </div>
+      </div>
       <section className="explore-trust-panel" aria-label={t('Como funciona o Radar')}>
         <span className="explore-trust-icon"><ShieldCheck size={20}/></span>
         <div className="explore-trust-copy"><strong>{t('Notícias ficam no Radar.')}</strong><p>{t('O Pulso é social. Aqui encontras notícias, eventos, promoções e tendências com origem identificada — sem misturar a tua zona com o país ou o mundo.')}</p></div>
       </section>
 
+      <div className="lumina-v2-discover-bar" aria-label="Radar">
+        <h2 style={{fontSize:21,margin:0,color:'#f7f8ff'}}>Radar</h2>
+        <span>{t('Notícias e eventos')}</span>
+      </div>
       <div className="radar-split-switch radar-three-way" role="tablist" aria-label={t('Âmbito do Radar')}>
         <button type="button" role="tab" aria-selected={scope==='nearby'} className={scope==='nearby'?'is-active':''} onClick={()=>setScope('nearby')}><MapPin size={18}/> {t('Perto de mim')}</button>
         <button type="button" role="tab" aria-selected={scope==='country'} className={scope==='country'?'is-active':''} onClick={()=>setScope('country')}><Flag size={18}/> {t('País')}</button>

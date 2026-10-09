@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, DoorOpen, Home, Image, Pencil, Plus, Radar as RadarIcon, Radio, RefreshCw, Send, Trash2, User, Video, X } from 'lucide-react';
 import { api } from '../api.js';
+import { t } from '../i18n-ui.js';
 import { PostImageEditor } from './posts/PostImageEditor.jsx';
 import '../global-polish.css';
 import '../publishing-polish.css';
@@ -39,11 +40,11 @@ export function TopActions({ tab,setTab,setThread,unreadCount }) {
 }
 
 export function Nav({ tab,setTab,setThread,setComp,threads=[] }) {
-  const items=[['feed',Home,'Feed','Feed'],['rooms',DoorOpen,'Salas','Salas'],['new',Plus,'Novo','Novo'],['promos',RadarIcon,'Radar','Radar'],['dms',Send,'Chat','Conversas']];
-  return <div className="nav" style={{display:'grid',gridTemplateColumns:'repeat(5,minmax(0,1fr))',gap:0}}>{items.map(([k,I,label,aria])=><button key={k} aria-label={aria} className={`nb${tab===k?' nb-on':''}`} style={{padding:'5px 2px',minWidth:0,position:'relative'}} onClick={()=>{
+  const items=[['feed',Home,'Início','Feed'],['rooms',DoorOpen,'Salas','Salas'],['new',Plus,'Criar','Novo'],['promos',RadarIcon,'Explorar','Radar'],['dms',Send,'Chat','Conversas']];
+  return <div className="nav" style={{display:'grid',gridTemplateColumns:'repeat(5,minmax(0,1fr))',gap:0}}>{items.map(([k,I,label,aria])=><button key={k} aria-label={aria} className={`nb${tab===k?' nb-on':''}${k==='new'?' nb-create':''}`} style={{padding:'5px 2px',minWidth:0,position:'relative'}} onClick={()=>{
     if(k==='new') { setThread(null);setTab('feed');setComp({title:'Publicar'});return; }
     setTab(k);setThread(null);
-  }}><I size={20} strokeWidth={tab===k?2.5:1.9}/><span style={{fontSize:9,letterSpacing:'.015em'}}>{label}</span>{k==='dms'&&threads.some(t=>t.unread>0)&&<span className="dot-badge"/>}</button>)}</div>;
+  }}><I size={20} strokeWidth={tab===k?2.5:1.9}/><span style={{fontSize:9,letterSpacing:'.015em'}}>{t(label)}</span>{k==='dms'&&threads.some(t=>t.unread>0)&&<span className="dot-badge"/>}</button>)}</div>;
 }
 
 export function Composer({ comp,setComp,file,setFile,body,setBody,busy,publish,onLive }) {

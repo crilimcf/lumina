@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Edit3, Flag, MoreHorizontal, Plus, Repeat2, Search, Send, Trash2, X } from 'lucide-react';
+import { Edit3, Flag, MoreHorizontal, Plus, Repeat2, Search, Send, Trash2, X, Heart, Flame, MessageCircle, Sparkles, Compass } from 'lucide-react';
 import { api } from '../api.js';
+import { t } from '../i18n-ui.js';
+import { OneDiscoveryPortal } from '../components/OneDiscoveryPortal.jsx';
 import { Orb, Skeleton, ErrorNote, Empty } from '../ui.jsx';
 import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
 import { MomentComposer, MomentRing } from '../components/Moments.jsx';
@@ -112,12 +114,27 @@ export function Feed({
           </button>
           {momentGroups.filter(g => g.author.id !== me.id).map(g => <button key={g.author.id} className="lumina-moment-button" onClick={() => setViewingAuthor(g.author.id)}><MomentRing palette={g.author.palette} avatarUrl={g.author.avatarUrl} allSeen={g.items.every(i => i.viewed)} size={52} /><span className="lumina-moment-name">{g.author.name.split(' ')[0]}</span></button>)}
         </div>
+        <OneDiscoveryPortal onEnter={() => setScreen('one')}/>
       </section>
 
       <main className="lumina-feed-content">
+        <div className="lumina-feed-switch" role="group" aria-label="Descoberta social">
+          <button type="button" className="is-active" aria-current="page">{t('A seguir')}</button>
+          <button type="button" onClick={() => setScreen('one')} aria-label="Abrir o Pulso e descobrir conteúdo"><Sparkles size={16}/> {t('Para ti')}</button>
+          <span className="lumina-switch-hint">{t('Pessoas primeiro, sempre.')}</span>
+        </div>
         <LiveNow onOpen={onOpenLive} />
         <ErrorNote error={feedErr} onRetry={loadFeed} />
-        {loadingFeed ? <div className="lumina-feed-list">{[0,1].map(i => <div key={i} className="lumina-post" style={{ padding: '13px 0' }}><div style={{ display: 'flex', gap: 11, padding: '0 14px 13px', alignItems: 'center' }}><Skeleton w={38} h={38} r={99} /><div style={{ flex: 1 }}><Skeleton w="45%" h={13} /></div></div><Skeleton w="calc(100% - 16px)" h={280} r={19} /><div style={{ padding: '14px' }}><Skeleton w="70%" h={13} /></div></div>)}</div> : feed.length === 0 ? <div className="lumina-feed-empty"><Empty>O teu Feed está vazio.<br />Segue pessoas ou publica algo novo.</Empty></div> : (
+        {loadingFeed ? <div className="lumina-feed-list">{[0,1].map(i => <div key={i} className="lumina-post" style={{ padding: '13px 0' }}><div style={{ display: 'flex', gap: 11, padding: '0 14px 13px', alignItems: 'center' }}><Skeleton w={38} h={38} r={99} /><div style={{ flex: 1 }}><Skeleton w="45%" h={13} /></div></div><Skeleton w="calc(100% - 16px)" h={280} r={19} /><div style={{ padding: '14px' }}><Skeleton w="70%" h={13} /></div></div>)}</div> : feed.length === 0 ? <div className="lumina-v2-empty lumina-feed-empty" role="status">
+          <Sparkles size={28} aria-hidden="true"/>
+          <h2>{t('As melhores histórias começam contigo.')}</h2>
+          <p>{t('O teu Feed está vazio.')}</p>
+          <p>{t('O teu espaço está pronto. Descobre pessoas com quem te identificas ou partilha um primeiro momento.')}</p>
+          <div className="lumina-v2-empty-actions">
+            <button type="button" onClick={() => setScreen('amigos')}>{t('Descobrir pessoas')}</button>
+            <button type="button" onClick={() => setComp({ title:'Publicar' })}>{t('Criar publicação')}</button>
+          </div>
+        </div> : (
           <div className="lumina-feed-list">
             {feed.map((p, i) => {
               const mine = p.my_reactions || [];
@@ -139,10 +156,10 @@ export function Feed({
                 </div>
                 {p.media_url && <div className="lumina-post-media-wrap">{isVideo ? <video className="lumina-post-media lumina-adaptive-video" src={p.media_url} controls playsInline preload="metadata" aria-label={`Vídeo de ${p.name}`} /> : <img className="lumina-post-media" src={p.media_url} alt="" loading="lazy" />}</div>}
                 <div className="lumina-post-actions">
-                  <button className={`act${mine.includes('like')?'':' act-off'}`} onClick={() => react(p,'like')}><span className="em" style={{ filter:mine.includes('like')?'none':'grayscale(1) opacity(.55)' }}>👍</span>{p.likes}</button>
-                  <button className={`act${mine.includes('fire')?'':' act-off'}`} onClick={() => react(p,'fire')}><span className="em" style={{ filter:mine.includes('fire')?'none':'grayscale(1) opacity(.55)' }}>🔥</span>{p.fires}</button>
+                  <button type="button" className={`act${mine.includes('like')?'':' act-off'}`} onClick={() => react(p,'like')} aria-label={t('Gosto')} aria-pressed={mine.includes('like')}><Heart size={21} fill={mine.includes('like')?'#ff789d':'none'} color={mine.includes('like')?'#ff789d':'currentColor'}/>{p.likes}</button>
+                  <button type="button" className={`act${mine.includes('fire')?'':' act-off'}`} onClick={() => react(p,'fire')} aria-label={t('Adoro')} aria-pressed={mine.includes('fire')}><Flame size={21} fill={mine.includes('fire')?'#ffad73':'none'} color={mine.includes('fire')?'#ffad73':'currentColor'}/>{p.fires}</button>
                   <button className="act act-off" onClick={() => repost(p)} aria-label="Republicar"><Repeat2 size={20} />{p.reposts}</button>
-                  <button className="act act-off" onClick={() => loadComments(p.id)}><span className="em" style={{ filter:'grayscale(1) opacity(.55)' }}>💬</span>{p.comments}</button>
+                  <button type="button" className="act act-off" onClick={() => loadComments(p.id)} aria-label={t('Comentários')}><MessageCircle size={20}/>{p.comments}</button>
                   {burst?.id === p.id && <span key={burst.n} className="pop" style={{ top:2, left:burst.kind==='like'?4:74, fontSize:26 }}>{burst.kind==='like'?'👍':'🔥'}</span>}
                 </div>
                 <p className="lumina-post-copy"><b>{p.name}</b> {p.body}</p>

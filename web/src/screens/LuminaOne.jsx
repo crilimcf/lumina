@@ -5,6 +5,7 @@ import {
   Unlock, UserRound, Video, X,
 } from 'lucide-react';
 import { api } from '../api.js';
+import { t } from '../i18n-ui.js';
 import { detectRadarLocation, readCachedRadarLocation } from '../radar-location.js';
 import { Orb } from '../ui.jsx';
 import '../lumina-one.css';
@@ -65,6 +66,7 @@ function LumeViewer({ lume, onClose }) {
 export function LuminaOne({ me, onBack, ping }) {
   const initialOne = new URLSearchParams(window.location.search).get('one');
   const [tab, setTab] = useState(['pulse','lumes','capsules','agora'].includes(initialOne) ? initialOne : 'pulse');
+  const swipeStart = useRef(null);
   const [pulseScope, setPulseScope] = useState('for-you');
   const [pulse, setPulse] = useState([]);
   const [pulseLoading, setPulseLoading] = useState(false);
@@ -94,6 +96,7 @@ export function LuminaOne({ me, onBack, ping }) {
   const [inviteResults, setInviteResults] = useState([]);
 
   const [prefs, setPrefs] = useState({ boost_topics:[], mute_topics:[], context_mode:'auto', local_region:'' });
+  const preferenceDraftEdited = useRef(false);
   const [boostInput, setBoostInput] = useState('');
   const [muteInput, setMuteInput] = useState('');
   const [deviceLocation, setDeviceLocation] = useState(() => readCachedRadarLocation());
@@ -135,13 +138,19 @@ export function LuminaOne({ me, onBack, ping }) {
   const loadAgora = useCallback(async () => {
     try {
       const nextPrefs = await api.one.preferences();
-      setPrefs(nextPrefs);
-      setBoostInput((nextPrefs.boost_topics || []).join(', '));
-      setMuteInput((nextPrefs.mute_topics || []).join(', '));
-      if (!deviceLocation) void refreshDeviceLocation({ force:false });
+      if (!preferenceDraftEdited.current) {
+        setPrefs(nextPrefs);
+        setBoostInput((nextPrefs.boost_topics || []).join(', '));
+        setMuteInput((nextPrefs.mute_topics || []).join(', '));
+      }
+      if (!readCachedRadarLocation()) void refreshDeviceLocation({ force:false });
     } catch (error) { ping(error.message); }
-  }, [deviceLocation, ping, refreshDeviceLocation]);
+  }, [ping, refreshDeviceLocation]);
 
+  useEffect(() => {
+    try { localStorage.setItem('lumina-one-last-mode-v1', tab); } catch {}
+    window.dispatchEvent(new Event('lumina:one-mode-changed'));
+  }, [tab]);
   useEffect(() => { if (tab === 'pulse') loadPulse(); }, [tab, loadPulse]);
   useEffect(() => { if (tab === 'lumes') loadLumes(); }, [tab, loadLumes]);
   useEffect(() => { if (tab === 'capsules') loadCapsules(); }, [tab, loadCapsules]);
@@ -273,6 +282,7 @@ export function LuminaOne({ me, onBack, ping }) {
         localRegion,
       });
       setPrefs(next);
+      preferenceDraftEdited.current = false;
       ping('A Lumina foi adaptada ao teu momento');
     } catch (error) { ping(error.message); }
   };
@@ -285,40 +295,50 @@ export function LuminaOne({ me, onBack, ping }) {
     window.location.assign(`${url.pathname}${url.search}${url.hash}`);
   };
 
-  return <div className="lumina-one one-v2">
+  return <div className="lumina-one one-v2 one-v3"
+    onPointerDown={e => { if (e.target.closest('button, input, textarea, select, video, a')) return; swipeStart.current = { x:e.clientX,y:e.clientY }; }}
+    onPointerUp={e => {
+      if (!swipeStart.current) return;
+      const dx=e.clientX-swipeStart.current.x,dy=e.clientY-swipeStart.current.y;
+      swipeStart.current=null;
+      if (Math.abs(dx)<85 || Math.abs(dy)>60) return;
+      const index=TABS.findIndex(([key])=>key===tab);
+      const next=TABS[index+(dx<0?1:-1)];
+      if(next)setTab(next[0]);
+    }}>
     <header className="one-header">
       <button className="one-back" onClick={onBack} aria-label="Voltar ao Feed"><ArrowLeft size={19}/></button>
       <div className="one-title-wrap">
         <div className="one-eyebrow"><Sparkles size={13}/> LUMINA ONE</div>
-        <h1>Tudo ligado. <i>Sem saltar.</i></h1>
-        <p>Cria, descobre e guarda momentos numa experiência contínua — cada área com uma função clara.</p>
+        <h1>{t('Tudo ligado.')} <i>{t('Sem saltar.')}</i></h1>
+        <p>{t('Cria, descobre e guarda momentos numa experiência contínua — cada área com uma função clara.')}</p>
       </div>
     </header>
 
     <nav className="one-tabs" aria-label="Experiências Lumina One">
       {TABS.map(([key,Icon,label]) => <button key={key} className={tab===key?'is-on':''} onClick={()=>setTab(key)}>
-        <Icon size={18}/><span>{label}</span>
+        <Icon size={18}/><span>{t(label)}</span>
       </button>)}
     </nav>
 
     {tab==='pulse' && <main className="one-pulse-page">
       <section className="one-pulse-intro">
         <span>PULSO</span>
-        <h2>Pessoas e momentos. Não notícias.</h2>
-        <p>O Pulso é descoberta social: publicações, pessoas e conteúdos da tua rede. Notícias, eventos e tendências vivem exclusivamente no Radar.</p>
+        <h2>{t('Pessoas e momentos. Não notícias.')}</h2>
+        <p>{t('O Pulso é descoberta social: publicações, pessoas e conteúdos da tua rede. Notícias, eventos e tendências vivem exclusivamente no Radar.')}</p>
       </section>
       <div className="one-section-toolbar">
-        <div><span>DESCOBERTA SOCIAL</span><b>O que vale o teu tempo</b></div>
+        <div><span>DESCOBERTA SOCIAL</span><b>{t('O que vale o teu tempo')}</b></div>
         <div className="one-segment">
-          <button className={pulseScope==='for-you'?'is-on':''} onClick={()=>setPulseScope('for-you')}>Para ti</button>
-          <button className={pulseScope==='friends'?'is-on':''} onClick={()=>setPulseScope('friends')}>Amigos</button>
+          <button className={pulseScope==='for-you'?'is-on':''} onClick={()=>setPulseScope('for-you')}>{t('Para ti')}</button>
+          <button className={pulseScope==='friends'?'is-on':''} onClick={()=>setPulseScope('friends')}>{t('Amigos')}</button>
         </div>
       </div>
       {pulseLoading && <div className="one-state">A afinar o teu Pulso…</div>}
       {!pulseLoading && !socialPulse.length && <div className="one-state one-v2-friends-empty">
         <div className="one-v2-empty-orb"><UserRound size={23}/></div>
-        <b>O teu Pulso social está a aquecer</b>
-        <span>Segue pessoas ou publica algo. O Radar fica separado para notícias e acontecimentos.</span>
+        <b>{t('O teu Pulso social está a aquecer')}</b>
+        <span>{t('Segue pessoas ou publica algo. O Radar fica separado para notícias e acontecimentos.')}</span>
       </div>}
       <div className="one-pulse-stack">{socialPulse.map(item => <article key={item.id} className="one-pulse-card">
         <PulseMedia item={item}/><div className="one-pulse-shade"/>
@@ -338,13 +358,13 @@ export function LuminaOne({ me, onBack, ping }) {
     </main>}
 
     {tab==='lumes' && <main className="one-content one-lumes-page">
-      <section className="one-hero-card one-lume-hero"><div><span>LUMES</span><h2>Agora. Uma vez. <i>Real.</i></h2><p>Fotografias tiradas neste momento, só para amigos mútuos. Abrem uma vez e desaparecem.</p></div><button className="one-primary" onClick={()=>setCameraOpen(true)}><Camera size={18}/> Tirar um Lume</button></section>
+      <section className="one-hero-card one-lume-hero"><div><span>LUMES</span><h2>{t('Agora. Uma vez.')} <i>{t('Real.')}</i></h2><p>{t('Fotografias tiradas neste momento, só para amigos mútuos. Abrem uma vez e desaparecem.')}</p></div><button className="one-primary" onClick={()=>setCameraOpen(true)}><Camera size={18}/> {t('Tirar um Lume')}</button></section>
       {lumeFile && <section className="one-lume-draft"><div className="one-lume-preview"><img src={lumePreviewUrl} alt="Pré-visualização do Lume" style={lumeEffectStyle(lumeEffect)}/><button onClick={()=>setLumeFile(null)} aria-label="Descartar"><X size={17}/></button></div><div className="one-effect-row">{EFFECTS.map(([key,label])=><button key={key} className={lumeEffect===key?'is-on':''} onClick={()=>setLumeEffect(key)}>{label}</button>)}</div><button className="one-primary" disabled={lumeBusy} onClick={publishLume}>{lumeBusy?'A enviar…':'Enviar Lume'}</button></section>}
-      <section><div className="one-section-head"><div><span>À TUA ESPERA</span><b>Lumes dos teus amigos</b></div><button onClick={loadLumes} aria-label="Atualizar Lumes"><RefreshCw size={16}/></button></div><div className="one-lume-grid">{lumes.map(lume=><button key={lume.id} className="one-lume-tile" onClick={()=>openLume(lume)}><div><Orb p={lume.palette} avatarUrl={lume.avatar_url} s={54}/><span className="one-lume-glow"/></div><b>{lume.mine?'O teu Lume':lume.name.split(' ')[0]}</b><span>{lume.mine?'ativo':'toca para abrir'}</span></button>)}</div>{!lumes.length&&<div className="one-state">Ainda não há Lumes. O primeiro pode ser teu.</div>}</section>
+      <section><div className="one-section-head"><div><span>À TUA ESPERA</span><b>{t('Lumes dos teus amigos')}</b></div><button onClick={loadLumes} aria-label="Atualizar Lumes"><RefreshCw size={16}/></button></div><div className="one-lume-grid">{lumes.map(lume=><button key={lume.id} className="one-lume-tile" onClick={()=>openLume(lume)}><div><Orb p={lume.palette} avatarUrl={lume.avatar_url} s={54}/><span className="one-lume-glow"/></div><b>{lume.mine?'O teu Lume':lume.name.split(' ')[0]}</b><span>{lume.mine?'ativo':'toca para abrir'}</span></button>)}</div>{!lumes.length&&<div className="one-state">Ainda não há Lumes. O primeiro pode ser teu.</div>}</section>
     </main>}
 
     {tab==='capsules' && <main className="one-content one-capsules-page">
-      {!capsule && <><section className="one-hero-card"><div><span>CÁPSULAS</span><h2>Memórias que <i>esperam.</i></h2><p>Junta amigos, fotografias, vídeos e mensagens. Decide quando a Cápsula pode ser aberta.</p></div><button className="one-primary" onClick={()=>setCapsuleCreate(true)}><Plus size={18}/> Nova Cápsula</button></section><div className="one-capsule-list">{capsules.map(item=><button key={item.id} className="one-capsule-card" onClick={()=>openCapsule(item.id)}><div className={item.locked?'is-locked':''}>{item.locked?<Lock size={21}/>:<Unlock size={21}/>}</div><section><b>{item.title}</b><p>{item.description||'Memória partilhada'}</p><span>{item.member_count} pessoas · {item.item_count} memórias</span></section><time>{item.locked&&item.unlock_at?`abre ${new Date(item.unlock_at).toLocaleDateString('pt-PT')}`:'aberta'}</time></button>)}</div>{!capsules.length&&<div className="one-state">Cria uma Cápsula para uma viagem, festa, casamento ou qualquer momento que queiras guardar com outras pessoas.</div>}</>}
+      {!capsule && <><section className="one-hero-card"><div><span>CÁPSULAS</span><h2>{t('Memórias que')} <i>{t('esperam.')}</i></h2><p>{t('Junta amigos, fotografias, vídeos e mensagens. Decide quando a Cápsula pode ser aberta.')}</p></div><button className="one-primary" onClick={()=>setCapsuleCreate(true)}><Plus size={18}/> {t('Nova Cápsula')}</button></section><div className="one-capsule-list">{capsules.map(item=><button key={item.id} className="one-capsule-card" onClick={()=>openCapsule(item.id)}><div className={item.locked?'is-locked':''}>{item.locked?<Lock size={21}/>:<Unlock size={21}/>}</div><section><b>{item.title}</b><p>{item.description||'Memória partilhada'}</p><span>{item.member_count} pessoas · {item.item_count} memórias</span></section><time>{item.locked&&item.unlock_at?`abre ${new Date(item.unlock_at).toLocaleDateString('pt-PT')}`:'aberta'}</time></button>)}</div>{!capsules.length&&<div className="one-state">Cria uma Cápsula para uma viagem, festa, casamento ou qualquer momento que queiras guardar com outras pessoas.</div>}</>}
       {capsule && <section className="one-capsule-detail"><button className="one-inline-back" onClick={()=>{setCapsule(null);loadCapsules()}}><ArrowLeft size={16}/> Todas as Cápsulas</button><div className="one-capsule-detail-head"><div className={capsule.locked?'is-locked':''}>{capsule.locked?<Lock size={24}/>:<Unlock size={24}/>}</div><div><span>{capsule.locked?'FECHADA':'ABERTA'}</span><h2>{capsule.title}</h2><p>{capsule.description}</p>{capsule.locked&&capsule.unlock_at&&<time>Abre em {new Date(capsule.unlock_at).toLocaleString('pt-PT')}</time>}</div></div>
         <div className="one-members-row">{capsule.members?.map(member=><Orb key={member.id} p={member.palette} avatarUrl={member.avatar_url} s={34}/>)}<span>{capsule.members?.length||1} pessoas</span></div>
         {capsule.role==='owner'&&<div className="one-invite"><Search size={16}/><input value={inviteQuery} onChange={e=>setInviteQuery(e.target.value)} placeholder="Adicionar amigo à Cápsula"/>{inviteResults.length>0&&<div className="one-invite-results">{inviteResults.map(person=><button key={person.id} onClick={()=>invite(person)}><Orb p={person.palette} avatarUrl={person.avatar_url} s={30}/><span><b>{person.name}</b>@{person.handle}</span><Plus size={15}/></button>)}</div>}</div>}
@@ -356,22 +376,22 @@ export function LuminaOne({ me, onBack, ping }) {
 
     {tab==='agora' && <main className="one-content one-agora-page">
       <section className="one-agora-summary">
-        <span>AGORA</span><h2>Tu defines o contexto. A Lumina adapta-se.</h2>
-        <p>Esta área não é um feed. Serve apenas para dizer à Lumina o que queres descobrir, o que queres evitar e em que contexto estás.</p>
+        <span>AGORA</span><h2>{t('Tu defines o contexto. A Lumina adapta-se.')}</h2>
+        <p>{t('Esta área não é um feed. Serve apenas para dizer à Lumina o que queres descobrir, o que queres evitar e em que contexto estás.')}</p>
       </section>
       <section className="one-settings-card">
-        <div className="one-section-head"><div><span>O MEU ALGORITMO</span><b>O que queres ver agora?</b></div><SlidersHorizontal size={20}/></div>
-        <label>Quero ver mais<input value={boostInput} onChange={e=>setBoostInput(e.target.value)} placeholder="viagens, carros, tecnologia"/></label>
-        <label>Quero ver menos<input value={muteInput} onChange={e=>setMuteInput(e.target.value)} placeholder="política, futebol…"/></label>
-        <div className="one-contexts"><span>Modo de agora</span><div>{CONTEXTS.map(([key,label])=><button key={key} className={prefs.context_mode===key?'is-on':''} onClick={()=>setPrefs(prev=>({...prev,context_mode:key}))}>{label}</button>)}</div></div>
+        <div className="one-section-head"><div><span>O MEU ALGORITMO</span><b>{t('O que queres ver agora?')}</b></div><SlidersHorizontal size={20}/></div>
+        <label>{t('Quero ver mais')}<input value={boostInput} onChange={e=>{preferenceDraftEdited.current=true;setBoostInput(e.target.value)}} placeholder="viagens, carros, tecnologia"/></label>
+        <label>{t('Quero ver menos')}<input value={muteInput} onChange={e=>{preferenceDraftEdited.current=true;setMuteInput(e.target.value)}} placeholder="política, futebol…"/></label>
+        <div className="one-contexts"><span>{t('Modo de agora')}</span><div>{CONTEXTS.map(([key,label])=><button key={key} className={prefs.context_mode===key?'is-on':''} onClick={()=>{preferenceDraftEdited.current=true;setPrefs(prev=>({...prev,context_mode:key}))}}>{t(label)}</button>)}</div></div>
         <div className="one-radar-handoff">
           <MapPin size={22}/>
-          <div><b>{deviceLocation?.label || deviceLocation?.city || 'Localização do iPhone'}</b><p>O Radar Local usa a localização real do iPhone. Não misturamos notícias locais com o feed mundial.</p></div>
+          <div><b>{deviceLocation?.label || deviceLocation?.city || 'Localização do iPhone'}</b><p>{t('O Radar usa a localização real do iPhone. Perto de mim, País e Mundo ficam separados.')}</p></div>
           <button className="one-secondary-action" onClick={()=>refreshDeviceLocation({ force:true })} disabled={locating}>{locating?'A detetar…':'Atualizar'}</button>
         </div>
         <div className="one-agora-actions">
-          <button className="one-primary" onClick={saveAgora}>Aplicar agora</button>
-          <button className="one-secondary-action" onClick={openRadar}>Abrir Radar Local / Mundo</button>
+          <button className="one-primary" onClick={saveAgora}>{t('Aplicar agora')}</button>
+          <button className="one-secondary-action" onClick={openRadar}>{t('Abrir Radar Perto / País / Mundo')}</button>
         </div>
       </section>
     </main>}

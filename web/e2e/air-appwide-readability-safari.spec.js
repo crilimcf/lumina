@@ -41,6 +41,11 @@ test('Air readable across entry, Feed, Direct, Rooms and Explore on iPhone', asy
   expect(await contrastOnPaleSurface(page.locator('.opening-choice-label'))).toBeGreaterThan(4.5);
   await page.getByRole('button',{ name:'Entrar no Feed' }).click();
 
+  // The dynamic Lumina One discovery prompt is bright on Air, never white-on-white.
+  const discoveryPill = page.locator('.one-adventure-prompt-pill').first();
+  await expect(discoveryPill).toBeVisible();
+  expect(await contrastOnPaleSurface(discoveryPill)).toBeGreaterThan(4.5);
+
   // Feed empty state, if present, must not hide the publish action.
   const publish = page.locator('.lumina-v3-empty .lumina-v2-empty-actions button:nth-child(2)');
   if (await publish.isVisible()) {

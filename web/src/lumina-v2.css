@@ -1,0 +1,281 @@
+/* Lumina 2.0 — cohesive product skin, October 2026.
+ * This layer deliberately has a body scope so legacy/lazy CSS can coexist.
+ * All interactive behavior remains owned by the React components. */
+body.lumina-v2 {
+  --paper:#0a1225; --paper2:#111e35; --card:#172640;
+  --ink:#f6f8ff; --grey:#bac7df; --edge:rgba(194,209,255,.17);
+  --cobalt:#9881ff; --cobalt2:#67a5ff; --coral:#ff789d;
+  background:#0b1428!important;color:#f7f8ff;
+  font-family:Manrope,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+}
+body.lumina-v2 .lumina-facelift,
+body.lumina-v2 .lumina-rooms,
+body.lumina-v2 .lumina-room-chat,
+body.lumina-v2 .lumina-one,
+body.lumina-v2 .lumina-consolidated {
+  --lumina-night:#0b1428; --lumina-navy:#0f1c34;
+  --lumina-panel:#172841; --lumina-panel-2:#1c304c;
+  --lumina-text:#f7f8ff; --lumina-muted:#c0cae0;
+  --lumina-violet:#a18bff; --lumina-blue:#78acff;
+  --lumina-line:rgba(206,218,255,.15);
+  --lc-bg:#0b1428; --lc-bg-soft:#101d34;
+  --lc-surface:rgba(23,39,63,.92); --lc-surface-strong:rgba(28,46,74,.96);
+  --lc-border:rgba(206,218,255,.15);
+  min-height:100dvh;
+  background:
+    radial-gradient(ellipse 68% 32% at 80% -8%,rgba(125,99,251,.20),transparent 77%),
+    radial-gradient(ellipse 75% 38% at -18% 58%,rgba(70,143,249,.10),transparent 77%),
+    linear-gradient(180deg,#172642 0%,#0f1c34 42%,#0a1428 100%)!important;
+  color:#f7f8ff;
+  color-scheme:dark;
+}
+body.lumina-v2 .lumina-facelift::before,
+body.lumina-v2 .lumina-rooms::before { opacity:.10!important; }
+body.lumina-v2 h1,body.lumina-v2 h2,body.lumina-v2 h3 {
+  letter-spacing:-.045em; text-wrap:balance;
+}
+body.lumina-v2 button,body.lumina-v2 a {
+  -webkit-tap-highlight-color:transparent;
+}
+body.lumina-v2 button:focus-visible,body.lumina-v2 a:focus-visible {
+  outline:2px solid #a4c8ff;outline-offset:3px;
+}
+body.lumina-v2 .lumina-feed-header,
+body.lumina-v2 .explore-header,
+body.lumina-v2 .lumina-profile-topbar {
+  background:rgba(13,24,44,.84)!important;
+  border-bottom:1px solid rgba(218,229,255,.12)!important;
+  box-shadow:0 14px 36px rgba(3,11,26,.16);
+  -webkit-backdrop-filter:blur(22px) saturate(130%);
+  backdrop-filter:blur(22px) saturate(130%);
+}
+body.lumina-v2 .lumina-feed-bar,
+body.lumina-v2 .lumina-moments-wrap,
+body.lumina-v2 .lumina-feed-content {
+  max-width:680px;
+}
+body.lumina-v2 .lumina-brand-title {font-size:27px;letter-spacing:-.06em}
+body.lumina-v2 .lumina-brand-subtitle {
+  letter-spacing:.025em;text-transform:none;font-weight:600;font-size:10.5px;
+  color:#cbd6ed!important;
+}
+body.lumina-v2 .lumina-brand-spark {
+  width:36px;height:36px;border-radius:13px;
+  background:linear-gradient(138deg,#9489ff 0%,#638eec 58%,#aee9ff 120%);
+  box-shadow:0 10px 26px rgba(101,109,246,.22),inset 0 1px rgba(255,255,255,.38);
+}
+body.lumina-v2 .lumina-brand-spark::before,
+body.lumina-v2 .lumina-brand-spark::after {
+  background:#fff;filter:drop-shadow(0 0 6px rgba(255,255,255,.5));
+}
+body.lumina-v2 .lumina-facelift .top-action,
+body.lumina-v2 .lumina-facelift .lumina-search-button {
+  min-height:44px!important;min-width:44px!important;
+  width:44px!important;height:44px!important;
+  border-radius:15px!important;
+  border-color:rgba(206,218,255,.2)!important;
+  color:#f7f8ff!important;background:rgba(180,196,255,.09)!important;
+}
+body.lumina-v2 .nav {
+  bottom:calc(12px + env(safe-area-inset-bottom));
+  max-width:490px;left:12px;right:12px;
+  padding:9px 7px;border-radius:25px;
+  background:rgba(17,29,53,.96)!important;
+  border:1px solid rgba(195,207,255,.21)!important;
+  box-shadow:0 20px 46px rgba(2,8,22,.45),inset 0 1px rgba(255,255,255,.07)!important;
+  -webkit-backdrop-filter:blur(24px) saturate(150%);
+  backdrop-filter:blur(24px) saturate(150%);
+}
+body.lumina-v2 .nav .nb {
+  min-height:49px;gap:5px;padding:5px 0!important;
+  color:#b7c4df;font-size:11px;
+  letter-spacing:0;text-transform:none;transition:transform .2s,color .2s;
+}
+body.lumina-v2 .nav .nb span {font-size:11px!important;letter-spacing:0!important;}
+body.lumina-v2 .nav .nb-on {color:#ffffff!important;}
+body.lumina-v2 .nav .nb-on:not(.nb-create)::before {
+  content:'';position:absolute;top:0;left:32%;width:36%;height:2px;
+  background:linear-gradient(90deg,#b291ff,#73ccf6);border-radius:4px;
+}
+body.lumina-v2 .nav .nb-create {
+  color:#fff!important;
+}
+body.lumina-v2 .nav .nb-create svg {
+  width:42px;height:42px;padding:10px;border-radius:16px;
+  background:linear-gradient(137deg,#9c7dff,#5e91ed);
+  box-shadow:0 9px 24px rgba(94,105,243,.32),inset 0 1px rgba(255,255,255,.29);
+}
+body.lumina-v2 .nav .nb-create span {font-weight:800}
+body.lumina-v2 .lumina-moments-wrap {padding-top:17px;padding-bottom:13px;}
+body.lumina-v2 .lumina-section-heading strong {font-size:15px;letter-spacing:-.03em}
+body.lumina-v2 .lumina-section-heading span {font-size:11px;color:#c5d1e6!important;}
+body.lumina-v2 .lumina-moments {gap:17px;padding:5px 2px 8px;}
+body.lumina-v2 .lumina-moment-name {font-size:11px!important;font-weight:700!important;}
+body.lumina-v2 .lumina-feed-switch {
+  display:flex;align-items:center;gap:8px;padding:0 14px 16px;
+  max-width:680px;margin:auto;
+}
+body.lumina-v2 .lumina-feed-switch button {
+  min-height:40px;padding:10px 16px;border-radius:999px;
+  background:rgba(167,192,247,.07);color:#dae5fa;
+  border:1px solid rgba(201,216,255,.18);
+  font-size:13px;font-weight:800;
+  display:inline-flex;align-items:center;gap:7px;
+}
+body.lumina-v2 .lumina-feed-switch button.is-active {
+  color:#101b35;background:#f2f5ff;border-color:#f2f5ff;
+}
+body.lumina-v2 .lumina-feed-switch .lumina-switch-hint {
+  margin-left:auto;font-size:10.5px;color:#adc0dc;max-width:125px;text-align:right;
+}
+body.lumina-v2 .lumina-feed-list {display:grid;gap:15px;padding:0 12px 18px;}
+body.lumina-v2 .lumina-post {
+  background:rgba(24,41,68,.86)!important;
+  border:1px solid rgba(200,217,255,.13)!important;
+  border-radius:25px!important;overflow:hidden;
+  box-shadow:0 12px 32px rgba(5,12,31,.18),inset 0 1px rgba(255,255,255,.025);
+}
+body.lumina-v2 .lumina-post-head {padding-top:16px;padding-bottom:12px;}
+body.lumina-v2 .lumina-post-name {font-size:14px;font-weight:850;}
+body.lumina-v2 .lumina-post-meta {color:#b4c3dc!important;font-size:11px!important;}
+body.lumina-v2 .lumina-post-media-wrap {border-radius:16px!important;overflow:hidden;margin-inline:9px}
+body.lumina-v2 .lumina-post-media {width:100%;display:block;}
+body.lumina-v2 .lumina-post-actions {
+  display:flex;align-items:center;gap:3px;padding-top:10px;
+}
+body.lumina-v2 .lumina-post-actions .act {
+  min-height:43px;min-width:57px;gap:7px;
+  padding:8px 10px;border-radius:13px;
+  font-size:12px;font-weight:750;color:#e6eeff;
+  transition:transform .18s ease,background .18s ease,color .18s ease;
+}
+body.lumina-v2 .lumina-post-actions .act:active {transform:scale(.94)}
+body.lumina-v2 .lumina-post-actions .act:hover {background:rgba(180,200,255,.1)}
+body.lumina-v2 .lumina-post-copy {
+  color:#f2f5ff!important;line-height:1.55;letter-spacing:-.006em;
+  overflow-wrap:anywhere;
+}
+body.lumina-v2 .lumina-feed-empty,
+body.lumina-v2 .lumina-v2-empty {
+  padding:32px 20px;margin:8px 12px 24px;
+  background:linear-gradient(135deg,rgba(110,93,215,.22),rgba(47,98,153,.16));
+  border:1px solid rgba(192,197,255,.22);border-radius:27px;text-align:center;
+}
+body.lumina-v2 .lumina-v2-empty h2 {font-size:23px;margin:12px 0 8px;}
+body.lumina-v2 .lumina-v2-empty p {font-size:13px;line-height:1.5;color:#ced9ef;margin:0 auto 18px;max-width:320px;}
+body.lumina-v2 .lumina-v2-empty-actions {display:flex;gap:9px;justify-content:center;flex-wrap:wrap;}
+body.lumina-v2 .lumina-v2-empty-actions button {
+  min-height:44px;padding:11px 16px;border:1px solid rgba(219,226,255,.24);
+  border-radius:14px;color:#fff;background:rgba(255,255,255,.09);
+  font-size:13px;font-weight:800;
+}
+body.lumina-v2 .lumina-v2-empty-actions button:first-child {
+  color:#142040;background:#e9edff;
+}
+body.lumina-v2 .lumina-profile-shell {max-width:680px;}
+body.lumina-v2 .lumina-profile-hero {
+  border-radius:30px;border-color:rgba(218,224,255,.20);
+  background:radial-gradient(ellipse at 80% 5%,rgba(143,123,255,.32),transparent 45%),
+   radial-gradient(ellipse at 4% 85%,rgba(87,177,244,.17),transparent 46%),
+   linear-gradient(145deg,#253b61,#172941)!important;
+  box-shadow:0 20px 56px rgba(3,10,24,.19);
+}
+body.lumina-v2 .lumina-profile-name {font-size:clamp(26px,6vw,34px)!important;}
+body.lumina-v2 .lumina-profile-stat {min-height:60px;}
+body.lumina-v2 .lumina-profile-section-head strong {font-size:18px;}
+body.lumina-v2 .lumina-profile-panel,
+body.lumina-v2 .lumina-rooms .card,
+body.lumina-v2 .lumina-explore .explore-card {
+  border-color:rgba(212,222,255,.16)!important;
+  background:rgba(26,42,68,.8)!important;
+  box-shadow:0 15px 40px rgba(4,12,29,.16);
+}
+body.lumina-v2 .lumina-v2-gallery {
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;
+  overflow:hidden;border-radius:21px;
+}
+body.lumina-v2 .lumina-v2-gallery-item {
+  position:relative;min-width:0;aspect-ratio:1;
+  background:rgba(115,142,192,.15);overflow:hidden;
+}
+body.lumina-v2 .lumina-v2-gallery-item img,
+body.lumina-v2 .lumina-v2-gallery-item video {
+  width:100%;height:100%;object-fit:cover;display:block;
+}
+body.lumina-v2 .lumina-v2-gallery-item.is-text {
+  display:flex;align-items:center;justify-content:center;
+  padding:12px;background:linear-gradient(140deg,#485783,#263b64);
+  color:#f5f6ff;font-size:12px;line-height:1.45;text-align:center;overflow-wrap:anywhere;
+}
+body.lumina-v2 .lumina-v2-gallery-caption {
+  margin:9px 3px 0;font-size:11px;color:#afc1de;
+}
+body.lumina-v2 .lumina-explore-portals {
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:0 0 17px;
+}
+body.lumina-v2 .lumina-explore-portals button {
+  display:flex;flex-direction:column;align-items:flex-start;gap:10px;
+  min-height:94px;padding:14px;border-radius:20px;text-align:left;
+  color:#f7f8ff;background:linear-gradient(135deg,rgba(95,95,189,.26),rgba(46,83,130,.25));
+  border:1px solid rgba(211,220,255,.17);
+  font-size:13px;font-weight:850;
+  box-shadow:inset 0 1px rgba(255,255,255,.05);
+}
+body.lumina-v2 .lumina-explore-portals button.is-current {
+  border-color:rgba(162,165,255,.48);
+  background:linear-gradient(135deg,rgba(124,95,232,.42),rgba(65,119,196,.30));
+}
+body.lumina-v2 .lumina-explore-portals button small {font-size:10px;font-weight:550;color:#bfcfe8}
+body.lumina-v2 .explore-shell,
+body.lumina-v2 .rooms-shell {max-width:680px!important;}
+body.lumina-v2 .explore-header h1 {font-size:clamp(32px,6vw,42px)!important}
+body.lumina-v2 .explore-header p,
+body.lumina-v2 .explore-trust-panel p {line-height:1.5;}
+body.lumina-v2 .lumina-rooms .room-card,
+body.lumina-v2 .lumina-rooms .card,
+body.lumina-v2 .lumina-room-chat .card {
+  border-radius:22px!important;
+}
+body.lumina-v2 .messages-conversation,
+body.lumina-v2 .messages-thread,
+body.lumina-v2 .messages-thread-row {
+  border-color:rgba(211,224,255,.13);
+}
+body.lumina-v2 .one-pulse-card,
+body.lumina-v2 .one-hero-card {border-radius:27px;overflow:hidden;}
+body.lumina-v2 .one-pulse-media {object-fit:cover;}
+body.lumina-v2 .one-tabs {
+  max-width:680px;margin-left:auto;margin-right:auto;gap:8px;overflow-x:auto;
+}
+body.lumina-v2 .one-tabs button {min-height:48px;min-width:70px;border-radius:14px}
+body.lumina-v2 .lumina-v2-discover-bar {
+  margin:0 auto 14px;max-width:680px;padding:0 16px;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  color:#cad6ee;font-size:12px;
+}
+body.lumina-v2 .lumina-v2-discover-bar button {
+  min-height:40px;padding:9px 14px;border-radius:14px;
+  color:#f7f8ff;border:1px solid rgba(206,218,255,.24);background:rgba(155,160,255,.12);
+  font-weight:750;
+}
+body.lumina-v2 .sk {background-image:linear-gradient(90deg,#263a5c 25%,#344c71 50%,#263a5c 75%);}
+body.lumina-v2 input,body.lumina-v2 textarea {
+  font-size:max(16px,1rem);
+}
+@media(max-width:370px){
+  body.lumina-v2 .lumina-brand-subtitle {display:none;}
+  body.lumina-v2 .lumina-explore-portals button {padding:10px;font-size:12px;}
+  body.lumina-v2 .lumina-feed-switch .lumina-switch-hint {display:none}
+  body.lumina-v2 .nav .nb span {font-size:10px!important}
+}
+@media(min-width:850px){
+  body.lumina-v2 .lumina-feed-list {gap:19px;}
+  body.lumina-v2 .lumina-post {border-radius:29px!important;}
+}
+@media(prefers-reduced-motion:reduce) {
+  body.lumina-v2 *,body.lumina-v2 *::before,body.lumina-v2 *::after {
+    scroll-behavior:auto!important;animation-duration:.01ms!important;
+    animation-iteration-count:1!important;transition-duration:.01ms!important;
+  }
+  body.lumina-v2 .up,body.lumina-v2 .w,body.lumina-v2 .pill {opacity:1!important;transform:none!important;}
+}

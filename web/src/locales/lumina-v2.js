@@ -94,7 +94,7 @@ Object.assign(V2_FR, {
   'Tu defines o contexto. A Lumina adapta-se.':'Tu choisis le contexte. Lumina s’adapte.',
   'Esta área não é um feed. Serve apenas para dizer à Lumina o que queres descobrir, o que queres evitar e em que contexto estás.':'Cet espace n’est pas un fil. Il sert à indiquer à Lumina ce que tu souhaites découvrir ou éviter, ainsi que ton contexte.',
   'O Radar usa a localização real do iPhone. Perto de mim, País e Mundo ficam separados.':'Radar utilise la position réelle de ton iPhone. Près de moi, Pays et Monde restent distincts.',
-  'Aplicar agora':'Appliquer',
+  'Aplicar agora':'Appliquer maintenant',
 });
 Object.assign(V2_ES, {
   'Abrir Lumina One':'Abrir Lumina One',

@@ -140,7 +140,7 @@ export function Feed({
         {loadingFeed ? <div className="lumina-feed-list">{[0,1].map(i => <div key={i} className="lumina-post" style={{ padding: '13px 0' }}><div style={{ display: 'flex', gap: 11, padding: '0 14px 13px', alignItems: 'center' }}><Skeleton w={38} h={38} r={99} /><div style={{ flex: 1 }}><Skeleton w="45%" h={13} /></div></div><Skeleton w="calc(100% - 16px)" h={280} r={19} /><div style={{ padding: '14px' }}><Skeleton w="70%" h={13} /></div></div>)}</div> : feed.length === 0 ? <section className="lumina-v2-empty lumina-feed-empty lumina-v3-empty" aria-label="Começar na Lumina">
           <div className="lumina-v3-empty-header">
             <span className="lumina-v3-empty-symbol"><Sparkles size={19} aria-hidden="true"/></span>
-            <span className="lumina-v3-empty-kicker">O TEU PRÓXIMO CAPÍTULO</span>
+            <span className="lumina-v3-empty-kicker">{t('O TEU PRÓXIMO CAPÍTULO')}</span>
           </div>
           <h2>{t('As melhores histórias começam contigo.')}</h2>
           <p className="lumina-v3-empty-subtitle">{t('O teu Feed está vazio.')}{' '}{t('O teu espaço está pronto. Descobre pessoas com quem te identificas ou partilha um primeiro momento.')}</p>
@@ -149,7 +149,7 @@ export function Feed({
             <button type="button" onClick={() => setComp({ title:'Publicar' })}><Plus size={16}/>{t('Criar publicação')}</button>
           </div>
           {suggestedPeople.length > 0 && <div className="lumina-v3-suggestions">
-            <div className="lumina-v3-suggestions-heading"><strong>Pessoas para descobrir</strong><button type="button" onClick={() => setScreen('amigos')}>Ver todas ↗</button></div>
+            <div className="lumina-v3-suggestions-heading"><strong>{t('Pessoas para descobrir')}</strong><button type="button" onClick={() => setScreen('amigos')}>{t('Ver todas')} ↗</button></div>
             <div className="lumina-v3-people">
               {suggestedPeople.map(person => <button className="lumina-v3-person" key={person.id} type="button" onClick={() => setScreen('amigos')}>
                 <Orb p={person.palette} avatarUrl={person.avatar_url} s={38}/>

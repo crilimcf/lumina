@@ -259,6 +259,10 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
         <div className="explore-trust-copy"><strong>{t('Notícias ficam no Radar.')}</strong><p>{t('O Pulso é social. Aqui encontras notícias, eventos, promoções e tendências com origem identificada — sem misturar a tua zona com o país ou o mundo.')}</p></div>
       </section>
 
+      <div className="lumina-v2-discover-bar" aria-label="Radar">
+        <h2 style={{fontSize:21,margin:0,color:'#f7f8ff'}}>Radar</h2>
+        <span>{t('Notícias e eventos')}</span>
+      </div>
       <div className="radar-split-switch radar-three-way" role="tablist" aria-label={t('Âmbito do Radar')}>
         <button type="button" role="tab" aria-selected={scope==='nearby'} className={scope==='nearby'?'is-active':''} onClick={()=>setScope('nearby')}><MapPin size={18}/> {t('Perto de mim')}</button>
         <button type="button" role="tab" aria-selected={scope==='country'} className={scope==='country'?'is-active':''} onClick={()=>setScope('country')}><Flag size={18}/> {t('País')}</button>

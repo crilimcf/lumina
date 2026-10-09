@@ -4,6 +4,7 @@ import { api } from '../api.js';
 import { t } from '../i18n-ui.js';
 import { Orb } from '../ui.jsx';
 import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
+import { LuminaAppearance } from '../components/LuminaAppearance.jsx';
 import '../facelift.css';
 import '../profileFacelift.css';
 
@@ -268,6 +269,8 @@ export function Perfil({ me, blocked, setBlocked, setScreen, onOpenProfile, logo
           </button>
         </div>
       </section>
+
+      <LuminaAppearance />
 
       <section className="lumina-profile-section">
         <div className="lumina-profile-section-head"><strong>Conta & segurança</strong><span>Controlo e privacidade</span></div>

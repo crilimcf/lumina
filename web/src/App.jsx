@@ -232,8 +232,7 @@ export default function App() {
   async function afterLogin(user, isNewAccount = false) {
     setMe(user);
     if (isNewAccount) setShowWelcome(true);
-    // Returning members should go straight to their feed, not repeat the onboarding choice.
-    setOpening(Boolean(isNewAccount));
+    setOpening(true);
     feedState.loadFeed();
     momentState.loadMoments();
     api.notifications.unread().then(r => setUnreadCount(r.count || 0)).catch(() => {});

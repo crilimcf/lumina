@@ -464,3 +464,44 @@ body.lumina-v2 .lumina-one .one-story-avatar {
   background:linear-gradient(150deg,rgba(147,110,255,.22),rgba(92,143,241,.18));
 }
 body.lumina-v2 .lumina-one .one-story-avatar > * {flex:0 0 auto}
+
+/* Lume capture uses a full-screen, keyboard-safe native camera hand-off. */
+body.lumina-v2 .lumina-one .one-v2-lume-compose,
+body.lumina-v2 .lumina-one .one-camera.social-loop-backdrop {
+  position:fixed!important;inset:0!important;z-index:125!important;
+  width:100vw;height:100dvh;margin:0!important;
+}
+body.lumina-v2 .lumina-one .one-v2-lume-compose {
+  display:flex;align-items:flex-end;justify-content:center;
+  padding:20px 16px calc(24px + env(safe-area-inset-bottom));
+  background:rgba(4,10,24,.84);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);
+}
+body.lumina-v2 .lumina-one .one-v2-lume-compose-card {
+  width:min(100%,480px);display:grid;gap:17px;
+  padding:22px 20px;border-radius:27px;
+  background:linear-gradient(155deg,#253a62,#14243e);
+  border:1px solid rgba(221,228,255,.2);
+  color:#f9faff;box-shadow:0 20px 70px rgba(0,4,16,.5);
+}
+body.lumina-v2 .lumina-one .one-v2-lume-compose-header {
+  display:flex;align-items:center;justify-content:space-between;
+}
+body.lumina-v2 .lumina-one .one-v2-lume-compose-header h2 {font-size:24px;margin:0;}
+body.lumina-v2 .lumina-one .one-v2-lume-compose-header button {
+  display:grid;place-items:center;width:42px;height:42px;border-radius:14px;
+  border:1px solid rgba(218,229,255,.15);background:rgba(255,255,255,.07);color:#fff;
+}
+body.lumina-v2 .lumina-one .one-v2-lume-compose-card p {margin:0;line-height:1.5;color:#cedbf2;font-size:14px;}
+body.lumina-v2 .lumina-one .one-v2-lume-context {
+  display:flex;align-items:center;gap:14px;min-height:75px;padding:14px;
+  border-radius:18px;border:1px solid rgba(173,185,255,.3);
+  background:rgba(160,151,255,.12);color:#fff;text-align:left;
+}
+body.lumina-v2 .lumina-one .one-v2-lume-context span {display:grid;gap:4px;}
+body.lumina-v2 .lumina-one .one-v2-lume-context b {font-size:14px;}
+body.lumina-v2 .lumina-one .one-v2-lume-context small {color:#c3d0e9;font-size:12px;}
+body.lumina-v2 .lumina-one .one-camera-heading {
+  position:absolute;top:calc(20px + env(safe-area-inset-top));left:50%;
+  transform:translateX(-50%);z-index:2;margin:0;
+  font-size:16px;font-weight:850;color:#fff;
+}

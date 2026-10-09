@@ -8,8 +8,11 @@ import { isNativeApp } from './native/session.js';
 import './index.css';
 import './lumina-v2.css';
 import './lumina-premium-mobile.css';
+import './lumina-identities.css';
+import { readLuminaIdentity, applyLuminaIdentity } from './components/LuminaAppearance.jsx';
 
 document.body.classList.add('lumina-v2');
+applyLuminaIdentity(readLuminaIdentity());
 
 const CANONICAL_HOST = 'lumina-snowy-ten.vercel.app';
 const host = window.location.hostname;

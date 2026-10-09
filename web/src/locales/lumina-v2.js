@@ -13,7 +13,8 @@ export const V2_EN = {
   'Vídeo publicado':'Video post','Publicação':'Post',
   'Encontra pessoas, comunidades e o que está a acontecer à tua volta — ao teu ritmo.':'Find people, communities and what is happening around you — at your own pace.',
   'Pulso':'Pulse','Descoberta social':'Social discovery','Encontra a tua comunidade':'Find your community',
-  'Notícias e eventos':'News and events','Notícias e tendências':'News and trends','Explorar a Lumina':'Explore Lumina',
+  'Notícias e eventos':'News and events',
+  'Ver no Feed':'View in Feed','Ver momentos de {name}':'See {name}’s stories','Notícias e tendências':'News and trends','Explorar a Lumina':'Explore Lumina',
 };
 export const V2_FR = {
   'Início':'Accueil','Criar':'Créer','Explorar':'Explorer','Chat':'Messages',
@@ -29,7 +30,8 @@ export const V2_FR = {
   'Vídeo publicado':'Vidéo publiée','Publicação':'Publication',
   'Encontra pessoas, comunidades e o que está a acontecer à tua volta — ao teu ritmo.':'Découvre des personnes, des communautés et ce qui se passe autour de toi — à ton rythme.',
   'Pulso':'Pouls','Descoberta social':'Découverte sociale','Encontra a tua comunidade':'Trouve ta communauté',
-  'Notícias e eventos':'Actualités et événements','Notícias e tendências':'Actualités et tendances','Explorar a Lumina':'Explorer Lumina',
+  'Notícias e eventos':'Actualités et événements',
+  'Ver no Feed':'Voir dans le fil','Ver momentos de {name}':'Voir les stories de {name}','Notícias e tendências':'Actualités et tendances','Explorar a Lumina':'Explorer Lumina',
 };
 export const V2_ES = {
   'Início':'Inicio','Criar':'Crear','Explorar':'Explorar','Chat':'Mensajes',
@@ -45,7 +47,8 @@ export const V2_ES = {
   'Vídeo publicado':'Vídeo publicado','Publicação':'Publicación',
   'Encontra pessoas, comunidades e o que está a acontecer à tua volta — ao teu ritmo.':'Descubre personas, comunidades y lo que sucede a tu alrededor — a tu ritmo.',
   'Pulso':'Pulso','Descoberta social':'Descubrimiento social','Encontra a tua comunidade':'Encuentra tu comunidad',
-  'Notícias e eventos':'Noticias y eventos','Notícias e tendências':'Noticias y tendencias','Explorar a Lumina':'Explorar Lumina',
+  'Notícias e eventos':'Noticias y eventos',
+  'Ver no Feed':'Ver en el inicio','Ver momentos de {name}':'Ver las historias de {name}','Notícias e tendências':'Noticias y tendencias','Explorar a Lumina':'Explorar Lumina',
 };
 
 Object.assign(V2_EN, {

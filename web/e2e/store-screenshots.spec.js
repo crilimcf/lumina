@@ -122,7 +122,7 @@ async function settle(page) {
   await page.waitForTimeout(350);
 }
 
-async function captureDevice(browser, output, contextOptions) {
+async function captureDevice(browser, output, contextOptions, identity='midnight') {
   const context = await browser.newContext({
     locale:'pt-PT',
     isMobile:true,
@@ -130,6 +130,7 @@ async function captureDevice(browser, output, contextOptions) {
     colorScheme:'dark',
     ...contextOptions,
   });
+  await context.addInitScript(theme=>localStorage.setItem('lumina-identity-v1', theme),identity);
   const page = await context.newPage();
   await mockStoreSession(page);
   await page.goto('/');
@@ -162,6 +163,8 @@ test('gera screenshots determinísticos para App Store e Google Play', async ({ 
   const root = '../mobile/store-assets/screenshots';
   await fs.mkdir(`${root}/iphone-6.7`, { recursive:true });
   await fs.mkdir(`${root}/android-phone`, { recursive:true });
+  await fs.mkdir(`${root}/iphone-air`, { recursive:true });
+  await fs.mkdir(`${root}/iphone-pulse`, { recursive:true });
 
   await captureDevice(browser, `${root}/iphone-6.7`, {
     viewport:{ width:430, height:932 },
@@ -175,4 +178,7 @@ test('gera screenshots determinísticos para App Store e Google Play', async ({ 
     deviceScaleFactor:3,
     userAgent:'Mozilla/5.0 (Linux; Android 16; Pixel 9) AppleWebKit/537.36 Chrome/138.0.0.0 Mobile Safari/537.36',
   });
+  const iphone={viewport:{width:430,height:932},screen:{width:430,height:932},deviceScaleFactor:3,userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 Version/18.6 Mobile/15E148 Safari/604.1'};
+  await captureDevice(browser, `${root}/iphone-air`, iphone, 'air');
+  await captureDevice(browser, `${root}/iphone-pulse`, iphone, 'pulse');
 });

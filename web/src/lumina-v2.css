@@ -436,3 +436,31 @@ body.lumina-v2 .lumina-auth .auth-card input::placeholder {color:#b2c2de;}
 body.lumina-v2 .lumina-auth .auth-card .m,
 body.lumina-v2 .lumina-auth .auth-terms {color:#c6d3eb!important;}
 body.lumina-v2 .lumina-auth .auth-card a {color:#bbaaff;}
+
+/* Live stories in Pulse use the same account graph as Feed Moments. */
+body.lumina-v2 .lumina-one .one-story-section {
+  width:min(100% - 28px,680px);
+  margin:0 auto 24px;
+  padding:18px 16px;
+  border:1px solid rgba(211,222,255,.14);
+  border-radius:25px;
+  background:rgba(21,38,63,.63);
+}
+body.lumina-v2 .lumina-one .one-story-section .one-section-head {align-items:center;}
+body.lumina-v2 .lumina-one .one-story-rail {
+  display:flex;align-items:flex-start;gap:15px;
+  overflow-x:auto;padding:12px 2px 4px;
+  scrollbar-width:none;scroll-snap-type:x proximity;
+}
+body.lumina-v2 .lumina-one .one-story-rail::-webkit-scrollbar {display:none}
+body.lumina-v2 .lumina-one .one-story-button {
+  flex:0 0 64px;display:flex;flex-direction:column;align-items:center;gap:8px;
+  padding:4px 0;border:0;background:transparent;color:#e6edff;
+  font-size:11px;font-weight:700;cursor:pointer;scroll-snap-align:start;
+}
+body.lumina-v2 .lumina-one .one-story-avatar {
+  display:grid;place-items:center;width:58px;height:58px;padding:4px;
+  border:2px solid #a18bff;border-radius:50%;
+  background:linear-gradient(150deg,rgba(147,110,255,.22),rgba(92,143,241,.18));
+}
+body.lumina-v2 .lumina-one .one-story-avatar > * {flex:0 0 auto}

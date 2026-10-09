@@ -487,3 +487,18 @@ body.lumina-v2[data-lumina-identity="air"] .room-card > button > div:first-child
 body.lumina-v2[data-lumina-identity="pulse"] .room-card > button > div:first-child .d {
   color:#fff!important;
 }
+
+/* Air readability: preserve text contrast on light surfaces. */
+body.lumina-v2[data-lumina-identity="air"] .explore-header p,
+body.lumina-v2[data-lumina-identity="air"] .lumina-brand-subtitle,
+body.lumina-v2[data-lumina-identity="air"] .lumina-section-heading span,
+body.lumina-v2[data-lumina-identity="air"] .lumina-v3-empty-subtitle,
+body.lumina-v2[data-lumina-identity="air"] .lumina-profile-bio,
+body.lumina-v2[data-lumina-identity="air"] .messages-thread-preview {
+  color:#52637e!important;opacity:1!important;
+}
+body.lumina-v2[data-lumina-identity="air"] .messages-search input::placeholder,
+body.lumina-v2[data-lumina-identity="air"] .messages-composer-input::placeholder,
+body.lumina-v2[data-lumina-identity="air"] .composer-sheet textarea::placeholder {
+  color:#6c7c96!important;opacity:1!important;
+}

@@ -40,7 +40,12 @@
       border: '1px solid #d9ddff', background: '#f0efff', color: '#12203a',
       fontWeight: '800', fontSize: '15px', cursor: 'pointer',
     });
-    button.addEventListener('click', () => window.location.reload());
+    button.addEventListener('click', () => {
+      // Force a fresh document request without touching sessions or stored content.
+      const next = new URL(window.location.href);
+      next.searchParams.set('__lumina_boot_retry', String(Date.now()));
+      window.location.replace(next.toString());
+    });
     panel.append(mark, headline, description, button);
     root.replaceChildren(panel);
   };
@@ -50,4 +55,21 @@
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
   else start();
+  // MIME errors on stale release assets must never leave an empty screen.
+  const accelerateRecovery = () => {
+    clearTimeout(timer);
+    timer = setTimeout(verify, 1200);
+  };
+  window.addEventListener('error', (event) => {
+    const failed = event.target;
+    const path = failed?.src || failed?.href || '';
+    if ((failed?.tagName === 'SCRIPT' || failed?.tagName === 'LINK') &&
+      (path.includes('/assets/') || path.includes('/src/'))) accelerateRecovery();
+  }, true);
+  window.addEventListener('unhandledrejection', (event) => {
+    const message = String(event?.reason?.message || event?.reason || '');
+    if (/Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk|module script/i.test(message)) {
+      accelerateRecovery();
+    }
+  });
 })();

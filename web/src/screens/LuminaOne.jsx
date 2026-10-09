@@ -70,6 +70,7 @@ export function LuminaOne({ me, onBack, ping }) {
   const [pulseScope, setPulseScope] = useState('for-you');
   const [pulse, setPulse] = useState([]);
   const [pulseLoading, setPulseLoading] = useState(false);
+  const [stories, setStories] = useState([]);
 
   const [lumes, setLumes] = useState([]);
   const [lumeViewer, setLumeViewer] = useState(null);
@@ -149,6 +150,12 @@ export function LuminaOne({ me, onBack, ping }) {
     window.dispatchEvent(new Event('lumina:one-mode-changed'));
   }, [tab]);
   useEffect(() => { if (tab === 'pulse') loadPulse(); }, [tab, loadPulse]);
+  useEffect(() => {
+    if (tab !== 'pulse') return undefined;
+    let live=true;
+    api.moments.list().then(rows => { if (live) setStories(Array.isArray(rows) ? rows : []); }).catch(()=>{});
+    return () => { live=false; };
+  }, [tab]);
   useEffect(() => { if (tab === 'lumes') loadLumes(); }, [tab, loadLumes]);
   useEffect(() => { if (tab === 'capsules') loadCapsules(); }, [tab, loadCapsules]);
   useEffect(() => { if (tab === 'agora') loadAgora(); }, [tab, loadAgora]);
@@ -322,6 +329,24 @@ export function LuminaOne({ me, onBack, ping }) {
         <span>PULSO</span>
         <h2>{t('Pessoas e momentos. Não notícias.')}</h2>
         <p>{t('O Pulso é descoberta social: publicações, pessoas e conteúdos da tua rede. Notícias, eventos e tendências vivem exclusivamente no Radar.')}</p>
+      </section>
+      <section className="one-story-section" aria-label={t('A acontecer agora')}>
+        <div className="one-section-head">
+          <div><span>{t('Stories')}</span><b className="one-story-head">{t('A acontecer agora')}</b></div>
+          <button type="button" className="one-secondary-action" onClick={onBack}>{t('Ver no Feed')}</button>
+        </div>
+        <div className="one-story-rail">
+          <button type="button" className="one-story-button" onClick={onBack} aria-label={t('A tua story')}>
+            <span className="one-story-avatar"><Orb p={me?.palette} avatarUrl={me?.avatar_url} s={48}/></span>
+            <span>{t('A tua story')}</span>
+          </button>
+          {Array.from(new Map(stories.filter(item => item.author_id!==me?.id).map(item => [item.author_id,item])).values()).slice(0,14).map(item =>
+            <button type="button" className="one-story-button" key={item.author_id} onClick={onBack} aria-label={t('Ver momentos de {name}',{name:item.name})}>
+              <span className="one-story-avatar"><Orb p={item.author_palette} avatarUrl={item.author_avatar_url} s={48}/></span>
+              <span>{item.name?.split(' ')[0]||item.handle}</span>
+            </button>
+          )}
+        </div>
       </section>
       <div className="one-section-toolbar">
         <div><span>DESCOBERTA SOCIAL</span><b>{t('O que vale o teu tempo')}</b></div>

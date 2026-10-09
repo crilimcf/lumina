@@ -422,7 +422,7 @@ export function LuminaOne({ me, onBack, ping }) {
       <section className="one-v2-lume-compose-card">
         <div className="one-v2-lume-compose-header"><h2>{t('Acender um Lume')}</h2><button type="button" onClick={()=>setLumeComposerOpen(false)} aria-label={t('Fechar')}><X size={20}/></button></div>
         <p>{t('Uma fotografia real, só para amigos mútuos. Abre uma vez e desaparece.')}</p>
-        <button type="button" className="one-v2-lume-context" aria-label={t('Direto · Uma fotografia para amigos escolhidos')}><Camera size={24}/><span><b>{t('Direto')}</b><small>{t('Uma fotografia para amigos escolhidos')}</small></span></button>
+        <button type="button" className="one-v2-lume-context" onClick={()=>{setLumeComposerOpen(false);setCameraOpen(true)}} aria-label={t('Direto · Uma fotografia para amigos escolhidos')}><Camera size={24}/><span><b>{t('Direto')}</b><small>{t('Uma fotografia para amigos escolhidos')}</small></span></button>
         <button type="button" className="one-primary" onClick={()=>{setLumeComposerOpen(false);setCameraOpen(true)}}><Camera size={18}/>{t('Tirar fotografia')}</button>
       </section>
     </div>}

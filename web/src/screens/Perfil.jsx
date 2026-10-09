@@ -144,6 +144,8 @@ export function Perfil({ me, blocked, setBlocked, setScreen, onOpenProfile, logo
   const [followers, setFollowers] = useState([]);
   const [following, setFollowing] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
+  const [myPosts, setMyPosts] = useState([]);
+  const [postsLoading, setPostsLoading] = useState(true);
   const [connections, setConnections] = useState(null);
   const [discover, setDiscover] = useState(false);
   const [deletion, setDeletion] = useState(null);
@@ -158,6 +160,17 @@ export function Perfil({ me, blocked, setBlocked, setScreen, onOpenProfile, logo
   useEffect(() => {
     api.account.deletion().then(setDeletion).catch(() => setDeletion({ scheduled:false, executeAt:null }));
   }, []);
+
+  useEffect(() => {
+    if (!me?.handle) { setPostsLoading(false); return undefined; }
+    let active = true;
+    setPostsLoading(true);
+    api.users.posts(me.handle)
+      .then(result => { if (active) setMyPosts(Array.isArray(result) ? result : result.posts || []); })
+      .catch(() => { if (active) setMyPosts([]); })
+      .finally(() => { if (active) setPostsLoading(false); });
+    return () => { active = false; };
+  }, [me?.handle]);
 
   const exportAccount = async () => {
     if (accountBusy) return;
@@ -217,6 +230,27 @@ export function Perfil({ me, blocked, setBlocked, setScreen, onOpenProfile, logo
           <button className="lumina-profile-stat" onClick={() => setConnections('following')} aria-label="Ver a seguir"><strong>{following.length}</strong><span>A seguir</span></button>
         </div>
         <button className="lumina-profile-edit" onClick={() => setScreen('editar-perfil')}><Pencil size={15} />Editar perfil</button>
+      </section>
+
+      <section className="lumina-profile-section lumina-v2-stories">
+        <div className="lumina-profile-section-head"><strong>As tuas histórias</strong><span>{myPosts.length} publicações</span></div>
+        {postsLoading ? <div className="lumina-v2-gallery-caption" role="status">A carregar as tuas publicações…</div> : myPosts.length > 0
+          ? <>
+              <div className="lumina-v2-gallery" aria-label="Galeria das tuas publicações">
+                {myPosts.slice(0,9).map(post => <div key={post.id} className={`lumina-v2-gallery-item${post.media_url?'':' is-text'}`}>
+                  {post.media_url
+                    ? (post.media_mime?.startsWith('video/')
+                        ? <video src={post.media_url} preload="metadata" muted playsInline aria-label="Vídeo publicado"/>
+                        : <img src={post.media_url} alt={post.body ? post.body.slice(0,100) : 'Fotografia publicada'} loading="lazy"/>)
+                    : <span>{post.body?.slice(0,110) || 'Publicação'}</span>}
+                </div>)}
+              </div>
+              <p className="lumina-v2-gallery-caption">As tuas publicações, num só lugar.</p>
+            </>
+          : <div className="lumina-v2-empty lumina-v2-gallery-start">
+              <p>O teu perfil merece mostrar o que te faz único.</p>
+              <div className="lumina-v2-empty-actions"><button type="button" onClick={() => setComp({ title:'Publicar' })}>Criar a primeira publicação</button></div>
+            </div>}
       </section>
 
       <section className="lumina-profile-section">

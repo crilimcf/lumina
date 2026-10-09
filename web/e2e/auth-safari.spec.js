@@ -38,9 +38,9 @@ test('criar conta, sair e voltar a entrar funciona em Mobile Safari', async ({ p
   await page.getByPlaceholder('Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Entrar' }).click();
 
-  await expect(page.getByText('Olá, Safari')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Entrar no Feed' })).toBeVisible();
-  await page.getByRole('button', { name: 'Entrar no Feed' }).click();
+  // Existing users should land on the Feed directly, without redoing onboarding.
+  await expect(page.getByRole('button', { name: 'Novo' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Entrar no Feed' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Perfil' })).toBeVisible();
   await page.getByRole('button', { name: 'Perfil' }).click();
   await expect(page.getByRole('button', { name: /Exportar os meus dados/ })).toBeVisible();

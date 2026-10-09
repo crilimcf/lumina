@@ -67,7 +67,7 @@ test('Air readable across entry, Feed, Direct, Rooms and Explore on iPhone', asy
   expect(await group.evaluate(node => getComputedStyle(node).position)).not.toBe('fixed');
   const groupBounds = await group.boundingBox();
   const navBounds = await page.locator('.nav').boundingBox();
-  expect(groupBounds.bottom).toBeLessThan(navBounds.top);
+  expect(groupBounds.y + groupBounds.height).toBeLessThan(navBounds.y);
 
   console.log('[air-qa] starting Rooms');
   await page.locator('.nav').getByRole('button',{ name:'Salas' }).click();

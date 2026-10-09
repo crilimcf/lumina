@@ -250,10 +250,10 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
           <Users size={21} aria-hidden="true"/>
           <span>{t('Salas')}<small>{t('Encontra a tua comunidade')}</small></span>
         </button>
-        <button type="button" className="is-current" aria-current="page">
+        <div className="is-current" aria-current="page">
           <Compass size={21} aria-hidden="true"/>
           <span>Radar<small>{t('Notícias e tendências')}</small></span>
-        </button>
+        </div>
       </div>
       <section className="explore-trust-panel" aria-label={t('Como funciona o Radar')}>
         <span className="explore-trust-icon"><ShieldCheck size={20}/></span>

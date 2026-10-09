@@ -357,3 +357,46 @@ body.lumina-v2 .lumina-one .one-pulse-card {
 body.lumina-v2 .lumina-one .one-hero-card {
   border-color:rgba(215,225,255,.18);
 }
+
+/* Light sheets deliberately remain light, with independent contrast tokens.
+   Global dark variables must never turn auth/composer text white on white. */
+body.lumina-v2 .lumina-auth,
+body.lumina-v2 .composer-sheet,
+body.lumina-v2 .edit-post-sheet {
+  --paper:#f5f3ff;
+  --paper2:#ece9fa;
+  --card:#ffffff;
+  --ink:#17182f;
+  --grey:#626783;
+  --edge:#dcd8ec;
+  --cobalt:#5b3df5;
+  --cobalt2:#765cf2;
+  color:#17182f;
+  color-scheme:light;
+}
+body.lumina-v2 .composer-sheet .composer-media-picker,
+body.lumina-v2 .composer-sheet .composer-live-picker {
+  color:#17182f!important;
+}
+body.lumina-v2 .composer-sheet input,
+body.lumina-v2 .composer-sheet textarea,
+body.lumina-v2 .edit-post-sheet textarea {
+  color:#17182f!important;
+  background:#fff!important;
+  border-color:#dcd8ec!important;
+}
+body.lumina-v2 .composer-sheet .m,
+body.lumina-v2 .edit-post-sheet .m,
+body.lumina-v2 .lumina-auth .m {
+  color:#626783;
+}
+body.lumina-v2 .lumina-auth .auth-title { color:#15142d; }
+body.lumina-v2 .lumina-auth input:not([type="checkbox"]) {
+  background:#fff;
+  color:#17182f;
+}
+body.lumina-v2 .lumina-auth .auth-card {
+  background:rgba(255,255,255,.97);
+  color:#17182f;
+}
+body.lumina-v2 .lumina-auth .auth-lede {color:#525976!important;}

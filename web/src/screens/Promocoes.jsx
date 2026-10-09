@@ -233,25 +233,25 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
         <div className="explore-title-row">
           <div className="explore-title-copy">
             <div className="explore-eyebrow">{t('Explorar agora')}</div>
-            <h1>Explorar</h1>
-            <p>Encontra pessoas, comunidades e o que está a acontecer à tua volta — ao teu ritmo.</p>
+            <h1>{t('Explorar')}</h1>
+            <p>{t('Encontra pessoas, comunidades e o que está a acontecer à tua volta — ao teu ritmo.')}</p>
           </div>
           <TopActions tab={tab} setTab={setTab} setThread={setThread} unreadCount={unreadCount}/>
         </div>
       </header>
 
-      <div className="lumina-explore-portals" role="group" aria-label="Explorar a Lumina">
+      <div className="lumina-explore-portals" role="group" aria-label={t('Explorar a Lumina')}>
         <button type="button" onClick={() => setScreen?.('one')}>
           <Sparkles size={21} aria-hidden="true"/>
-          <span>Pulso<small>Descoberta social</small></span>
+          <span>{t('Pulso')}<small>{t('Descoberta social')}</small></span>
         </button>
         <button type="button" onClick={() => setTab('rooms')}>
           <Users size={21} aria-hidden="true"/>
-          <span>Salas<small>Encontra a tua comunidade</small></span>
+          <span>{t('Salas')}<small>{t('Encontra a tua comunidade')}</small></span>
         </button>
         <button type="button" className="is-current" aria-current="page">
           <Compass size={21} aria-hidden="true"/>
-          <span>Radar<small>Notícias e eventos</small></span>
+          <span>Radar<small>{t('Notícias e eventos')}</small></span>
         </button>
       </div>
       <section className="explore-trust-panel" aria-label={t('Como funciona o Radar')}>

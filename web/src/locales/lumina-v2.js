@@ -84,7 +84,7 @@ Object.assign(V2_FR, {
   'Agora em {place}':'En ce moment à {place}',
   '{count} Lumes para ver':'{count} Lumes à voir',
   '{count} Cápsulas contigo':'{count} Capsules partagées',
-  'Sem saltar.':'Sans changer d’écran.',
+  'Sem saltar.':'Sans interruption.',
   'Cria, descobre e guarda momentos numa experiência contínua — cada área com uma função clara.':'Crée, découvre et garde tes souvenirs au sein d’une expérience fluide, où chaque espace a son rôle.',
   'Pessoas e momentos. Não notícias.':'Des personnes et des moments. Pas des actualités.',
   'O Pulso é descoberta social: publicações, pessoas e conteúdos da tua rede. Notícias, eventos e tendências vivem exclusivamente no Radar.':'Le Pouls est dédié aux publications, aux personnes et aux contenus de ton réseau. Les actualités, événements et tendances restent dans Radar.',

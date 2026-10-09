@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Check, MoonStar, Sun, Sparkles } from 'lucide-react';
+import { t } from '../i18n-ui.js';
 
 export const LUMINA_IDENTITY_KEY = 'lumina-identity-v1';
 const IDENTITIES = [
@@ -29,29 +30,29 @@ export function LuminaAppearance() {
   const setIdentity=(next)=>{setSelected(next);applyLuminaIdentity(next)};
   return <section className="lumina-profile-section lumina-identity-section" aria-labelledby="lumina-identity-title">
     <div className="lumina-profile-section-head">
-      <strong id="lumina-identity-title">A tua Lumina</strong>
-      <span>Identidade visual</span>
+      <strong id="lumina-identity-title">{t('A tua Lumina')}</strong>
+      <span>{t('Identidade visual')}</span>
     </div>
-    <p className="lumina-identity-intro">Escolhe como queres viver a Lumina. O conteúdo e as tuas definições de privacidade mantêm-se iguais.</p>
-    <div className="lumina-identity-options" role="group" aria-label="Identidade visual da Lumina">
+    <p className="lumina-identity-intro">{t('Escolhe como queres viver a Lumina. O conteúdo e as tuas definições de privacidade mantêm-se iguais.')}</p>
+    <div className="lumina-identity-options" role="group" aria-label={t('Identidade visual da Lumina')}>
       {IDENTITIES.map(({id,Icon,label,caption,badge})=><button key={id} type="button"
         className={`lumina-identity-choice is-${id}${selected===id?' is-selected':''}`}
         onClick={()=>setIdentity(id)} aria-pressed={selected===id}
-        aria-label={`${label}, ${caption}`}>
+        aria-label={`${label}, ${t(caption)}`}>
         <span className="lumina-identity-preview" aria-hidden="true">
           <span className="lumina-identity-preview-top"><span/><span/><span/></span>
           <span className="lumina-identity-preview-hero"><span/><span/></span>
           <span className="lumina-identity-preview-cards"><span/><span/><span/></span>
         </span>
         <span className="lumina-identity-choice-label"><Icon size={14}/><strong>{label}</strong>{selected===id&&<Check className="lumina-identity-check" size={15}/>}</span>
-        <small>{caption}</small>
-        <span className="lumina-identity-badge">{badge}</span>
+        <small>{t(caption)}</small>
+        <span className="lumina-identity-badge">{t(badge)}</span>
       </button>)}
     </div>
     <p className="lumina-identity-note" role="status">
-      {selected==='midnight'?'Midnight ativo: contraste confortável e conteúdos em destaque.'
-        :selected==='air'?'Air ativo: uma interface clara, com mais espaço e leitura editorial.'
-        :'Pulse ativo: fundos intensos e maior destaque para fotografias e vídeos.'}
+      {selected==='midnight'?t('Midnight ativo: contraste confortável e conteúdos em destaque.')
+        :selected==='air'?t('Air ativo: uma interface clara, com mais espaço e leitura editorial.')
+        :t('Pulse ativo: fundos intensos e maior destaque para fotografias e vídeos.')}
     </p>
   </section>
 }

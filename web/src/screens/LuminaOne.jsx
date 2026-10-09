@@ -96,6 +96,7 @@ export function LuminaOne({ me, onBack, ping }) {
   const [inviteResults, setInviteResults] = useState([]);
 
   const [prefs, setPrefs] = useState({ boost_topics:[], mute_topics:[], context_mode:'auto', local_region:'' });
+  const preferenceDraftEdited = useRef(false);
   const [boostInput, setBoostInput] = useState('');
   const [muteInput, setMuteInput] = useState('');
   const [deviceLocation, setDeviceLocation] = useState(() => readCachedRadarLocation());
@@ -137,12 +138,14 @@ export function LuminaOne({ me, onBack, ping }) {
   const loadAgora = useCallback(async () => {
     try {
       const nextPrefs = await api.one.preferences();
-      setPrefs(nextPrefs);
-      setBoostInput((nextPrefs.boost_topics || []).join(', '));
-      setMuteInput((nextPrefs.mute_topics || []).join(', '));
-      if (!deviceLocation) void refreshDeviceLocation({ force:false });
+      if (!preferenceDraftEdited.current) {
+        setPrefs(nextPrefs);
+        setBoostInput((nextPrefs.boost_topics || []).join(', '));
+        setMuteInput((nextPrefs.mute_topics || []).join(', '));
+      }
+      if (!readCachedRadarLocation()) void refreshDeviceLocation({ force:false });
     } catch (error) { ping(error.message); }
-  }, [deviceLocation, ping, refreshDeviceLocation]);
+  }, [ping, refreshDeviceLocation]);
 
   useEffect(() => {
     try { localStorage.setItem('lumina-one-last-mode-v1', tab); } catch {}
@@ -279,6 +282,7 @@ export function LuminaOne({ me, onBack, ping }) {
         localRegion,
       });
       setPrefs(next);
+      preferenceDraftEdited.current = false;
       ping('A Lumina foi adaptada ao teu momento');
     } catch (error) { ping(error.message); }
   };
@@ -377,9 +381,9 @@ export function LuminaOne({ me, onBack, ping }) {
       </section>
       <section className="one-settings-card">
         <div className="one-section-head"><div><span>O MEU ALGORITMO</span><b>{t('O que queres ver agora?')}</b></div><SlidersHorizontal size={20}/></div>
-        <label>{t('Quero ver mais')}<input value={boostInput} onChange={e=>setBoostInput(e.target.value)} placeholder="viagens, carros, tecnologia"/></label>
-        <label>{t('Quero ver menos')}<input value={muteInput} onChange={e=>setMuteInput(e.target.value)} placeholder="política, futebol…"/></label>
-        <div className="one-contexts"><span>{t('Modo de agora')}</span><div>{CONTEXTS.map(([key,label])=><button key={key} className={prefs.context_mode===key?'is-on':''} onClick={()=>setPrefs(prev=>({...prev,context_mode:key}))}>{t(label)}</button>)}</div></div>
+        <label>{t('Quero ver mais')}<input value={boostInput} onChange={e=>{preferenceDraftEdited.current=true;setBoostInput(e.target.value)}} placeholder="viagens, carros, tecnologia"/></label>
+        <label>{t('Quero ver menos')}<input value={muteInput} onChange={e=>{preferenceDraftEdited.current=true;setMuteInput(e.target.value)}} placeholder="política, futebol…"/></label>
+        <div className="one-contexts"><span>{t('Modo de agora')}</span><div>{CONTEXTS.map(([key,label])=><button key={key} className={prefs.context_mode===key?'is-on':''} onClick={()=>{preferenceDraftEdited.current=true;setPrefs(prev=>({...prev,context_mode:key}))}}>{t(label)}</button>)}</div></div>
         <div className="one-radar-handoff">
           <MapPin size={22}/>
           <div><b>{deviceLocation?.label || deviceLocation?.city || 'Localização do iPhone'}</b><p>{t('O Radar usa a localização real do iPhone. Perto de mim, País e Mundo ficam separados.')}</p></div>

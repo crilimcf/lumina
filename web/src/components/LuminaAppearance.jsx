@@ -21,6 +21,8 @@ export function applyLuminaIdentity(id) {
   document.body.dataset.luminaIdentity=next;
   document.documentElement.dataset.luminaIdentity=next;
   document.documentElement.style.colorScheme=next==='air'?'light':'dark';
+  const themeColor=next==='air'?'#f5f7fc':next==='pulse'?'#160e29':'#0b1428';
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content',themeColor);
   try { window.localStorage.setItem(LUMINA_IDENTITY_KEY,next) } catch {}
   window.dispatchEvent(new CustomEvent('lumina:identity-change',{detail:{identity:next}}));
 }

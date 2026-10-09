@@ -473,3 +473,17 @@ body.lumina-v2 .lumina-v2-gallery-item:focus-visible {
 @media(hover:hover){
   body.lumina-v2 .lumina-v2-gallery-item:hover {filter:brightness(1.10)}
 }
+
+/* Visual QA: room-cover typography must remain readable over image and
+   generated purple fallback, regardless of selected overall identity. */
+body.lumina-v2 .room-card > button > div:first-child .d {
+  color:#fff!important;
+  text-shadow:0 2px 14px rgba(0,0,0,.55);
+}
+body.lumina-v2 .room-card > button > div:first-child [style*="bottom: 14px"] {
+  color:#fff!important;
+}
+body.lumina-v2[data-lumina-identity="air"] .room-card > button > div:first-child .d,
+body.lumina-v2[data-lumina-identity="pulse"] .room-card > button > div:first-child .d {
+  color:#fff!important;
+}

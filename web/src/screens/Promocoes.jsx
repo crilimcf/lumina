@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   BadgeCheck, BadgePercent, CalendarDays, ChevronRight, ExternalLink, Globe2, MapPin,
-  Newspaper, RefreshCw, Settings2, ShieldCheck, Sparkles, TrendingUp, Flag, Users, Compass,
+  Newspaper, RefreshCw, Settings2, ShieldCheck, Sparkles, TrendingUp, Flag, Users, Compass, Search,
 } from 'lucide-react';
 import { detectRadarLocation, loadCountryRadar, loadGlobalRadar, loadNearbyRadar, readCachedRadarLocation } from '../radar-location.js';
 import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
@@ -242,6 +242,10 @@ export function Promocoes({ me, setScreen, tab, setTab, setComp, threads, setThr
       </header>
 
       <div className="lumina-explore-portals" role="group" aria-label={t('Explorar a Lumina')}>
+        <button type="button" onClick={() => setScreen?.('amigos')}>
+          <Search size={21} aria-hidden="true"/>
+          <span>{t('Pessoas')}<small>{t('Descobrir pessoas')}</small></span>
+        </button>
         <button type="button" onClick={() => setScreen?.('one')}>
           <Sparkles size={21} aria-hidden="true"/>
           <span>{t('Pulso')}<small>{t('Descoberta social')}</small></span>

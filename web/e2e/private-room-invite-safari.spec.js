@@ -34,8 +34,8 @@ async function login(page, email, firstName) {
   await page.getByPlaceholder('Email').fill(email);
   await page.getByPlaceholder('Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Entrar' }).click();
-  await expect(page.getByText(`Olá, ${firstName}`)).toBeVisible();
-  await page.getByRole('button', { name: 'Entrar no Feed' }).click();
+  await expect(page.getByRole('button', { name:'Novo' })).toBeVisible();
+  await expect(page.getByRole('button', { name:'Entrar no Feed' })).toHaveCount(0);
 }
 
 test('Sala privada fica invisível sem convite e entra pelo convite em Mobile Safari', async ({ page }) => {

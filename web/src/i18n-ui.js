@@ -7,6 +7,10 @@ import { EN_PRODUCT_CLARITY, FR_PRODUCT_CLARITY, ES_PRODUCT_CLARITY } from './lo
 
 const CRITICAL = {
   en:{
+    'Idioma da aplicação':'App language',
+    'No teu dispositivo':'On your device',
+    'Automático':'Automatic',
+    'Podes mudar o idioma sem alterar o teu perfil, mensagens ou publicações.':'Change the language without changing your profile, messages or posts.',
     'Lumina a iniciar':'Lumina is starting',
     'Face ID / biometria':'Face ID / biometrics',
     'Ativa neste dispositivo para poderes entrar sem escrever a password.':'Enable it on this device to sign in without typing your password.',
@@ -51,6 +55,10 @@ const CRITICAL = {
     'Segue pessoas para veres aqui as stories publicadas nas últimas 24 horas.':'Follow people to see the stories posted in the last 24 hours here.',
   },
   fr:{
+    'Idioma da aplicação':'Langue de l’application',
+    'No teu dispositivo':'Sur ton appareil',
+    'Automático':'Automatique',
+    'Podes mudar o idioma sem alterar o teu perfil, mensagens ou publicações.':'Tu peux changer la langue sans modifier ton profil, tes messages ou tes publications.',
     'Lumina a iniciar':'Lumina démarre',
     'Face ID / biometria':'Face ID / biométrie',
     'Ativa neste dispositivo para poderes entrar sem escrever a password.':'Active-le sur cet appareil pour te connecter sans saisir ton mot de passe.',
@@ -95,6 +103,10 @@ const CRITICAL = {
     'Segue pessoas para veres aqui as stories publicadas nas últimas 24 horas.':'Suis des personnes pour voir ici les stories publiées au cours des dernières 24 heures.',
   },
   es:{
+    'Idioma da aplicação':'Idioma de la aplicación',
+    'No teu dispositivo':'En tu dispositivo',
+    'Automático':'Automático',
+    'Podes mudar o idioma sem alterar o teu perfil, mensagens ou publicações.':'Puedes cambiar el idioma sin modificar tu perfil, mensajes ni publicaciones.',
     'Lumina a iniciar':'Lumina se está iniciando',
     'Face ID / biometria':'Face ID / biometría',
     'Ativa neste dispositivo para poderes entrar sem escrever a password.':'Actívalo en este dispositivo para entrar sin escribir la contraseña.',

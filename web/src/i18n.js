@@ -15,8 +15,33 @@ const catalogs = {
 };
 const locales = { pt:'pt-PT', en:'en-US', fr:'fr-FR', es:'es-ES' };
 const supported = new Set(Object.keys(catalogs));
+export const LANGUAGE_PREFERENCE_KEY = 'lumina-language-v1';
+
+// An explicit choice must override the WebView language. Some mobile devices
+// expose a browser locale different from the language configured by the user.
+export function readLanguagePreference() {
+  try {
+    const saved = window.localStorage.getItem(LANGUAGE_PREFERENCE_KEY);
+    return supported.has(saved) ? saved : 'auto';
+  } catch {
+    return 'auto';
+  }
+}
+
+export function saveLanguagePreference(next) {
+  if (next !== 'auto' && !supported.has(next)) return false;
+  try {
+    if (next === 'auto') window.localStorage.removeItem(LANGUAGE_PREFERENCE_KEY);
+    else window.localStorage.setItem(LANGUAGE_PREFERENCE_KEY, next);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function resolveLanguage() {
+  const preferred = readLanguagePreference();
+  if (preferred !== 'auto') return preferred;
   const candidates = [
     ...(Array.isArray(navigator.languages) ? navigator.languages : []),
     navigator.language,

@@ -89,38 +89,9 @@ async function boot() {
     } finally { checkingDeployment = false; }
   };
 
-  // Dock inferior: esconde ao deslizar para baixo e reaparece ao deslizar para cima.
-  const scrollPositions = new WeakMap();
-  let dockHidden = false;
-  let lastDockChange = 0;
-  const setDockHidden = (hidden) => {
-    if (hidden === dockHidden) return;
-    dockHidden = hidden;
-    lastDockChange = performance.now();
-    const dock = document.querySelector('.nav');
-    if (!dock) return;
-    dock.style.transition = 'transform .24s cubic-bezier(.2,.8,.2,1), opacity .2s ease';
-    dock.style.transform = hidden ? 'translate3d(0, calc(100% + 34px), 0)' : 'translate3d(0,0,0)';
-    dock.style.opacity = hidden ? '0' : '1';
-    dock.style.pointerEvents = hidden ? 'none' : 'auto';
-  };
-  const scrollTopFor = (target) => target === document || target === document.documentElement || target === document.body
-    ? (window.scrollY || document.documentElement.scrollTop || 0)
-    : Number(target?.scrollTop || 0);
-  const handleAnyScroll = (event) => {
-    const target = event.target === document ? document : event.target;
-    if (!target) return;
-    const current = scrollTopFor(target);
-    const previous = scrollPositions.get(target) ?? current;
-    scrollPositions.set(target, current);
-    const delta = current - previous;
-    if (current < 36) return setDockHidden(false);
-    if (Math.abs(delta) < 3 || performance.now() - lastDockChange < 90) return;
-    setDockHidden(delta > 0);
-  };
-  document.addEventListener('scroll', handleAnyScroll, true);
-  window.addEventListener('scroll', handleAnyScroll, { passive:true });
-  window.addEventListener('pageshow', () => setDockHidden(false));
+  // A barra de navegação móvel é gerida exclusivamente pelo módulo
+  // adaptiveDock.js, com scroll/touch, idle reveal e recuperação em páginas
+  // que deixam de ter scroll. Não instalar um segundo controlador aqui.
 
   // Web Push standards-based. O pedido de permissão tem de acontecer diretamente
   // no gesto do utilizador (antes de qualquer await de rede/service worker), em
@@ -342,7 +313,6 @@ async function boot() {
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      setDockHidden(false);
       checkForNewDeployment();
       if (supportsPush && !pushConfigured) maybeSetupPush().catch(() => {});
       window.dispatchEvent(new CustomEvent('lumina:push-state'));

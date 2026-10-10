@@ -487,7 +487,7 @@ export async function ingestRssSource(source, { fetchFeedImpl = fetchPublicFeed 
       // RFI's general endpoint intermittently answers HTTP 404 at the API
       // egress. The publisher also offers the public Monde section feed.
       // Fallback only for a missing resource, never for HTTP 403 or auth.
-      if (source.url !== RFI_GENERAL_FEED || !/HTTP (404|410)\\b/.test(String(error?.message || ''))) throw error;
+      if (source.url !== RFI_GENERAL_FEED || !/HTTP (404|410)\b/.test(String(error?.message || ''))) throw error;
       usedUrl = RFI_MONDE_FEED;
       fetched = await fetchFeedImpl(usedUrl, { etag: null, lastModified: null });
     }

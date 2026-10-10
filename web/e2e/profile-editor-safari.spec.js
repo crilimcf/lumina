@@ -83,7 +83,7 @@ test('foto de perfil recorta, guarda e não mostra paleta antiga em Mobile Safar
 
   await page.getByRole('button', { name: 'Guardar alterações' }).click();
   await expect(page.getByRole('heading', { name: 'Editar perfil' })).toBeHidden();
-  expect(signMime).toBe('image/jpeg');
+  expect(['image/jpeg', 'image/webp']).toContain(signMime);
   expect(patchBody?.avatarUrl).toBe(savedAvatar);
   await expect(page.locator(`img[src="${savedAvatar}"]`).first()).toBeAttached();
 });

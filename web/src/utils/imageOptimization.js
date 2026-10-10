@@ -102,6 +102,28 @@ export async function optimizeUploadMedia(file,{maxDimension=DEFAULT_MAX_DIMENSI
       }
       throw new Error('Esta imagem continua demasiado grande após otimização.');
     }
+    // WebP/AVIF/HEIF may have transparent pixels. JPEG would silently
+    // replace transparency with black. Inspect alpha before considering JPEG.
+    // Read in strips to bound memory use on iPhone WebKit.
+    let hasTransparency = false;
+    if (mime !== 'image/jpeg') {
+      for (let y = 0; y < canvas.height && !hasTransparency; y += 128) {
+        const rows = Math.min(128, canvas.height - y);
+        const rgba = ctx.getImageData(0, y, canvas.width, rows).data;
+        for (let i = 3; i < rgba.length; i += 4) {
+          if (rgba[i] < 255) { hasTransparency = true; break; }
+        }
+      }
+    }
+    if (hasTransparency) {
+      for (const quality of [0.88, 0.76, 0.62]) {
+        const webp = await encode(canvas, 'image/webp', quality);
+        if (webp && webp.size <= MAX_IMAGE_BYTES) return asFile(webp, file, 'image/webp');
+      }
+      const png = await encode(canvas, 'image/png');
+      if (png && png.size <= MAX_IMAGE_BYTES) return asFile(png, file, 'image/png');
+      throw new Error('Não foi possível preservar a transparência dentro dos 8 MB.');
+    }
     // Prefer WebP if it saves at least 7% against JPEG; Safari falls back to
     // JPEG when its Canvas encoder does not support WebP.
     for (const quality of [0.88,0.76,0.62]) {

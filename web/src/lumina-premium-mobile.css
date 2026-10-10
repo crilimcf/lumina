@@ -33,8 +33,10 @@ body.lumina-v2 .lumina-brand-spark {
 }
 body.lumina-v2 .lumina-facelift .top-action,
 body.lumina-v2 .lumina-facelift .lumina-search-button {
-  width:39px!important;height:39px!important;min-width:39px!important;min-height:39px!important;
-  border-radius:14px!important;background:rgba(154,181,255,.07)!important;
+  width:var(--lumina-action-size)!important;height:var(--lumina-action-size)!important;
+  min-width:var(--lumina-action-size)!important;min-height:var(--lumina-action-size)!important;
+  border-radius:var(--lumina-action-radius)!important;
+  background:rgba(154,181,255,.07)!important;
   border:1px solid rgba(196,215,255,.15)!important;
   box-shadow:none!important;
 }

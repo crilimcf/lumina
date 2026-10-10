@@ -43,6 +43,8 @@ test('a atualização da Lumina não descarta mensagens, posts nem chamadas ativ
     unfocused.type = 'email';
     unfocused.value = 'unsent@example.test';
     document.body.append(unfocused);
+    results.push(['prefilled-form-is-safe', hasActiveUserWork()]);
+    unfocused.dispatchEvent(new Event('input', { bubbles:true }));
     results.push(['unfocused-form', hasActiveUserWork()]);
     unfocused.remove();
 
@@ -68,6 +70,7 @@ test('a atualização da Lumina não descarta mensagens, posts nem chamadas ativ
     ['call-active', true],
     ['unsent-post', true],
     ['focused-input', true],
+    ['prefilled-form-is-safe', false],
     ['unfocused-form', true],
     ['ready-media', true],
     ['media-editor', true],

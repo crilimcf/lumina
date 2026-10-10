@@ -33,7 +33,7 @@ h1, h2, h3, h4 { font-weight: 800; letter-spacing: -.03em; }
 
 .d { font-weight: 800; letter-spacing: -.04em; line-height: .94; }
 .it { font-family: inherit; font-style: italic; font-weight: 700; letter-spacing: -.035em; }
-.m { font-family: inherit; font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--grey); }
+.m { font-family: inherit; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--grey); }
 .em { font-size: 19px; line-height: 1; }
 
 .scene { perspective: 1100px; }
@@ -101,7 +101,7 @@ h1, h2, h3, h4 { font-weight: 800; letter-spacing: -.03em; }
 }
 .st:active { transform: scale(.94); }
 
-.star { font-family: inherit; font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; padding: 6px 11px; border-radius: 999px; display: inline-block; }
+.star { font-family: inherit; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; padding: 6px 11px; border-radius: 999px; display: inline-block; }
 
 .ghost { border: 1.5px dashed var(--edge); border-radius: 20px; padding: 11px 16px; font-size: 14px; color: var(--grey); background: rgba(255,255,255,.4); display: flex; align-items: center; gap: 8px; }
 .veil { position: relative; border-radius: 20px; overflow: hidden; cursor: pointer; background: linear-gradient(150deg, #CFC8EC, #A79BD6); }
@@ -139,11 +139,15 @@ h1, h2, h3, h4 { font-weight: 800; letter-spacing: -.03em; }
 .nb {
   display: flex; flex-direction: column; align-items: center; gap: 3px;
   border: 0; background: none; cursor: pointer; position: relative; padding: 6px 12px;
-  color: #9992BB; font-family: inherit; font-size: 9px; font-weight: 700;
+  color: #9992BB; font-family: inherit; font-size: 10.5px; font-weight: 700;
   letter-spacing: .08em; text-transform: uppercase;
   transition: color .2s, transform .2s cubic-bezier(.3,1.5,.5,1);
 }
 .nb:active { transform: scale(.9); }
+/* A dock compacta continua utilizável por toque sem ampliar os ícones. */
+@media (pointer: coarse) {
+  .nb { min-width: 44px; min-height: 44px; justify-content: center; }
+}
 .nb-on { color: var(--cobalt); }
 .dot-badge { position: absolute; top: 3px; right: 8px; width: 7px; height: 7px; border-radius: 9px; background: var(--cobalt); }
 

@@ -131,6 +131,11 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
       try { payload = JSON.parse(event.data || '{}'); }
       catch { return; }
 
+      if (payload.type === 'call_changed') {
+        window.dispatchEvent(new CustomEvent('lumina:call-event', { detail:payload }));
+        return;
+      }
+
       const active = threadRef.current?.id;
       const impacted = payload.threadId === active || (Array.isArray(payload.threadIds) && payload.threadIds.includes(active));
       const isNewMessage = payload.type === 'message_created';
@@ -148,7 +153,10 @@ export function useMessages({ tab, palette, ping, enabled = true }) {
 
     if (supportsRealtime) {
       source = new window.EventSource(api.messages.eventsUrl(), { withCredentials:true });
-      source.onopen = () => reconcile({ announce:false });
+      source.onopen = () => {
+        reconcile({ announce:false });
+        window.dispatchEvent(new Event('lumina:realtime-ready'));
+      };
       source.onmessage = onRealtime;
       timer = window.setInterval(() => reconcile({ announce:true }), REALTIME_RECONCILE_MS);
     } else {

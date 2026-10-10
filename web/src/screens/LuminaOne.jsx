@@ -5,6 +5,8 @@ import {
   Unlock, UserRound, Video, X,
 } from 'lucide-react';
 import { api } from '../api.js';
+import { Camera as NativeCamera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { isNativeApp } from '../native/session.js';
 import { t } from '../i18n-ui.js';
 import { detectRadarLocation, readCachedRadarLocation } from '../radar-location.js';
 import { Orb } from '../ui.jsx';
@@ -192,6 +194,40 @@ export function LuminaOne({ me, onBack, ping }) {
     return () => { alive = false; clearTimeout(id); };
   }, [inviteQuery, capsule?.id]);
 
+  // On native iPhone/Android the OS camera is substantially more reliable
+  // than a WebView video stream, and is opened from the actual user gesture.
+  const openLumeCamera = async () => {
+    if (!isNativeApp) {
+      setCameraOpen(true);
+      return;
+    }
+    try {
+      const shot = await NativeCamera.getPhoto({
+        quality:90,
+        source:CameraSource.Camera,
+        resultType:CameraResultType.Uri,
+        allowEditing:false,
+        correctOrientation:true,
+      });
+      if (!shot.webPath) throw new Error('Fotografia indisponível');
+      const response = await fetch(shot.webPath);
+      if (!response.ok) throw new Error('Não foi possível ler a fotografia');
+      const blob = await response.blob();
+      if (!blob.size || (blob.type && !blob.type.startsWith('image/'))) {
+        throw new Error('Formato de fotografia inválido');
+      }
+      const ext = blob.type === 'image/png' ? 'png' : 'jpg';
+      setLumeFile(new File([blob], `lume-${Date.now()}.${ext}`, {
+        type:blob.type || 'image/jpeg',
+      }));
+    } catch (error) {
+      // Dismissing the OS camera is not a failure and must not show an error.
+      if (/cancel|cancelad|cancelled|canceled|user dismissed/i.test(String(error?.message || ''))) return;
+      ping('A câmara nativa não respondeu. Vamos tentar a câmara integrada.');
+      setCameraOpen(true);
+    }
+  };
+
   const captureLume = async () => {
     const video = videoCameraRef.current;
     if (!video?.videoWidth) return ping('Espera um instante pela câmara');
@@ -358,7 +394,7 @@ export function LuminaOne({ me, onBack, ping }) {
     </main>}
 
     {tab==='lumes' && <main className="one-content one-lumes-page">
-      <section className="one-hero-card one-lume-hero"><div><span>LUMES</span><h2>{t('Agora. Uma vez.')} <i>{t('Real.')}</i></h2><p>{t('Fotografias tiradas neste momento, só para amigos mútuos. Abrem uma vez e desaparecem.')}</p></div><button className="one-primary" onClick={()=>setCameraOpen(true)}><Camera size={18}/> {t('Tirar um Lume')}</button></section>
+      <section className="one-hero-card one-lume-hero"><div><span>LUMES</span><h2>{t('Agora. Uma vez.')} <i>{t('Real.')}</i></h2><p>{t('Fotografias tiradas neste momento, só para amigos mútuos. Abrem uma vez e desaparecem.')}</p></div><button className="one-primary" onClick={openLumeCamera}><Camera size={18}/> {t('Tirar um Lume')}</button></section>
       {lumeFile && <section className="one-lume-draft"><div className="one-lume-preview"><img src={lumePreviewUrl} alt="Pré-visualização do Lume" style={lumeEffectStyle(lumeEffect)}/><button onClick={()=>setLumeFile(null)} aria-label="Descartar"><X size={17}/></button></div><div className="one-effect-row">{EFFECTS.map(([key,label])=><button key={key} className={lumeEffect===key?'is-on':''} onClick={()=>setLumeEffect(key)}>{label}</button>)}</div><button className="one-primary" disabled={lumeBusy} onClick={publishLume}>{lumeBusy?'A enviar…':'Enviar Lume'}</button></section>}
       <section><div className="one-section-head"><div><span>À TUA ESPERA</span><b>{t('Lumes dos teus amigos')}</b></div><button onClick={loadLumes} aria-label="Atualizar Lumes"><RefreshCw size={16}/></button></div><div className="one-lume-grid">{lumes.map(lume=><button key={lume.id} className="one-lume-tile" onClick={()=>openLume(lume)}><div><Orb p={lume.palette} avatarUrl={lume.avatar_url} s={54}/><span className="one-lume-glow"/></div><b>{lume.mine?'O teu Lume':lume.name.split(' ')[0]}</b><span>{lume.mine?'ativo':'toca para abrir'}</span></button>)}</div>{!lumes.length&&<div className="one-state">Ainda não há Lumes. O primeiro pode ser teu.</div>}</section>
     </main>}

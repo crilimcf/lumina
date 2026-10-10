@@ -1,0 +1,36 @@
+name: Radar official-feed diagnostics (isolated, no database)
+on:
+  push:
+    branches: [audit/radar-feed-probe-20261010]
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check public publisher feed response and XML policy
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const sources=[
+            ['RFI current','https://www.rfi.fr/fr/rss'],
+            ['RFI Monde','https://www.rfi.fr/fr/monde/rss'],
+            ['DW current','https://rss.dw.com/syndication/feeds/VAS_CB_Eng_OurVoice.31791-cb.html'],
+            ['DW World RDF','https://rss.dw.com/rdf/rss-en-world'],
+            ['DW all XML','https://rss.dw.com/xml/rss-en-all'],
+            ['Renascenca RSS legacy','https://rr.sapo.pt/rss/rssfeed.aspx'],
+            ['Renascenca RSS index','https://rr.pt/rss.aspx']
+          ];
+          await Promise.all(sources.map(async ([name,url])=>{
+            try {
+              const res=await fetch(url,{signal:AbortSignal.timeout(12000),headers:{
+                'accept':'application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.1',
+                'user-agent':'LuminaRadar/1.0 (+authorized-feed-ingestion)',
+                'accept-encoding':'identity'
+              },redirect:'follow'});
+              const text=(await res.text()).slice(0,1400000);
+              const info={name,code:res.status,contentType:res.headers.get('content-type'),redirect:res.url,bytes:text.length,doctype:/<!DOCTYPE|<!ENTITY/i.test(text),rss:/<rss\\b|<rdf:RDF\\b|<feed\\b/i.test(text),html:/<html\\b|<!doctype html/i.test(text)};
+              console.log('RESULT',JSON.stringify(info));
+            }catch(e){console.log('ERROR',JSON.stringify({name,message:String(e?.cause?.code||e?.message||e).slice(0,130)}))}
+          }));
+          NODE

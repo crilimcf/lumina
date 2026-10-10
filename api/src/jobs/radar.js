@@ -14,6 +14,17 @@ const INGEST_LOCK = 4_817_337;
 const AUTO_RSS_TYPES = new Set(['news', 'trend', 'editorial']);
 const TRACKING_QUERY_PARAMS = new Set(['fbclid', 'gclid', 'mc_cid', 'mc_eid']);
 
+/* Public, publisher-owned feed locations, validated independently with HTTP
+ * 200 and without DTD. Never bypass a supplier's 403/access policy or relax
+ * SSRF and XXE protection. This mapping does not update stored source config. */
+const LEGACY_DW_HTML_FEED = 'https://rss.dw.com/syndication/feeds/VAS_CB_Eng_OurVoice.31791-cb.html';
+const DW_WORLD_XML_FEED = 'https://rss.dw.com/rdf/rss-en-world';
+const RFI_GENERAL_FEED = 'https://www.rfi.fr/fr/rss';
+const RFI_MONDE_FEED = 'https://www.rfi.fr/fr/monde/rss';
+
+export const effectiveRadarRssUrl = url => url === LEGACY_DW_HTML_FEED ? DW_WORLD_XML_FEED : url;
+
+
 const blocked = new net.BlockList();
 for (const [network, prefix] of [
   ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8],
@@ -461,7 +472,25 @@ export async function ingestRssSource(source, { fetchFeedImpl = fetchPublicFeed 
   const config = sourceConfig(source);
 
   try {
-    const fetched = await fetchFeedImpl(source.url, { etag: source.etag, lastModified: source.last_modified });
+    const primaryUrl = effectiveRadarRssUrl(source.url);
+    const switched = primaryUrl !== source.url;
+    let fetched;
+    let usedUrl = primaryUrl;
+    try {
+      fetched = await fetchFeedImpl(primaryUrl, {
+        // A validator for a previous publisher URL must never be replayed to
+        // a different feed endpoint.
+        etag: switched ? null : source.etag,
+        lastModified: switched ? null : source.last_modified,
+      });
+    } catch (error) {
+      // RFI's general endpoint intermittently answers HTTP 404 at the API
+      // egress. The publisher also offers the public Monde section feed.
+      // Fallback only for a missing resource, never for HTTP 403 or auth.
+      if (source.url !== RFI_GENERAL_FEED || !/HTTP (404|410)\\b/.test(String(error?.message || ''))) throw error;
+      usedUrl = RFI_MONDE_FEED;
+      fetched = await fetchFeedImpl(usedUrl, { etag: null, lastModified: null });
+    }
     if (fetched.notModified) {
       await q(
         `UPDATE radar_sources
@@ -528,7 +557,7 @@ export async function ingestRssSource(source, { fetchFeedImpl = fetchPublicFeed 
          WHERE radar_items.status <> 'archived'`,
         [
           source.default_type, entry.title, entry.summary, entry.imageUrl, entry.externalUrl,
-          source.id, source.name, source.url, tags, config.region, entry.publishedAt,
+          source.id, source.name, usedUrl, tags, config.region, entry.publishedAt,
           initialStatus, config.priority, itemFingerprint, !!source.trusted, publishable,
         ]
       );

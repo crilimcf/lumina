@@ -153,6 +153,7 @@ body.lumina-v2 .composer-sheet textarea{font-size:16px!important}
 /* AIR — true light mode. All critical surfaces use real light backgrounds,
    dark text, and the same components/API: not an inverted screenshot. */
 body.lumina-v2[data-lumina-identity="air"] {
+  --lumina-focus-color:#5042c5;--lumina-focus-glow:rgba(80,66,197,.18);
   --paper:#f5f7fc;--paper2:#eaf0fa;--card:#fff;
   --ink:#1c2a44;--grey:#556681;--edge:#d4dfef;
   --cobalt:#6653d5;--cobalt2:#4873c0;color:#1b2a45;
@@ -299,6 +300,7 @@ body.lumina-v2[data-lumina-identity="air"] .composer-sheet .d {color:#1d2c48!imp
 
 /* PULSE — editorial imagery becomes immersive, richer and more dimensional. */
 body.lumina-v2[data-lumina-identity="pulse"]{
+  --lumina-focus-color:#f2a4fa;--lumina-focus-glow:rgba(242,164,250,.24);
   --paper:#110d25;--paper2:#20122f;--card:#251737;
   --ink:#fff7ff;--grey:#d8bedf;--edge:rgba(255,179,233,.18);
   --cobalt:#cb7cff;--cobalt2:#fd6ea9;--coral:#ff70b4;

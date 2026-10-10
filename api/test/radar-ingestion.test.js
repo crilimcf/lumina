@@ -2,7 +2,7 @@ import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { migrate, pool, q } from '../src/db.js';
-import { fetchPublicFeed, ingestRssSource, parseSyndicationFeed, resolvePublicFeedTarget, resolveRedirectUrl, withDeadline } from '../src/jobs/radar.js';
+import { fetchPublicFeed, ingestRssSource, syncRadarSources, parseSyndicationFeed, resolvePublicFeedTarget, resolveRedirectUrl, withDeadline } from '../src/jobs/radar.js';
 
 const RSS = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/">
@@ -226,4 +226,34 @@ test('ingestão deduplica, auto-publica só fonte verificada e respeita arquivo'
   assert.equal(stats.rows[0].last_fetch_error, null);
   assert.equal(stats.rows[0].last_item_count, 1);
   assert.equal(stats.rows[0].etag, '"v1"');
+});
+
+
+test('sincronizador RSS aplica cooldown real sem bloquear a tarefa inteira', async () => {
+  // This exercises the scheduler path itself, not just the helper, and catches
+  // missing imports that a parser-only test would miss.
+  await q("UPDATE radar_sources SET active=false WHERE kind='rss'");
+  const { rows } = await q(
+    `INSERT INTO radar_sources
+       (name,kind,url,default_type,active,trusted,last_fetch_error,last_fetched_at)
+     VALUES ('RSS em cooldown','rss','https://cooldown.example.test/rss','news',true,true,
+             'Fonte RSS respondeu HTTP 403',now())
+     RETURNING id`
+  );
+  let fetched = 0;
+  try {
+    const result = await syncRadarSources({
+      fetchFeedImpl: async () => {
+        fetched++;
+        throw new Error('Fonte em cooldown não devia ser consultada');
+      },
+    });
+    assert.equal(result.skipped, false);
+    assert.equal(result.attempted, 0);
+    assert.equal(result.cooldown, 1);
+    assert.equal(result.failed, 0);
+    assert.equal(fetched, 0);
+  } finally {
+    await q('UPDATE radar_sources SET active=false WHERE id=$1', [rows[0].id]);
+  }
 });

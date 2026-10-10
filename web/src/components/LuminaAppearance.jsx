@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Check, MoonStar, Sun, Sparkles } from 'lucide-react';
 import { t } from '../i18n-ui.js';
-import { readLanguagePreference, saveLanguagePreference } from '../i18n.js';
+import { language, readLanguagePreference, saveLanguagePreference } from '../i18n.js';
+import { hasActiveUserWork } from '../utils/updateSafety.js';
 
 export const LUMINA_IDENTITY_KEY = 'lumina-identity-v1';
 const IDENTITIES = [
@@ -41,10 +42,21 @@ export function LuminaAppearance() {
   const [preferredLanguage,setPreferredLanguage]=useState(readLanguagePreference);
   const setIdentity=(next)=>{setSelected(next);applyLuminaIdentity(next)};
   const changeLanguage=(next)=>{
-    if (next === preferredLanguage || !saveLanguagePreference(next)) return;
+    if (next === preferredLanguage) return;
+    // Changing locale reloads React. Do not discard unfinished messages,
+    // image editing, forms or calls for a purely visual preference.
+    if (hasActiveUserWork()) {
+      const warning = {
+        pt:'Tens alterações por guardar ou uma chamada em curso. Termina primeiro antes de mudares o idioma.',
+        en:'You have unsaved work or an active call. Finish it before changing language.',
+        fr:'Tu as des modifications non enregistrées ou un appel en cours. Termine-les avant de changer de langue.',
+        es:'Tienes cambios sin guardar o una llamada en curso. Termina antes de cambiar de idioma.',
+      };
+      window.alert(warning[language] || warning.en);
+      return;
+    }
+    if (!saveLanguagePreference(next)) return;
     setPreferredLanguage(next);
-    // The i18n catalog is loaded once at startup. A normal reload reapplies
-    // the preferred locale without affecting the session, theme or content.
     window.location.reload();
   };
   return <section className="lumina-profile-section lumina-identity-section" aria-labelledby="lumina-identity-title">

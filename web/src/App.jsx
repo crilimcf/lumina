@@ -152,6 +152,7 @@ export default function App() {
     onUnauthorized(() => {
       if (meRef.current) {
         setMe(null);
+        window.dispatchEvent(new CustomEvent('lumina:session-changed', { detail:{ authenticated:false } }));
         setTab('feed');
         setUnreadCount(0);
         setProfileHandle(null);

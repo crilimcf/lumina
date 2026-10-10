@@ -77,6 +77,42 @@ reportRoutes.post('/client-error', auth, h(async (req, res) => {
   res.status(202).json({ accepted: true });
 }));
 
+/**
+ * Read-only operational diagnostics. PostgreSQL database size excludes WAL,
+ * filesystem overhead and other volume files. The Railway volume usage must
+ * still be checked in Railway metrics; never equate these quantities.
+ */
+reportRoutes.get('/database-health', auth, h(async (req, res) => {
+  if (!req.user.is_staff) throw forbidden('Apenas a equipa Lumina pode consultar o estado da base de dados');
+  const [{ rows: overview }, { rows: tables }] = await Promise.all([
+    q(`SELECT pg_database_size(current_database())::bigint AS database_bytes,
+              (SELECT count(*)::int FROM pg_stat_activity WHERE datname=current_database()) AS connections,
+              current_setting('max_connections')::int AS max_connections`),
+    q(`SELECT relname AS table_name,
+              pg_total_relation_size(relid)::bigint AS total_bytes,
+              n_live_tup::bigint AS estimated_rows,
+              n_dead_tup::bigint AS estimated_dead_rows
+         FROM pg_stat_user_tables
+        WHERE schemaname='public'
+        ORDER BY pg_total_relation_size(relid) DESC
+        LIMIT 10`),
+  ]);
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({
+    measuredAt:new Date().toISOString(),
+    databaseBytes:Number(overview[0]?.database_bytes || 0),
+    connections:Number(overview[0]?.connections || 0),
+    maxConnections:Number(overview[0]?.max_connections || 0),
+    largestTables:tables.map(table => ({
+      name:table.table_name,
+      totalBytes:Number(table.total_bytes),
+      estimatedRows:Number(table.estimated_rows),
+      estimatedDeadRows:Number(table.estimated_dead_rows),
+    })),
+    note:'Tamanho lógico da base de dados; NÃO inclui WAL nem outros ficheiros do volume Railway.',
+  });
+}));
+
 reportRoutes.get('/errors', auth, h(async (req, res) => {
   if (!req.user.is_staff) throw forbidden('Apenas a equipa Lumina pode consultar diagnósticos');
   const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));

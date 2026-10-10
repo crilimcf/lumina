@@ -45,6 +45,16 @@ test('dock inferior preserva centragem e esconde de facto ao deslizar no iPhone'
   await expect(page.locator('body')).not.toHaveClass(/lumina-dock-hidden/);
   await expect(dock).toHaveCSS('pointer-events','auto');
   await expect(dock).toBeVisible();
+
+  // Radar and other long screens must never leave the main navigation
+  // permanently inaccessible if the reader stops scrolling.
+  await page.evaluate(() => {
+    const el = document.querySelector('#dock-scroll-fixture');
+    el.scrollTop = 180;
+    el.dispatchEvent(new Event('scroll'));
+  });
+  await expect(page.locator('body')).toHaveClass(/lumina-dock-hidden/);
+  await expect(dock).toBeVisible({ timeout:4_000 });
 });
 
 test('dock móvel respeita reduzir movimento', async ({ page }) => {

@@ -61,3 +61,16 @@ test('utilizador altera para francês no Perfil sem perder a sessão', async ({ 
   await expect(page.locator('html')).toHaveAttribute('lang','fr-FR');
   await expect(page.getByRole('button',{name:'Profil'})).toBeVisible({timeout:20_000});
 });
+
+test('idioma pode ser escolhido no login antes de criar conta', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(key => localStorage.setItem(key, 'pt'), KEY);
+  await page.reload();
+  const picker = page.getByLabel('Idioma da aplicação');
+  await expect(picker).toBeVisible();
+  await expect(picker).toHaveValue('pt');
+  await picker.selectOption('fr');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'fr-FR', { timeout:20_000 });
+  await expect(page.getByRole('button', {name:'Créer un compte'})).toBeVisible();
+  await expect(page.getByLabel('Langue de l’application')).toHaveValue('fr');
+});

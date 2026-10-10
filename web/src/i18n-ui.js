@@ -7,6 +7,12 @@ import { EN_PRODUCT_CLARITY, FR_PRODUCT_CLARITY, ES_PRODUCT_CLARITY } from './lo
 
 const CRITICAL = {
   en:{
+    'Não percas mensagens nem chamadas':'Don\'t miss messages or calls',
+    'Ativa as notificações da Lumina neste {device}.':'Enable Lumina notifications on this {device}.',
+    'Ativar':'Enable',
+    'Agora não':'Not now',
+    'Bloqueadas':'Blocked',
+    'Tentar':'Retry',
     'Idioma da aplicação':'App language',
     'No teu dispositivo':'On your device',
     'Automático':'Automatic',
@@ -55,6 +61,12 @@ const CRITICAL = {
     'Segue pessoas para veres aqui as stories publicadas nas últimas 24 horas.':'Follow people to see the stories posted in the last 24 hours here.',
   },
   fr:{
+    'Não percas mensagens nem chamadas':'Ne manque aucun message ni appel',
+    'Ativa as notificações da Lumina neste {device}.':'Active les notifications Lumina sur cet appareil {device}.',
+    'Ativar':'Activer',
+    'Agora não':'Plus tard',
+    'Bloqueadas':'Bloquées',
+    'Tentar':'Réessayer',
     'Idioma da aplicação':'Langue de l’application',
     'No teu dispositivo':'Sur ton appareil',
     'Automático':'Automatique',
@@ -103,6 +115,12 @@ const CRITICAL = {
     'Segue pessoas para veres aqui as stories publicadas nas últimas 24 horas.':'Suis des personnes pour voir ici les stories publiées au cours des dernières 24 heures.',
   },
   es:{
+    'Não percas mensagens nem chamadas':'No te pierdas mensajes ni llamadas',
+    'Ativa as notificações da Lumina neste {device}.':'Activa las notificaciones de Lumina en este dispositivo {device}.',
+    'Ativar':'Activar',
+    'Agora não':'Ahora no',
+    'Bloqueadas':'Bloqueadas',
+    'Tentar':'Reintentar',
     'Idioma da aplicação':'Idioma de la aplicación',
     'No teu dispositivo':'En tu dispositivo',
     'Automático':'Automático',

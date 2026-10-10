@@ -82,42 +82,9 @@ async function boot() {
     } finally { checkingDeployment = false; }
   };
 
-  // Dock inferior: esconde ao deslizar para baixo e reaparece ao deslizar para cima.
-  const scrollPositions = new WeakMap();
-  let dockHidden = false;
-  let lastDockChange = 0;
-  let revealDockTimer = null;
-  const setDockHidden = (hidden) => {
-    // Do not trap navigation below the viewport. Reveal the dock after a
-    // short idle pause even if the user never scrolls upward (e.g. Radar).
-    clearTimeout(revealDockTimer);
-    if (hidden) revealDockTimer = setTimeout(() => setDockHidden(false), 1_600);
-    if (hidden === dockHidden) return;
-    dockHidden = hidden;
-    lastDockChange = performance.now();
-    // Use one state class rather than inline transform. The mobile dock is
-    // horizontally centered with a CSS !important transform; inline transforms
-    // silently lose to it and the bar can never hide on small iPhones.
-    // A body class also survives navigation while the .nav node is remounted.
-    document.body.classList.toggle('lumina-dock-hidden', hidden);
-  };
-  const scrollTopFor = (target) => target === document || target === document.documentElement || target === document.body
-    ? (window.scrollY || document.documentElement.scrollTop || 0)
-    : Number(target?.scrollTop || 0);
-  const handleAnyScroll = (event) => {
-    const target = event.target === document ? document : event.target;
-    if (!target) return;
-    const current = scrollTopFor(target);
-    const previous = scrollPositions.get(target) ?? current;
-    scrollPositions.set(target, current);
-    const delta = current - previous;
-    if (current < 36) return setDockHidden(false);
-    if (Math.abs(delta) < 3 || performance.now() - lastDockChange < 90) return;
-    setDockHidden(delta > 0);
-  };
-  document.addEventListener('scroll', handleAnyScroll, true);
-  window.addEventListener('scroll', handleAnyScroll, { passive:true });
-  window.addEventListener('pageshow', () => setDockHidden(false));
+  // A barra de navegação móvel é gerida exclusivamente pelo módulo
+  // adaptiveDock.js, com scroll/touch, idle reveal e recuperação em páginas
+  // que deixam de ter scroll. Não instalar um segundo controlador aqui.
 
   // Web Push standards-based. O pedido de permissão tem de acontecer diretamente
   // no gesto do utilizador (antes de qualquer await de rede/service worker), em
@@ -331,7 +298,6 @@ async function boot() {
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      setDockHidden(false);
       checkForNewDeployment();
       if (supportsPush && !pushConfigured) maybeSetupPush().catch(() => {});
       window.dispatchEvent(new CustomEvent('lumina:push-state'));

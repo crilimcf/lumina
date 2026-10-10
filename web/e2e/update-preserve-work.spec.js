@@ -39,6 +39,25 @@ test('a atualização da Lumina não descarta mensagens, posts nem chamadas ativ
     results.push(['focused-input', hasActiveUserWork()]);
     input.blur();
     input.remove();
+    const unfocused = document.createElement('input');
+    unfocused.type = 'email';
+    unfocused.value = 'unsent@example.test';
+    document.body.append(unfocused);
+    results.push(['unfocused-form', hasActiveUserWork()]);
+    unfocused.remove();
+
+    const media = document.createElement('div');
+    media.className = 'messages-media-ready';
+    document.body.append(media);
+    results.push(['ready-media', hasActiveUserWork()]);
+    media.remove();
+
+    const editing = document.createElement('div');
+    editing.dataset.luminaUnsentMedia = 'true';
+    document.body.append(editing);
+    results.push(['media-editor', hasActiveUserWork()]);
+    editing.remove();
+
     results.push(['back-to-idle', hasActiveUserWork()]);
     return results;
   });
@@ -49,6 +68,9 @@ test('a atualização da Lumina não descarta mensagens, posts nem chamadas ativ
     ['call-active', true],
     ['unsent-post', true],
     ['focused-input', true],
+    ['unfocused-form', true],
+    ['ready-media', true],
+    ['media-editor', true],
     ['back-to-idle', false],
   ]);
 });

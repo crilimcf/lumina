@@ -27,8 +27,9 @@ test('preferência inválida não bloqueia a Lumina e respeita o idioma do dispo
 });
 
 test('utilizador altera para francês no Perfil sem perder a sessão', async ({ page }) => {
-  await page.addInitScript(key => localStorage.setItem(key, 'pt'), KEY);
   await page.goto('/');
+  await page.evaluate(key => localStorage.setItem(key, 'pt'), KEY);
+  await page.reload();
   await expect(page.getByRole('button', {name:'Criar conta'})).toBeVisible();
 
   const suffix = `${Date.now()}${Math.floor(Math.random()*900)}`;

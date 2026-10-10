@@ -86,7 +86,12 @@ async function boot() {
   const scrollPositions = new WeakMap();
   let dockHidden = false;
   let lastDockChange = 0;
+  let revealDockTimer = null;
   const setDockHidden = (hidden) => {
+    // Do not trap navigation below the viewport. Reveal the dock after a
+    // short idle pause even if the user never scrolls upward (e.g. Radar).
+    clearTimeout(revealDockTimer);
+    if (hidden) revealDockTimer = setTimeout(() => setDockHidden(false), 1_600);
     if (hidden === dockHidden) return;
     dockHidden = hidden;
     lastDockChange = performance.now();

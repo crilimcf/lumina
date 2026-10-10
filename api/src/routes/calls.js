@@ -3,6 +3,7 @@ import { q } from '../db.js';
 import { env } from '../env.js';
 import { auth, h, bad, forbidden, notFound } from '../middleware/auth.js';
 import { sendPushToUser } from '../lib/webpush.js';
+import { publishRealtime } from '../realtime.js';
 import { groupCallRoutes } from './group-calls.js';
 
 export const callRoutes = Router();
@@ -183,6 +184,11 @@ callRoutes.post('/', auth, h(async (req, res) => {
     pushReadyFor(thread.other_id),
   ]);
   const call = rows[0];
+  // The SSE stream wakes browser recipients immediately; push continues
+  // independently for sleeping or native devices.
+  await publishRealtime([thread.other_id], 'call_changed', { callId:call.id }).catch(error =>
+    console.warn('[calls] realtime notification unavailable:', error?.message)
+  );
   const push = await sendPushToUser(thread.other_id, {
     callId:call.id,
     notification:{
@@ -250,6 +256,9 @@ callRoutes.post('/:callId/answer', auth, h(async (req, res) => {
      WHERE id=$1 RETURNING *`,
     [call.id]
   );
+  await publishRealtime([call.caller_id, call.callee_id], 'call_changed', { callId:call.id }).catch(error =>
+    console.warn('[calls] answer notification unavailable:', error?.message)
+  );
   res.json(rows[0]);
 }));
 
@@ -257,6 +266,9 @@ callRoutes.post('/:callId/decline', auth, h(async (req, res) => {
   const call = await callForUser(req.params.callId, req.user.id);
   if (call.callee_id !== req.user.id) throw forbidden();
   await q(`UPDATE call_sessions SET status='declined', ended_at=now(),callee_seen_at=COALESCE(callee_seen_at,now()) WHERE id=$1 AND status='ringing'`, [call.id]);
+  await publishRealtime([call.caller_id, call.callee_id], 'call_changed', { callId:call.id }).catch(error =>
+    console.warn('[calls] decline notification unavailable:', error?.message)
+  );
   res.json({ declined: true });
 }));
 
@@ -264,6 +276,9 @@ callRoutes.post('/:callId/end', auth, h(async (req, res) => {
   const call = await callForUser(req.params.callId, req.user.id);
   await q(`UPDATE call_sessions SET status='ended', ended_at=now() WHERE id=$1 AND status<>'ended'`, [call.id]);
   await q(`INSERT INTO call_signals (call_id,sender_id,kind,payload) VALUES ($1,$2,'hangup','{}'::jsonb)`, [call.id, req.user.id]);
+  await publishRealtime([call.caller_id, call.callee_id], 'call_changed', { callId:call.id }).catch(error =>
+    console.warn('[calls] end notification unavailable:', error?.message)
+  );
   res.json({ ended: true });
 }));
 

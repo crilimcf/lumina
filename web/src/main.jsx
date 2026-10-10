@@ -90,12 +90,11 @@ async function boot() {
     if (hidden === dockHidden) return;
     dockHidden = hidden;
     lastDockChange = performance.now();
-    const dock = document.querySelector('.nav');
-    if (!dock) return;
-    dock.style.transition = 'transform .24s cubic-bezier(.2,.8,.2,1), opacity .2s ease';
-    dock.style.transform = hidden ? 'translate3d(0, calc(100% + 34px), 0)' : 'translate3d(0,0,0)';
-    dock.style.opacity = hidden ? '0' : '1';
-    dock.style.pointerEvents = hidden ? 'none' : 'auto';
+    // Use one state class rather than inline transform. The mobile dock is
+    // horizontally centered with a CSS !important transform; inline transforms
+    // silently lose to it and the bar can never hide on small iPhones.
+    // A body class also survives navigation while the .nav node is remounted.
+    document.body.classList.toggle('lumina-dock-hidden', hidden);
   };
   const scrollTopFor = (target) => target === document || target === document.documentElement || target === document.body
     ? (window.scrollY || document.documentElement.scrollTop || 0)

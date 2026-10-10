@@ -59,7 +59,7 @@ test('Momentos têm editor Story completo em Mobile Safari', async ({ page }) =>
     'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAFElEQVR4nGOsCLjDgA0wYRUdtBIAS4sBtNP0jmcAAAAASUVORK5CYII=',
     'base64'
   );
-  await page.locator('input[accept="image/jpeg,image/png,image/webp"]').setInputFiles({
+  await page.locator('input[accept^="image/jpeg,image/png,image/webp"]').setInputFiles({
     name: 'momento.png', mimeType: 'image/png', buffer: png,
   });
 

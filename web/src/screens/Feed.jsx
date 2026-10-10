@@ -178,7 +178,7 @@ export function Feed({
                     </div>}
                   </div>
                 </div>
-                {p.media_url && <div className="lumina-post-media-wrap">{isVideo ? <video className="lumina-post-media lumina-adaptive-video" src={p.media_url} controls playsInline preload="metadata" aria-label={`Vídeo de ${p.name}`} /> : <img className="lumina-post-media" src={p.media_url} alt="" loading="lazy" />}</div>}
+                {p.media_url && <div className="lumina-post-media-wrap">{isVideo ? <video className="lumina-post-media lumina-adaptive-video" src={p.media_url} controls playsInline preload="metadata" aria-label={`Vídeo de ${p.name}`} /> : <img className="lumina-post-media" src={p.media_url} alt="" loading="lazy" decoding="async" />}</div>}
                 <div className="lumina-post-actions">
                   <button type="button" className={`act${mine.includes('like')?'':' act-off'}`} onClick={() => react(p,'like')} aria-label={t('Gosto')} aria-pressed={mine.includes('like')}><Heart size={21} fill={mine.includes('like')?'#ff789d':'none'} color={mine.includes('like')?'#ff789d':'currentColor'}/>{p.likes}</button>
                   <button type="button" className={`act${mine.includes('fire')?'':' act-off'}`} onClick={() => react(p,'fire')} aria-label={t('Adoro')} aria-pressed={mine.includes('fire')}><Flame size={21} fill={mine.includes('fire')?'#ffad73':'none'} color={mine.includes('fire')?'#ffad73':'currentColor'}/>{p.fires}</button>

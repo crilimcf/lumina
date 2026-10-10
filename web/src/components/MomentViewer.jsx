@@ -155,7 +155,7 @@ export function MomentViewer({ group, prevGroup, nextGroup, onClose, onNext, onP
       <Orb p={group.author.palette} avatarUrl={group.author.avatarUrl} s={30}/>
       <span style={{ color:'#fff', fontWeight:600, fontSize:14 }}>{isMine?'Tu':group.author.name}</span>
       <span style={{ color:'rgba(255,255,255,.6)', fontSize:11 }}>{new Date(item.created_at).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</span>
-      {isMine && <input ref={replacementInput} type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm" hidden onChange={replaceMedia}/>} 
+      {isMine && <input ref={replacementInput} type="file" accept="image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif,video/mp4,video/quicktime,video/webm" hidden onChange={replaceMedia}/>} 
       {isMine && <button onClick={()=>replacementInput.current?.click()} disabled={replacing} aria-label="Editar momento" style={{ marginLeft:'auto', background:'none', border:0, color:'rgba(255,255,255,.8)', padding:8 }}>{replacing?<RefreshCw size={17}/>:<Pencil size={17}/>}</button>}
       {isMine && <button onClick={()=>onDelete(item.id)} aria-label="Apagar momento" style={{ background:'none', border:0, color:'rgba(255,255,255,.8)', padding:8 }}><Trash2 size={17}/></button>}
       <button onClick={onClose} aria-label="Fechar" style={{ marginLeft:isMine?0:'auto', background:'none', border:0, color:'#fff', padding:8 }}><X size={20}/></button>

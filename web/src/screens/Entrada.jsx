@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { api } from '../api.js';
 import { ErrorNote } from '../ui.jsx';
 import { Legal } from '../Seguranca.jsx';
-import { t } from '../i18n.js';
+import { t, readLanguagePreference, saveLanguagePreference } from '../i18n.js';
+import { t as uiT } from '../i18n-ui.js';
 
 /** Entrada na aplicação: login, registo e recuperação de password. */
 export function Entrada({ onIn }) {
   const [mode, setMode] = useState('login');   // login · registo · esqueci
+  const [preferredLanguage, setPreferredLanguage] = useState(readLanguagePreference);
   const [f, setF] = useState({ email: '', password: '', handle: '', name: '', birthDate: '' });
   const [terms, setTerms] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -43,6 +45,22 @@ export function Entrada({ onIn }) {
       <div aria-hidden="true" style={{ position: 'absolute', bottom: -60, left: -70, width: 220, height: 220, borderRadius: '50%', background: 'radial-gradient(circle at 40% 35%,#DCD8FF,#2B2BF7 75%)', filter: 'blur(3px)', opacity: .32 }} />
 
       <div className="auth-shell" style={{ position: 'relative', maxWidth: 440, margin: '0 auto', padding: '52px 22px 40px' }}>
+        <div className="lumina-auth-language">
+          <label htmlFor="lumina-auth-language-select">{uiT('Idioma da aplicação')}</label>
+          <select id="lumina-auth-language-select" value={preferredLanguage}
+            onChange={event => {
+              const next = event.target.value;
+              if (next === preferredLanguage || !saveLanguagePreference(next)) return;
+              setPreferredLanguage(next);
+              window.location.reload();
+            }}>
+            <option value="auto">{uiT('Automático')}</option>
+            <option value="pt">Português</option>
+            <option value="en">English</option>
+            <option value="fr">Français</option>
+            <option value="es">Español</option>
+          </select>
+        </div>
         <div className="up" style={{ marginBottom: 18 }}>
           <span className="m auth-kicker" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
             <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 9, background: 'var(--coral)' }} />

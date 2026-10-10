@@ -7,7 +7,6 @@ const IDENTITIES = [
   { id:'midnight',Icon:MoonStar,label:'Midnight',caption:'Profundo · elegante · focado',badge:'Original' },
   { id:'air',Icon:Sun,label:'Air',caption:'Claro · editorial · leve',badge:'Claro' },
   { id:'pulse',Icon:Sparkles,label:'Pulse',caption:'Vibrante · imersivo · multimédia',badge:'Vivo' },
-  { id:'alive',Icon:Waves,label:'Alive',caption:'Orgânico · arrojado · interativo',badge:'Novo universo' },
   { id:'alive',Icon:Sparkles,label:'Alive',caption:'Experimental · editorial · humano',badge:'Novo universo' },
 ];
 

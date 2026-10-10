@@ -5,6 +5,7 @@ import { ErrorBoundary } from './ui.jsx';
 import { initializeNativeRuntime, revealNativeApp } from './native/runtime.js';
 import { disableNativePush, enableNativePush, nativePushSnapshot } from './native/push.js';
 import { isNativeApp } from './native/session.js';
+import { hasActiveUserWork } from './utils/updateSafety.js';
 import './index.css';
 import './lumina-v2.css';
 import './lumina-premium-mobile.css';
@@ -74,6 +75,11 @@ async function boot() {
       const latestDocument = new DOMParser().parseFromString(html, 'text/html');
       const latestDeployment = deploymentSignature(latestDocument);
       if (latestDeployment && latestDeployment !== loadedDeployment) {
+        if (hasActiveUserWork(document)) {
+          // Don't force a version reload during active work; recheck on focus.
+          window.dispatchEvent(new CustomEvent('lumina:update-deferred'));
+          return;
+        }
         reloadingForDeployment = true;
         window.location.reload();
       }

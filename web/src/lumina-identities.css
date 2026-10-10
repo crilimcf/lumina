@@ -670,3 +670,38 @@ body.lumina-v2 :is(.social-agora-card,.social-lume2-card,.one-lume-tile,.one-cap
     animation:none!important;filter:none!important;opacity:1!important;transform:none!important;
   }
 }
+
+
+/* QA fix: on the Air theme the room cover and white room body need
+ * opposite text colors; legacy CSS and late-scoped Air rules conflicted.
+ * Keep overlay above the cover image, but below the title and controls. */
+body.lumina-v2[data-lumina-identity="air"] .room-card > button > div:first-child::after {
+  z-index:0;
+}
+body.lumina-v2[data-lumina-identity="air"] .room-card > button > div:first-child > div[style*="bottom:"],
+body.lumina-v2[data-lumina-identity="air"] .room-card > button > div:first-child > div[style*="top:"] {
+  z-index:2 !important;
+}
+body.lumina-v2[data-lumina-identity="air"] .room-card > button > div:first-child .d,
+body.lumina-v2[data-lumina-identity="air"] .room-card > button > div:first-child > div[style*="bottom:"] {
+  color:#fff !important;
+  -webkit-text-fill-color:#fff !important;
+  text-shadow:0 2px 10px rgba(0,0,0,.75) !important;
+}
+body.lumina-v2[data-lumina-identity="air"] .room-card > button > div:first-child > div[style*="bottom:"] > div:first-child {
+  color:#ecf2ff !important;
+  -webkit-text-fill-color:#ecf2ff !important;
+  opacity:1 !important;
+}
+body.lumina-v2[data-lumina-identity="air"] .room-card > button > div:last-child {
+  color:#20304b !important;
+  background:#fff !important;
+}
+body.lumina-v2[data-lumina-identity="air"] .room-card > button > div:last-child > div:first-child {
+  color:#192c4a !important;
+  -webkit-text-fill-color:#192c4a !important;
+}
+body.lumina-v2[data-lumina-identity="air"] .room-card > button > div:last-child > div:nth-child(2) {
+  color:#52647f !important;
+  -webkit-text-fill-color:#52647f !important;
+}

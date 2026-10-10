@@ -49,15 +49,15 @@ body.lumina-v2 .is-pulse .lumina-identity-preview-cards span{background:#5c3694}
 body.lumina-v2 .lumina-identity-choice-label {display:flex;gap:5px;align-items:center;flex-wrap:wrap;color:#fff}
 body.lumina-v2 .lumina-identity-choice-label strong {font-size:12px;letter-spacing:-.02em}
 body.lumina-v2 .lumina-identity-check {color:#c2f6ff;margin-left:auto}
-body.lumina-v2 .lumina-identity-choice small {font-size:10px;line-height:1.32;color:#b7c6e0}
+body.lumina-v2 .lumina-identity-choice small {font-size:11.5px;line-height:1.4;color:#b7c6e0}
 body.lumina-v2 .lumina-identity-badge {
-  font-size:9px;color:#bdc8f0;font-weight:750;
+  font-size:10.5px;color:#bdc8f0;font-weight:750;
   margin-top:auto;text-transform:uppercase;letter-spacing:.05em;
 }
 body.lumina-v2 .lumina-identity-note{
   margin:12px 0 0;padding:10px 12px;border:1px solid rgba(213,222,255,.12);
   border-radius:12px;background:rgba(143,169,244,.07);
-  font-size:11px;line-height:1.5;color:#cbd5eb;
+  font-size:12px;line-height:1.5;color:#cbd5eb;
 }
 
 /* Shared editorial approach to main social screens. */
@@ -412,10 +412,10 @@ body.lumina-v2[data-lumina-identity="air"] .room-sheet {
 }
 body.lumina-v2 .messages-discover-cta {
   display:inline-flex;align-items:center;justify-content:center;gap:11px;
-  min-height:43px;padding:11px 17px;margin-top:14px;
+  min-height:44px;padding:11px 17px;margin-top:14px;
   border-radius:13px;border:1px solid rgba(214,208,255,.33);
   background:linear-gradient(125deg,#7d6fea,#9e70e6);
-  color:#fff;font-size:12px;font-weight:800;
+  color:#fff;font-size:14px;font-weight:800;
   box-shadow:0 10px 25px rgba(88,75,197,.19);
 }
 body.lumina-v2[data-lumina-identity="air"] .messages-discover-cta{color:#fff!important;}
@@ -453,7 +453,7 @@ body.lumina-v2 .lumina-gallery-viewer-header {
 }
 body.lumina-v2 .lumina-gallery-viewer-header strong {font-size:15px}
 body.lumina-v2 .lumina-gallery-viewer-header button {
-  display:grid;place-items:center;width:43px;height:43px;
+  display:grid;place-items:center;width:44px;height:44px;
   border-radius:14px;border:1px solid rgba(214,222,255,.16);
   color:#fff;background:rgba(255,255,255,.08);
 }

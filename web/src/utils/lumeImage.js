@@ -4,7 +4,7 @@
  * All processing stays on-device; nothing is sent until the user publishes.
  */
 export async function prepareLumePhoto(blob, { size = 1080, quality = 0.88 } = {}) {
-  if (!(blob instanceof Blob) || blob.size === 0 || !String(blob.type).startsWith('image/')) {
+  if (!(blob instanceof Blob) || blob.size === 0 || (blob.type && !blob.type.startsWith('image/') && blob.type !== 'application/octet-stream')) {
     throw new Error('Ficheiro de fotografia inválido');
   }
   const url = URL.createObjectURL(blob);

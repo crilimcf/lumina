@@ -40,7 +40,9 @@ async function connect() {
   if (isNativeApp || source || connecting || !('EventSource' in window)) return;
   connecting = true;
   try {
-    if (!await hasSession()) return schedule();
+    // An anonymous page should not retry indefinitely. App emits a session
+    // lifecycle event when login succeeds, including after restoring cookies.
+    if (!await hasSession()) return;
 
     const stream = new EventSource(STREAM_URL, { withCredentials: true });
     source = stream;
@@ -73,6 +75,18 @@ document.addEventListener('visibilitychange', () => {
     }
     connect().catch(() => schedule());
   }
+});
+
+window.addEventListener('lumina:session-changed', event => {
+  if (retryTimer) {
+    clearTimeout(retryTimer);
+    retryTimer = null;
+  }
+  if (event.detail?.authenticated === false) {
+    closeSource();
+    return;
+  }
+  connect().catch(() => schedule());
 });
 
 window.addEventListener('pageshow', () => connect().catch(() => schedule()));

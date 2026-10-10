@@ -20,3 +20,16 @@ test('canal SSE de notificações inicia logo após criar sessão', async ({ pag
   await expect(page.getByText('Bem-vindo à Lumina')).toBeVisible({ timeout:20_000 });
   await connected;
 });
+
+test('falha temporária do auth/me é reavaliada sem intervenção do utilizador', async ({ page }) => {
+  let probes = 0;
+  await page.route('**/api/auth/me', route => {
+    probes++;
+    return route.fulfill({ status:503, contentType:'application/json', body:'{"error":"temporary"}' });
+  });
+  await page.goto('/');
+  await expect(page.locator('.lumina-auth form')).toBeVisible({timeout:20_000});
+  // Boot performs one session request. The notification probe retries after
+  // its 5s backoff instead of becoming permanently disconnected on a 503.
+  await expect.poll(() => probes, {timeout:15_000}).toBeGreaterThanOrEqual(3);
+});

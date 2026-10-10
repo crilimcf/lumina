@@ -153,18 +153,59 @@ function apply(node = document.body) {
 const start = () => {
   apply(document.body);
 
+  // React can update many labels, text nodes and attributes in one commit.
+  // Batch the observer records and translate each added subtree only once.
+  // The previous implementation traversed overlapping subtrees repeatedly.
+  const pendingNodes = new Set();
+  const pendingAttributes = new Map();
+  let flushScheduled = false;
+
+  const hasPendingAncestor = (node, roots) => {
+    for (let parent = node.parentNode; parent; parent = parent.parentNode) {
+      if (roots.has(parent)) return true;
+    }
+    return false;
+  };
+
+  const flush = () => {
+    flushScheduled = false;
+    const roots = new Set(pendingNodes);
+    pendingNodes.clear();
+    const changedAttributes = new Map(pendingAttributes);
+    pendingAttributes.clear();
+
+    for (const node of roots) {
+      if (!node.isConnected || hasPendingAncestor(node, roots)) continue;
+      apply(node);
+    }
+    for (const [element, names] of changedAttributes) {
+      if (!element.isConnected || roots.has(element) || hasPendingAncestor(element, roots)) continue;
+      for (const name of names) applyAttribute(element, name);
+    }
+  };
+
+  const enqueue = () => {
+    if (flushScheduled) return;
+    flushScheduled = true;
+    queueMicrotask(flush);
+  };
+
   const observer = new MutationObserver(records => {
     for (const record of records) {
       if (record.type === 'characterData') {
-        applyText(record.target);
-        continue;
+        pendingNodes.add(record.target);
+      } else if (record.type === 'attributes') {
+        let names = pendingAttributes.get(record.target);
+        if (!names) {
+          names = new Set();
+          pendingAttributes.set(record.target, names);
+        }
+        names.add(record.attributeName);
+      } else {
+        for (const node of record.addedNodes) pendingNodes.add(node);
       }
-      if (record.type === 'attributes') {
-        applyAttribute(record.target, record.attributeName);
-        continue;
-      }
-      for (const node of record.addedNodes) apply(node);
     }
+    if (pendingNodes.size || pendingAttributes.size) enqueue();
   });
 
   observer.observe(document.body, {

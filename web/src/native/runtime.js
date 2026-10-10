@@ -32,8 +32,16 @@ export async function initializeNativeRuntime() {
   // push and OS event listeners are optional and may be slow on older devices.
   // Keeping them outside the render-critical path avoids a blank screen if a
   // plugin hangs or the OS delays a permission/initialization handshake.
+  // Air has light backgrounds: its native status-bar text and icons must be
+  // dark, unlike Midnight and Pulse. Keep them in sync when users switch themes.
+  const updateStatusBar = () => StatusBar.setStyle({
+    style:document.documentElement.dataset.luminaIdentity === 'air'
+      ? Style.Dark : Style.Light,
+  }).catch(error => console.debug('[native] status-bar style:', error?.message));
+  window.addEventListener('lumina:identity-change', updateStatusBar);
+
   const backgroundTasks = [
-    StatusBar.setStyle({ style:Style.Light }),
+    updateStatusBar(),
     StatusBar.setOverlaysWebView({ overlay:true }),
     PrivacyScreen.enable({
       android:{ dimBackground:true, preventScreenshots:false, privacyModeOnActivityHidden:'dim' },

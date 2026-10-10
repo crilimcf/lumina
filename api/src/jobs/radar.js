@@ -561,8 +561,9 @@ export async function syncRadarSources({ sourceId = null, fetchFeedImpl } = {}) 
       ? await q(`SELECT * FROM radar_sources WHERE id=$1 AND kind='rss'`, [sourceId])
       : await q(`SELECT * FROM radar_sources WHERE active=true AND kind='rss' ORDER BY COALESCE(last_fetched_at, '-infinity') ASC`);
 
-    const result = { skipped: false, attempted: sources.length, succeeded: 0, failed: 0, items: 0 };
-    for (const source of sources) {
+    const ready = sourceId ? sources : sources.filter(source => !isRadarSourceCoolingDown(source));
+    const result = { skipped: false, attempted: ready.length, succeeded: 0, failed: 0, items: 0, cooldown: sources.length - ready.length };
+    for (const source of ready) {
       try {
         const synced = await ingestRssSource(source, { fetchFeedImpl });
         result.succeeded++;

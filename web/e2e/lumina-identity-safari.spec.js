@@ -23,7 +23,7 @@ test('Midnight Air and Pulse are real persistent appearance choices', async ({pa
   await expect(page.locator('body')).toHaveAttribute('data-lumina-identity','midnight');
 
   const options=page.locator('.lumina-identity-options');
-  await expect(options.locator('.lumina-identity-preview')).toHaveCount(3);
+  await expect(options.locator('.lumina-identity-preview')).toHaveCount(4);
 
   await options.getByRole('button',{name:/Air,/}).click();
   await expect(page.locator('body')).toHaveAttribute('data-lumina-identity','air');
@@ -44,6 +44,16 @@ test('Midnight Air and Pulse are real persistent appearance choices', async ({pa
   await options.getByRole('button',{name:/Pulse,/}).click();
   await expect(page.locator('body')).toHaveAttribute('data-lumina-identity','pulse');
   await expect(options.locator('.is-selected')).toContainText('Pulse');
+  await options.getByRole('button',{name:/Alive,/}).click();
+  await expect(page.locator('body')).toHaveAttribute('data-lumina-identity','alive');
+  await page.locator('.nav').getByRole('button',{name:'Feed'}).click();
+  await expect(page.locator('.alive-root')).toBeVisible();
+  await expect(page.locator('.alive-orbit')).toBeVisible();
+  await page.getByRole('button',{name:/Abrir Feed cronológico/}).click();
+  await expect(page.locator('.lumina-feed')).toBeVisible();
+  await page.getByRole('button',{name:/Universo/}).click();
+  await expect(page.locator('.alive-root')).toBeVisible();
+  await page.getByRole('button',{name:'Perfil',exact:true}).first().click();
   await options.getByRole('button',{name:/Midnight,/}).click();
   await expect(page.locator('body')).toHaveAttribute('data-lumina-identity','midnight');
 });

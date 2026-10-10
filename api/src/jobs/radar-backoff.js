@@ -21,3 +21,21 @@ export function isRadarSourceCoolingDown(source, now = Date.now()) {
   const elapsed = now - lastAttempt;
   return elapsed >= 0 && elapsed < radarRetryDelayMs(source.last_fetch_error);
 }
+
+
+/* One controlled recovery try after shipping an approved replacement URL.
+ * Existing 403/401 permissions and generic publisher backoff always remain
+ * in force. The attempt is process-local and never changes stored source config.
+ */
+export function mayRetryAfterVerifiedFeedReplacement(source, attempted = new Set()) {
+  if (!source?.id || attempted.has(String(source.id))) return false;
+  const url = String(source.url || '');
+  const error = String(source.last_fetch_error || '');
+  return (
+    url === 'https://rss.dw.com/syndication/feeds/VAS_CB_Eng_OurVoice.31791-cb.html'
+      && /dtd\/entidades|xml com dtd|doctype|entidades não permitido/i.test(error)
+  ) || (
+    url === 'https://www.rfi.fr/fr/rss'
+      && /\bhttp (404|410)\b/i.test(error)
+  );
+}

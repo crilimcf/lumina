@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { isRadarSourceCoolingDown, radarRetryDelayMs } from '../src/jobs/radar-backoff.js';
+import { isRadarSourceCoolingDown, radarRetryDelayMs, mayRetryAfterVerifiedFeedReplacement } from '../src/jobs/radar-backoff.js';
 
 const HOUR = 60 * 60_000;
 
@@ -34,4 +34,27 @@ test('transient errors back off for less time and missing timestamps do not bloc
   assert.equal(isRadarSourceCoolingDown({last_fetch_error:'HTTP 403'}, now), false);
   assert.equal(isRadarSourceCoolingDown({last_fetched_at:new Date(now).toISOString()}, now), false);
   assert.equal(isRadarSourceCoolingDown({last_fetch_error:'HTTP 403',last_fetched_at:'bad-date'},now), false);
+});
+
+test('known DW DTD failure gets one recovery attempt after feed URL replacement', () => {
+  const used=new Set();
+  const source={
+    id:'dw-1',url:'https://rss.dw.com/syndication/feeds/VAS_CB_Eng_OurVoice.31791-cb.html',
+    last_fetch_error:'Feed XML com DTD/entidades não permitido',
+    last_fetched_at:new Date().toISOString(),
+  };
+  assert.equal(isRadarSourceCoolingDown(source),true);
+  assert.equal(mayRetryAfterVerifiedFeedReplacement(source,used),true);
+  used.add(source.id);
+  assert.equal(mayRetryAfterVerifiedFeedReplacement(source,used),false);
+});
+
+test('known RFI 404 may retry once; 403 and other publishers never bypass cooldown', () => {
+  const used=new Set();
+  const source={id:'rfi-1',url:'https://www.rfi.fr/fr/rss',last_fetch_error:'Fonte RSS respondeu HTTP 404'};
+  assert.equal(mayRetryAfterVerifiedFeedReplacement(source,used),true);
+  assert.equal(mayRetryAfterVerifiedFeedReplacement({...source,last_fetch_error:'Fonte RSS respondeu HTTP 403'},used),false);
+  assert.equal(mayRetryAfterVerifiedFeedReplacement({...source,url:'https://rr.pt/rss.aspx'},used),false);
+  used.add(source.id);
+  assert.equal(mayRetryAfterVerifiedFeedReplacement(source,used),false);
 });

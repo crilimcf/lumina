@@ -5,13 +5,14 @@ import https from 'node:https';
 import net from 'node:net';
 import { XMLParser } from 'fast-xml-parser';
 import { pool, q } from '../db.js';
-import { isRadarSourceCoolingDown } from './radar-backoff.js';
+import { isRadarSourceCoolingDown, mayRetryAfterVerifiedFeedReplacement } from './radar-backoff.js';
 
 const MAX_FEED_BYTES = 1_500_000;
 const FETCH_TIMEOUT_MS = 10_000;
 const MAX_REDIRECTS = 3;
 const INGEST_LOCK = 4_817_337;
 const AUTO_RSS_TYPES = new Set(['news', 'trend', 'editorial']);
+const oneTimeRecoveryAttempts = new Set();
 const TRACKING_QUERY_PARAMS = new Set(['fbclid', 'gclid', 'mc_cid', 'mc_eid']);
 
 /* Public, publisher-owned feed locations, validated independently with HTTP
@@ -591,7 +592,14 @@ export async function syncRadarSources({ sourceId = null, fetchFeedImpl } = {}) 
       ? await q(`SELECT * FROM radar_sources WHERE id=$1 AND kind='rss'`, [sourceId])
       : await q(`SELECT * FROM radar_sources WHERE active=true AND kind='rss' ORDER BY COALESCE(last_fetched_at, '-infinity') ASC`);
 
-    const ready = sourceId ? sources : sources.filter(source => !isRadarSourceCoolingDown(source));
+    const ready = sourceId ? sources : sources.filter(source => {
+      if (!isRadarSourceCoolingDown(source)) return true;
+      if (!mayRetryAfterVerifiedFeedReplacement(source, oneTimeRecoveryAttempts)) return false;
+      // Mark the trial before fetching. Even if the publisher is unavailable,
+      // the same process will not retry it again on each scheduler cycle.
+      oneTimeRecoveryAttempts.add(String(source.id));
+      return true;
+    });
     const result = { skipped: false, attempted: ready.length, succeeded: 0, failed: 0, items: 0, cooldown: sources.length - ready.length };
     for (const source of ready) {
       try {

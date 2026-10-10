@@ -18,6 +18,7 @@ import { useCalls } from './hooks/useCalls.js';
 import { useSwipeNavigation } from './hooks/useSwipeNavigation.js';
 import { exitNativeApp, takePendingNativeNavigation } from './native/runtime.js';
 import { isNativeApp } from './native/session.js';
+import { readLuminaIdentity } from './components/LuminaAppearance.jsx';
 import './design-system-consolidation.css';
 import './iphone-polish.css';
 import './lumina-one-entry.css';
@@ -29,6 +30,7 @@ const PublicProfile = namedLazy(() => import('./screens/PublicProfile.jsx'), 'Pu
 const Conversas = namedLazy(() => import('./screens/Conversas.jsx'), 'Conversas');
 const Perfil = namedLazy(() => import('./screens/Perfil.jsx'), 'Perfil');
 const Feed = namedLazy(() => import('./screens/Feed.jsx'), 'Feed');
+const AliveHub = namedLazy(() => import('./screens/AliveHub.jsx'), 'AliveHub');
 const Salas = namedLazy(() => import('./screens/Salas.jsx'), 'Salas');
 const Promocoes = namedLazy(() => import('./screens/Promocoes.jsx'), 'Promocoes');
 const RadarAdmin = namedLazy(() => import('./screens/RadarAdmin.jsx'), 'RadarAdmin');
@@ -60,6 +62,8 @@ const syncAppBadge = async (count) => {
 
 export default function App() {
   const [me, setMe] = useState(null);
+  const [identity, setIdentity] = useState(readLuminaIdentity);
+  const [aliveFeedView, setAliveFeedView] = useState(false);
   const [booting, setBooting] = useState(true);
   const [launchReady, setLaunchReady] = useState(false);
   const [opening, setOpening] = useState(false);
@@ -138,6 +142,13 @@ export default function App() {
     thread:messageState.thread,
     setThread:messageState.setThread,
   });
+
+  useEffect(() => {
+    const onIdentityChange = event => { setIdentity(event.detail?.identity || readLuminaIdentity()); setAliveFeedView(false); };
+    window.addEventListener('lumina:identity-change', onIdentityChange);
+    return () => window.removeEventListener('lumina:identity-change', onIdentityChange);
+  }, []);
+  useEffect(() => { if (tab !== 'feed') setAliveFeedView(false); }, [tab]);
 
   const meRef = useRef(null);
   useEffect(() => { meRef.current = me; }, [me]);
@@ -359,7 +370,14 @@ export default function App() {
   else if (tab==='promos') activeScreen=<Promocoes me={me} setScreen={setScreen} {...navProps}/>;
   else if (tab==='alerts') activeScreen=<Atividade {...navProps} onUnreadChange={setUnreadCount} onOpenLive={openLive}/>;
   else if (tab==='me') activeScreen=<Perfil me={me} blocked={blocked} setBlocked={setBlocked} setScreen={setScreen} onOpenProfile={openProfile} logout={logout} tab={tab} setTab={setTab} setThread={messageState.setThread} setComp={composerState.setComp} threads={messageState.threads} ping={ping} toast={toast} unreadCount={unreadCount}/>;
-  else activeScreen=<Feed me={me} tab={tab} setTab={setTab} setScreen={setScreen} {...feedState} report={report} comp={null} {...composerWithoutComp} threads={messageState.threads} setThread={messageState.setThread} ping={ping} toast={toast} unreadCount={unreadCount} {...momentState} onOpenLive={openLive}/>;
+  else if (identity === 'alive' && !aliveFeedView) activeScreen=<AliveHub
+    me={me} tab={tab} setTab={setTab} setThread={messageState.setThread}
+    setComp={composerState.setComp} setScreen={setScreen} onOpenProfile={openProfile}
+    onOpenLive={openLive} onOpenFeed={()=>setAliveFeedView(true)}
+    feed={feedState.feed} threads={messageState.threads} unreadCount={unreadCount}
+    ping={ping} toast={toast}
+  />;
+  else activeScreen=<>{identity === 'alive' && <button type="button" className="alive-back-to-universe" onClick={()=>setAliveFeedView(false)}>✳ Universo ↗</button>}<Feed me={me} tab={tab} setTab={setTab} setScreen={setScreen} {...feedState} report={report} comp={null} {...composerWithoutComp} threads={messageState.threads} setThread={messageState.setThread} ping={ping} toast={toast} unreadCount={unreadCount} {...momentState} onOpenLive={openLive}/></>;
 
   return withCalls(<>
     {activeScreen}

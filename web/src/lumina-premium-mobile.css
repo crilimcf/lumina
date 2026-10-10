@@ -71,7 +71,7 @@ body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-copy {
   min-width:0;width:100%;gap:4px;
 }
 body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-copy>small {
-  font-size:8px!important;letter-spacing:.17em!important;
+  font-size:11px!important;letter-spacing:.11em!important;
 }
 body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-copy>b {
   font-size:clamp(17px,5vw,21px)!important;
@@ -80,7 +80,7 @@ body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-copy>b {
   text-wrap:balance;
 }
 body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-copy>em {
-  font-size:10px!important;line-height:1.35!important;
+  font-size:11.5px!important;line-height:1.45!important;
   max-width:100%!important;color:#cfdaed!important;
 }
 body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-prompt-line {
@@ -88,13 +88,13 @@ body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-prompt-line
 }
 body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-prompt-pill {
   min-width:0;max-width:100%!important;
-  font-size:9px!important;padding:6px 9px!important;
+  font-size:11px!important;padding:7px 9px!important;
   border-radius:10px!important;background:rgba(196,173,255,.11)!important;
   border-color:rgba(214,203,255,.14)!important;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-status {
-  max-width:100%;font-size:9px!important;line-height:1.3;
+  max-width:100%;font-size:11px!important;line-height:1.4;
   color:#c0cde6!important;
 }
 body.lumina-v2 .one-v3-feed-entry.one-adventure-entry .one-adventure-flow {display:none!important}
@@ -116,7 +116,7 @@ body.lumina-v2 .lumina-feed-switch {
 }
 body.lumina-v2 .lumina-feed-switch button {
   font-size:12px!important;font-weight:800!important;
-  min-height:37px!important;padding:8px 13px!important;
+  min-height:44px!important;padding:8px 13px!important;
   border-radius:13px!important;
 }
 body.lumina-v2 .lumina-feed-switch button.is-active {
@@ -124,7 +124,7 @@ body.lumina-v2 .lumina-feed-switch button.is-active {
   box-shadow:0 6px 16px rgba(3,12,29,.14);
 }
 body.lumina-v2 .lumina-feed-switch .lumina-switch-hint {
-  max-width:92px;font-size:9px;line-height:1.3;
+  max-width:110px;font-size:11px;line-height:1.4;
 }
 body.lumina-v2 .lumina-v3-empty {
   text-align:left!important;
@@ -145,7 +145,7 @@ body.lumina-v2 .lumina-v3-empty-symbol {
   border-radius:11px;border:1px solid rgba(188,179,255,.16);
 }
 body.lumina-v2 .lumina-v3-empty-kicker {
-  letter-spacing:.12em;font-size:9px;font-weight:850;color:#c0b8ff;
+  letter-spacing:.08em;font-size:11px;font-weight:850;color:#c0b8ff;
 }
 body.lumina-v2 .lumina-v3-empty h2 {
   max-width:290px;font-size:clamp(20px,5.9vw,26px)!important;
@@ -190,7 +190,7 @@ body.lumina-v2 .lumina-v3-person>span:nth-child(2) {
   flex:1;display:grid;gap:2px;min-width:0;
 }
 body.lumina-v2 .lumina-v3-person strong {font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-body.lumina-v2 .lumina-v3-person small {font-size:10px;color:#a4b7d5}
+body.lumina-v2 .lumina-v3-person small {font-size:11px;color:#b8c9e3}
 body.lumina-v2 .lumina-v3-person-arrow {font-size:17px;color:#c8bbff}
 body.lumina-v2 .nav {
   bottom:calc(8px + env(safe-area-inset-bottom))!important;
@@ -202,7 +202,7 @@ body.lumina-v2 .nav {
   box-shadow:0 15px 35px rgba(0,5,18,.36),0 0 0 1px rgba(210,223,255,.06)!important;
 }
 body.lumina-v2 .nav .nb {min-height:48px!important;max-height:52px!important;gap:2px!important;padding:2px 1px!important;border-radius:14px!important}
-body.lumina-v2 .nav .nb span {font-size:10px!important}
+body.lumina-v2 .nav .nb span {font-size:10.5px!important}
 body.lumina-v2 .nav .nb-on:not(.nb-create) {background:rgba(115,118,240,.13)!important}
 body.lumina-v2 .nav .nb-create svg {
   width:34px!important;height:34px!important;padding:7px!important;
@@ -220,7 +220,7 @@ body.lumina-v2 .lumina-opening .opening-shell {
   justify-content:flex-start;gap:0;
 }
 body.lumina-v2 .lumina-opening .opening-shell>div:first-child {margin-bottom:24px!important}
-body.lumina-v2 .lumina-opening .opening-kicker {font-size:10px;letter-spacing:.11em}
+body.lumina-v2 .lumina-opening .opening-kicker {font-size:11px;letter-spacing:.09em}
 body.lumina-v2 .lumina-opening .opening-title {
   font-size:clamp(34px,9vw,45px)!important;
   line-height:1.04!important;letter-spacing:-.055em!important;
@@ -266,7 +266,7 @@ body.lumina-v2 .lumina-opening .opening-actions {
   margin-top:0!important;width:100%;max-width:450px;
 }
 body.lumina-v2 .lumina-opening .opening-choice-label {
-  font-size:10px;color:#bbc9e4!important;margin-bottom:12px!important;
+  font-size:11.5px;color:#bbc9e4!important;margin-bottom:12px!important;
 }
 body.lumina-v2 .lumina-opening .opening-primary-action,
 body.lumina-v2 .lumina-opening .opening-secondary-action {

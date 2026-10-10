@@ -11,7 +11,8 @@ test('fotografia nativa grande fica JPEG quadrado compatível com API dos Lumes'
     ctx.fillStyle = '#236eca';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     const original = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-    const prepared = await prepareLumePhoto(original);
+    const withoutMime = new Blob([original], { type:'' });
+    const prepared = await prepareLumePhoto(withoutMime);
     const image = new Image();
     const url = URL.createObjectURL(prepared);
     try {

@@ -2,7 +2,7 @@ import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { migrate, pool, q } from '../src/db.js';
-import { fetchPublicFeed, ingestRssSource, syncRadarSources, parseSyndicationFeed, resolvePublicFeedTarget, resolveRedirectUrl, withDeadline } from '../src/jobs/radar.js';
+import { fetchPublicFeed, ingestRssSource, syncRadarSources, parseSyndicationFeed, resolvePublicFeedTarget, resolveRedirectUrl, withDeadline, effectiveRadarRssUrl } from '../src/jobs/radar.js';
 
 const RSS = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/">
@@ -143,6 +143,69 @@ test('validação SSRF bloqueia localhost e redes privadas antes do fetch', asyn
   await assert.rejects(() => resolvePublicFeedTarget('http://127.0.0.1/feed.xml'), /privada|reservada/);
   await assert.rejects(() => resolvePublicFeedTarget('https://10.20.30.40/feed.xml'), /privada|reservada/);
   await assert.rejects(() => resolvePublicFeedTarget('http://169.254.169.254/latest/meta-data'), /privada|reservada/);
+});
+
+test('DW legacy HTML usa RSS público sem DTD e ignora ETag do HTML anterior', async () => {
+  const oldUrl = 'https://rss.dw.com/syndication/feeds/VAS_CB_Eng_OurVoice.31791-cb.html';
+  const cleanUrl = 'https://rss.dw.com/rdf/rss-en-world';
+  assert.equal(effectiveRadarRssUrl(oldUrl), cleanUrl);
+  assert.equal(effectiveRadarRssUrl('https://feed.example.test/rss'), 'https://feed.example.test/rss');
+
+  const { rows:[source] } = await q(
+    `INSERT INTO radar_sources (name,kind,url,default_type,active,trusted,etag,config)
+      VALUES ('DW QA','rss',$1,'news',true,true,'"old-html-etag"',$2) RETURNING *`,
+    [oldUrl,{maxAgeDays:90}]
+  );
+  const feed = '<?xml version="1.0"?><rss><channel><item>' +
+    '<title>News from DW</title><guid>dw-qa-1</guid><link>https://news.dw.test/story-1</link>' +
+    '</item></channel></rss>';
+  const urls=[];
+  const result=await ingestRssSource(source,{fetchFeedImpl:async (url,options)=>{
+    urls.push({url,options});
+    return {notModified:false,text:feed,etag:null,lastModified:null};
+  }});
+  assert.equal(result.fetched,1);
+  assert.equal(urls.length,1);
+  assert.equal(urls[0].url,cleanUrl);
+  assert.equal(urls[0].options.etag,null);
+  const items=await q('SELECT source_url FROM radar_items WHERE source_id=$1',[source.id]);
+  assert.equal(items.rows[0].source_url,cleanUrl);
+});
+
+test('RFI usa feed público Monde só quando o feed principal devolve 404', async () => {
+  const current='https://www.rfi.fr/fr/rss';
+  const alternative='https://www.rfi.fr/fr/monde/rss';
+  const { rows:[source] }=await q(
+    `INSERT INTO radar_sources (name,kind,url,default_type,active,trusted,config)
+      VALUES ('RFI QA','rss',$1,'news',true,true,$2) RETURNING *`,
+    [current,{maxAgeDays:90}]
+  );
+  const tried=[];
+  const feed='<?xml version="1.0"?><rss><channel><item>' +
+    '<title>RFI World news</title><guid>rfi-qa-1</guid><link>https://news.rfi.test/story-1</link>' +
+    '</item></channel></rss>';
+  const fetched=await ingestRssSource(source,{fetchFeedImpl:async url=>{
+    tried.push(url);
+    if (url===current) throw new Error('Fonte RSS respondeu HTTP 404');
+    return {notModified:false,text:feed,etag:null,lastModified:null};
+  }});
+  assert.equal(fetched.fetched,1);
+  assert.deepEqual(tried,[current,alternative]);
+  const row=await q('SELECT source_url FROM radar_items WHERE source_id=$1',[source.id]);
+  assert.equal(row.rows[0].source_url,alternative);
+
+  const { rows:[restricted] }=await q(
+    `INSERT INTO radar_sources (name,kind,url,default_type,active,trusted)
+     VALUES ('RFI QA forbidden','rss',$1,'news',true,true) RETURNING *`,[current]
+  );
+  const requested=[];
+  await assert.rejects(
+    ingestRssSource(restricted,{fetchFeedImpl:async url=>{
+      requested.push(url);
+      throw new Error('Fonte RSS respondeu HTTP 403');
+    }}),/HTTP 403/
+  );
+  assert.deepEqual(requested,[current], '403 cannot trigger bypass/fallback');
 });
 
 test('ingestão preserva a data original quando o feed não fornece data', async () => {

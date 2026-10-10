@@ -5,6 +5,7 @@ import https from 'node:https';
 import net from 'node:net';
 import { XMLParser } from 'fast-xml-parser';
 import { pool, q } from '../db.js';
+import { isRadarSourceCoolingDown } from './radar-backoff.js';
 
 const MAX_FEED_BYTES = 1_500_000;
 const FETCH_TIMEOUT_MS = 10_000;

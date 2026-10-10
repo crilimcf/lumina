@@ -302,14 +302,27 @@ async function boot() {
     if (supportsPush) setTimeout(() => maybeSetupPush().catch(() => {}), 900);
   }, { once:true });
 
-  // Apanha logins feitos sem reload, mas deixa de consultar quando a subscrição está pronta.
+  // Login/logout events already exist in App.jsx. Prefer immediate, event-driven
+  // push setup over repeated session probes. Retain a slow online/visible fallback.
+  window.addEventListener('lumina:session-changed', event => {
+    if (event.detail?.authenticated === false) {
+      pushConfigured = false;
+      pushBanner?.remove();
+      pushBanner = null;
+      return;
+    }
+    if (event.detail?.authenticated === true && supportsPush) {
+      maybeSetupPush().catch(() => {});
+    }
+  });
   const pushProbe = supportsPush ? setInterval(() => {
+    if (document.visibilityState !== 'visible' || navigator.onLine === false) return;
     if (pushConfigured || (!isNativeApp && Notification.permission === 'denied')) return;
     const permission = isNativeApp ? 'default' : Notification.permission;
     const shouldProbe = permission === 'granted'
       || (permission === 'default' && !pushBanner && !sessionStorage.getItem('lumina-push-later'));
     if (shouldProbe) maybeSetupPush().catch(() => {});
-  }, 15_000) : null;
+  }, 60_000) : null;
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {

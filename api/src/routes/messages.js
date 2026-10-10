@@ -79,6 +79,7 @@ messageRoutes.get('/events', auth, h(async (req, res) => {
       threadId: event.threadId || null,
       threadIds: Array.isArray(event.threadIds) ? event.threadIds : undefined,
       messageId: event.messageId || null,
+      callId: event.callId || null,
     };
     res.write(`data: ${JSON.stringify(payload)}\n\n`);
   });

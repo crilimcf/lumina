@@ -270,7 +270,7 @@ export function EditarPerfil({ me, onSave, onBack, ping }) {
   const shownAvatar = avatarPreview || avatarUrl || null;
 
   return (
-    <div style={{ minHeight: '100dvh', background: 'var(--paper)' }}>
+    <div data-lumina-unsent-media={avatarFile ? 'true' : undefined} style={{ minHeight: '100dvh', background: 'var(--paper)' }}>
       <div style={{ maxWidth: 460, margin: '0 auto', padding: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 22 }}>
           <button className="p" onClick={onBack} aria-label="Voltar" style={{ padding: 10 }}><ArrowLeft size={16} /></button>

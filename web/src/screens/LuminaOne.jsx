@@ -5,6 +5,7 @@ import {
   Unlock, UserRound, Video, X,
 } from 'lucide-react';
 import { api } from '../api.js';
+import { prepareLumePhoto } from '../utils/lumeImage.js';
 import { Camera as NativeCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { isNativeApp } from '../native/session.js';
 import { t } from '../i18n-ui.js';
@@ -216,10 +217,7 @@ export function LuminaOne({ me, onBack, ping }) {
       if (!blob.size || (blob.type && !blob.type.startsWith('image/'))) {
         throw new Error('Formato de fotografia inválido');
       }
-      const ext = blob.type === 'image/png' ? 'png' : 'jpg';
-      setLumeFile(new File([blob], `lume-${Date.now()}.${ext}`, {
-        type:blob.type || 'image/jpeg',
-      }));
+      setLumeFile(await prepareLumePhoto(blob));
     } catch (error) {
       // Dismissing the OS camera is not a failure and must not show an error.
       if (/cancel|cancelad|cancelled|canceled|user dismissed/i.test(String(error?.message || ''))) return;

@@ -5,6 +5,12 @@ body.lumina-v2 {
   --paper:#0a1225; --paper2:#111e35; --card:#172640;
   --ink:#f6f8ff; --grey:#bac7df; --edge:rgba(194,209,255,.17);
   --cobalt:#9881ff; --cobalt2:#67a5ff; --coral:#ff789d;
+  /* Shared interaction foundations for Midnight, Air and Pulse. These are
+     applied to the real existing components; they do not replace the skin. */
+  --lumina-action-size:44px;
+  --lumina-action-radius:15px;
+  --lumina-focus-color:#a4c8ff;
+  --lumina-focus-glow:rgba(164,200,255,.25);
   background:#0b1428!important;color:#f7f8ff;
   font-family:Manrope,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
 }
@@ -37,8 +43,10 @@ body.lumina-v2 h1,body.lumina-v2 h2,body.lumina-v2 h3 {
 body.lumina-v2 button,body.lumina-v2 a {
   -webkit-tap-highlight-color:transparent;
 }
-body.lumina-v2 button:focus-visible,body.lumina-v2 a:focus-visible {
-  outline:2px solid #a4c8ff;outline-offset:3px;
+body.lumina-v2 :is(button,a,input,textarea,select,[role="button"],[role="tab"]):focus-visible {
+  outline:3px solid var(--lumina-focus-color);
+  outline-offset:3px;
+  box-shadow:0 0 0 6px var(--lumina-focus-glow);
 }
 body.lumina-v2 .lumina-feed-header,
 body.lumina-v2 .explore-header,
@@ -70,9 +78,9 @@ body.lumina-v2 .lumina-brand-spark::after {
 }
 body.lumina-v2 .lumina-facelift .top-action,
 body.lumina-v2 .lumina-facelift .lumina-search-button {
-  min-height:44px!important;min-width:44px!important;
-  width:44px!important;height:44px!important;
-  border-radius:15px!important;
+  min-height:var(--lumina-action-size)!important;min-width:var(--lumina-action-size)!important;
+  width:var(--lumina-action-size)!important;height:var(--lumina-action-size)!important;
+  border-radius:var(--lumina-action-radius)!important;
   border-color:rgba(206,218,255,.2)!important;
   color:#f7f8ff!important;background:rgba(180,196,255,.09)!important;
 }

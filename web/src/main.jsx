@@ -5,6 +5,7 @@ import { ErrorBoundary } from './ui.jsx';
 import { initializeNativeRuntime, revealNativeApp } from './native/runtime.js';
 import { disableNativePush, enableNativePush, nativePushSnapshot } from './native/push.js';
 import { isNativeApp } from './native/session.js';
+import { t as translateUi } from './i18n-ui.js';
 import './index.css';
 import './lumina-v2.css';
 import './lumina-premium-mobile.css';
@@ -268,25 +269,33 @@ async function boot() {
       fontFamily:'Manrope,system-ui,sans-serif', display:'flex', gap:'12px', alignItems:'center',
     });
     const deviceName = isAndroidWeb ? 'Android' : 'iPhone';
-    box.innerHTML = `<div style="flex:1"><div style="font-weight:800;font-size:14px">Não percas mensagens nem chamadas</div><div style="font-size:11px;opacity:.72;margin-top:3px;line-height:1.35">Ativa as notificações da Lumina neste ${deviceName}.</div></div>`;
+    const copy = document.createElement('div');
+    copy.style.flex = '1';
+    const heading = document.createElement('div');
+    heading.style.cssText = 'font-weight:800;font-size:14px';
+    heading.textContent = translateUi('Não percas mensagens nem chamadas');
+    const detail = document.createElement('div');
+    detail.style.cssText = 'font-size:11px;opacity:.72;margin-top:3px;line-height:1.35';
+    detail.textContent = translateUi('Ativa as notificações da Lumina neste {device}.', {device:deviceName});
+    copy.append(heading, detail);
     const activate = document.createElement('button');
-    activate.textContent = 'Ativar';
+    activate.textContent = translateUi('Ativar');
     Object.assign(activate.style, { border:0,borderRadius:'999px',padding:'10px 14px',fontWeight:'800',background:'#fff',color:'#14122A' });
     activate.addEventListener('click', async () => {
-      activate.disabled = true; activate.textContent = 'A ativar…';
+      activate.disabled = true; activate.textContent = translateUi('A ativar…');
       const ok = await registerPush({ ask:true });
       if (!ok) {
         activate.disabled = false;
-        activate.textContent = !isNativeApp && Notification.permission === 'denied' ? 'Bloqueadas' : 'Tentar';
+        activate.textContent = translateUi(!isNativeApp && Notification.permission === 'denied' ? 'Bloqueadas' : 'Tentar');
       }
     });
     const later = document.createElement('button');
-    later.textContent = '×'; later.setAttribute('aria-label', 'Agora não');
+    later.textContent = '×'; later.setAttribute('aria-label', translateUi('Agora não'));
     Object.assign(later.style, { border:0,background:'transparent',color:'#fff',fontSize:'22px',padding:'4px' });
     later.addEventListener('click', () => {
       box.remove(); pushBanner = null; sessionStorage.setItem('lumina-push-later','1');
     });
-    box.append(activate, later);
+    box.append(copy, activate, later);
     document.body.appendChild(box); pushBanner = box;
   };
 

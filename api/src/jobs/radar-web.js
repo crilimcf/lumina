@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import http from 'node:http';
 import https from 'node:https';
+import { isRadarSourceCoolingDown } from './radar-backoff.js';
 import { q } from '../db.js';
 import { resolvePublicFeedTarget, resolveRedirectUrl } from './radar.js';
 
@@ -282,8 +283,9 @@ export async function syncWebRadarSources({ sourceId = null } = {}) {
   const { rows:sources } = sourceId
     ? await q(`SELECT * FROM radar_sources WHERE id=$1 AND kind='partner' AND config->>'adapter'='headline-links'`, [sourceId])
     : await q(`SELECT * FROM radar_sources WHERE active=true AND kind='partner' AND config->>'adapter'='headline-links' ORDER BY COALESCE(last_fetched_at,'-infinity') ASC`);
-  const result = { attempted:sources.length, succeeded:0, failed:0, items:0 };
-  for (const source of sources) {
+  const ready = sourceId ? sources : sources.filter(source => !isRadarSourceCoolingDown(source));
+  const result = { attempted:ready.length, succeeded:0, failed:0, items:0, cooldown:sources.length - ready.length };
+  for (const source of ready) {
     try {
       const out = await ingestWebSource(source);
       result.succeeded += 1;

@@ -56,6 +56,22 @@ async function boot() {
     .sort()
     .join('|');
 
+  // A deployment must never discard a message, comment, login or draft in
+  // progress. The update check retries on focus/pageshow once editing ends.
+  const hasUnsavedInput = () => {
+    const active = document.activeElement;
+    if (active?.isContentEditable) return true;
+    if (active?.matches?.('input,textarea,[role="textbox"]')) return true;
+    for (const field of document.querySelectorAll('textarea,[contenteditable="true"]')) {
+      if (field.matches('textarea') && field.value?.trim()) return true;
+      if (field.isContentEditable && field.textContent?.trim()) return true;
+    }
+    // Never interrupt a live call or a media capture in progress.
+    return !!document.querySelector(
+      '[data-call-active="true"],.call-active,.call-overlay,video[data-recording="true"]'
+    );
+  };
+
   const loadedDeployment = deploymentSignature(document);
   let checkingDeployment = false;
   let reloadingForDeployment = false;
@@ -74,6 +90,11 @@ async function boot() {
       const latestDocument = new DOMParser().parseFromString(html, 'text/html');
       const latestDeployment = deploymentSignature(latestDocument);
       if (latestDeployment && latestDeployment !== loadedDeployment) {
+        if (hasUnsavedInput()) {
+          // Don't force a version reload during active work; recheck on focus.
+          window.dispatchEvent(new CustomEvent('lumina:update-deferred'));
+          return;
+        }
         reloadingForDeployment = true;
         window.location.reload();
       }

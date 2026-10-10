@@ -194,13 +194,9 @@ test('RFI usa feed público Monde só quando o feed principal devolve 404', asyn
   const row=await q('SELECT source_url FROM radar_items WHERE source_id=$1',[source.id]);
   assert.equal(row.rows[0].source_url,alternative);
 
-  const { rows:[restricted] }=await q(
-    `INSERT INTO radar_sources (name,kind,url,default_type,active,trusted)
-     VALUES ('RFI QA forbidden','rss',$1,'news',true,true) RETURNING *`,[current]
-  );
   const requested=[];
   await assert.rejects(
-    ingestRssSource(restricted,{fetchFeedImpl:async url=>{
+    ingestRssSource(source,{fetchFeedImpl:async url=>{
       requested.push(url);
       throw new Error('Fonte RSS respondeu HTTP 403');
     }}),/HTTP 403/

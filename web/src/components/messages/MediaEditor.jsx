@@ -71,7 +71,7 @@ export function MediaEditor({ file, onCancel, onReady }) {
     } finally { setBusy(false); }
   };
 
-  return <div role="dialog" aria-label="Pré-visualizar media" style={{ position:'fixed', inset:0, zIndex:210, background:'#080711', color:'#fff', display:'flex', flexDirection:'column' }}>
+  return <div data-lumina-unsent-media="true" role="dialog" aria-label="Pré-visualizar media" style={{ position:'fixed', inset:0, zIndex:210, background:'#080711', color:'#fff', display:'flex', flexDirection:'column' }}>
     <div style={{ padding:'calc(12px + env(safe-area-inset-top)) 14px 12px', display:'flex', alignItems:'center', gap:10 }}>
       <button onClick={onCancel} aria-label="Cancelar" style={{ width:42,height:42,borderRadius:99,border:0,background:'rgba(255,255,255,.12)',color:'#fff',display:'grid',placeItems:'center' }}><X size={20}/></button>
       <div style={{ flex:1, fontWeight:700 }}>Pré-visualização</div>

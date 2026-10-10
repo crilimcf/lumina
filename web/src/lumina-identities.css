@@ -552,3 +552,121 @@ body.lumina-v2[data-lumina-identity="air"] .messages-composer-input::placeholder
 body.lumina-v2[data-lumina-identity="air"] .composer-sheet textarea::placeholder {
   color:#6c7c96!important;opacity:1!important;
 }
+
+
+/* Unified Lumina Evolution 2026 — one system for real product screens.
+   Existing Midnight, Air and Pulse themes remain selectable. */
+body.lumina-v2 {
+  --ev-glow:rgba(118,105,255,.25);
+  --ev-stroke:rgba(206,220,255,.20);
+  --ev-focus:#b6a8ff;
+  --ev-elevation:0 15px 42px rgba(0,6,23,.20), inset 0 1px rgba(255,255,255,.06);
+}
+body.lumina-v2[data-lumina-identity="air"] {
+  --ev-glow:rgba(95,91,203,.13);
+  --ev-stroke:rgba(80,103,159,.21);
+  --ev-focus:#5042c5;
+  --ev-elevation:0 13px 36px rgba(47,69,115,.09), inset 0 1px rgba(255,255,255,.9);
+}
+body.lumina-v2[data-lumina-identity="pulse"] {
+  --ev-glow:rgba(251,93,174,.24);
+  --ev-stroke:rgba(229,171,245,.24);
+  --ev-focus:#fface0;
+  --ev-elevation:0 18px 44px rgba(22,6,42,.24), inset 0 1px rgba(255,255,255,.07);
+}
+/* One editorial grid through Feed, Radar, Salas, Chat, Perfil and
+   the Pulso / Lumes / Cápsulas / Agora universe. */
+body.lumina-v2 :is(.lumina-feed-content,.explore-shell,.rooms-shell,.messages-inbox-shell,.activity-shell,.lumina-profile-shell,.one-content,.one-pulse-page) {
+  max-width:760px;
+  margin-inline:auto;
+  min-width:0;
+}
+body.lumina-v2 :is(.lumina-feed-header,.explore-header,.rooms-header,.messages-inbox-header,.activity-header,.lumina-profile-topbar,.one-header) {
+  position:relative;
+  isolation:isolate;
+}
+body.lumina-v2 :is(.lumina-feed-header,.explore-header,.rooms-header,.messages-inbox-header,.activity-header,.lumina-profile-topbar,.one-header)::before {
+  content:'';
+  pointer-events:none;
+  position:absolute;z-index:-1;
+  top:0;left:0;right:0;
+  height:min(140px,100%);
+  background:radial-gradient(ellipse at 72% 0%,var(--ev-glow),transparent 71%);
+}
+body.lumina-v2 :is(.lumina-brand-title,.explore-title-row h1,.rooms-header h1,.messages-title-row h1,.activity-header h1,.lumina-profile-name,.one-title-wrap h1) {
+  letter-spacing:-.045em;
+  text-wrap:balance;
+}
+body.lumina-v2 :is(.lumina-post,.explore-card,.room-card,.messages-thread-card,.activity-card,.one-capsule-card,.social-lume2-card,.social-agora-card,.social-radar-network-card) {
+  border-radius:clamp(18px,4.5vw,26px);
+  border-color:var(--ev-stroke);
+  box-shadow:var(--ev-elevation);
+}
+body.lumina-v2 :is(.lumina-post-copy,.explore-card-summary,.room-card p,.messages-thread-preview,.lumina-profile-bio,.one-capsule-card p,.social-agora-card p,.social-radar-network-card p) {
+  overflow-wrap:break-word;
+  line-height:1.5;
+}
+body.lumina-v2 :is(.lumina-section-heading,.one-section-head,.messages-section-head,.lumina-profile-section-head) {
+  letter-spacing:-.015em;
+}
+body.lumina-v2 :is(
+  .lumina-search-button,.top-action,.one-back,.one-overlay-close,
+  .lumina-post-menu-button,.messages-thread-back,.messages-thread-call,
+  .room-media-picker,.room-send-button,.messages-send-button,
+  .social-loop-close,.one-section-head>button,.explore-external
+) {
+  min-width:44px;
+  min-height:44px;
+  touch-action:manipulation;
+}
+/* Accessible focus on dark and light identities, including keyboard users. */
+body.lumina-v2 :is(
+  .nav button,.lumina-search-button,.top-action,.one-back,.one-tabs button,
+  .explore-filter-chip,.radar-three-way button,.lumina-profile-action,
+  .messages-thread-card,.room-card button,.social-agora-card,
+  .social-loop-primary,.social-loop-secondary,.social-loop-close,
+  .lumina-identity-choice,.lumina-language-choice,.explore-external
+):focus-visible {
+  outline:3px solid var(--ev-focus) !important;
+  outline-offset:3px;
+  box-shadow:0 0 0 6px var(--ev-glow);
+}
+body.lumina-v2 .nav[aria-label] .nb[aria-current="page"] {
+  color:var(--ev-focus) !important;
+}
+body.lumina-v2 .nav[aria-label] .nb[aria-current="page"]::after {
+  content:'';
+  position:absolute;
+  width:16px;height:3px;
+  left:calc(50% - 8px);bottom:1px;
+  border-radius:999px;
+  background:linear-gradient(90deg,#89a5ff,var(--ev-focus));
+}
+body.lumina-v2 .nav[aria-label] .nb.nb-create::after {display:none;}
+/* The real content experiences now follow the same composition hierarchy. */
+body.lumina-v2 :is(.lumina-v3-discovery,.lumina-explore-portals,.one-pulse-intro,.social-loop-panel,.social-lume2-hero,.social-radar-network-intro) {
+  border-radius:clamp(20px,5vw,30px);
+}
+body.lumina-v2 :is(.social-agora-card,.social-lume2-card,.one-lume-tile,.one-capsule-card) {
+  transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease;
+}
+@media(hover:hover) {
+  body.lumina-v2 :is(.social-agora-card,.social-lume2-card,.one-lume-tile,.one-capsule-card):hover {
+    border-color:var(--ev-focus);
+    box-shadow:var(--ev-elevation),0 0 0 2px var(--ev-glow);
+  }
+}
+@media(max-width:428px) {
+  body.lumina-v2 :is(.lumina-post,.explore-card,.room-card,.messages-thread-card,.activity-card) {
+    border-radius:20px;
+  }
+  body.lumina-v2 :is(.one-tabs,.radar-three-way,.explore-filter-rail) {
+    min-width:0;max-width:100%;
+  }
+}
+@media(prefers-reduced-motion:reduce) {
+  body.lumina-v2 :is(.social-agora-card,.social-lume2-card,.one-lume-tile,.one-capsule-card) {transition:none!important;}
+  body.lumina-v2 :is(.in,.up,.reveal,.rise,.float,.glow,.w,.pill,.halo) {
+    animation:none!important;filter:none!important;opacity:1!important;transform:none!important;
+  }
+}

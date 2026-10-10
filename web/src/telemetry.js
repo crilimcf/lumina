@@ -1,3 +1,5 @@
+import { redactDiagnostic } from './utils/redactDiagnostic.js';
+
 const recent = new Map();
 const DEDUPE_MS = 30_000;
 
@@ -23,8 +25,8 @@ const normalizeError = (value) => {
 
 export async function reportClientError(value, { kind = 'window_error', componentStack = '' } = {}) {
   const error = normalizeError(value);
-  const message = clip(error.message || error.name || 'Erro JavaScript', 800);
-  const stack = clip(error.stack, 8000);
+  const message = redactDiagnostic(error.message || error.name || 'Erro JavaScript', 800);
+  const stack = redactDiagnostic(error.stack, 8000);
   const key = `${message}|${stack.split('\n')[1] || ''}|${cleanPath()}`;
   const now = Date.now();
   if (now - (recent.get(key) || 0) < DEDUPE_MS) return false;
@@ -39,7 +41,7 @@ export async function reportClientError(value, { kind = 'window_error', componen
     kind,
     message,
     stack,
-    componentStack: clip(componentStack, 6000),
+    componentStack: redactDiagnostic(componentStack, 6000),
     path: cleanPath(),
     release: release(),
     asset: currentAsset(),

@@ -107,3 +107,51 @@ test('destinatário recebe message_created por SSE sem polling', async () => {
     await reader.cancel().catch(() => {});
   }
 });
+
+
+test('destinatário recebe sinal de chamada por SSE sem polling frequente', async () => {
+  const alice = await register('call.sse.alice');
+  const bob = await register('call.sse.bob');
+  const thread = await request('/messages/threads', {
+    method:'POST', token:alice.token, body:{ userId:bob.user.id },
+  });
+  assert.equal(thread.response.status, 201, JSON.stringify(thread.data));
+
+  const controller = new AbortController();
+  const response = await fetch(`${baseUrl}/messages/events`, {
+    headers:{ authorization:`Bearer ${bob.token}` },
+    signal:controller.signal,
+  });
+  assert.equal(response.status, 200);
+
+  const reader = response.body.getReader();
+  try {
+    await readSseUntil(reader, (_payload, frame) => frame.includes('event: ready'));
+
+    const started = await request('/calls', {
+      method:'POST', token:alice.token,
+      body:{ threadId:thread.data.id, mode:'audio' },
+    });
+    assert.equal(started.response.status, 201, JSON.stringify(started.data));
+
+    const startedEvent = await readSseUntil(reader, payload => payload.type === 'call_changed');
+    assert.equal(startedEvent.callId, started.data.id);
+    assert.equal(startedEvent.threadId, null);
+
+    const incoming = await request('/calls/incoming', { token:bob.token });
+    assert.equal(incoming.data?.id, started.data.id);
+
+    const declined = await request(`/calls/${started.data.id}/decline`, {
+      method:'POST', token:bob.token,
+    });
+    assert.equal(declined.response.status, 200, JSON.stringify(declined.data));
+    const declinedEvent = await readSseUntil(reader, payload => payload.type === 'call_changed');
+    assert.equal(declinedEvent.callId, started.data.id);
+
+    const after = await request('/calls/incoming', { token:bob.token });
+    assert.equal(after.data, null);
+  } finally {
+    controller.abort();
+    await reader.cancel().catch(() => {});
+  }
+});

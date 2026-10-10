@@ -89,6 +89,25 @@ body.lumina-v2[data-lumina-identity='air'] .lumina-language-note {
   color:#40516d;
 }
 
+/* A compact native selector also makes language recoverable before login. */
+body.lumina-v2 .lumina-auth-language {
+  display:flex;align-items:center;justify-content:flex-end;gap:10px;
+  margin:0 0 16px;min-width:0;
+}
+body.lumina-v2 .lumina-auth-language label {
+  color:#3e426b;font-size:12px;font-weight:750;line-height:1.3;text-align:right;
+}
+body.lumina-v2 .lumina-auth-language select {
+  width:132px;max-width:48%;min-height:44px;padding:8px 28px 8px 10px;
+  border:1px solid #c6c8e2;border-radius:13px;background:#fff;
+  color:#1c2344;
+  font-family:inherit;font-weight:700;font-size:13px;line-height:1.2;
+  flex-shrink:0;
+}
+body.lumina-v2 .lumina-auth-language select:focus-visible {
+  outline:3px solid #5b3df5;outline-offset:2px;
+}
+
 /* Shared editorial approach to main social screens. */
 body.lumina-v2 .lumina-profile-shell,
 body.lumina-v2 .explore-shell,

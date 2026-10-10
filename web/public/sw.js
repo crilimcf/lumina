@@ -84,9 +84,22 @@ self.addEventListener('push', (event) => {
   })());
 });
 
+// Push payloads are untrusted input. Never let an external URL navigate a
+// logged-in Lumina browser tab or open a misleading notification destination.
+function safeNotificationDestination(raw) {
+  const fallback = new URL('/?tab=alerts', self.location.origin).href;
+  try {
+    const target = new URL(String(raw || '/?tab=alerts'), self.location.origin);
+    return target.origin === self.location.origin && /^https?:$/.test(target.protocol)
+      ? target.href : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const target = new URL(event.notification.data?.url || '/?tab=alerts', self.location.origin).href;
+  const target = safeNotificationDestination(event.notification.data?.url);
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type:'window', includeUncontrolled:true });
     for (const client of windows) {

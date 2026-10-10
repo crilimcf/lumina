@@ -8,8 +8,6 @@ import { CallOverlay } from './components/calls/CallOverlay.jsx';
 import { GroupCallOverlay } from './components/calls/GroupCallOverlay.jsx';
 import { GroupCallHub } from './components/calls/GroupCallHub.jsx';
 import { Entrada } from './screens/Entrada.jsx';
-import { AliveHub } from './screens/AliveHub.jsx';
-import { readLuminaIdentity } from './components/LuminaAppearance.jsx';
 import { ResetPassword } from './screens/ResetPassword.jsx';
 import { Abertura } from './screens/Abertura.jsx';
 import { useFeed } from './hooks/useFeed.js';
@@ -77,20 +75,6 @@ export default function App() {
   const [profileHandle, setProfileHandle] = useState(null);
   const [liveId, setLiveId] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [identity, setIdentity] = useState(readLuminaIdentity);
-  const [showAliveFeed, setShowAliveFeed] = useState(false);
-
-  useEffect(() => {
-    const onIdentityChange = (event) => {
-      setIdentity(event.detail?.identity || readLuminaIdentity());
-      setShowAliveFeed(false);
-    };
-    window.addEventListener('lumina:identity-change', onIdentityChange);
-    return () => window.removeEventListener('lumina:identity-change', onIdentityChange);
-  }, []);
-
-  useEffect(() => { if (tab !== 'feed') setShowAliveFeed(false); }, [tab]);
-
   const applyNativeNavigation = useCallback((value) => {
     if (!value) return;
     const url = new URL(value, window.location.href);

@@ -34,7 +34,7 @@ test('foto de perfil recorta, guarda e não mostra paleta antiga em Mobile Safar
     'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR42mP8z8AARAwMjDAGjB0AANsBA/0X8GkAAAAASUVORK5CYII=',
     'base64'
   );
-  await page.locator('input[type="file"][accept="image/jpeg,image/png,image/webp"]').setInputFiles({
+  await page.locator('input[type="file"][accept^="image/jpeg,image/png,image/webp"]').setInputFiles({
     name: 'perfil.png', mimeType: 'image/png', buffer: png,
   });
 

@@ -191,7 +191,7 @@ export function Conversas({
 
   const mediaPicker = (label) => <label className={`messages-media-picker${label ? ' has-label' : ''}`} data-swipe-ignore="true">
     <Camera size={17}/>{label && <span>{label}</span>}
-    <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm" hidden onChange={e=>{const file=e.target.files?.[0]||null;if(file)chooseMedia(file);e.target.value='';}}/>
+    <input type="file" accept="image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif,video/mp4,video/quicktime,video/webm" hidden onChange={e=>{const file=e.target.files?.[0]||null;if(file)chooseMedia(file);e.target.value='';}}/>
   </label>;
 
   const closeThreadContext = useCallback(() => {

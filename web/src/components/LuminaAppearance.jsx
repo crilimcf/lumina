@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Check, MoonStar, Sun, Sparkles } from 'lucide-react';
 import { t } from '../i18n-ui.js';
+import { readLanguagePreference, saveLanguagePreference } from '../i18n.js';
 
 export const LUMINA_IDENTITY_KEY = 'lumina-identity-v1';
 const IDENTITIES = [
@@ -27,9 +28,25 @@ export function applyLuminaIdentity(id) {
   window.dispatchEvent(new CustomEvent('lumina:identity-change',{detail:{identity:next}}));
 }
 
+const LANGUAGE_OPTIONS = [
+  {id:'auto',label:'Auto'},
+  {id:'pt',label:'Português'},
+  {id:'en',label:'English'},
+  {id:'fr',label:'Français'},
+  {id:'es',label:'Español'},
+];
+
 export function LuminaAppearance() {
   const [selected,setSelected]=useState(readLuminaIdentity);
+  const [preferredLanguage,setPreferredLanguage]=useState(readLanguagePreference);
   const setIdentity=(next)=>{setSelected(next);applyLuminaIdentity(next)};
+  const changeLanguage=(next)=>{
+    if (next === preferredLanguage || !saveLanguagePreference(next)) return;
+    setPreferredLanguage(next);
+    // The i18n catalog is loaded once at startup. A normal reload reapplies
+    // the preferred locale without affecting the session, theme or content.
+    window.location.reload();
+  };
   return <section className="lumina-profile-section lumina-identity-section" aria-labelledby="lumina-identity-title">
     <div className="lumina-profile-section-head">
       <strong id="lumina-identity-title">{t('A tua Lumina')}</strong>
@@ -56,5 +73,16 @@ export function LuminaAppearance() {
         :selected==='air'?t('Air ativo: uma interface clara, com mais espaço e leitura editorial.')
         :t('Pulse ativo: fundos intensos e maior destaque para fotografias e vídeos.')}
     </p>
+    <div className="lumina-profile-section-head lumina-language-heading">
+      <strong>{t('Idioma da aplicação')}</strong>
+      <span>{t('No teu dispositivo')}</span>
+    </div>
+    <div className="lumina-language-options" role="group" aria-label={t('Idioma da aplicação')}>
+      {LANGUAGE_OPTIONS.map(({id,label})=><button
+        key={id} type="button" className={`lumina-language-choice${preferredLanguage===id?' is-selected':''}`}
+        aria-pressed={preferredLanguage===id} onClick={()=>changeLanguage(id)}
+      >{id==='auto'?t('Automático'):label}{preferredLanguage===id&&<Check size={14} aria-hidden="true"/>}</button>)}
+    </div>
+    <p className="lumina-language-note">{t('Podes mudar o idioma sem alterar o teu perfil, mensagens ou publicações.')}</p>
   </section>
 }

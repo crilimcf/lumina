@@ -7,6 +7,7 @@ import {
   nativeAuthHeaders,
 } from './native/session.js';
 import { saveNativeDownload } from './native/files.js';
+import { optimizeUploadMedia } from './utils/imageOptimization.js';
 
 const BASE = isNativeApp ? nativeApiOrigin : (import.meta.env.VITE_API_URL || '/api');
 const SAFE_METHODS = new Set(['GET', 'HEAD']);
@@ -266,8 +267,10 @@ export const api = {
     local: (region) => call(`/one/local${region ? `?region=${encodeURIComponent(region)}` : ''}`),
   },
   async upload(file) {
-    const { uploadUrl, key } = await call('/uploads/sign', { method: 'POST', body: { mime: file.type, bytes: file.size } });
-    const res = await fetch(uploadUrl, { method: 'PUT', headers: { 'content-type': file.type }, body: file });
+    // One image pipeline for Feed, Momentos, Lumes, Salas, Perfil and Chat.
+    const readyFile = await optimizeUploadMedia(file);
+    const { uploadUrl, key } = await call('/uploads/sign', { method: 'POST', body: { mime: readyFile.type, bytes: readyFile.size } });
+    const res = await fetch(uploadUrl, { method: 'PUT', headers: { 'content-type': readyFile.type }, body: readyFile });
     if (!res.ok) throw new ApiError(res.status, 'Não foi possível enviar o ficheiro');
     const { url } = await call('/uploads/confirm', { method: 'POST', body: { key } });
     return url;

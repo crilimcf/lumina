@@ -98,7 +98,7 @@ export function MomentViewer({ group, onClose, onNext, onPrev, onView, onEdit = 
           <input
             ref={replacementInput}
             type="file"
-            accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
+            accept="image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif,video/mp4,video/quicktime,video/webm"
             hidden
             onChange={replaceMedia}
           />
@@ -140,7 +140,7 @@ export function MomentViewer({ group, onClose, onNext, onPrev, onView, onEdit = 
               style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#05040A' }}
             />
           ) : (
-            <img src={item.media_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            <img src={item.media_url} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           )
         ) : (
           <div style={{ width: '100%', height: '100%', background: 'linear-gradient(160deg,#171329,#090811)' }} />
@@ -218,7 +218,7 @@ export function MomentComposer({ onClose, onPublish, file, setFile, busy }) {
             <button className="p moment-composer-close" onClick={onClose} aria-label="Fechar" style={{ padding: 10 }}><X size={16} /></button>
           </div>
 
-          <input ref={imageInput} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
+          <input ref={imageInput} type="file" accept="image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif" style={{ display: 'none' }}
             onChange={e => {
               const picked = e.target.files?.[0] || null;
               e.target.value = '';
@@ -241,7 +241,7 @@ export function MomentComposer({ onClose, onPublish, file, setFile, busy }) {
                   <video src={preview} controls playsInline preload="metadata" aria-label="Pré-visualização do vídeo do momento"
                     style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', background: '#080711' }} />
                 ) : (
-                  <img src={preview} alt="Pré-visualização do momento" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  <img src={preview} alt="Pré-visualização do momento" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                 )}
                 <span style={{
                   position: 'absolute', top: 12, left: 12, padding: '7px 10px', borderRadius: 999,

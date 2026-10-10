@@ -253,7 +253,7 @@ export function Perfil({ me, blocked, setBlocked, setScreen, onOpenProfile, logo
                   {post.media_url
                     ? (post.media_mime?.startsWith('video/')
                         ? <video src={post.media_url} preload="metadata" muted playsInline aria-label={t('Vídeo publicado')}/>
-                        : <img src={post.media_url} alt={post.body ? post.body.slice(0,100) : t('Fotografia publicada')} loading="lazy"/>)
+                        : <img src={post.media_url} alt={post.body ? post.body.slice(0,100) : t('Fotografia publicada')} loading="lazy" decoding="async"/>)
                     : <span>{post.body?.slice(0,110) || t('Publicação')}</span>}
                 </button>)}
               </div>

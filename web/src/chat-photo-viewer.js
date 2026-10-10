@@ -21,12 +21,12 @@ function messagePhotoCanBeSaved(image) {
 }
 
 function imageFileName(src, mime = '') {
-  const extension = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
+  const extension = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : mime === 'image/avif' ? 'avif' : 'jpg';
   const tail = (() => {
     try {
       const path = new URL(src, window.location.href).pathname.split('/').pop() || '';
       const clean = path.replace(/[^a-zA-Z0-9._-]/g, '').slice(0, 70);
-      return clean && /\.(jpe?g|png|webp)$/i.test(clean) ? clean : null;
+      return clean && /\.(jpe?g|png|webp|avif)$/i.test(clean) ? clean : null;
     } catch { return null; }
   })();
   return tail || `lumina-photo-${Date.now()}.${extension}`;

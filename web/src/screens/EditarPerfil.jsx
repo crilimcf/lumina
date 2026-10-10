@@ -288,7 +288,7 @@ export function EditarPerfil({ me, onSave, onBack, ping }) {
               <Orb p={me.palette} s={86} />
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
+              <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif" style={{ display: 'none' }}
                 onChange={event => {
                   const picked = event.target.files?.[0];
                   event.target.value = '';

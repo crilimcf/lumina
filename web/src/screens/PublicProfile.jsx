@@ -8,7 +8,7 @@ function PostMedia({ post }) {
   if (!post.media_url) return null;
   const video = String(post.media_mime || '').startsWith('video/');
   if (video) return <video className="public-profile-adaptive-video" src={post.media_url} controls playsInline preload="metadata"/>;
-  return <img src={post.media_url} alt="" loading="lazy" style={{ width:'100%',maxHeight:560,objectFit:'cover',display:'block',background:'#DDD8F2' }}/>;
+  return <img src={post.media_url} alt="" loading="lazy" decoding="async" style={{ width:'100%',maxHeight:560,objectFit:'cover',display:'block',background:'#DDD8F2' }}/>;
 }
 
 export function PublicProfile({ handle, onBack, onMessage, ping }) {

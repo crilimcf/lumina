@@ -34,7 +34,7 @@ test('foto de perfil recorta, guarda e não mostra paleta antiga em Mobile Safar
     'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR42mP8z8AARAwMjDAGjB0AANsBA/0X8GkAAAAASUVORK5CYII=',
     'base64'
   );
-  await page.locator('input[type="file"][accept="image/jpeg,image/png,image/webp"]').setInputFiles({
+  await page.locator('input[type="file"][accept^="image/jpeg,image/png,image/webp"]').setInputFiles({
     name: 'perfil.png', mimeType: 'image/png', buffer: png,
   });
 
@@ -83,7 +83,7 @@ test('foto de perfil recorta, guarda e não mostra paleta antiga em Mobile Safar
 
   await page.getByRole('button', { name: 'Guardar alterações' }).click();
   await expect(page.getByRole('heading', { name: 'Editar perfil' })).toBeHidden();
-  expect(signMime).toBe('image/jpeg');
+  expect(['image/jpeg', 'image/webp']).toContain(signMime);
   expect(patchBody?.avatarUrl).toBe(savedAvatar);
   await expect(page.locator(`img[src="${savedAvatar}"]`).first()).toBeAttached();
 });

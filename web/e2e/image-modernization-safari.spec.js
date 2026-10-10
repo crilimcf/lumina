@@ -97,3 +97,34 @@ test('assinatura e bytes enviados pertencem ao ficheiro otimizado',async({page})
   expect(result.putSize).toBe(result.signed.bytes);
   expect(result.url).toContain('/test-image.webp');
 });
+
+
+test('WebP com transparência não é transformado em JPEG opaco', async ({page}) => {
+  await page.goto('/');
+  const output=await page.evaluate(async()=>{
+    const {optimizeUploadMedia}=await import('/src/utils/imageOptimization.js');
+    const original=document.createElement('canvas');
+    original.width=360;original.height=240;
+    const ctx=original.getContext('2d');
+    ctx.fillStyle='#3e8dff';ctx.fillRect(40,40,220,150);
+    const webp=await new Promise(resolve=>original.toBlob(resolve,'image/webp',0.9));
+    if (!webp || webp.type!=='image/webp') return {supported:false};
+    const optimized=await optimizeUploadMedia(new File([webp],'arte.webp',{type:'image/webp'}));
+    const image=new Image();
+    const url=URL.createObjectURL(optimized);
+    try {
+      image.src=url;await image.decode();
+      const check=document.createElement('canvas');
+      check.width=image.naturalWidth;check.height=image.naturalHeight;
+      const checkCtx=check.getContext('2d');
+      checkCtx.drawImage(image,0,0);
+      return {
+        supported:true,mime:optimized.type,
+        alpha:checkCtx.getImageData(0,0,1,1).data[3],
+      };
+    } finally { URL.revokeObjectURL(url); }
+  });
+  if (!output.supported) return;
+  expect(['image/webp','image/png']).toContain(output.mime);
+  expect(output.alpha).toBe(0);
+});

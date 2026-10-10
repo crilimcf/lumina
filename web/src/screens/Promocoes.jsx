@@ -7,6 +7,8 @@ import { detectRadarLocation, loadCountryRadar, loadGlobalRadar, loadNearbyRadar
 import { Nav, Toast, TopActions } from '../components/AppChrome.jsx';
 import { ScrollToTopButton } from '../components/ScrollToTopButton.jsx';
 import { t } from '../i18n-ui.js';
+import { locale } from '../i18n.js';
+import { safeRadarExternalUrl } from '../utils/safeRadarExternalUrl.js';
 import '../explore-facelift.css';
 import '../radar-location.css';
 import '../radar-split-v2.css';
@@ -47,7 +49,7 @@ function formatDate(value) {
     const date = new Date(value);
     const now = new Date();
     const sameYear = date.getFullYear() === now.getFullYear();
-    return new Intl.DateTimeFormat(navigator.language || undefined, {
+    return new Intl.DateTimeFormat(locale, {
       day:'numeric', month:'short', ...(sameYear ? {} : { year:'numeric' }),
     }).format(date);
   } catch { return ''; }
@@ -89,22 +91,21 @@ function RadarImage({ item }) {
   return <div className="explore-media"><img src={src} alt="" loading="lazy" decoding="async" onError={()=>setSource(current => current === 'proxy' ? 'direct' : 'none')}/></div>;
 }
 
-function safeArticleUrl(item) {
-  const raw = String(item.external_url || '').trim();
-  if (!raw) return null;
-  try {
-    const url = new URL(raw, window.location.origin);
-    const source = String(item.source_name || '').toLowerCase();
-    if ((url.hostname === 'trends.google.com' || source.includes('google trends')) && /\/trending\/rss/i.test(url.pathname)) {
-      const tag = Array.isArray(item.tags) ? item.tags.find(value => /^country:[a-z]{2}$/i.test(value)) : null;
-      const geo = tag ? tag.split(':')[1].toUpperCase() : (url.searchParams.get('geo') || '').toUpperCase();
-      const explore = new URL('https://trends.google.com/trends/explore');
-      if (geo) explore.searchParams.set('geo', geo);
-      explore.searchParams.set('q', cleanEditorialText(item.title));
-      return explore.toString();
-    }
-    return url.toString();
-  } catch { return null; }
+export function safeArticleUrl(item) {
+  // Publisher data must never create executable or relative navigation.
+  const href = safeRadarExternalUrl(item?.external_url);
+  if (!href) return null;
+  const url = new URL(href);
+  const source = String(item.source_name || '').toLowerCase();
+  if ((url.hostname === 'trends.google.com' || source.includes('google trends')) && /\/trending\/rss/i.test(url.pathname)) {
+    const tag = Array.isArray(item.tags) ? item.tags.find(value => /^country:[a-z]{2}$/i.test(value)) : null;
+    const geo = tag ? tag.split(':')[1].toUpperCase() : (url.searchParams.get('geo') || '').toUpperCase();
+    const explore = new URL('https://trends.google.com/trends/explore');
+    if (/^[A-Z]{2}$/.test(geo)) explore.searchParams.set('geo', geo);
+    explore.searchParams.set('q', cleanEditorialText(item.title));
+    return explore.toString();
+  }
+  return href;
 }
 
 function RadarCard({ item, hero = false }) {

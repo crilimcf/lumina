@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { q } from '../db.js';
 import { syncRadarSources } from './radar.js';
 import { syncWebRadarSources } from './radar-web.js';
+import { formatRadarSyncStatus } from './radar-status.js';
 
 let running = false;
 
@@ -93,21 +94,8 @@ async function runRadarSync() {
       syncRadarSources(),
       syncWebRadarSources(),
     ]);
-    const attempted = (rss.attempted || 0) + (web.attempted || 0);
-    const succeeded = (rss.succeeded || 0) + (web.succeeded || 0);
-    const failed = (rss.failed || 0) + (web.failed || 0);
-    const items = (rss.items || 0) + (web.items || 0);
-    const cooldown = (rss.cooldown || 0) + (web.cooldown || 0);
-    if (attempted || failed || cooldown) {
-      const details = [
-        `${succeeded}/${attempted} fontes consultadas`,
-        `${items} itens`,
-        `${cooldown} fontes em espera`,
-        `${failed} falhas`,
-        `${Date.now() - started} ms`,
-      ];
-      console.log(`[radar] sync: ${details.join(' · ')}`);
-    }
+    const summary = formatRadarSyncStatus(rss, web, Date.now() - started);
+    if (summary) console.log(`[radar] sync: ${summary}`);
   } catch (error) {
     console.error('[radar] sync falhou:', error.message);
   } finally {

@@ -101,7 +101,45 @@ function RoomChat({ room, me, onBack, onRoomUpdated, onRoomDeleted, ping }) {
   useEffect(()=>()=>{if(editObjectUrl)URL.revokeObjectURL(editObjectUrl)},[editObjectUrl]);
   useEffect(()=>()=>{if(mediaPreview)URL.revokeObjectURL(mediaPreview)},[mediaPreview]);
   useEffect(()=>{setEditName(room.name||'');setEditTopic(room.topic||'');setEditDescription(room.description||'');setEditFile(null)},[room.id,room.name,room.topic,room.description,room.image_url]);
-  useEffect(()=>{let alive=true;const load=()=>api.rooms.messages(room.id).then(r=>alive&&setMessages(r)).catch(e=>alive&&ping(e.message));load();const timer=setInterval(load,3000);return()=>{alive=false;clearInterval(timer)}},[room.id]);
+  // One in-flight request per room; do not poll while the app is in the
+  // background. Refresh immediately on return and avoid repeated error toasts.
+  useEffect(() => {
+    let alive = true;
+    let inFlight = false;
+    let failureNotified = false;
+    let timer = null;
+    const load = async () => {
+      if (!alive || inFlight || document.visibilityState === 'hidden') return;
+      inFlight = true;
+      try {
+        const next = await api.rooms.messages(room.id);
+        if (alive) {
+          setMessages(next);
+          failureNotified = false;
+        }
+      } catch (error) {
+        if (alive && !failureNotified) {
+          ping(error.message);
+          failureNotified = true;
+        }
+      } finally {
+        inFlight = false;
+      }
+    };
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void load();
+    };
+    void load();
+    timer = setInterval(refresh, 3000);
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('online', refresh);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('online', refresh);
+    };
+  }, [room.id]);
   useEffect(()=>{if(!showInvite||search.trim().length<2){setPeople([]);return;}const timer=setTimeout(()=>api.users.search(search.trim()).then(setPeople).catch(()=>setPeople([])),250);return()=>clearTimeout(timer)},[search,showInvite]);
   useEffect(()=>{if(!pickerOpen){setMentionPeople([]);return;}let alive=true;const timer=setTimeout(()=>roomPrivateRecipients(room.id,mentionQuery).then(rows=>{if(alive)setMentionPeople(rows.filter(p=>p.id!==me.id).slice(0,12))}).catch(()=>alive&&setMentionPeople([])),140);return()=>{alive=false;clearTimeout(timer)}},[pickerOpen,mentionQuery,me.id,room.id]);
 

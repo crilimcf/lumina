@@ -97,8 +97,16 @@ async function runRadarSync() {
     const succeeded = (rss.succeeded || 0) + (web.succeeded || 0);
     const failed = (rss.failed || 0) + (web.failed || 0);
     const items = (rss.items || 0) + (web.items || 0);
-    if (attempted || failed) {
-      console.log(`[radar] sync: ${succeeded}/${attempted} fontes · ${items} itens · ${Date.now() - started} ms`);
+    const cooldown = (rss.cooldown || 0) + (web.cooldown || 0);
+    if (attempted || failed || cooldown) {
+      const details = [
+        `${succeeded}/${attempted} fontes consultadas`,
+        `${items} itens`,
+        `${cooldown} fontes em espera`,
+        `${failed} falhas`,
+        `${Date.now() - started} ms`,
+      ];
+      console.log(`[radar] sync: ${details.join(' · ')}`);
     }
   } catch (error) {
     console.error('[radar] sync falhou:', error.message);

@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
+import { isNativeApp } from '../native/session.js';
 import { callCopy } from '../components/calls/callCopy.js';
 import { acquireCallMedia, stopCallMedia } from '../components/calls/callMedia.js';
 import { prepareCallAudioSession } from '../components/calls/audioSession.js';
 import { resetCallAudioRoute, setCallAudioRoute } from '../components/calls/audioRoute.js';
 import { primeCallAudio, stopCallRingtone } from '../components/calls/ringtone.js';
 
+// Native clients keep frequent checks; browsers also receive immediate SSE call events.
 const INCOMING_POLL_MS = 1200;
+const INCOMING_SSE_FALLBACK_MS = 4000;
 
 const notifyActivityChanged = () => window.dispatchEvent(new CustomEvent('lumina:notifications-changed'));
 
@@ -56,13 +59,18 @@ export function useCalls({ enabled, ping }) {
       finally { checkingRef.current = false; }
     };
     check({ force:true });
-    const timer = setInterval(check, INCOMING_POLL_MS);
+    const browserEvents = !isNativeApp && typeof window.EventSource === 'function';
+    const timer = setInterval(check, browserEvents ? INCOMING_SSE_FALLBACK_MS : INCOMING_POLL_MS);
     const visible = () => { if (document.visibilityState === 'visible') check({ force:true }); };
     const online = () => check({ force:true });
     document.addEventListener('visibilitychange', visible);
     window.addEventListener('pageshow', online);
     window.addEventListener('focus', online);
     window.addEventListener('online', online);
+    // Receive call notifications from the existing authenticated messages SSE
+    // stream, with regular polling retained for disconnects and missed events.
+    window.addEventListener('lumina:call-event', online);
+    window.addEventListener('lumina:realtime-ready', online);
     return () => {
       alive=false;
       clearInterval(timer);
@@ -70,6 +78,8 @@ export function useCalls({ enabled, ping }) {
       window.removeEventListener('pageshow', online);
       window.removeEventListener('focus', online);
       window.removeEventListener('online', online);
+      window.removeEventListener('lumina:call-event', online);
+      window.removeEventListener('lumina:realtime-ready', online);
     };
   }, [enabled, activeCall]);
 

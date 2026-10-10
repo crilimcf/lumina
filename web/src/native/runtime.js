@@ -28,7 +28,11 @@ export async function initializeNativeRuntime() {
   installNativeGeolocationBridge();
   await initializeNativeSession();
 
-  await Promise.allSettled([
+  // Only secure session restoration is startup-critical. Native presentation,
+  // push and OS event listeners are optional and may be slow on older devices.
+  // Keeping them outside the render-critical path avoids a blank screen if a
+  // plugin hangs or the OS delays a permission/initialization handshake.
+  const backgroundTasks = [
     StatusBar.setStyle({ style:Style.Light }),
     StatusBar.setOverlaysWebView({ overlay:true }),
     PrivacyScreen.enable({
@@ -36,22 +40,30 @@ export async function initializeNativeRuntime() {
       ios:{ blurEffect:'dark' },
     }),
     initializeNativePush(),
-  ]);
-
-  const launch = await CapacitorApp.getLaunchUrl().catch(() => null);
-  if (launch?.url) pendingNavigation = toNativeNavigationUrl(launch.url);
-  await CapacitorApp.addListener('appUrlOpen', ({ url }) => dispatchNavigation(url));
-  await CapacitorApp.addListener('backButton', () => {
-    window.dispatchEvent(new CustomEvent('lumina:native-back'));
+    // Dispatching the deep link also persists it for App when it has not
+    // mounted yet, so the initial OS launch isn't lost in the background.
+    CapacitorApp.getLaunchUrl().then(launch => {
+      if (launch?.url) dispatchNavigation(launch.url);
+    }),
+    CapacitorApp.addListener('appUrlOpen', ({ url }) => dispatchNavigation(url)),
+    CapacitorApp.addListener('backButton', () => {
+      window.dispatchEvent(new CustomEvent('lumina:native-back'));
+    }),
+    CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      if (isActive) window.dispatchEvent(new Event('focus'));
+    }),
+    Network.addListener('networkStatusChange', status => {
+      window.dispatchEvent(new CustomEvent(status.connected ? 'online' : 'offline'));
+    }),
+  ];
+  void Promise.allSettled(backgroundTasks).then(results => {
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        console.debug('[native] inicialização opcional:', result.reason?.message || result.reason);
+      }
+    }
   });
-  await CapacitorApp.addListener('appStateChange', ({ isActive }) => {
-    document.dispatchEvent(new Event('visibilitychange'));
-    if (isActive) window.dispatchEvent(new Event('focus'));
-  });
-  await Network.addListener('networkStatusChange', status => {
-    window.dispatchEvent(new CustomEvent(status.connected ? 'online' : 'offline'));
-  });
-
   window.__luminaNativeHaptic = () => Haptics.impact({ style:ImpactStyle.Light }).catch(() => {});
 }
 

@@ -25,9 +25,12 @@ const hasSession = async () => {
       cache: 'no-store',
       headers: { 'cache-control': 'no-cache' },
     });
-    return response.ok;
+    if (response.ok) return 'authenticated';
+    // Only a definite anonymous/forbidden response should stop retrying.
+    // A 5xx/429/proxy error may recover while the same tab remains visible.
+    return response.status === 401 || response.status === 403 ? 'anonymous' : 'retry';
   } catch {
-    return false;
+    return 'retry';
   }
 };
 
@@ -39,10 +42,15 @@ const closeSource = () => {
 async function connect() {
   if (isNativeApp || source || connecting || !('EventSource' in window)) return;
   connecting = true;
+  let shouldRetryProbe = false;
   try {
-    // An anonymous page should not retry indefinitely. App emits a session
-    // lifecycle event when login succeeds, including after restoring cookies.
-    if (!await hasSession()) return;
+    // A genuine 401/403 waits for the next login event. Temporary network
+    // and server failures must retry, without polling anonymous users.
+    const sessionState = await hasSession();
+    if (sessionState !== 'authenticated') {
+      shouldRetryProbe = sessionState === 'retry';
+      return;
+    }
 
     const stream = new EventSource(STREAM_URL, { withCredentials: true });
     source = stream;
@@ -64,6 +72,7 @@ async function connect() {
     };
   } finally {
     connecting = false;
+    if (shouldRetryProbe) schedule();
   }
 }
 

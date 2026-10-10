@@ -1,16 +1,15 @@
 import { isNativeApp, nativeApiOrigin, nativeAuthHeaders } from './native/session.js';
 import { readCachedRadarLocation } from './radar-location.js';
+import { language } from './i18n.js';
 
 const BASE = isNativeApp ? nativeApiOrigin : (import.meta.env.VITE_API_URL || '/api');
 const SAFE = new Set(['GET','HEAD']);
 let csrfToken = '';
 let toastTimer = null;
 
-const LANG = (() => {
-  const values = [...(navigator.languages || []), navigator.language].filter(Boolean);
-  const key = values.map(v=>String(v).toLowerCase().split(/[-_]/)[0]).find(v=>['pt','fr','es','en'].includes(v));
-  return key || 'en';
-})();
+// Respect the language explicitly selected in Lumina (including on iPhone),
+ // rather than bypassing it with the underlying WebView's navigator.language.
+export const socialLoopsLanguage = language;
 
 const COPY = {
   pt:{
@@ -34,7 +33,7 @@ const COPY = {
     network:'My people', networkKicker:'RADAR · TRUST NETWORK', networkHero:'What is circulating among your people.', networkSub:'Content saved or shared by mutual friends. We show signal strength, never who did what.', networkEmpty:'Not enough signals in your network yet. Save or share Radar content and it will start circulating among friends.', networkCount:n=>`${n} ${n===1?'person':'people'} in your network`, save:'Save', saved:'Saved', share:'Share', source:'Open source', signalSaved:'Saved. It can now circulate among your friends.', signalShared:'Shared with your network.',
   },
 };
-const C = COPY[LANG];
+const C = COPY[socialLoopsLanguage] || COPY.en;
 
 const esc = value => String(value ?? '').replace(/[&<>'"]/g, char=>({ '&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;' }[char]));
 const initials = value => String(value || 'L').trim().split(/\s+/).slice(0,2).map(x=>x[0] || '').join('').toUpperCase().slice(0,2) || 'L';

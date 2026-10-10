@@ -118,6 +118,17 @@ app.use(['/radar-images/:itemId', '/api/radar-images/:itemId'], rateLimit({
   legacyHeaders: false,
   skip: skipInTests,
 }));
+// Crash diagnostics must not be an unbounded write-amplification path.
+// This endpoint is available to signed-in clients without a CSRF header so
+// that even React fatal-error beacons can be recorded, but it needs a tighter
+// independent throttle than ordinary API requests.
+app.use(['/reports/client-error', '/api/reports/client-error'], rateLimit({
+  windowMs: 60_000,
+  limit: 12,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skip: skipInTests,
+}));
 app.use(['/ai', '/api/ai'], rateLimit({
   windowMs: 60_000,
   limit: 30,

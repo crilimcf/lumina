@@ -33,16 +33,15 @@ test('dock inferior preserva centragem e esconde de facto ao deslizar no iPhone'
     el.scrollTop = 150;
     el.dispatchEvent(new Event('scroll'));
   });
-  await expect(page.locator('body')).toHaveClass(/lumina-dock-hidden/);
+  await expect(dock).toHaveClass(/nav-smart-hidden/);
   await expect(dock).toHaveCSS('pointer-events','none');
-  await expect(dock).toHaveCSS('visibility','hidden');
 
   await page.evaluate(() => {
     const el = document.querySelector('#dock-scroll-fixture');
     el.scrollTop = 20;
     el.dispatchEvent(new Event('scroll'));
   });
-  await expect(page.locator('body')).not.toHaveClass(/lumina-dock-hidden/);
+  await expect(dock).not.toHaveClass(/nav-smart-hidden/);
   await expect(dock).toHaveCSS('pointer-events','auto');
   await expect(dock).toBeVisible();
 
@@ -53,8 +52,9 @@ test('dock inferior preserva centragem e esconde de facto ao deslizar no iPhone'
     el.scrollTop = 180;
     el.dispatchEvent(new Event('scroll'));
   });
-  await expect(page.locator('body')).toHaveClass(/lumina-dock-hidden/);
-  await expect(dock).toBeVisible({ timeout:4_000 });
+  await expect(dock).toHaveClass(/nav-smart-hidden/);
+  await expect(dock).toHaveClass(/nav-smart-hidden/);
+  await expect(dock).not.toHaveClass(/nav-smart-hidden/, { timeout:4_000 });
 });
 
 test('dock móvel respeita reduzir movimento', async ({ page }) => {

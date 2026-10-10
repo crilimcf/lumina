@@ -329,3 +329,13 @@ body[data-lumina-identity="alive"] .lumina-identity-section .lumina-identity-bad
 @media(prefers-reduced-motion:reduce){
   .alive-root *, .alive-root *::before, .alive-root *::after{animation:none!important;scroll-behavior:auto!important;transition:none!important}
 }
+
+/* Four identity previews fit comfortably in the chooser on all devices. */
+body.lumina-v2 .lumina-identity-options{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.alive-back-to-universe{
+  position:fixed;top:calc(78px + env(safe-area-inset-top));right:15px;z-index:49;
+  padding:9px 13px;border-radius:999px;background:#d7ff65;border:1px solid #a5ce4a;
+  color:#111b0d;font-weight:900;font-size:11px;letter-spacing:.01em;
+  box-shadow:0 6px 22px rgba(0,0,0,.3);
+}
+@media(max-width:380px){.alive-back-to-universe{top:calc(84px + env(safe-area-inset-top));right:11px;font-size:10px}}

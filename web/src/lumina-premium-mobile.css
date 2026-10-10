@@ -201,22 +201,6 @@ body.lumina-v2 .nav {
   border-radius:21px!important;background:rgba(14,24,44,.97)!important;
   box-shadow:0 15px 35px rgba(0,5,18,.36),0 0 0 1px rgba(210,223,255,.06)!important;
 }
-/* Preserve horizontal centering while hiding the dock on downward scroll.
-   The previous JS transform was overridden by translateX(-50%) !important. */
-body.lumina-v2 .nav {
-  transition:transform .24s cubic-bezier(.2,.8,.2,1),opacity .2s ease,visibility 0s linear .24s;
-}
-body.lumina-v2.lumina-dock-hidden .nav {
-  transform:translate3d(-50%,calc(100% + 34px),0)!important;
-  opacity:0!important;
-  pointer-events:none!important;
-  visibility:hidden!important;
-}
-@media (prefers-reduced-motion:reduce) {
-  body.lumina-v2 .nav {
-    transition:none!important;
-  }
-}
 body.lumina-v2 .nav .nb {min-height:48px!important;max-height:52px!important;gap:2px!important;padding:2px 1px!important;border-radius:14px!important}
 body.lumina-v2 .nav .nb span {font-size:10.5px!important}
 body.lumina-v2 .nav .nb-on:not(.nb-create) {background:rgba(115,118,240,.13)!important}

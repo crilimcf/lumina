@@ -24,7 +24,7 @@ export function CreatorStudio({ onBack }) {
       setContent(c.content || []);
       setError('');
     } catch (e) {
-      if (e.status === 404 && e.code === 'feature_off') setUnavailable(true);
+      if (e.code === 'feature_off' || e.status === 404) setUnavailable(true);
       else setError(e.message);
     }
   };

@@ -44,7 +44,7 @@ export function CreatorStudio({ onBack }) {
       {error && <p role="alert" style={{color:'#ff957b'}}>{error}</p>}
       <section style={card}>
         <h2>Planos de comunidade</h2>
-        <p style={{opacity:.75}}>Os planos ficam em rascunho. Não há cobranças nem subscrições disponíveis nesta fase.</p>
+        <p style={{opacity:.75}}>Os planos são apenas rascunhos. Ainda não é possível receber pagamentos ou aceitar subscritores.</p>
         <form onSubmit={e=>{e.preventDefault();void submit(async()=>{await api.creators.createPlan({title,price_cents:Math.round(Number(price)*100),billing_period:period});setTitle('');});}}>
           <label>Nome do plano<input required minLength={3} maxLength={80} value={title} onChange={e=>setTitle(e.target.value)} style={field}/></label>
           <label>Preço em euros<input required type="number" min="1" max="1000" step=".01" value={price} onChange={e=>setPrice(e.target.value)} style={field}/></label>
@@ -62,8 +62,8 @@ export function CreatorStudio({ onBack }) {
         </form>
         {content.map(item=><article key={item.id} style={{padding:'14px 0',borderTop:'1px solid #9993',marginTop:12}}>
           <strong>{item.title}</strong><p style={{whiteSpace:'pre-wrap'}}>{item.body}</p>
-          <small>{item.status==='published'?'Publicado para membros':'Rascunho'}</small>
-          {item.status==='draft' && <div><button disabled={busy} style={{...button,marginTop:10}} onClick={()=>void submit(()=>api.creators.publishContent(item.id))}>Publicar para membros</button></div>}
+          <small>{item.status==='published'?'Preparado para membros (acesso indisponível até ativação das subscrições)':'Rascunho'}</small>
+          {item.status==='draft' && <div><button disabled={busy} style={{...button,marginTop:10}} onClick={()=>void submit(()=>api.creators.publishContent(item.id))}>Preparar conteúdo para membros</button></div>}
         </article>)}
       </section>
     </>}

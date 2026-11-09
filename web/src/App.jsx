@@ -33,6 +33,7 @@ const Salas = namedLazy(() => import('./screens/Salas.jsx'), 'Salas');
 const Promocoes = namedLazy(() => import('./screens/Promocoes.jsx'), 'Promocoes');
 const RadarAdmin = namedLazy(() => import('./screens/RadarAdmin.jsx'), 'RadarAdmin');
 const Atividade = namedLazy(() => import('./screens/Atividade.jsx'), 'Atividade');
+const CreatorStudio = namedLazy(() => import('./screens/CreatorStudio.jsx'), 'CreatorStudio');
 const LiveStudio = namedLazy(() => import('./screens/LiveStudio.jsx'), 'LiveStudio');
 const LiveViewer = namedLazy(() => import('./screens/LiveViewer.jsx'), 'LiveViewer');
 const LuminaOne = namedLazy(() => import('./screens/LuminaOne.jsx'), 'LuminaOne');
@@ -223,6 +224,14 @@ export default function App() {
 
   useEffect(() => {
     if (!me) return;
+    if (new URL(window.location.href).searchParams.get('creators') !== '1') return;
+    setScreen('creators');
+    setOpening(false);
+    setShowWelcome(false);
+  }, [me]);
+
+  useEffect(() => {
+    if (!me) return;
     const url = new URL(window.location.href);
     if (!url.searchParams.get('security')) return;
     setScreen('seguranca');
@@ -330,6 +339,7 @@ export default function App() {
   if (showWelcome) return withCalls(<LegacySurface kind="welcome"><Welcome onContinue={()=>setShowWelcome(false)}/></LegacySurface>);
   if (opening) return withCalls(<Abertura me={me} onSkip={()=>setOpening(false)} onRooms={()=>{setOpening(false);setTab('rooms')}}/>);
 
+  if (screen==='creators') return withCalls(<CreatorStudio onBack={()=>{ const url = new URL(window.location.href); url.searchParams.delete('creators'); window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`); setScreen(null); }}/>) ;
   if (screen==='live-studio') return withCalls(<LiveStudio me={me} onBack={closeLive} ping={ping}/>);
   if (screen==='live-viewer' && liveId) return withCalls(<LiveViewer streamId={liveId} onBack={closeLive} ping={ping}/>);
   if (screen==='one') return withCalls(<LuminaOne me={me} onBack={closeOne} ping={ping} onOpenLive={openLive}/>);

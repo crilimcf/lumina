@@ -47,5 +47,67 @@ creatorRoutes.get('/:creatorId/plans', h(async (req, res) => {
   res.json({ plans: rows });
 }));
 
+
+creatorRoutes.post('/me/content', auth, h(async (req, res) => {
+  const { title, body = '' } = req.body || {};
+  if (typeof title !== 'string' || title.trim().length < 3 || title.trim().length > 160) throw bad('Título inválido');
+  if (typeof body !== 'string' || body.length > 10000) throw bad('Conteúdo inválido');
+  const { rows } = await q(
+    `INSERT INTO creator_member_content (creator_id,title,body)
+     VALUES ($1,$2,$3) RETURNING id,title,body,status,created_at`,
+    [req.user.id, title.trim(), body]
+  );
+  res.status(201).json({ content: rows[0] });
+}));
+
+creatorRoutes.get('/me/content', auth, h(async (req, res) => {
+  const { rows } = await q(
+    `SELECT id,title,body,status,created_at,published_at
+     FROM creator_member_content WHERE creator_id=$1
+     ORDER BY created_at DESC LIMIT 100`, [req.user.id]
+  );
+  res.json({ content: rows });
+}));
+
+creatorRoutes.post('/me/content/:contentId/publish', auth, h(async (req, res) => {
+  if (!uuid(req.params.contentId)) throw bad('Conteúdo inválido');
+  const { rows } = await q(
+    `UPDATE creator_member_content
+     SET status='published',published_at=COALESCE(published_at,now())
+     WHERE id=$1 AND creator_id=$2 AND status='draft'
+     RETURNING id,title,status,published_at`, [req.params.contentId,req.user.id]
+  );
+  if (!rows[0]) throw new HttpError(404,'Rascunho não encontrado');
+  res.json({ content: rows[0] });
+}));
+
+creatorRoutes.get('/:creatorId/content', auth, h(async (req, res) => {
+  if (!uuid(req.params.creatorId)) throw bad('Criador inválido');
+  const { rows } = await q(
+    `SELECT c.id,c.title,c.body,c.published_at
+       FROM creator_member_content c
+      WHERE c.creator_id=$1 AND c.status='published'
+        AND (
+          c.creator_id=$2
+          OR (
+            NOT EXISTS (
+              SELECT 1 FROM blocks b WHERE
+              (b.blocker_id=$1 AND b.blocked_id=$2)
+              OR (b.blocker_id=$2 AND b.blocked_id=$1)
+            )
+            AND EXISTS (
+              SELECT 1 FROM creator_memberships m
+              WHERE m.creator_id=$1 AND m.subscriber_id=$2
+                AND m.status='active' AND m.current_period_end>now()
+                AND m.provider_subscription_id IS NOT NULL
+            )
+          )
+        )
+      ORDER BY c.published_at DESC LIMIT 50`,
+    [req.params.creatorId, req.user.id]
+  );
+  res.json({ content: rows });
+}));
+
 // Deliberately no client-controlled membership activation, paid-content unlock,
 // or payment endpoints. Only verified provider webhooks may grant entitlements.

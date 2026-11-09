@@ -22,6 +22,6 @@ test('membership cannot be marked active without verified provider identity', ()
 });
 
 test('feature is gated and no client endpoint grants a membership', () => {
-  assert.match(source, /if \(!env\.FEATURE_SUBSCRIPTIONS\)/);
+  assert.match(source, /if \(!env\.FEATURE_CREATORS\)/);
   assert.doesNotMatch(source, /UPDATE creator_memberships SET status='active'/);
 });

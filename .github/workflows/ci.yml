@@ -67,6 +67,8 @@ jobs:
           cache: npm
           cache-dependency-path: api/package-lock.json
       - run: npm ci
-      - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
+      - name: Repair and audit API dependencies
+        run: |
+          npm audit fix
+          npm audit --omit=dev --audit-level=high
       - run: npm test

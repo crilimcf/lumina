@@ -262,7 +262,7 @@ test('ingestão deduplica, auto-publica só fonte verificada e respeita arquivo'
     `INSERT INTO radar_sources (name, kind, url, default_type, active, trusted, config)
      VALUES ('Fonte por rever','rss','https://other.example.test/rss','news',true,false,$1)
      RETURNING *`,
-    [{ maxAgeDays: 90 }]
+    [{ maxAgeDays: 180 }]
   );
   const untrustedRss = RSS
     .replace('https://news.example.test/story-1', 'https://news.example.test/story-untrusted')

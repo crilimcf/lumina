@@ -63,6 +63,15 @@ async function call(path, { method = 'GET', body, auth = true, timeoutMs = REQUE
 const followAction = (id) => call(`/users/${id}/follow`, { method: 'POST' });
 
 export const api = {
+  creators: {
+    myPlans: () => call('/creators/me/plans'),
+    createPlan: (body) => call('/creators/me/plans', { method: 'POST', body }),
+    myContent: () => call('/creators/me/content'),
+    createContent: (body) => call('/creators/me/content', { method: 'POST', body }),
+    publishContent: (id) => call(`/creators/me/content/${encodeURIComponent(id)}/publish`, { method: 'POST' }),
+    plans: (id) => call(`/creators/${encodeURIComponent(id)}/plans`),
+    content: (id) => call(`/creators/${encodeURIComponent(id)}/content`),
+  },
   auth: {
     register: (b) => call('/auth/register', { method: 'POST', body: b, auth: false }),
     login: (b) => call('/auth/login', { method: 'POST', body: b, auth: false }),

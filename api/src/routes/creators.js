@@ -12,17 +12,6 @@ creatorRoutes.use((_req, _res, next) => {
 
 const uuid = value => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
 
-creatorRoutes.get('/:creatorId/plans', h(async (req, res) => {
-  if (!uuid(req.params.creatorId)) throw bad('Criador inválido');
-  const { rows } = await q(
-    `SELECT id, title, description, price_cents, currency, billing_period
-       FROM creator_plans WHERE creator_id=$1 AND status='published'
-       ORDER BY price_cents ASC LIMIT 10`,
-    [req.params.creatorId]
-  );
-  res.json({ plans: rows });
-}));
-
 creatorRoutes.get('/me/plans', auth, h(async (req, res) => {
   const { rows } = await q(
     `SELECT id, title, description, price_cents, currency, billing_period, status, created_at
@@ -45,6 +34,17 @@ creatorRoutes.post('/me/plans', auth, h(async (req, res) => {
     [req.user.id,title.trim(),description,cents,period]
   );
   res.status(201).json({ plan: rows[0] });
+}));
+
+creatorRoutes.get('/:creatorId/plans', h(async (req, res) => {
+  if (!uuid(req.params.creatorId)) throw bad('Criador inválido');
+  const { rows } = await q(
+    `SELECT id, title, description, price_cents, currency, billing_period
+       FROM creator_plans WHERE creator_id=$1 AND status='published'
+       ORDER BY price_cents ASC LIMIT 10`,
+    [req.params.creatorId]
+  );
+  res.json({ plans: rows });
 }));
 
 // Deliberately no client-controlled membership activation, paid-content unlock,

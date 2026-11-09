@@ -35,6 +35,8 @@ jobs:
 
   api-tests:
     name: API integration tests
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -72,3 +74,14 @@ jobs:
           npm audit fix
           npm audit --omit=dev --audit-level=high
       - run: npm test
+      - name: Persist audited dependency lockfile on feature branch
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/feature/lumina-creators-foundation'
+        working-directory: .
+        run: |
+          if ! git diff --quiet -- api/package-lock.json api/package.json; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add api/package-lock.json api/package.json
+            git commit -m 'fix(api): persist audited dependency updates'
+            git push origin HEAD:feature/lumina-creators-foundation
+          fi

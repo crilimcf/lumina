@@ -55,6 +55,7 @@ export const env = {
   APNS_BUNDLE_ID: process.env.APNS_BUNDLE_ID || 'pt.digibox.lumina',
   APNS_PRODUCTION: process.env.APNS_PRODUCTION !== 'false',
 
+  FEATURE_CREATORS: process.env.FEATURE_CREATORS === 'true',
   FEATURE_SUBSCRIPTIONS: process.env.FEATURE_SUBSCRIPTIONS === 'true',
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || '',
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || '',

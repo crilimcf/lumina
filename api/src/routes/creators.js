@@ -6,7 +6,7 @@ import { auth, h, bad, HttpError } from '../middleware/auth.js';
 export const creatorRoutes = Router();
 
 creatorRoutes.use((_req, _res, next) => {
-  if (!env.FEATURE_SUBSCRIPTIONS) return next(new HttpError(404, 'Funcionalidade indisponível', 'feature_off'));
+  if (!env.FEATURE_CREATORS) return next(new HttpError(404, 'Funcionalidade indisponível', 'feature_off'));
   next();
 });
 

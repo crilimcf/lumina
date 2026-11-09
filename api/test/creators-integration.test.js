@@ -35,7 +35,7 @@ const request = async (path, { token, method = 'GET', body } = {}) => {
 
 before(async () => {
   await migrate();
-  const suffix = randomUUID().slice(0, 10);
+  const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
   const { rows } = await q(
     `INSERT INTO users (handle,email,password_hash,name)
      VALUES ($1,$2,'test-hash','Creator Test'),($3,$4,'test-hash','Subscriber Test')

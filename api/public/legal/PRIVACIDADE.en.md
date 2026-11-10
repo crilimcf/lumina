@@ -1,6 +1,6 @@
 # Lumina Privacy Policy
 
-**Version:** 16 August 2026
+**Version:** 10 November 2026
 
 ## 1. Data controller
 
@@ -117,3 +117,11 @@ No system is invulnerable; relevant incidents must be assessed and handled accor
 ## 11. Changes
 
 This Policy may be updated when the product, providers or legal requirements change. Material changes should be communicated appropriately.
+
+## 12. Creators, payments and AI — update of 10 November 2026
+
+Lumina Creators stores plan names, descriptions, prices, billing intervals, exclusive text content and publication status as part of the requested service. Draft plans do not trigger charges. When subscriptions are actually launched, Lumina may process payment provider identifiers, subscription status, billing dates, cancellations and refunds, but must not store complete payment-card numbers. Payment processing will use Stripe, subject to activation and verification.
+
+Live streams may use Amazon IVS and S3; AI features may transmit the prompt and information strictly needed to OpenAI when you choose to use them. These providers must be assessed for processing agreements, geographic processing locations, security and international transfer safeguards under the GDPR. Data is retained for the duration required to deliver the service, subject to account deletion and applicable legal record-keeping duties. The legal basis may include contractual necessity, statutory duties, legitimate security interests or consent where specifically required. You may exercise your GDPR rights using the contact indicated above.
+
+This update is a disclosure of processing activities, not a claim that monetisation or an external legal audit has been completed.

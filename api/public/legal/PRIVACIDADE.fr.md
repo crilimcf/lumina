@@ -1,6 +1,6 @@
 # Politique de confidentialité de Lumina
 
-**Version :** 16 août 2026
+**Version :** 10 novembre 2026
 
 ## 1. Responsable du traitement
 
@@ -117,3 +117,11 @@ Aucun système n’est invulnérable ; les incidents importants doivent être é
 ## 11. Modifications
 
 Cette Politique peut être mise à jour lorsque le produit, les fournisseurs ou les exigences légales évoluent. Les modifications importantes doivent être communiquées de manière appropriée.
+
+## 12. Creators, paiements et IA — mise à jour du 10 novembre 2026
+
+Lumina Creators conserve les noms, descriptions, prix et périodicités des offres, les contenus exclusifs et leur état de publication pour fournir le service demandé. Un abonnement en brouillon ne déclenche aucun prélèvement. Si les abonnements payants sont activés, Lumina pourra traiter les identifiants du prestataire de paiement, l'état des abonnements, les dates de facturation, les résiliations et les remboursements, sans stocker les numéros complets des cartes bancaires. Le prestataire prévu est Stripe, sous réserve de son activation et de sa vérification.
+
+Les directs peuvent utiliser Amazon IVS et S3 ; les fonctions d'IA peuvent transmettre à OpenAI la demande et les seules informations nécessaires lorsque tu choisis de les utiliser. Les contrats de sous-traitance, les régions de traitement, la sécurité et les garanties relatives aux transferts internationaux doivent être vérifiés conformément au RGPD. Les données sont conservées aussi longtemps que nécessaire au service, sous réserve de l'effacement du compte et des obligations légales. Les bases juridiques peuvent comprendre l'exécution du contrat, les obligations légales, les intérêts légitimes de sécurité et le consentement lorsqu'il est requis. Tu peux exercer tes droits RGPD à l'adresse indiquée ci-dessus.
+
+Cette mise à jour ne signifie pas que la monétisation est active ni qu'un audit juridique externe est achevé.

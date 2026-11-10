@@ -1,6 +1,6 @@
 # Lumina Terms of Use
 
-**Version:** 15 August 2026
+**Version:** 10 November 2026
 
 ## 1. What Lumina is
 
@@ -85,3 +85,7 @@ We may update these Terms when the product, law or providers change. Material ch
 **Address:** Rua da Cabecinha No. 23, 5300-802 Rebordainhos, Bragança, Portugal
 
 **Tax ID (NIF):** 227369661
+
+## 14. Creators subscriptions — update of 10 November 2026
+
+Lumina Creators currently allows creators to configure plans and prepare exclusive content. Saving a plan does not create a paid subscription or charge anybody. Before any paid launch, the total price and applicable taxes, billing period, automatic renewal, access terms, cancellation, refund conditions and mandatory consumer information will be disclosed. Only a payment-verified and valid subscription may unlock paid content. Creators must undergo the payment provider's identity and eligibility checks where required. Web and native in-app payments must follow applicable consumer and app-store rules. A change in the interface does not amount to acceptance of new purchase terms.

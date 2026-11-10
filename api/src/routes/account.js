@@ -31,6 +31,9 @@ accountRoutes.get('/export',auth,h(async(req,res)=>{const id=req.user.id;const o
   convitesSalas:await one(`SELECT room_id,invited_by,created_at,accepted_at FROM room_invites WHERE user_id=$1`),
   mensagensSalas:await one(`SELECT id,room_id,body,created_at,edited_at,deleted_at FROM room_messages WHERE sender_id=$1`),
   pagamentosSalas:await one(`SELECT room_id,kind,amount_cents,provider,status,created_at,paid_at FROM room_payments WHERE user_id=$1`),
+  planosCreators:await one(`SELECT id,title,description,price_cents,currency,billing_period,status,created_at,updated_at FROM creator_plans WHERE creator_id=$1`),
+  conteudosCreators:await one(`SELECT id,title,body,status,created_at,published_at FROM creator_member_content WHERE creator_id=$1`),
+  minhasSubscricoesCreators:await one(`SELECT id,creator_id,plan_id,provider,status,current_period_end,created_at,updated_at FROM creator_memberships WHERE subscriber_id=$1`),
   chamadas:await one(`SELECT id,thread_id,caller_id,callee_id,mode,status,created_at,answered_at,ended_at FROM call_sessions WHERE caller_id=$1 OR callee_id=$1`),
 };res.setHeader('content-disposition',`attachment; filename="lumina-${req.user.handle}.json"`);res.json(data);}));
 

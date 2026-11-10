@@ -1,6 +1,6 @@
 # Termos de Utilização da Lumina
 
-**Versão:** 15 de agosto de 2026
+**Versão:** 10 de novembro de 2026
 
 ## 1. O que é a Lumina
 
@@ -58,7 +58,11 @@ Mensagens e Momentos marcados como efémeros são removidos do conteúdo ativo s
 
 ## 8. Funcionalidades pagas
 
-A infraestrutura pode conter suporte técnico para funcionalidades futuras, mas uma funcionalidade paga só existe para o utilizador quando estiver explicitamente ativada e forem apresentados preço e condições antes da compra.
+O Lumina Creators permite configurar planos e preparar conteúdo exclusivo. Um plano guardado no estúdio não é, por si só, uma oferta contratável nem autoriza cobranças. As subscrições e os pagamentos só poderão ser ativados quando estiverem implementados e validados os respetivos controlos técnicos, contratuais e legais.
+
+Antes de uma subscrição paga, serão apresentados o preço total e os impostos aplicáveis, a periodicidade e eventual renovação automática, os serviços incluídos, as condições de cancelamento e as informações legais obrigatórias relativas ao direito de livre resolução quando aplicável. Os pagamentos e os dados dos meios de pagamento serão geridos por um prestador especializado. O criador será sujeito a verificação de identidade e elegibilidade quando exigida.
+
+O acesso a conteúdos pagos dependerá de subscrição confirmada e válida. Os cancelamentos, reembolsos e reclamações serão tratados de acordo com a legislação aplicável e com os termos apresentados no momento da contratação; uma alteração de interface não constitui aceitação de novas condições.
 
 ## 9. Disponibilidade
 

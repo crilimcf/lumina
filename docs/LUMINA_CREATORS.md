@@ -108,3 +108,17 @@ The account owner authorized the independent **Lumina** sandbox in addition to D
 - Do not remove required financial and legal launch criteria because isolated test runners passed. Stripe Connect creator account creation, invoice tax treatment and checkout transfers remain unvalidated in the sandbox.
 
 At this stage, the production app still has billing feature disabled.
+
+
+## Billing portal, webhook and user-facing cancellation validation — 10 November 2026
+
+- Stripe's **Lumina standalone sandbox** has an **active default Billing Portal configuration**: `bpc_1UaEwtI3oNqs1r6LmW5vhkT8`.
+- Verified by sandbox API: `subscription_cancel.enabled=true`, cancellation at the end of the paid period, invoice history enabled, payment-method updates enabled.
+- A sandbox-only portal session was successfully created for the synthetic customer; Stripe returned `billing.stripe.com`, and no real charge occurred.
+- Existing subscribers can invoke `/creators/me/billing/subscriptions` and `/creators/me/billing/portal` even when `FEATURE_CREATORS=false` or `FEATURE_SUBSCRIPTIONS=false` so cancellation remains accessible during an emergency pause.
+- Signed financial webhook processing now only requires the payment credentials and signing secret, not a commercial feature flag. This keeps refunds, cancellations and revocations operational while new sales are disabled.
+- Creator profiles show subscription state, a direct *Manage payment or cancel* action on the web and server-authorized paid content; private profiles no longer hide content from their existing paying members.
+- The incident-handler regression suite now covers disputes, partial/full refunds, later paid renewals, replayed events and refunds identified only by PaymentIntent.
+- Connect **is enabled** in this sandbox, but still has **zero connected creator accounts**. No end-to-end destination-charge checkout or payout has been proven.
+- The production API remains on `master` with `FEATURE_SUBSCRIPTIONS=false`. Do not release this feature branch until sandbox Connect onboarding, VAT, disputes and live integration are independently approved.
+

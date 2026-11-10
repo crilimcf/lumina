@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { q, tx } from '../db.js';
 import { env } from '../env.js';
 import { auth, h, bad, forbidden, HttpError } from '../middleware/auth.js';
-import { stripeCreatorsRequest, creatorCheckoutEnabled, creatorBillingConfigured } from '../lib/stripe-creators.js';
+import { stripeCreatorsRequest, stripeCreatorsV2Request, creatorCheckoutEnabled, creatorBillingConfigured } from '../lib/stripe-creators.js';
 
 export const creatorBillingRoutes = Router();
 creatorBillingRoutes.use(auth);
@@ -24,9 +24,9 @@ const email = value => String(value || '').slice(0, 254);
 // Do not embed or deep link these payment routes from iOS/Android Capacitor builds.
 creatorBillingRoutes.get('/me/billing/status', h(async (req, res) => {
   ensureStudio();
-  const { rows } = await q('SELECT stripe_account_id, country, charges_enabled, payouts_enabled, details_submitted FROM creator_billing_accounts WHERE creator_id=$1', [req.user.id]);
+  const { rows } = await q('SELECT stripe_account_id, country, charges_enabled, payouts_enabled, transfers_enabled, details_submitted FROM creator_billing_accounts WHERE creator_id=$1', [req.user.id]);
   res.json({ available: creatorBillingConfigured(), enabled: creatorCheckoutEnabled(),
-    account: rows[0] ? { linked: true, country: rows[0].country, chargesEnabled: rows[0].charges_enabled, payoutsEnabled: rows[0].payouts_enabled, detailsSubmitted: rows[0].details_submitted } : { linked: false } });
+    account: rows[0] ? { linked: true, country: rows[0].country, chargesEnabled: rows[0].charges_enabled, payoutsEnabled: rows[0].payouts_enabled, transfersEnabled: rows[0].transfers_enabled, detailsSubmitted: rows[0].details_submitted } : { linked: false } });
 }));
 
 // Subscribers must retain access to billing information after creator-facing
@@ -75,13 +75,15 @@ creatorBillingRoutes.post('/me/billing/onboard', h(async (req, res) => {
   let { rows } = await q('SELECT stripe_account_id FROM creator_billing_accounts WHERE creator_id=$1', [req.user.id]);
   let accountId = rows[0]?.stripe_account_id;
   if (!accountId) {
-    const connected = await stripeCreatorsRequest('POST', '/accounts', {
-      type: 'express',
-      country: 'PT',
-      email: email(req.user.email),
-      'capabilities[transfers][requested]': 'true',
-      'metadata[lumina_creator_id]': req.user.id,
-    }, 'lumina-creators-account-' + req.user.id);
+    const connected = await stripeCreatorsV2Request('/core/accounts', {
+      contact_email:email(req.user.email),
+      display_name:String(req.user.name || req.user.handle || 'Criador Lumina').slice(0,100),
+      dashboard:'express',
+      identity:{country:'PT'},
+      defaults:{responsibilities:{fees_collector:'application',losses_collector:'application'}},
+      configuration:{recipient:{capabilities:{stripe_balance:{stripe_transfers:{requested:true}}}}},
+      metadata:{lumina_creator_id:req.user.id},
+    }, 'lumina-creators-v2-account-' + req.user.id);
     accountId = connected.id;
     if (!cleanAccountId(accountId)) throw new HttpError(502, 'Conta de criador inválida', 'creator_account_invalid');
     await q('INSERT INTO creator_billing_accounts (creator_id,stripe_account_id,country) VALUES ($1,$2,$3) ON CONFLICT (creator_id) DO NOTHING',
@@ -90,12 +92,22 @@ creatorBillingRoutes.post('/me/billing/onboard', h(async (req, res) => {
     accountId = rows[0]?.stripe_account_id;
   }
   if (!cleanAccountId(accountId)) throw paymentNotReady();
-  const link = await stripeCreatorsRequest('POST', '/account_links', {
-    account: accountId,
-    refresh_url: env.APP_URL + '/?creators=onboarding',
-    return_url: env.APP_URL + '/?creators=onboarded',
-    type: 'account_onboarding',
+  const link = await stripeCreatorsV2Request('/core/account_links', {
+    account:accountId,
+    use_case:{
+      type:'account_onboarding',
+      account_onboarding:{
+        configurations:['recipient'],
+        refresh_url:env.APP_URL + '/?creators=onboarding',
+        return_url:env.APP_URL + '/?creators=onboarded',
+      },
+    },
   });
+  let url;
+  try { url = new URL(link.url); } catch { /* invalid Stripe URL */ }
+  if (!url || url.protocol !== 'https:' || !['connect.stripe.com','connect.stripe.network'].includes(url.hostname)) {
+    throw new HttpError(502,'Ligação de verificação Stripe inválida','creator_onboarding_link_invalid');
+  }
   res.json({ url: link.url });
 }));
 
@@ -109,16 +121,20 @@ creatorBillingRoutes.post('/me/billing/refresh', h(async (req, res) => {
   const charges = Boolean(account.charges_enabled);
   const payouts = Boolean(account.payouts_enabled);
   const details = Boolean(account.details_submitted);
-  await q('UPDATE creator_billing_accounts SET charges_enabled=$2,payouts_enabled=$3,details_submitted=$4,updated_at=now() WHERE creator_id=$1',
-    [req.user.id, charges, payouts, details]);
-  res.json({ linked: true, chargesEnabled: charges, payoutsEnabled: payouts, detailsSubmitted: details });
+  // Recipient-only Accounts v2 can receive destination transfers without
+  // being permitted to accept direct charges on the connected account.
+  const transfers = account.capabilities?.transfers === 'active';
+  await q('UPDATE creator_billing_accounts SET charges_enabled=$2,payouts_enabled=$3,details_submitted=$4,transfers_enabled=$5,updated_at=now() WHERE creator_id=$1',
+    [req.user.id, charges, payouts, details, transfers]);
+  res.json({ linked: true, chargesEnabled: charges, payoutsEnabled: payouts,
+    transfersEnabled: transfers, detailsSubmitted: details });
 }));
 
 creatorBillingRoutes.post('/me/plans/:planId/publish', h(async (req, res) => {
   ensurePayment();
   if (!uuid(req.params.planId)) throw bad('Plano inválido');
-  const { rows: account } = await q('SELECT stripe_account_id,charges_enabled,payouts_enabled,details_submitted FROM creator_billing_accounts WHERE creator_id=$1', [req.user.id]);
-  if (!account[0]?.charges_enabled || !account[0]?.payouts_enabled || !account[0]?.details_submitted) {
+  const { rows: account } = await q('SELECT stripe_account_id,charges_enabled,payouts_enabled,transfers_enabled,details_submitted FROM creator_billing_accounts WHERE creator_id=$1', [req.user.id]);
+  if (!(account[0]?.transfers_enabled ?? account[0]?.charges_enabled) || !account[0]?.payouts_enabled || !account[0]?.details_submitted) {
     throw new HttpError(409, 'Completa primeiro a verificação de pagamentos', 'creator_onboarding_required');
   }
   const { rows } = await q("UPDATE creator_plans SET status='published',updated_at=now() WHERE id=$1 AND creator_id=$2 AND status='draft' RETURNING id,title,status", [req.params.planId, req.user.id]);
@@ -131,7 +147,7 @@ creatorBillingRoutes.post('/:creatorId/plans/:planId/checkout', h(async (req, re
   if (!uuid(req.params.creatorId) || !uuid(req.params.planId)) throw bad('Identificadores inválidos');
   if (req.user.id === req.params.creatorId) throw bad('Não podes subscrever o teu próprio plano');
   const { rows: plans } = await q(
-    "SELECT p.id,p.title,p.price_cents,p.billing_period,p.creator_id,a.stripe_account_id FROM creator_plans p JOIN creator_billing_accounts a ON a.creator_id=p.creator_id WHERE p.id=$1 AND p.creator_id=$2 AND p.status='published' AND a.charges_enabled=true AND a.payouts_enabled=true AND a.details_submitted=true AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id=$2 AND b.blocked_id=$3) OR (b.blocker_id=$3 AND b.blocked_id=$2)) AND NOT EXISTS (SELECT 1 FROM creator_memberships m WHERE m.creator_id=$2 AND m.subscriber_id=$3 AND m.status IN ('pending','active','past_due')) LIMIT 1",
+    "SELECT p.id,p.title,p.price_cents,p.billing_period,p.creator_id,a.stripe_account_id FROM creator_plans p JOIN creator_billing_accounts a ON a.creator_id=p.creator_id WHERE p.id=$1 AND p.creator_id=$2 AND p.status='published' AND COALESCE(a.transfers_enabled,a.charges_enabled)=true AND a.payouts_enabled=true AND a.details_submitted=true AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id=$2 AND b.blocked_id=$3) OR (b.blocker_id=$3 AND b.blocked_id=$2)) AND NOT EXISTS (SELECT 1 FROM creator_memberships m WHERE m.creator_id=$2 AND m.subscriber_id=$3 AND m.status IN ('pending','active','past_due')) LIMIT 1",
     [req.params.planId, req.params.creatorId, req.user.id]
   );
   const plan = plans[0];

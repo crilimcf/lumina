@@ -61,6 +61,39 @@ export async function stripeCreatorsRequest(method, resource, parameters, idempo
   return data;
 }
 
+// New Stripe Connect marketplaces use Accounts v2 for new connected accounts.
+// Keep v1 calls for Customers, Checkout, subscriptions and compatible account
+// retrieval; the newly created acct_ IDs can still be retrieved from v1.
+export async function stripeCreatorsV2Request(resource, body, idempotencyKey) {
+  if (!creatorStripeKeyMatchesEnvironment()) {
+    throw new HttpError(503, 'Credenciais Stripe incompatíveis com o ambiente', 'creator_stripe_environment_mismatch');
+  }
+  if (!/^\/core\/(accounts|account_links)$/.test(resource)) {
+    throw new HttpError(400, 'Operação Stripe v2 inválida', 'invalid_stripe_v2_resource');
+  }
+  const headers={
+    authorization:'Bearer '+env.STRIPE_SECRET_KEY,
+    'content-type':'application/json',
+    'Stripe-Version':'2026-07-29.preview',
+  };
+  if (idempotencyKey) headers['Idempotency-Key']=idempotencyKey;
+  let response;
+  try {
+    response=await fetch('https://api.stripe.com/v2'+resource,{
+      method:'POST',headers,body:JSON.stringify(body),signal:AbortSignal.timeout(15000),
+    });
+  } catch {
+    throw new HttpError(502, 'Serviço de pagamentos temporariamente indisponível','creator_payment_network');
+  }
+  const data=await response.json().catch(()=>null);
+  if (!response.ok || !data || data.error) {
+    console.error('[creators/stripe-v2] erro',response.status,data?.error?.code||'unknown');
+    throw new HttpError(502,'Não foi possível concluir a operação no serviço de pagamentos',
+      'creator_payment_provider');
+  }
+  return data;
+}
+
 export function verifyCreatorStripeEvent(raw, header, secret, nowSeconds = Date.now() / 1000) {
   if (!secret) throw new HttpError(503, 'Webhook de pagamentos não configurado');
   if (!Buffer.isBuffer(raw) || raw.length > 256 * 1024) {

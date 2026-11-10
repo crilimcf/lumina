@@ -41,6 +41,8 @@ test('live Stripe key cannot enable checkouts without explicit release approval'
     env.CREATORS_LIVE_PAYMENTS_APPROVED=true;
     assert.equal(creatorBillingConfigured(),true);
     assert.equal(creatorCheckoutEnabled(),true);
+    env.STRIPE_SECRET_KEY='rk_live_unit_test_not_a_real_key';
+    assert.equal(creatorCheckoutEnabled(),true, 'restricted production key is accepted');
     env.STRIPE_SECRET_KEY='sk_test_unit_test_not_a_real_key';
     env.CREATORS_LIVE_PAYMENTS_APPROVED=false;
     assert.equal(creatorCheckoutEnabled(),false, 'test keys cannot activate sales in production');

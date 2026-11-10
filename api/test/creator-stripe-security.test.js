@@ -115,5 +115,6 @@ test('Creators checkout enables Stripe Tax only on its own session, without chan
   const body = checkoutRoute.slice(start, end);
   assert.match(body, /'automatic_tax\\[enabled\\]': 'true'/);
   assert.match(body, /billing_address_collection: 'required'/);
+  assert.match(body, /'customer_update\\[address\\]': 'auto'/);
   assert.match(body, /'subscription_data\\[transfer_data\\]\\[destination\\]'/);
 });

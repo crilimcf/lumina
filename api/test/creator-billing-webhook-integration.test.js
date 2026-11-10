@@ -30,6 +30,11 @@ globalThis.fetch = async (url, options = {}) => {
   const respond = (data,status=200) => new Response(JSON.stringify(data), {
     status, headers:{'content-type':'application/json'}
   });
+  if (target.includes('/billing_portal/sessions') && options.method === 'POST') {
+    const params = new URLSearchParams(options.body);
+    assert.equal(params.get('customer'),customerId);
+    return respond({id:'bps_luminaBilling123',object:'billing_portal.session',url:'https://billing.stripe.com/p/session/lumina-test'});
+  }
   if (target.includes('/checkout/sessions') && options.method === 'POST') {
     stripeCheckoutCalls++;
     const fields = new URLSearchParams(options.body);
@@ -263,6 +268,28 @@ test('refund.created with only PaymentIntent is resolved via its latest charge',
   assert.equal(rows[0].provider_subscription_id,subscriptionId);
   assert.equal(rows[0].reason,'refund');
 });
+
+test('existing subscribers can manage cancellations after new Creators sales are disabled',async()=>{
+  const {env}=await import('../src/env.js');
+  const creatorsFlag=env.FEATURE_CREATORS;
+  const salesFlag=env.FEATURE_SUBSCRIPTIONS;
+  env.FEATURE_CREATORS=false;
+  env.FEATURE_SUBSCRIPTIONS=false;
+  try {
+    const token=signToken(subscriber);
+    const history=await request('/api/creators/me/billing/subscriptions',{token});
+    assert.equal(history.status,200);
+    assert.ok(history.data.subscriptions.some(x=>x.creator_id===creator.id));
+
+    const portal=await request('/api/creators/me/billing/portal',{token,method:'POST'});
+    assert.equal(portal.status,200);
+    assert.equal(portal.data.url,'https://billing.stripe.com/p/session/lumina-test');
+  } finally {
+    env.FEATURE_CREATORS=creatorsFlag;
+    env.FEATURE_SUBSCRIPTIONS=salesFlag;
+  }
+});
+
 
 test('Stripe cancellation revokes content access',async()=>{
   currentStatus='canceled';

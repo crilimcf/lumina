@@ -17,7 +17,7 @@ export const creatorCheckoutEnabled = () =>
 // Checkout must never silently disable cancellations, refunds or entitlement
 // revocation for already-paid members.
 export const creatorWebhookEnabled = () =>
-  Boolean(env.FEATURE_CREATORS && env.STRIPE_SECRET_KEY && env.CREATORS_STRIPE_WEBHOOK_SECRET);
+  Boolean(env.STRIPE_SECRET_KEY && env.CREATORS_STRIPE_WEBHOOK_SECRET);
 
 export async function stripeCreatorsRequest(method, resource, parameters, idempotencyKey) {
   if (!env.STRIPE_SECRET_KEY) {

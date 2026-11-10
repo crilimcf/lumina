@@ -3,7 +3,9 @@ import { env } from '../env.js';
 import { HttpError } from '../middleware/auth.js';
 
 export const creatorBillingConfigured = () =>
-  Boolean(env.STRIPE_SECRET_KEY && env.CREATORS_STRIPE_WEBHOOK_SECRET &&
+  Boolean((env.STRIPE_SECRET_KEY?.startsWith('sk_test_') ||
+    (env.STRIPE_SECRET_KEY?.startsWith('sk_live_') && env.CREATORS_LIVE_PAYMENTS_APPROVED)) &&
+    env.CREATORS_STRIPE_WEBHOOK_SECRET &&
     Number.isFinite(env.CREATORS_PLATFORM_FEE_PERCENT) &&
     env.CREATORS_PLATFORM_FEE_PERCENT >= 0 &&
     env.CREATORS_PLATFORM_FEE_PERCENT <= 30);

@@ -83,3 +83,24 @@ test('A paid current Stripe subscription is the only state unlocking access', ()
     ...subscription,items:{data:[{current_period_end:end-7200}]},
   }).status, 'expired');
 });
+
+test('modern Stripe Invoice status paid and zero amount_remaining unlocks access without legacy paid flag', () => {
+  const end=Math.floor(Date.now()/1000)+3600;
+  const subscription={
+    status:'active',
+    items:{data:[{current_period_end:end}]},
+    latest_invoice:{
+      id:'in_testModernPaid123',status:'paid',amount_paid:499,amount_remaining:0,
+    },
+  };
+  assert.equal(stripeCreatorSubscriptionState(subscription).status,'active');
+  assert.equal(stripeCreatorSubscriptionState({
+    ...subscription,latest_invoice:{...subscription.latest_invoice,status:'open'},
+  }).status,'past_due');
+  assert.equal(stripeCreatorSubscriptionState({
+    ...subscription,latest_invoice:{...subscription.latest_invoice,amount_remaining:499},
+  }).status,'past_due');
+  assert.equal(stripeCreatorSubscriptionState({
+    ...subscription,latest_invoice:{...subscription.latest_invoice,amount_paid:0},
+  }).status,'past_due');
+});

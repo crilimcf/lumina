@@ -193,6 +193,7 @@ creatorBillingRoutes.post('/:creatorId/plans/:planId/checkout', h(async (req, re
       // never alter account-wide DigiBox products, prices, or Billing defaults.
       'automatic_tax[enabled]': 'true',
       billing_address_collection: 'required',
+      'customer_update[address]': 'auto',
     client_reference_id: req.user.id,
     'line_items[0][price_data][currency]': 'eur',
     'line_items[0][price_data][unit_amount]': String(plan.price_cents),

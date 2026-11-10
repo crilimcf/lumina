@@ -51,8 +51,12 @@ creatorBillingRoutes.post('/me/billing/portal', h(async (req, res) => {
   if (!/^cus_[A-Za-z0-9]+$/.test(String(customer || ''))) {
     throw new HttpError(404, 'Não existe uma conta de faturação associada', 'creator_billing_customer_missing');
   }
+  if (!/^bpc_[A-Za-z0-9]+$/.test(env.CREATORS_STRIPE_PORTAL_CONFIGURATION)) {
+    throw new HttpError(503, 'Portal de faturação Lumina indisponível', 'creator_billing_portal_unconfigured');
+  }
   const session = await stripeCreatorsRequest('POST', '/billing_portal/sessions', {
-    customer, return_url:env.APP_URL + '/?tab=profile',
+    customer, configuration:env.CREATORS_STRIPE_PORTAL_CONFIGURATION,
+    return_url:env.APP_URL + '/?tab=profile',
   });
   let url;
   try { url = new URL(session.url); } catch { /* Invalid provider URL */ }

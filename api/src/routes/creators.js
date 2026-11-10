@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { q } from '../db.js';
+import { q, tx } from '../db.js';
 import { env } from '../env.js';
 import { auth, h, bad, HttpError } from '../middleware/auth.js';
 
@@ -52,12 +52,24 @@ creatorRoutes.post('/me/content', auth, h(async (req, res) => {
   const { title, body = '' } = req.body || {};
   if (typeof title !== 'string' || title.trim().length < 3 || title.trim().length > 160) throw bad('Título inválido');
   if (typeof body !== 'string' || body.length > 10000) throw bad('Conteúdo inválido');
-  const { rows } = await q(
-    `INSERT INTO creator_member_content (creator_id,title,body)
-     VALUES ($1,$2,$3) RETURNING id,title,body,status,created_at`,
-    [req.user.id, title.trim(), body]
-  );
-  res.status(201).json({ content: rows[0] });
+  const content = await tx(async client => {
+    // Serialise a creator's writes and cap drafts/posts to protect small DB volumes.
+    await client.query('SELECT id FROM users WHERE id=$1 FOR UPDATE', [req.user.id]);
+    const { rows: count } = await client.query(
+      'SELECT COUNT(*)::int AS total FROM creator_member_content WHERE creator_id=$1',
+      [req.user.id]
+    );
+    if (count[0].total >= 50) {
+      throw new HttpError(429, 'Limite de 50 conteúdos atingido', 'creator_content_limit');
+    }
+    const { rows } = await client.query(
+      `INSERT INTO creator_member_content (creator_id,title,body)
+       VALUES ($1,$2,$3) RETURNING id,title,body,status,created_at`,
+      [req.user.id, title.trim(), body]
+    );
+    return rows[0];
+  });
+  res.status(201).json({ content });
 }));
 
 creatorRoutes.get('/me/content', auth, h(async (req, res) => {

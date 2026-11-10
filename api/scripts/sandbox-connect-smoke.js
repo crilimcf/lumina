@@ -89,6 +89,19 @@ try {
     SELECT $1,'Lumina Criador de Testes','Plano ficticio, sem pagamentos reais',499,'month','draft'
     WHERE NOT EXISTS(SELECT 1 FROM creator_plans WHERE creator_id=$1 AND billing_period='month' AND status IN ('draft','published'))`,[creator.id]);
 
+  const onboarding=await stripeV2('POST','/core/account_links',{
+    account:connectedId,
+    use_case:{type:'account_onboarding',account_onboarding:{
+      configurations:['recipient'],
+      refresh_url:'https://lumina-snowy-ten.vercel.app/?creators=onboarding',
+      return_url:'https://lumina-snowy-ten.vercel.app/?creators=onboarded',
+    }},
+  });
+  const onboardingHost=new URL(onboarding.url).hostname;
+  if(!onboardingHost.endsWith('.stripe.com')) throw new Error('Invalid Stripe onboarding URL host');
+  console.log('[sandbox-smoke] Stripe Accounts v2 onboarding link generated:',onboardingHost);
+  // A single-use link contains an access token: do not output it into logs.
+
   console.log('[sandbox-smoke] Stripe and PostgreSQL verified');
   console.log('[sandbox-smoke] creator sandbox account:',connectedId);
   console.log('[sandbox-smoke] Stripe Connect test onboarding state:',

@@ -95,7 +95,15 @@ export async function stripeCreatorsV2Request(resource, body, idempotencyKey) {
   }
   const data=await response.json().catch(()=>null);
   if (!response.ok || !data || data.error) {
-    console.error('[creators/stripe-v2] erro',response.status,data?.error?.code||'unknown');
+    // Log only provider error codes and the Stripe request identifier for support.
+    // Never emit request/response bodies, emails, API keys, or customer details.
+    const providerError = data?.error || {};
+    const providerCode = String(providerError.code || 'unknown').slice(0,80);
+    const providerType = String(providerError.type || 'unknown').slice(0,80);
+    const requestId = String(response.headers?.get?.('request-id') ||
+      response.headers?.get?.('stripe-request-id') || 'none').slice(0,80);
+    console.error('[creators/stripe-v2] erro',response.status,
+      'code='+providerCode,'type='+providerType,'request_id='+requestId);
     throw new HttpError(502,'Não foi possível concluir a operação no serviço de pagamentos',
       'creator_payment_provider');
   }

@@ -20,6 +20,7 @@ const customerId = 'cus_luminaABC123';
 const connectedId = 'acct_luminaABC123';
 const invoiceId = 'in_luminaABC123';
 const renewedInvoiceId = 'in_luminaRenewed456';
+const earlyRefundInvoiceId = 'in_luminaEarlyRefund456';
 let activeInvoiceId = invoiceId;
 let creator,subscriber,planId,contentId,server,baseUrl;
 
@@ -39,6 +40,9 @@ globalThis.fetch = async (url, options = {}) => {
   }
   if (target.includes('/charges/ch_luminaDispute123')) {
     return respond({id:'ch_luminaDispute123',invoice:renewedInvoiceId,payment_intent:'pi_luminaDispute123'});
+  }
+  if (target.includes('/invoices/' + earlyRefundInvoiceId)) {
+    return respond({id:earlyRefundInvoiceId,object:'invoice',subscription:subscriptionId,customer:customerId});
   }
   if (target.includes('/invoices/' + renewedInvoiceId)) {
     return respond({id:renewedInvoiceId,object:'invoice',subscription:subscriptionId,customer:customerId});
@@ -123,6 +127,24 @@ test('duplicate subscription attempts reuse one pending checkout without second 
   assert.equal(stripeCheckoutCalls,1);
   const {rows}=await q('SELECT COUNT(*)::int AS total FROM creator_checkout_sessions WHERE creator_id=$1 AND subscriber_id=$2',[creator.id,subscriber.id]);
   assert.equal(rows[0].total,1);
+});
+
+test('a genuine refund arriving before the first paid webhook is persisted',async()=>{
+  const incident={id:'evt_luminaPrepaidRefund456',type:'charge.refunded',data:{object:{
+    object:'charge',id:'ch_luminaEarlyRefund456',invoice:earlyRefundInvoiceId,amount_refunded:500,refunded:true
+  }}};
+  const signed=signEvent(incident);
+  const response=await fetchReal(baseUrl+'/api/payments/stripe/creators-webhook',{
+    method:'POST',headers:{'content-type':'application/json','stripe-signature':signed.signature},
+    body:signed.content
+  });
+  assert.equal(response.status,200);
+  const {rows:events}=await q('SELECT invoice_id FROM creator_billing_incidents WHERE event_id=$1',[incident.id]);
+  assert.equal(events.length,1);
+  assert.equal(events[0].invoice_id,earlyRefundInvoiceId);
+  const {rows:members}=await q('SELECT id FROM creator_memberships WHERE creator_id=$1 AND subscriber_id=$2',
+    [creator.id,subscriber.id]);
+  assert.equal(members.length,0);
 });
 
 test('forged unsigned webhook never grants paid content',async()=>{

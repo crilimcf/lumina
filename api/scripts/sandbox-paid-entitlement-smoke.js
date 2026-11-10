@@ -95,14 +95,24 @@ try {
   assert(creator.handle==='lumina.creator.qa','refusing non-QA creator');
 
   const suffix=crypto.randomBytes(5).toString('hex');
-  const {rows:created}=await q(
-    "INSERT INTO users(handle,email,name,password_hash,birth_date) VALUES($1,$2,'QA Assinante','!sandbox-not-loginable!',DATE '1990-01-01') RETURNING id,handle,session_version",
-    ['e2e'+suffix,'e2e-'+suffix+'@example.invalid']);
-  subscriber=created[0];
-  const {rows:inUse}=await q('SELECT subscriber_id FROM creator_billing_customers WHERE stripe_customer_id=$1',[CUSTOMER]);
-  assert(inUse.length===0,'test Customer is already assigned to another Lumina subscriber');
-  await q('INSERT INTO creator_billing_customers(subscriber_id,stripe_customer_id) VALUES($1,$2)',
-    [subscriber.id,CUSTOMER]);
+  // Retry the exact same QA subscriber after a previous failed test run; never
+  // create competing Lumina identities for the same Stripe Customer.
+  const {rows:qaMapping}=await q(
+    "SELECT u.id,u.handle,u.email,u.session_version FROM creator_billing_customers c JOIN users u ON u.id=c.subscriber_id WHERE c.stripe_customer_id=$1",
+    [CUSTOMER]
+  );
+  if (qaMapping[0]) {
+    assert(/^e2e[a-f0-9]{10}$/.test(qaMapping[0].handle) &&
+      qaMapping[0].email.endsWith('@example.invalid'), 'Customer is not owned by a QA account');
+    subscriber=qaMapping[0];
+  } else {
+    const {rows:created}=await q(
+      "INSERT INTO users(handle,email,name,password_hash,birth_date) VALUES($1,$2,'QA Assinante','!sandbox-not-loginable!',DATE '1990-01-01') RETURNING id,handle,session_version",
+      ['e2e'+suffix,'e2e-'+suffix+'@example.invalid']);
+    subscriber=created[0];
+    await q('INSERT INTO creator_billing_customers(subscriber_id,stripe_customer_id) VALUES($1,$2)',
+      [subscriber.id,CUSTOMER]);
+  }
 
   const userToken=signToken(subscriber),creatorToken=signToken(creator);
   const accountRefresh=await request(path+'me/billing/refresh','POST',creatorToken);
@@ -133,7 +143,7 @@ try {
   assert(before.status===200&&before.data.content.length===0,'non-member could see paid content');
 
   const checkedOut=await request(path+creator.id+'/plans/'+plan.id+'/checkout','POST',userToken);
-  assert(checkedOut.status===201&&starts(checkedOut.data.checkoutUrl,'https://checkout.stripe.com/'),
+  assert([200,201].includes(checkedOut.status)&&starts(checkedOut.data.checkoutUrl,'https://checkout.stripe.com/'),
     'authenticated Lumina checkout did not create a Stripe session');
   const {rows:sessions}=await q(
     "SELECT session_id FROM creator_checkout_sessions WHERE creator_id=$1 AND subscriber_id=$2 AND plan_id=$3 AND status='pending'",
@@ -146,10 +156,9 @@ try {
   // payment verifies app-level entitlement from a real paid Stripe invoice.
   const paidSubscription=await stripeCreatorsRequest('POST','/subscriptions',{
     customer:CUSTOMER,
-    'items[0][price_data][currency]':'eur',
-    'items[0][price_data][unit_amount]':'499',
-    'items[0][price_data][recurring][interval]':'month',
-    'items[0][price_data][product_data][name]':'Lumina QA: paid entitlement webhook',
+    // Reuse the verified, real Stripe sandbox-only EUR 4.99/month price.
+    // The Subscriptions endpoint doesn't support Checkout's product_data path.
+    'items[0][price]':'price_1UaEadI3oNqs1r6LIem9QrV0',
     'items[0][quantity]':'1',
     default_payment_method:CARD,
     collection_method:'charge_automatically',

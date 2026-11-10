@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { q, tx } from '../db.js';
 import { env } from '../env.js';
 import { auth, h, bad, forbidden, HttpError } from '../middleware/auth.js';
-import { stripeCreatorsRequest, stripeCreatorsV2Request, creatorCheckoutEnabled, creatorBillingConfigured, creatorOnboardingEnabled } from '../lib/stripe-creators.js';
+import { stripeCreatorsRequest, stripeCreatorsV2Request, creatorCheckoutEnabled, creatorBillingConfigured, creatorOnboardingEnabled, stripeCreatorsV2RecipientStatus } from '../lib/stripe-creators.js';
 
 export const creatorBillingRoutes = Router();
 creatorBillingRoutes.use(auth);
@@ -121,13 +121,13 @@ creatorBillingRoutes.post('/me/billing/refresh', h(async (req, res) => {
   const { rows } = await q('SELECT stripe_account_id FROM creator_billing_accounts WHERE creator_id=$1', [req.user.id]);
   const accountId = rows[0]?.stripe_account_id;
   if (!cleanAccountId(accountId)) throw bad('Conta Stripe por associar');
-  const account = await stripeCreatorsRequest('GET', '/accounts/' + accountId);
-  const charges = Boolean(account.charges_enabled);
-  const payouts = Boolean(account.payouts_enabled);
-  const details = Boolean(account.details_submitted);
-  // Recipient-only Accounts v2 can receive destination transfers without
-  // being permitted to accept direct charges on the connected account.
-  const transfers = account.capabilities?.transfers === 'active';
+  // Accounts v2 recipient capabilities, not legacy charges_enabled booleans,
+  // determine whether this creator can receive funds from destination charges.
+  const readiness = await stripeCreatorsV2RecipientStatus(accountId);
+  const charges = false; // A recipient is not a direct-charge merchant.
+  const payouts = readiness.payouts;
+  const transfers = readiness.transfers;
+  const details = readiness.ready; // Conservative: not ready until both are active.
   await q('UPDATE creator_billing_accounts SET charges_enabled=$2,payouts_enabled=$3,details_submitted=$4,transfers_enabled=$5,updated_at=now() WHERE creator_id=$1',
     [req.user.id, charges, payouts, details, transfers]);
   res.json({ linked: true, chargesEnabled: charges, payoutsEnabled: payouts,

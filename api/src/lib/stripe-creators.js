@@ -127,7 +127,13 @@ export function stripeCreatorSubscriptionState(subscription) {
   const end = Number(subscription?.current_period_end ||
     Math.max(0, ...(subscription?.items?.data || []).map(item => Number(item.current_period_end) || 0)));
   const latest = subscription?.latest_invoice;
-  const invoicePaid = Boolean(latest && typeof latest === 'object' && latest.paid === true && latest.status === 'paid');
+  // Newer Stripe Invoice API versions no longer expose the legacy `paid`
+  // boolean. Require a completed paid invoice with no remaining balance and
+  // actual positive funds captured (never unlock from a zero-value draft/trial).
+  const invoicePaid = Boolean(latest && typeof latest === 'object' &&
+    latest.status === 'paid' &&
+    (latest.paid === true || (Number(latest.amount_paid) > 0 &&
+      Number(latest.amount_remaining) === 0)));
   const now = Date.now() / 1000;
   const paidAndCurrent = subscription?.status === 'active' && invoicePaid && end > now;
   let status = 'pending';

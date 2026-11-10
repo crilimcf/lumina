@@ -68,7 +68,7 @@ export async function stripeCreatorsV2Request(resource, body, idempotencyKey) {
   if (!creatorStripeKeyMatchesEnvironment()) {
     throw new HttpError(503, 'Credenciais Stripe incompatíveis com o ambiente', 'creator_stripe_environment_mismatch');
   }
-  if (!/^\\/core\\/(accounts|account_links)$/.test(resource)) {
+  if (!/^\/core\/(accounts|account_links)$/.test(resource)) {
     throw new HttpError(400, 'Operação Stripe v2 inválida', 'invalid_stripe_v2_resource');
   }
   const headers={

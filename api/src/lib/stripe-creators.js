@@ -20,6 +20,15 @@ export const creatorBillingConfigured = () =>
     env.CREATORS_PLATFORM_FEE_PERCENT >= 0 &&
     env.CREATORS_PLATFORM_FEE_PERCENT <= 30);
 
+// Let creators complete Stripe verification before public sales are approved.
+// This never enables plan publication or checkout.
+export const creatorOnboardingEnabled = () =>
+  Boolean(env.FEATURE_CREATORS && env.FEATURE_SUBSCRIPTIONS &&
+    creatorStripeKeyMatchesEnvironment() && env.CREATORS_STRIPE_WEBHOOK_SECRET &&
+    Number.isFinite(env.CREATORS_PLATFORM_FEE_PERCENT) &&
+    env.CREATORS_PLATFORM_FEE_PERCENT >= 0 &&
+    env.CREATORS_PLATFORM_FEE_PERCENT <= 30);
+
 export const creatorCheckoutEnabled = () =>
   Boolean(env.FEATURE_CREATORS && env.FEATURE_SUBSCRIPTIONS && creatorBillingConfigured());
 

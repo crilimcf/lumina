@@ -91,6 +91,7 @@ const CSRF_PUBLIC_PATHS = new Set([
   '/notifications/push/subscribe',
   '/notifications/push/unsubscribe',
   '/reports/client-error',
+  '/payments/stripe/creators-webhook',
 ]);
 const withoutApiPrefix = (pathname) => pathname.startsWith('/api/') ? pathname.slice(4) : pathname;
 app.use((req, res, next) => {
@@ -230,6 +231,7 @@ const mountApi = (prefix = '') => {
   app.use(`${prefix}/one`, oneRoutes);
   app.use(`${prefix}/ai`, aiRoutes);
   app.use(`${prefix}/payments`, paymentRoutes);
+  app.use(`${prefix}/payments`, creatorWebhookRoutes);
   app.use(`${prefix}/notifications`, notificationRoutes);
   app.use(`${prefix}/reports`, reportRoutes);
   app.use(`${prefix}/account`, accountRoutes);
@@ -240,6 +242,7 @@ const mountApi = (prefix = '') => {
   app.use(`${prefix}/moments`, momentRoutes);
 
   app.use(`${prefix}/creators`, creatorRoutes);
+  app.use(`${prefix}/creators`, creatorBillingRoutes);
   app.use(`${prefix}/subscriptions`, auth, h(async () => {
     throw new HttpError(501, 'Pagamentos de subscrição ainda indisponíveis', 'not_implemented');
   }));

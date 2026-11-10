@@ -1,9 +1,10 @@
 import { Router } from 'express';
-import { tx } from '../db.js';
+import { tx, q } from '../db.js';
 import { env } from '../env.js';
 import { h, HttpError } from '../middleware/auth.js';
 import { verifyCreatorStripeEvent, stripeCreatorsRequest, stripeCreatorSubscriptionState,
-  creatorCheckoutEnabled } from '../lib/stripe-creators.js';
+  creatorWebhookEnabled } from '../lib/stripe-creators.js';
+import { handleCreatorPaymentIncident } from '../lib/creator-billing-incidents.js';
 
 export const creatorWebhookRoutes = Router();
 const uuid = v => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v || ''));
@@ -11,6 +12,7 @@ const subscriptionId = v => typeof v === 'string' && /^sub_[A-Za-z0-9]+$/.test(v
 
 const handled = new Set(['checkout.session.completed','checkout.session.async_payment_succeeded',
   'checkout.session.expired','invoice.paid','invoice.payment_failed','customer.subscription.created','customer.subscription.updated',
+  'charge.refunded','charge.dispute.created','refund.created',
   'customer.subscription.deleted']);
 
 const getId = value => typeof value === 'string' ? value : value?.id;
@@ -41,16 +43,35 @@ async function reconcileSubscription(subId, checkoutSessionId = null) {
   const price = subscription.items?.data?.[0]?.price;
   if (!price || Number(price.unit_amount) !== Number(row.price_cents) ||
       price.currency !== 'eur' || price.recurring?.interval !== row.billing_period) return null;
-  const {status, currentPeriodEnd} = stripeCreatorSubscriptionState(subscription);
-  return {subId, creatorId, subscriberId, planId, status, currentPeriodEnd, checkoutSessionId};
+  let {status, currentPeriodEnd} = stripeCreatorSubscriptionState(subscription);
+  const invoiceId = getId(subscription.latest_invoice);
+  // Stripe invoices remain "paid" even if their underlying charge was
+  // subsequently refunded or disputed. Preserve the hold for that invoice.
+  if (status === 'active') {
+    if (!/^in_[a-zA-Z0-9]+$/.test(String(invoiceId || ''))) {
+      status = 'pending';
+    } else {
+      const {rows: incidents} = await q(
+        'SELECT 1 FROM creator_billing_incidents WHERE provider_subscription_id=$1 AND invoice_id=$2 LIMIT 1',
+        [subId,invoiceId]
+      );
+      if (incidents[0]) status='past_due';
+    }
+  }
+  return {subId, creatorId, subscriberId, planId, status, currentPeriodEnd,
+    checkoutSessionId, invoiceId: /^in_[a-zA-Z0-9]+$/.test(String(invoiceId||'')) ? invoiceId : null};
 }
 
 creatorWebhookRoutes.post('/stripe/creators-webhook', h(async (req, res) => {
-  if (!creatorCheckoutEnabled()) throw new HttpError(503, 'Subscrições indisponíveis', 'creator_payments_unavailable');
+  if (!creatorWebhookEnabled()) throw new HttpError(503, 'Notificações de pagamentos indisponíveis', 'creator_webhook_unavailable');
   const event = verifyCreatorStripeEvent(req.rawBody, req.headers['stripe-signature'],
     env.CREATORS_STRIPE_WEBHOOK_SECRET);
   const object = event.data?.object || {};
   if (!handled.has(event.type)) return res.json({received: true});
+  if (['charge.refunded','charge.dispute.created','refund.created'].includes(event.type)) {
+    const outcome = await handleCreatorPaymentIncident(event);
+    return res.json({received:true,matched:!!outcome.matched});
+  }
   const isExpiredSession = event.type === 'checkout.session.expired';
 
   const sessionId = object.object === 'checkout.session' ? object.id : null;
@@ -89,16 +110,16 @@ creatorWebhookRoutes.post('/stripe/creators-webhook', h(async (req, res) => {
       [state.subId]);
     if (existing[0]) {
       await client.query(
-        'UPDATE creator_memberships SET status=$2,current_period_end=$3,updated_at=now() WHERE id=$1',
-        [existing[0].id,state.status,state.currentPeriodEnd]);
+        "UPDATE creator_memberships SET status=$2,current_period_end=$3,last_paid_invoice_id=CASE WHEN $2='active' THEN $4 ELSE last_paid_invoice_id END,updated_at=now() WHERE id=$1",
+        [existing[0].id,state.status,state.currentPeriodEnd,state.invoiceId]);
     } else if (state.status === 'active') {
       const {rows: others} = await client.query(
         "SELECT id FROM creator_memberships WHERE creator_id=$1 AND subscriber_id=$2 AND status IN ('pending','active','past_due') FOR UPDATE",
         [state.creatorId,state.subscriberId]);
       if (!others[0]) {
         await client.query(
-          "INSERT INTO creator_memberships(creator_id,subscriber_id,plan_id,provider,provider_subscription_id,status,current_period_end) VALUES($1,$2,$3,'stripe',$4,'active',$5)",
-          [state.creatorId,state.subscriberId,state.planId,state.subId,state.currentPeriodEnd]);
+          "INSERT INTO creator_memberships(creator_id,subscriber_id,plan_id,provider,provider_subscription_id,status,current_period_end,last_paid_invoice_id) VALUES($1,$2,$3,'stripe',$4,'active',$5,$6)",
+          [state.creatorId,state.subscriberId,state.planId,state.subId,state.currentPeriodEnd,state.invoiceId]);
       }
     }
   });

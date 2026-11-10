@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import { isNativeApp } from '../native/session.js';
 
 const card = { background:'#141c2b', color:'#f4f8ff', border:'1px solid rgba(148,179,205,.20)', borderRadius:24, padding:'22px 20px', marginBottom:18, boxShadow:'0 16px 38px rgba(3,11,27,.14)' };
 const field = { width:'100%', minHeight:48, padding:'12px 14px', borderRadius:12, border:'1px solid rgba(156,177,207,.38)', background:'#111827', color:'#f4f8ff', boxSizing:'border-box', marginTop:8, fontSize:16 };
@@ -19,10 +20,12 @@ export function CreatorStudio({ onBack }) {
   const [body,setBody] = useState('');
   const [unavailable,setUnavailable] = useState(false);
   const [notice,setNotice] = useState('');
+  const [billing,setBilling] = useState(null);
 
   const load = async () => {
     try {
-      const [p,c] = await Promise.all([api.creators.myPlans(),api.creators.myContent()]);
+      const [p,c,b] = await Promise.all([api.creators.myPlans(),api.creators.myContent(),api.creators.billingStatus().catch(() => null)]);
+      setBilling(b);
       setPlans(p.plans || []);
       setContent(c.content || []);
       setError('');
@@ -46,6 +49,16 @@ export function CreatorStudio({ onBack }) {
     {unavailable ? <section style={card}><h2>Em preparação</h2><p>O estúdio será ativado depois de concluirmos a segurança e os pagamentos.</p></section> : <>
       {error && <p role="alert" style={{color:'#ffb8ae'}}>{error}</p>}
       {notice && <p role="status" style={{color:'#7eeddf',marginBottom:14}}>{notice}</p>}
+      {billing?.available && !isNativeApp() && <section style={card}>
+        <h2>Receber subscrições</h2>
+        <p style={{...muted,fontSize:14,marginTop:10}}>A verificação de identidade e dos dados de pagamento é feita de forma segura pela Stripe.</p>
+        {!billing.account?.linked && <button disabled={busy} style={{...button,marginTop:18}} onClick={() => void submit(async () => { const response = await api.creators.billingOnboard(); if (!response?.url || new URL(response.url).protocol !== 'https:' || !new URL(response.url).hostname.endsWith('.stripe.com')) throw new Error('Ligação segura de onboarding indisponível'); window.location.assign(response.url); })}>Configurar pagamentos</button>}
+        {billing.account?.linked && <><p style={{...muted,marginTop:12}}>Conta Stripe associada. {billing.account.chargesEnabled && billing.account.payoutsEnabled && billing.account.detailsSubmitted ? 'Verificação concluída.' : 'Verificação ainda por concluir.'}</p>
+          <button disabled={busy} style={{...button,marginTop:12,marginRight:10}} onClick={() => void submit(() => api.creators.billingRefresh())}>Atualizar verificação</button>
+          {(!billing.account.chargesEnabled || !billing.account.payoutsEnabled || !billing.account.detailsSubmitted) && <button disabled={busy} style={{...button,marginTop:12}} onClick={() => void submit(async () => { const response = await api.creators.billingOnboard(); if (!response?.url || new URL(response.url).protocol !== 'https:' || !new URL(response.url).hostname.endsWith('.stripe.com')) throw new Error('Ligação segura de onboarding indisponível'); window.location.assign(response.url); })}>Concluir dados na Stripe</button>}
+        </>}
+        {!billing.enabled && <p style={{...muted,fontSize:13,marginTop:12}}>O lançamento comercial depende dos testes finais de faturação e segurança.</p>}
+      </section>}
       <section style={card}>
         <h2>Planos de comunidade</h2>
         <p style={{...muted,fontSize:14,margin:'10px 0 18px'}}>Define o valor e a periodicidade da tua comunidade. A ativação das subscrições depende da verificação de pagamentos e segurança.</p>
@@ -55,7 +68,7 @@ export function CreatorStudio({ onBack }) {
           <label style={labelStyle}>Periodicidade<select value={period} onChange={e=>setPeriod(e.target.value)} style={field}><option value="month">Mensal</option><option value="year">Anual</option></select></label>
           <button disabled={busy} style={{...button,marginTop:20,opacity:busy ? 0.6 : 1}}>Guardar plano</button>
         </form>
-        {plans.map(p=><div key={p.id} style={{padding:'12px 0',borderTop:'1px solid #9993',marginTop:12}}><strong>{p.title}</strong> · {(p.price_cents/100).toFixed(2)} €/{p.billing_period==='month'?'mês':'ano'} <small style={{color:'#b6c6da'}}>({p.status==='draft'?'em configuração':p.status==='published'?'publicado':'arquivado'})</small></div>)}
+        {plans.map(p=><div key={p.id} style={{padding:'12px 0',borderTop:'1px solid #9993',marginTop:12}}><strong>{p.title}</strong> · {(p.price_cents/100).toFixed(2)} €/{p.billing_period==='month'?'mês':'ano'} <small style={{color:'#b6c6da'}}>({p.status==='draft'?'em configuração':p.status==='published'?'publicado':'arquivado'})</small>{billing?.enabled && billing.account?.chargesEnabled && billing.account?.payoutsEnabled && p.status==='draft' && !isNativeApp() && <button type="button" disabled={busy} style={{...button,display:'block',marginTop:10}} onClick={() => void submit(() => api.creators.publishPlan(p.id))}>Publicar plano</button>}</div>)}
       </section>
       <section style={card}>
         <h2>Conteúdo exclusivo</h2>

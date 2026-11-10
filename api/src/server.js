@@ -297,6 +297,13 @@ if (process.env.NODE_ENV !== 'test') {
     console.log('[sandbox] Stripe test key verified against the authorized Lumina account');
   }
 
+  // One-shot, non-mutating permission diagnostics. Off by default.
+  if (process.env.CREATORS_STRIPE_PERMISSION_PROBE === 'true') {
+    const { checkCreatorStripePermissions } = await import('./lib/creator-stripe-readiness.js');
+    void checkCreatorStripePermissions().catch(() =>
+      console.log('[creators/stripe-probe] failed unexpectedly'));
+  }
+
   const server = app.listen(env.PORT, '0.0.0.0', () => {
     console.log(`Lumina API na porta ${env.PORT}`);
     if (process.env.LUMINA_SANDBOX === 'true') {

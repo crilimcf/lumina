@@ -51,6 +51,10 @@ before(async () => {
     "INSERT INTO creator_memberships(creator_id,subscriber_id,plan_id,provider,provider_subscription_id,status,current_period_end) VALUES ($1,$2,$3,'stripe',$4,'active',now()+interval '1 month')",
     [creator.id,subscriber.id,planId,stripeSubscriptionId]
   );
+  await q(
+    "INSERT INTO creator_billing_incidents(event_id,provider_subscription_id,invoice_id,charge_id,reason) VALUES ('evt_luminaGdprErasure',$1,'in_luminaGdprErasure','ch_luminaGdprErasure','refund')",
+    [stripeSubscriptionId]
+  );
   checkoutId='cs_test_luminaGdprErasure';
   await q(
     "INSERT INTO creator_checkout_sessions(session_id,creator_id,subscriber_id,plan_id,checkout_url,expires_at,stripe_subscription_id,status) VALUES ($1,$2,$3,$4,$5,now()+interval '1 day',$6,'paid')",
@@ -86,6 +90,7 @@ test('successful Stripe cancellation precedes cascaded RGPD erasure', async () =
   for (const [query,params] of [
     ['SELECT id FROM creator_plans WHERE id=$1',[planId]],
     ['SELECT id FROM creator_memberships WHERE creator_id=$1',[creator.id]],
+    ['SELECT event_id FROM creator_billing_incidents WHERE provider_subscription_id=$1',[stripeSubscriptionId]],
     ['SELECT session_id FROM creator_checkout_sessions WHERE session_id=$1',[checkoutId]],
     ['SELECT creator_id FROM creator_billing_accounts WHERE creator_id=$1',[creator.id]],
   ]) {

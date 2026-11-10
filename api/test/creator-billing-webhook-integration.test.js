@@ -202,6 +202,9 @@ test('a refunded invoice revokes paid content and repeated subscription updates 
 
   const afterRefund=await request('/api/creators/'+creator.id+'/content',{token:signToken(subscriber)});
   assert.deepEqual(afterRefund.data.content,[]);
+  const exported=await request('/api/account/export',{token:signToken(subscriber)});
+  assert.equal(exported.status,200);
+  assert.ok(exported.data.incidentesFinanceirosCreators.some(x=>x.event_id===refund.id && x.reason==='refund'));
 
   const update={id:'evt_luminaRefundReplay123',type:'customer.subscription.updated',
     data:{object:{id:subscriptionId,object:'subscription',metadata:{

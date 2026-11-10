@@ -11,6 +11,12 @@ export const creatorBillingConfigured = () =>
 export const creatorCheckoutEnabled = () =>
   Boolean(env.FEATURE_CREATORS && env.FEATURE_SUBSCRIPTIONS && creatorBillingConfigured());
 
+// Keep verified billing events working when new purchases are paused. Disabling
+// Checkout must never silently disable cancellations, refunds or entitlement
+// revocation for already-paid members.
+export const creatorWebhookEnabled = () =>
+  Boolean(env.FEATURE_CREATORS && env.STRIPE_SECRET_KEY && env.CREATORS_STRIPE_WEBHOOK_SECRET);
+
 export async function stripeCreatorsRequest(method, resource, parameters, idempotencyKey) {
   if (!env.STRIPE_SECRET_KEY) {
     throw new HttpError(503, 'Pagamentos ainda não configurados', 'creator_billing_not_configured');

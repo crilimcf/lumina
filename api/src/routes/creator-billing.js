@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { q, tx } from '../db.js';
 import { env } from '../env.js';
 import { auth, h, bad, forbidden, HttpError } from '../middleware/auth.js';
-import { stripeCreatorsRequest, creatorCheckoutEnabled, creatorBillingConfigured } from '../lib/stripe-creators.js';
+import { stripeCreatorsRequest, stripeCreatorsV2Request, creatorCheckoutEnabled, creatorBillingConfigured } from '../lib/stripe-creators.js';
 
 export const creatorBillingRoutes = Router();
 creatorBillingRoutes.use(auth);
@@ -75,13 +75,15 @@ creatorBillingRoutes.post('/me/billing/onboard', h(async (req, res) => {
   let { rows } = await q('SELECT stripe_account_id FROM creator_billing_accounts WHERE creator_id=$1', [req.user.id]);
   let accountId = rows[0]?.stripe_account_id;
   if (!accountId) {
-    const connected = await stripeCreatorsRequest('POST', '/accounts', {
-      type: 'express',
-      country: 'PT',
-      email: email(req.user.email),
-      'capabilities[transfers][requested]': 'true',
-      'metadata[lumina_creator_id]': req.user.id,
-    }, 'lumina-creators-account-' + req.user.id);
+    const connected = await stripeCreatorsV2Request('/core/accounts', {
+      contact_email:email(req.user.email),
+      display_name:String(req.user.name || req.user.handle || 'Criador Lumina').slice(0,100),
+      dashboard:'express',
+      identity:{country:'PT'},
+      defaults:{responsibilities:{fees_collector:'application',losses_collector:'application'}},
+      configuration:{recipient:{capabilities:{stripe_balance:{stripe_transfers:{requested:true}}}}},
+      metadata:{lumina_creator_id:req.user.id},
+    }, 'lumina-creators-v2-account-' + req.user.id);
     accountId = connected.id;
     if (!cleanAccountId(accountId)) throw new HttpError(502, 'Conta de criador inválida', 'creator_account_invalid');
     await q('INSERT INTO creator_billing_accounts (creator_id,stripe_account_id,country) VALUES ($1,$2,$3) ON CONFLICT (creator_id) DO NOTHING',
@@ -90,11 +92,16 @@ creatorBillingRoutes.post('/me/billing/onboard', h(async (req, res) => {
     accountId = rows[0]?.stripe_account_id;
   }
   if (!cleanAccountId(accountId)) throw paymentNotReady();
-  const link = await stripeCreatorsRequest('POST', '/account_links', {
-    account: accountId,
-    refresh_url: env.APP_URL + '/?creators=onboarding',
-    return_url: env.APP_URL + '/?creators=onboarded',
-    type: 'account_onboarding',
+  const link = await stripeCreatorsV2Request('/core/account_links', {
+    account:accountId,
+    use_case:{
+      type:'account_onboarding',
+      account_onboarding:{
+        configurations:['recipient'],
+        refresh_url:env.APP_URL + '/?creators=onboarding',
+        return_url:env.APP_URL + '/?creators=onboarded',
+      },
+    },
   });
   res.json({ url: link.url });
 }));

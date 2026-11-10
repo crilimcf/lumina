@@ -44,6 +44,15 @@ const webDir = path.resolve(process.cwd(), 'public');
 const webIndex = path.join(webDir, 'index.html');
 
 app.set('trust proxy', 1);
+// Isolated public sandbox: expose only health and signed billing webhooks.
+// No user accounts, feeds, login or payments are accessible in this environment.
+if (process.env.LUMINA_SANDBOX === 'true') {
+  const allowed = new Set(['/health','/api/health','/payments/stripe/creators-webhook','/api/payments/stripe/creators-webhook']);
+  app.use((req,res,next)=>{
+    if (allowed.has(req.path)) return next();
+    return res.status(404).json({error:'Sandbox isolado'});
+  });
+}
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {

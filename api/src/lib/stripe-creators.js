@@ -56,6 +56,12 @@ export async function stripeCreatorsRequest(method, resource, parameters, idempo
   if (!response.ok || !data || data.error) {
     // Do not send Stripe's raw response (which can contain private billing details) to clients.
     console.error('[creators/stripe] erro', response.status, data?.error?.code || 'unknown');
+    if (process.env.LUMINA_SANDBOX === 'true' && resource === '/accounts') {
+      const safeMessage=String(data?.error?.message || '').slice(0,250)
+        .replace(/(?:sk|rk|pk|whsec)_[A-Za-z0-9_]+/g, '[redacted]');
+      console.error('[sandbox/connect] Stripe account creation rejected:',
+        data?.error?.type || 'unknown',safeMessage);
+    }
     throw new HttpError(502, 'Não foi possível concluir a operação no serviço de pagamentos', 'creator_payment_provider');
   }
   return data;

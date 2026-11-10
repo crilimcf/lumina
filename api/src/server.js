@@ -304,6 +304,12 @@ if (process.env.NODE_ENV !== 'test') {
       console.log('[creators/stripe-probe] failed unexpectedly'));
   }
 
+  if (process.env.CREATORS_STRIPE_WRITE_PROBE === 'true') {
+    const { checkCreatorStripeWritePermissions } = await import('./lib/creator-stripe-readiness.js');
+    void checkCreatorStripeWritePermissions().catch(() =>
+      console.log('[creators/stripe-write-probe] unexpected-failure'));
+  }
+
   const server = app.listen(env.PORT, '0.0.0.0', () => {
     console.log(`Lumina API na porta ${env.PORT}`);
     if (process.env.LUMINA_SANDBOX === 'true') {

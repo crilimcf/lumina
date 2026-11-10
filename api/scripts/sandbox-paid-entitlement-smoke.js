@@ -200,8 +200,9 @@ try {
   const member=await q(
     'SELECT status,provider_subscription_id,last_paid_invoice_id FROM creator_memberships WHERE creator_id=$1 AND subscriber_id=$2',
     [creator.id,subscriber.id]);
-  if (!(member.rows.length===1&&member.rows[0].status==='active'&&
-    member.rows[0].provider_subscription_id===subscriptionId&&member.rows[0].last_paid_invoice_id===invoice)) {
+  const thisMembership=member.rows.find(row=>row.provider_subscription_id===subscriptionId);
+  if (!(thisMembership&&thisMembership.status==='active'&&
+    thisMembership.last_paid_invoice_id===invoice)) {
     const {rows:checkouts}=await q(
       'SELECT status,stripe_subscription_id FROM creator_checkout_sessions WHERE creator_id=$1 AND subscriber_id=$2 ORDER BY created_at DESC LIMIT 2',
       [creator.id,subscriber.id]);

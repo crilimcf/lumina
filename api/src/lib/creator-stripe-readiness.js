@@ -52,6 +52,24 @@ export async function checkCreatorStripeWritePermissions(fetchImpl=fetch) {
   const logStatus=(name,status)=>console.log('[creators/stripe-write-probe]',name,'HTTP',status);
   let customerId=null;
   try {
+    // Do not mutate a Stripe account merely because the restricted key is valid.
+    // Verify that this key belongs to the intended Lumina production platform.
+    const expected=env.CREATORS_STRIPE_EXPECTED_ACCOUNT_ID;
+    if (!/^acct_[A-Za-z0-9]+$/.test(expected || '')) {
+      console.log('[creators/stripe-write-probe] expected-account-not-configured');
+      return {identityVerified:false};
+    }
+    const identity=await fetchImpl('https://api.stripe.com/v1/account',{
+      method:'GET', headers:{authorization:'Bearer '+key},
+      signal:AbortSignal.timeout(12000),
+    });
+    logStatus('account-identity-read',identity.status);
+    const actual=await identity.json().catch(()=>null);
+    if (!identity.ok || actual?.id!==expected || actual?.livemode===false) {
+      console.log('[creators/stripe-write-probe] account-identity-mismatch');
+      return {identityVerified:false};
+    }
+    console.log('[creators/stripe-write-probe] expected-account-verified');
     const create = await fetchImpl('https://api.stripe.com/v1/customers',{
       method:'POST',headers,
       body:new URLSearchParams({

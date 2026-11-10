@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { q, tx } from '../db.js';
 import { env } from '../env.js';
 import { auth, h, bad, forbidden, HttpError } from '../middleware/auth.js';
-import { stripeCreatorsRequest, stripeCreatorsV2Request, creatorCheckoutEnabled, creatorBillingConfigured, creatorOnboardingEnabled } from '../lib/stripe-creators.js';
+import { stripeCreatorsRequest, stripeCreatorsV2Request, creatorCheckoutEnabled, creatorBillingConfigured, creatorOnboardingEnabled, stripeCreatorsV2RecipientStatus } from '../lib/stripe-creators.js';
 
 export const creatorBillingRoutes = Router();
 creatorBillingRoutes.use(auth);
@@ -121,13 +121,13 @@ creatorBillingRoutes.post('/me/billing/refresh', h(async (req, res) => {
   const { rows } = await q('SELECT stripe_account_id FROM creator_billing_accounts WHERE creator_id=$1', [req.user.id]);
   const accountId = rows[0]?.stripe_account_id;
   if (!cleanAccountId(accountId)) throw bad('Conta Stripe por associar');
-  const account = await stripeCreatorsRequest('GET', '/accounts/' + accountId);
-  const charges = Boolean(account.charges_enabled);
-  const payouts = Boolean(account.payouts_enabled);
-  const details = Boolean(account.details_submitted);
-  // Recipient-only Accounts v2 can receive destination transfers without
-  // being permitted to accept direct charges on the connected account.
-  const transfers = account.capabilities?.transfers === 'active';
+  // Accounts v2 recipient capabilities, not legacy charges_enabled booleans,
+  // determine whether this creator can receive funds from destination charges.
+  const readiness = await stripeCreatorsV2RecipientStatus(accountId);
+  const charges = false; // A recipient is not a direct-charge merchant.
+  const payouts = readiness.payouts;
+  const transfers = readiness.transfers;
+  const details = readiness.ready; // Conservative: not ready until both are active.
   await q('UPDATE creator_billing_accounts SET charges_enabled=$2,payouts_enabled=$3,details_submitted=$4,transfers_enabled=$5,updated_at=now() WHERE creator_id=$1',
     [req.user.id, charges, payouts, details, transfers]);
   res.json({ linked: true, chargesEnabled: charges, payoutsEnabled: payouts,
@@ -140,6 +140,13 @@ creatorBillingRoutes.post('/me/plans/:planId/publish', h(async (req, res) => {
   const { rows: account } = await q('SELECT stripe_account_id,charges_enabled,payouts_enabled,transfers_enabled,details_submitted FROM creator_billing_accounts WHERE creator_id=$1', [req.user.id]);
   if (!(account[0]?.transfers_enabled ?? account[0]?.charges_enabled) || !account[0]?.payouts_enabled || !account[0]?.details_submitted) {
     throw new HttpError(409, 'Completa primeiro a verificação de pagamentos', 'creator_onboarding_required');
+  }
+  // Previously verified capabilities can be restricted by Stripe at any time.
+  // Re-check at the moment a paid plan is published, not just when the user
+  // presses the refresh button.
+  const liveReadiness = await stripeCreatorsV2RecipientStatus(account[0].stripe_account_id);
+  if (!liveReadiness.ready) {
+    throw new HttpError(409, 'A conta Stripe necessita de nova verificação', 'creator_onboarding_required');
   }
   const { rows } = await q("UPDATE creator_plans SET status='published',updated_at=now() WHERE id=$1 AND creator_id=$2 AND status='draft' RETURNING id,title,status", [req.params.planId, req.user.id]);
   if (!rows[0]) throw new HttpError(404, 'Plano indisponível', 'creator_plan_missing');
@@ -157,6 +164,13 @@ creatorBillingRoutes.post('/:creatorId/plans/:planId/checkout', h(async (req, re
   const plan = plans[0];
   if (!plan) throw new HttpError(409, 'Plano não disponível ou subscrição já existente', 'creator_plan_unavailable');
   if (!cleanAccountId(plan.stripe_account_id)) throw paymentNotReady();
+  // Do not open a new charge against a Stripe recipient that has lost
+  // transfers or payout capability since the last saved verification.
+  const liveReadiness = await stripeCreatorsV2RecipientStatus(plan.stripe_account_id);
+  if (!liveReadiness.ready) {
+    throw new HttpError(409, 'O criador ainda não está autorizado a receber pagamentos',
+      'creator_onboarding_required');
+  }
   const { rows: customers } = await q('SELECT stripe_customer_id FROM creator_billing_customers WHERE subscriber_id=$1', [req.user.id]);
   let customerId = customers[0]?.stripe_customer_id;
   if (!customerId) {

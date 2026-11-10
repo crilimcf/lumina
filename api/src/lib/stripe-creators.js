@@ -102,6 +102,49 @@ export async function stripeCreatorsV2Request(resource, body, idempotencyKey) {
   return data;
 }
 
+/** Retrieve the capabilities of a v2 recipient account (without exposing identity data).
+ * A legacy v1 charges_enabled/payouts_enabled check cannot determine whether
+ * this Accounts v2 recipient is eligible to receive destination transfers.
+ */
+export async function stripeCreatorsV2RecipientStatus(accountId) {
+  if (!creatorStripeKeyMatchesEnvironment()) {
+    throw new HttpError(503,'Credenciais Stripe incompatíveis com o ambiente','creator_stripe_environment_mismatch');
+  }
+  if (!/^acct_[A-Za-z0-9]+$/.test(String(accountId || ''))) {
+    throw new HttpError(400,'Conta Stripe inválida','creator_account_invalid');
+  }
+  const params = new URLSearchParams({
+    'include[0]':'configuration.recipient',
+    'include[1]':'requirements',
+  });
+  let response;
+  try {
+    response = await fetch('https://api.stripe.com/v2/core/accounts/' +
+      encodeURIComponent(accountId) + '?' + params.toString(), {
+      method:'GET',
+      headers:{
+        authorization:'Bearer '+env.STRIPE_SECRET_KEY,
+        'Stripe-Version':'2026-07-29.preview',
+      },
+      signal:AbortSignal.timeout(15000),
+    });
+  } catch {
+    throw new HttpError(502,'Serviço de pagamentos temporariamente indisponível','creator_payment_network');
+  }
+  const data=await response.json().catch(()=>null);
+  if (!response.ok || data?.error || data?.id!==accountId || data?.object!=='v2.core.account') {
+    console.error('[creators/stripe-v2] não foi possível consultar capacidade do destinatário',
+      response.status,data?.error?.code || 'invalid_response');
+    throw new HttpError(502,'Não foi possível verificar a conta Stripe','creator_payment_provider');
+  }
+  const recipient=data.configuration?.recipient?.capabilities?.stripe_balance;
+  const transfers=recipient?.stripe_transfers?.status==='active';
+  const payouts=recipient?.payouts?.status==='active';
+  // Fail closed: an Express recipient must be able to receive transfers AND
+  // pay out before the creator can publish a paid plan.
+  return {transfers, payouts, ready:transfers && payouts};
+}
+
 export function verifyCreatorStripeEvent(raw, header, secret, nowSeconds = Date.now() / 1000) {
   if (!secret) throw new HttpError(503, 'Webhook de pagamentos não configurado');
   if (!Buffer.isBuffer(raw) || raw.length > 256 * 1024) {

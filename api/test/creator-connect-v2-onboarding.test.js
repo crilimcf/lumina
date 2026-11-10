@@ -15,6 +15,7 @@ process.env.DATABASE_URL||='postgresql://test:test@localhost:5432/lumina_test';
 const fetchReal=globalThis.fetch;
 const connectedId='acct_creatorV2CI0123';
 let createCalls=0,linkCalls=0,getCalls=0;
+let nextTransferStatus='restricted',nextPayoutStatus='restricted';
 globalThis.fetch=async(input,options={})=>{
   const uri=String(input);
   if(!uri.startsWith('https://api.stripe.com/')) return fetchReal(input,options);
@@ -41,10 +42,16 @@ globalThis.fetch=async(input,options={})=>{
     assert.match(data.use_case.account_onboarding.return_url,/creators=onboarded/);
     return respond({id:'link_creatorV2CI0123',url:'https://connect.stripe.com/setup/c/lumina-ci-only'});
   }
-  if(uri==='https://api.stripe.com/v1/accounts/'+connectedId && options.method==='GET'){
+  if(uri.startsWith('https://api.stripe.com/v2/core/accounts/'+connectedId+'?') && options.method==='GET'){
     getCalls++;
-    return respond({id:connectedId,charges_enabled:false,payouts_enabled:false,
-      details_submitted:false,requirements:{currently_due:['external_account']}});
+    const url=new URL(uri);
+    assert.equal(url.searchParams.get('include[0]'),'configuration.recipient');
+    assert.equal(url.searchParams.get('include[1]'),'requirements');
+    assert.equal(options.headers['Stripe-Version'],'2026-07-29.preview');
+    return respond({id:connectedId,object:'v2.core.account',
+      configuration:{recipient:{capabilities:{stripe_balance:{
+        stripe_transfers:{status:nextTransferStatus},payouts:{status:nextPayoutStatus}
+      }}}},requirements:{},livemode:false});
   }
   return respond({error:{code:'unexpected_stripe_api',message:'Unexpected call'}},400);
 };
@@ -108,5 +115,25 @@ test('new creator onboarding uses Accounts v2 and links exactly one recipient',a
   assert.equal(refresh.body.linked,true);
   assert.equal(refresh.body.chargesEnabled,false);
   assert.equal(refresh.body.payoutsEnabled,false);
+  assert.equal(refresh.body.transfersEnabled,false);
+  assert.equal(refresh.body.detailsSubmitted,false);
   assert.equal(getCalls,1);
+
+  // After Stripe-hosted verification, both recipient capabilities may turn
+  // active independently; neither one alone is sufficient to enable sales.
+  nextTransferStatus='active';
+  const partial=await request('/api/creators/me/billing/refresh',{method:'POST'});
+  assert.equal(partial.status,200);
+  assert.equal(partial.body.transfersEnabled,true);
+  assert.equal(partial.body.payoutsEnabled,false);
+  assert.equal(partial.body.detailsSubmitted,false);
+
+  nextPayoutStatus='active';
+  const ready=await request('/api/creators/me/billing/refresh',{method:'POST'});
+  assert.equal(ready.status,200);
+  assert.equal(ready.body.transfersEnabled,true);
+  assert.equal(ready.body.payoutsEnabled,true);
+  assert.equal(ready.body.detailsSubmitted,true);
+  assert.equal(ready.body.chargesEnabled,false,'Recipient does not need direct charge capability');
+  assert.equal(getCalls,3);
 });

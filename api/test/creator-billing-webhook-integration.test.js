@@ -12,6 +12,7 @@ process.env.CREATORS_STRIPE_PORTAL_CONFIGURATION = 'bpc_luminaTest123';
 const fetchReal = globalThis.fetch;
 
 let stripeCheckoutCalls = 0;
+let currentTransferStatus='active',currentPayoutStatus='active';
 let currentStatus = 'active';
 let latestPaid = true;
 const expiry = () => Math.floor(Date.now() / 1000) + 3600;
@@ -29,9 +30,19 @@ globalThis.fetch = async (url, options = {}) => {
   const target = String(url);
   // Stripe Accounts v2 requests are JSON, while billing remains on v1.
   if (target.startsWith('https://api.stripe.com/v2/core/')) {
+    assert.match(options.headers['Stripe-Version'],/^2026-/);
+    if (target.startsWith('https://api.stripe.com/v2/core/accounts/' + connectedId + '?') && options.method==='GET') {
+      const includes=new URL(target).searchParams;
+      assert.equal(includes.get('include[0]'),'configuration.recipient');
+      return new Response(JSON.stringify({
+        id:connectedId,object:'v2.core.account',livemode:false,
+        configuration:{recipient:{capabilities:{stripe_balance:{
+          stripe_transfers:{status:currentTransferStatus},payouts:{status:currentPayoutStatus}
+        }}}}
+      }),{status:200,headers:{'content-type':'application/json'}});
+    }
     const body = JSON.parse(options.body || '{}');
     assert.equal(options.method,'POST');
-    assert.match(options.headers['Stripe-Version'],/^2026-/);
     if (target.endsWith('/accounts')) {
       assert.equal(body.identity.country,'PT');
       assert.equal(body.defaults.responsibilities.losses_collector,'application');
@@ -52,10 +63,6 @@ globalThis.fetch = async (url, options = {}) => {
   const respond = (data,status=200) => new Response(JSON.stringify(data), {
     status, headers:{'content-type':'application/json'}
   });
-  if (target.includes('/accounts/' + connectedId) && options.method === 'GET') {
-    return respond({id:connectedId,country:'PT',charges_enabled:false,
-      payouts_enabled:true,details_submitted:true,capabilities:{transfers:'active'}});
-  }
   if (target.includes('/billing_portal/sessions') && options.method === 'POST') {
     const params = new URLSearchParams(options.body);
     assert.equal(params.get('customer'),customerId);
@@ -177,6 +184,21 @@ test('recipient transfer capability unlocks creator plan eligibility without dir
   assert.equal(rows[0].charges_enabled,false);
   assert.equal(rows[0].transfers_enabled,true);
   assert.equal(rows[0].payouts_enabled,true);
+});
+
+test('revoked v2 payout capability blocks checkout even if database still says verified',async()=>{
+  const countBefore=stripeCheckoutCalls;
+  currentPayoutStatus='restricted';
+  try {
+    const result=await request('/api/creators/'+creator.id+'/plans/'+planId+'/checkout',{
+      token:signToken(subscriber),method:'POST'
+    });
+    assert.equal(result.status,409);
+    assert.equal(stripeCheckoutCalls,countBefore,
+      'No Stripe Checkout session should be created while payout capability is blocked');
+  } finally {
+    currentPayoutStatus='active';
+  }
 });
 
 test('duplicate subscription attempts reuse one pending checkout without second charge',async()=>{

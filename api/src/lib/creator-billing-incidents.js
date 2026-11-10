@@ -90,7 +90,7 @@ export async function handleCreatorPaymentIncident(event) {
       'INSERT INTO creator_billing_incidents(event_id,provider_subscription_id,invoice_id,charge_id,reason) VALUES($1,$2,$3,$4,$5) ON CONFLICT(event_id) DO NOTHING',
       [event.id,subId,invoiceId,id(chargeId,'ch')?chargeId:null,reason]
     );
-    if (rowCount && memberships[0].last_paid_invoice_id === invoiceId) {
+    if (rowCount && memberships[0]?.last_paid_invoice_id === invoiceId) {
       await client.query(
         "UPDATE creator_memberships SET status='past_due',updated_at=now() WHERE id=$1 AND status='active'",
         [memberships[0].id]

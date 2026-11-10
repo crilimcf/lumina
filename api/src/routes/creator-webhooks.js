@@ -10,7 +10,7 @@ const uuid = v => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[
 const subscriptionId = v => typeof v === 'string' && /^sub_[A-Za-z0-9]+$/.test(v);
 
 const handled = new Set(['checkout.session.completed','checkout.session.async_payment_succeeded',
-  'invoice.paid','invoice.payment_failed','customer.subscription.created','customer.subscription.updated',
+  'checkout.session.expired','invoice.paid','invoice.payment_failed','customer.subscription.created','customer.subscription.updated',
   'customer.subscription.deleted']);
 
 const getId = value => typeof value === 'string' ? value : value?.id;
@@ -51,27 +51,39 @@ creatorWebhookRoutes.post('/stripe/creators-webhook', h(async (req, res) => {
     env.CREATORS_STRIPE_WEBHOOK_SECRET);
   const object = event.data?.object || {};
   if (!handled.has(event.type)) return res.json({received: true});
+  const isExpiredSession = event.type === 'checkout.session.expired';
 
   const sessionId = object.object === 'checkout.session' ? object.id : null;
   let subId = findSubscription(object);
   if (sessionId && /^cs_[a-zA-Z0-9_]+$/.test(sessionId)) {
     subId = getId(object.subscription);
   }
-  const state = subId ? await reconcileSubscription(subId, sessionId) : null;
+  const state = subId && !isExpiredSession ? await reconcileSubscription(subId, sessionId) : null;
+  // A signed event about our own payment must be retried if provider state is not yet usable.
+  // Unrelated subscriptions on the same Stripe account are acknowledged and ignored.
+  const ourEvent = Boolean(object.metadata?.lumina_creator_id || object.metadata?.lumina_plan_id);
+  if (subId && !state && ourEvent && !isExpiredSession) {
+    throw new HttpError(503, 'Aguardar sincronização com o prestador de pagamentos', 'creator_payment_reconcile_pending');
+  }
 
   await tx(async client => {
     const { rowCount } = await client.query(
       'INSERT INTO creator_stripe_webhook_events(event_id,event_type) VALUES($1,$2) ON CONFLICT(event_id) DO NOTHING',
       [event.id,event.type]);
-    if (!rowCount || !state) return;
+    if (!rowCount) return;
+    if (isExpiredSession && /^cs_[a-zA-Z0-9_]+$/.test(String(sessionId || ''))) {
+      await client.query("UPDATE creator_checkout_sessions SET status='expired',updated_at=now() WHERE session_id=$1 AND status='pending'", [sessionId]);
+      return;
+    }
+    if (!state) return;
     const {rows: checkouts} = await client.query(
       "SELECT session_id FROM creator_checkout_sessions WHERE creator_id=$1 AND subscriber_id=$2 AND plan_id=$3 AND (stripe_subscription_id IS NULL OR stripe_subscription_id=$4) AND ($5::text IS NULL OR session_id=$5) ORDER BY created_at DESC LIMIT 1 FOR UPDATE",
       [state.creatorId,state.subscriberId,state.planId,state.subId,state.checkoutSessionId]);
     const session = checkouts[0];
-    if (!session) return;
+    if (!session) throw new HttpError(503, 'Aguardar registo da sessão Stripe', 'creator_checkout_not_yet_registered');
     await client.query(
-      "UPDATE creator_checkout_sessions SET stripe_subscription_id=$2,status=$3,updated_at=now() WHERE session_id=$1",
-      [session.session_id,state.subId,state.status === 'active' ? 'paid' : 'pending']);
+      "UPDATE creator_checkout_sessions SET stripe_subscription_id=$2,status=CASE WHEN $3='active' THEN 'paid' WHEN $3='expired' THEN 'expired' ELSE status END,updated_at=now() WHERE session_id=$1",
+      [session.session_id,state.subId,state.status]);
     const {rows: existing} = await client.query(
       'SELECT id FROM creator_memberships WHERE provider_subscription_id=$1 FOR UPDATE',
       [state.subId]);

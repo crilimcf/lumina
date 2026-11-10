@@ -69,7 +69,7 @@ try {
       display_name:'Lumina QA Criador',
       identity:{country:'PT'},
       dashboard:'express',
-      defaults:{responsibilities:{fees_collector:'stripe',losses_collector:'stripe'}},
+      defaults:{responsibilities:{fees_collector:'application',losses_collector:'application'}},
       configuration:{recipient:{capabilities:{stripe_balance:{stripe_transfers:{requested:true}}}}},
       metadata:{lumina_creator_id:creator.id,lumina_test:'true'},
       include:['configuration.recipient','requirements','identity','defaults'],

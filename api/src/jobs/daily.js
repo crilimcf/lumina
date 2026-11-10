@@ -2,7 +2,7 @@ import cron from 'node-cron';
 import { q, tx } from '../db.js';
 import { removeObject } from '../lib/storage.js';
 import { uploadReferenceCount, removeUploadIfUnreferenced } from '../lib/uploads.js';
-import { stripeCreatorsRequest } from '../lib/stripe-creators.js';
+import { cancelCreatorSubscriptionsForUser } from '../lib/creator-billing-cancellation.js';
 
 export async function purgeMessages() {
   const { rows } = await q(
@@ -122,18 +122,7 @@ export async function runAccountDeletions() {
       // The provider operation is outside the database transaction by design:
       // any provider failure leaves the user and their deletion request in place,
       // so the next scheduled execution can retry safely.
-      const { rows: subscriptions } = await q(
-        "SELECT DISTINCT provider_subscription_id AS subscription_id FROM creator_memberships WHERE (creator_id=$1 OR subscriber_id=$1) AND provider='stripe' AND provider_subscription_id IS NOT NULL",
-        [r.user_id]
-      );
-      for (const subscription of subscriptions) {
-        const id = String(subscription.subscription_id || '');
-        if (!/^sub_[A-Za-z0-9]+$/.test(id)) throw new Error('Identificador Stripe inválido: cancelamento de subscrição bloqueado');
-        const current = await stripeCreatorsRequest('GET', '/subscriptions/' + id);
-        if (current.status !== 'canceled') {
-          await stripeCreatorsRequest('DELETE', '/subscriptions/' + id);
-        }
-      }
+      await cancelCreatorSubscriptionsForUser(r.user_id);
 
       const { rows: files } = await q('SELECT key, url FROM uploads WHERE owner_id = $1', [r.user_id]);
       for (const file of files) await removeObject(file.key);

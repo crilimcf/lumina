@@ -29,9 +29,19 @@ globalThis.fetch = async (url, options = {}) => {
   const target = String(url);
   // Stripe Accounts v2 requests are JSON, while billing remains on v1.
   if (target.startsWith('https://api.stripe.com/v2/core/')) {
+    assert.match(options.headers['Stripe-Version'],/^2026-/);
+    if (target.startsWith('https://api.stripe.com/v2/core/accounts/' + connectedId + '?') && options.method==='GET') {
+      const includes=new URL(target).searchParams;
+      assert.equal(includes.get('include[0]'),'configuration.recipient');
+      return new Response(JSON.stringify({
+        id:connectedId,object:'v2.core.account',livemode:false,
+        configuration:{recipient:{capabilities:{stripe_balance:{
+          stripe_transfers:{status:'active'},payouts:{status:'active'}
+        }}}}
+      }),{status:200,headers:{'content-type':'application/json'}});
+    }
     const body = JSON.parse(options.body || '{}');
     assert.equal(options.method,'POST');
-    assert.match(options.headers['Stripe-Version'],/^2026-/);
     if (target.endsWith('/accounts')) {
       assert.equal(body.identity.country,'PT');
       assert.equal(body.defaults.responsibilities.losses_collector,'application');
@@ -52,10 +62,6 @@ globalThis.fetch = async (url, options = {}) => {
   const respond = (data,status=200) => new Response(JSON.stringify(data), {
     status, headers:{'content-type':'application/json'}
   });
-  if (target.includes('/accounts/' + connectedId) && options.method === 'GET') {
-    return respond({id:connectedId,country:'PT',charges_enabled:false,
-      payouts_enabled:true,details_submitted:true,capabilities:{transfers:'active'}});
-  }
   if (target.includes('/billing_portal/sessions') && options.method === 'POST') {
     const params = new URLSearchParams(options.body);
     assert.equal(params.get('customer'),customerId);

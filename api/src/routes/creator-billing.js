@@ -131,7 +131,8 @@ creatorBillingRoutes.post('/:creatorId/plans/:planId/checkout', h(async (req, re
     }
 
     const session = await stripeCreatorsRequest('POST', '/checkout/sessions', {
-    customer: customerId,
+      mode: 'subscription',
+      customer: customerId,
     client_reference_id: req.user.id,
     'line_items[0][price_data][currency]': 'eur',
     'line_items[0][price_data][unit_amount]': String(plan.price_cents),

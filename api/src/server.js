@@ -27,6 +27,8 @@ import { roomRoutes } from './routes/rooms.js';
 import { callRoutes } from './routes/calls.js';
 import { paymentRoutes } from './routes/payments.js';
 import { creatorRoutes } from './routes/creators.js';
+import { creatorBillingRoutes } from './routes/creator-billing.js';
+import { creatorWebhookRoutes } from './routes/creator-webhooks.js';
 import { notificationRoutes } from './routes/notifications.js';
 import { radarRoutes } from './routes/radar.js';
 import { radarSyncRoutes } from './routes/radar-sync.js';

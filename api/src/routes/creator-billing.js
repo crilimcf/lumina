@@ -29,9 +29,48 @@ creatorBillingRoutes.get('/me/billing/status', h(async (req, res) => {
     account: rows[0] ? { linked: true, country: rows[0].country, chargesEnabled: rows[0].charges_enabled, payoutsEnabled: rows[0].payouts_enabled, detailsSubmitted: rows[0].details_submitted } : { linked: false } });
 }));
 
+creatorBillingRoutes.get('/me/billing/subscriptions', h(async (req, res) => {
+  ensureStudio();
+  const { rows } = await q(
+    "SELECT m.id,m.creator_id,m.plan_id,m.status,m.current_period_end,p.title,p.price_cents,p.billing_period FROM creator_memberships m JOIN creator_plans p ON p.id=m.plan_id WHERE m.subscriber_id=$1 ORDER BY m.created_at DESC LIMIT 50",
+    [req.user.id]
+  );
+  res.json({ subscriptions:rows });
+}));
+
+creatorBillingRoutes.post('/me/billing/portal', h(async (req, res) => {
+  ensureStudio();
+  // Existing subscribers must retain a cancellation route even if new checkouts are disabled.
+  if (!env.STRIPE_SECRET_KEY) throw paymentNotReady();
+  const { rows } = await q(
+    'SELECT stripe_customer_id FROM creator_billing_customers WHERE subscriber_id=$1',
+    [req.user.id]
+  );
+  const customer = rows[0]?.stripe_customer_id;
+  if (!/^cus_[A-Za-z0-9]+$/.test(String(customer || ''))) {
+    throw new HttpError(404, 'Não existe uma conta de faturação associada', 'creator_billing_customer_missing');
+  }
+  const session = await stripeCreatorsRequest('POST', '/billing_portal/sessions', {
+    customer, return_url:env.APP_URL + '/?tab=profile',
+  });
+  let url;
+  try { url = new URL(session.url); } catch { /* Invalid provider URL */ }
+  if (!url || url.protocol !== 'https:' || url.hostname !== 'billing.stripe.com') {
+    throw new HttpError(502, 'Portal de faturação indisponível', 'creator_billing_portal_invalid');
+  }
+  res.json({ url:session.url });
+}));
+
 creatorBillingRoutes.post('/me/billing/onboard', h(async (req, res) => {
   ensureStudio();
   if (!env.STRIPE_SECRET_KEY || !creatorBillingConfigured()) throw paymentNotReady();
+  const { rows: eligibility } = await q(
+    "SELECT birth_date IS NOT NULL AND birth_date <= (CURRENT_DATE - INTERVAL '18 years')::date AS eligible FROM users WHERE id=$1",
+    [req.user.id]
+  );
+  if (!eligibility[0]?.eligible) {
+    throw new HttpError(403, 'O recebimento de pagamentos exige que o criador seja maior de idade', 'creator_age_not_eligible');
+  }
   let { rows } = await q('SELECT stripe_account_id FROM creator_billing_accounts WHERE creator_id=$1', [req.user.id]);
   let accountId = rows[0]?.stripe_account_id;
   if (!accountId) {

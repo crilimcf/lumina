@@ -25,7 +25,7 @@ const email = value => String(value || '').slice(0, 254);
 creatorBillingRoutes.get('/me/billing/status', h(async (req, res) => {
   ensureStudio();
   const { rows } = await q('SELECT stripe_account_id, country, charges_enabled, payouts_enabled, transfers_enabled, details_submitted FROM creator_billing_accounts WHERE creator_id=$1', [req.user.id]);
-  res.json({ available: creatorBillingConfigured(), enabled: creatorCheckoutEnabled(),
+  res.json({ available: creatorOnboardingEnabled(), enabled: creatorCheckoutEnabled(),
     account: rows[0] ? { linked: true, country: rows[0].country, chargesEnabled: rows[0].charges_enabled, payoutsEnabled: rows[0].payouts_enabled, transfersEnabled: rows[0].transfers_enabled, detailsSubmitted: rows[0].details_submitted } : { linked: false } });
 }));
 

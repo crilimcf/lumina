@@ -41,6 +41,8 @@ test('live Stripe key cannot enable checkouts without explicit release approval'
     env.CREATORS_LIVE_PAYMENTS_APPROVED=true;
     assert.equal(creatorBillingConfigured(),true);
     assert.equal(creatorCheckoutEnabled(),true);
+    env.STRIPE_SECRET_KEY='rk_live_unit_test_not_a_real_key';
+    assert.equal(creatorCheckoutEnabled(),true, 'restricted production key is accepted');
     env.STRIPE_SECRET_KEY='sk_test_unit_test_not_a_real_key';
     env.CREATORS_LIVE_PAYMENTS_APPROVED=false;
     assert.equal(creatorCheckoutEnabled(),false, 'test keys cannot activate sales in production');
@@ -103,4 +105,18 @@ test('modern Stripe Invoice status paid and zero amount_remaining unlocks access
   assert.equal(stripeCreatorSubscriptionState({
     ...subscription,latest_invoice:{...subscription.latest_invoice,amount_paid:0},
   }).status,'past_due');
+});
+
+test('Creators checkout enables Stripe Tax only on its own session, without changing global billing', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const checkoutRoute = await readFile(new URL('../src/routes/creator-billing.js', import.meta.url), 'utf8');
+  const start = checkoutRoute.indexOf("const session = await stripeCreatorsRequest('POST', '/checkout/sessions'");
+  assert.ok(start !== -1, 'creator checkout session exists');
+  const end = checkoutRoute.indexOf("'lumina-creators-checkout-'", start);
+  assert.ok(end > start, 'creator-specific idempotency key exists');
+  const body = checkoutRoute.slice(start, end);
+  assert.ok(body.includes("\'automatic_tax[enabled]\': \'true\'"));
+  assert.match(body, /billing_address_collection: 'required'/);
+  assert.ok(body.includes("\'customer_update[address]\': \'auto\'"));
+  assert.ok(body.includes("\'subscription_data[transfer_data][destination]\'"));
 });

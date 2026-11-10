@@ -113,6 +113,19 @@ test('published premium content stays private without active provider-backed mem
   assert.deepEqual(outsider.data.content, []);
 });
 
+test('account data export includes creator assets without leaking another creator\'s content', async () => {
+  const owner = await request('/api/account/export', { token: creatorToken });
+  assert.equal(owner.status, 200);
+  assert.equal(owner.data.planosCreators.some(plan => plan.id === planId), true);
+  assert.equal(owner.data.conteudosCreators.some(item => item.id === contentId), true);
+
+  const other = await request('/api/account/export', { token: subscriberToken });
+  assert.equal(other.status, 200);
+  assert.equal(other.data.planosCreators.some(plan => plan.id === planId), false);
+  assert.equal(other.data.conteudosCreators.some(item => item.id === contentId), false);
+  assert.ok(Array.isArray(other.data.minhasSubscricoesCreators));
+});
+
 test('membership authorizes reads only while active, unexpired, and unblocked', async () => {
   const subId = `sub_test_${randomUUID()}`;
   const inserted = await q(

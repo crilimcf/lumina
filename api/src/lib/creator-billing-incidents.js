@@ -49,12 +49,35 @@ export async function handleCreatorPaymentIncident(event) {
   const subId = invoiceSubscriptionId(invoice);
   if (!id(subId,'sub')) return {handled:true,matched:false};
 
+  // A refund may arrive before Checkout's paid event. In that case there
+  // is no membership row yet, but the charge must still be marked reversed.
+  // Resolve its Stripe subscription and verify its ownership against the
+  // server-side pending Checkout session before recording an incident.
+  const subscription = await stripeCreatorsRequest('GET','/subscriptions/'+subId);
+  const meta = subscription.metadata || {};
+  const ownsCheckout = typeof meta.lumina_creator_id === 'string' &&
+    typeof meta.lumina_subscriber_id === 'string' &&
+    typeof meta.lumina_plan_id === 'string' &&
+    getId(subscription.customer) === getId(invoice.customer);
+
   const result = await tx(async client => {
     const {rows:memberships} = await client.query(
       'SELECT m.id,m.status,m.last_paid_invoice_id FROM creator_memberships m JOIN creator_billing_customers c ON c.subscriber_id=m.subscriber_id WHERE m.provider_subscription_id=$1 AND c.stripe_customer_id=$2 FOR UPDATE OF m',
       [subId,getId(invoice.customer)]
     );
-    if (!memberships[0]) return {matched:false};
+    if (!memberships[0]) {
+      if (!ownsCheckout) return {matched:false};
+      const {rows:checkouts} = await client.query(
+        "SELECT cs.session_id FROM creator_checkout_sessions cs JOIN creator_billing_customers bc ON bc.subscriber_id=cs.subscriber_id WHERE cs.creator_id=$1 AND cs.subscriber_id=$2 AND cs.plan_id=$3 AND bc.stripe_customer_id=$4 AND (cs.stripe_subscription_id IS NULL OR cs.stripe_subscription_id=$5) ORDER BY cs.created_at DESC LIMIT 1 FOR UPDATE OF cs",
+        [meta.lumina_creator_id,meta.lumina_subscriber_id,meta.lumina_plan_id,
+          getId(invoice.customer),subId]
+      );
+      if (!checkouts[0]) return {matched:false};
+      await client.query(
+        "UPDATE creator_checkout_sessions SET stripe_subscription_id=$2,updated_at=now() WHERE session_id=$1 AND (stripe_subscription_id IS NULL OR stripe_subscription_id=$2)",
+        [checkouts[0].session_id,subId]
+      );
+    }
     const {rowCount} = await client.query(
       'INSERT INTO creator_billing_incidents(event_id,provider_subscription_id,invoice_id,charge_id,reason) VALUES($1,$2,$3,$4,$5) ON CONFLICT(event_id) DO NOTHING',
       [event.id,subId,invoiceId,id(chargeId,'ch')?chargeId:null,reason]

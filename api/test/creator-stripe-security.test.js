@@ -250,3 +250,40 @@ test('live write probe fails closed on wrong Stripe account identity without mut
     else process.env.LUMINA_SANDBOX=sandbox;
   }
 });
+
+test('Stripe Accounts v2 403 diagnostics never leak restricted keys or emails', async () => {
+  const { stripeCreatorsV2Request } = await import('../src/lib/stripe-creators.js');
+  const oldEnv={key:env.STRIPE_SECRET_KEY,node:env.NODE_ENV};
+  const oldSandbox=process.env.LUMINA_SANDBOX;
+  const oldFetch=globalThis.fetch;
+  const oldError=console.error;
+  const logs=[];
+  try {
+    delete process.env.LUMINA_SANDBOX;
+    env.NODE_ENV='production';
+    env.STRIPE_SECRET_KEY='rk_live_neverlog_this_value';
+    globalThis.fetch=async()=>({
+      ok:false,status:403,headers:{get:(key)=>key==='request-id'?'req_diagnosticsCI123':null},
+      json:async()=>({error:{
+        code:'forbidden',type:'invalid_request_error',
+        message:'Insufficient permission for sk_live_SECRETXYZ, email test@example.com and acct_ABC123'
+      }})
+    });
+    console.error=(...args)=>logs.push(args.join(' '));
+    await assert.rejects(stripeCreatorsV2Request('/core/accounts',{dashboard:'express'}));
+    const output=logs.join(' ');
+    assert.match(output,/code=forbidden/);
+    assert.match(output,/request_id=req_diagnosticsCI123/);
+    assert.ok(!output.includes('sk_live_SECRETXYZ'));
+    assert.ok(!output.includes('test@example.com'));
+    assert.ok(!output.includes('acct_ABC123'));
+    assert.ok(!output.includes('rk_live_neverlog_this_value'));
+  } finally {
+    env.STRIPE_SECRET_KEY=oldEnv.key;
+    env.NODE_ENV=oldEnv.node;
+    if(oldSandbox===undefined) delete process.env.LUMINA_SANDBOX;
+    else process.env.LUMINA_SANDBOX=oldSandbox;
+    globalThis.fetch=oldFetch;
+    console.error=oldError;
+  }
+});

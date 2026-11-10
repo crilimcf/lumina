@@ -6,9 +6,9 @@ import { HttpError } from '../middleware/auth.js';
 // but can only ever communicate with Stripe test-mode credentials.
 export const creatorStripeKeyMatchesEnvironment = () => {
   const key=env.STRIPE_SECRET_KEY || '';
-  if (process.env.LUMINA_SANDBOX === 'true') return key.startsWith('sk_test_');
-  if (env.NODE_ENV === 'production') return key.startsWith('sk_live_');
-  return key.startsWith('sk_test_');
+  if (process.env.LUMINA_SANDBOX === 'true') return key.startsWith('sk_test_') || key.startsWith('rk_test_');
+  if (env.NODE_ENV === 'production') return key.startsWith('sk_live_') || key.startsWith('rk_live_');
+  return key.startsWith('sk_test_') || key.startsWith('rk_test_');
 };
 
 export const creatorBillingConfigured = () =>

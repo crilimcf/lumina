@@ -78,3 +78,20 @@ Read-only inspection after the account owner authorized test-mode Stripe access:
 - Existing live Stripe webhooks for Digibox's other products remain unchanged.
 
 Continue to keep FEATURE_SUBSCRIPTIONS=false in production. Do not put Stripe test keys in the production Railway service.
+
+
+## Lumina standalone Sandbox successfully connected — 10 November 2026
+
+The account owner authorized the independent **Lumina** sandbox in addition to Digibox live/test. Sandbox account reference: `acct_1UaENzI3oNqs1r6L` (non-secret). **All changes below were performed with `livemode=false`.**
+
+- Stripe Connect platform activation: **enabled=true**, confirmed by the Stripe API.
+- Sandbox marketplace connected accounts: **none yet**.
+- Test product: `prod_VbRTjMA9a20sgl` — "Lumina Creators — Plano de Testes".
+- Test recurring price: `price_1UaEadI3oNqs1r6LIem9QrV0` — **EUR 4.99/month**, sandbox only.
+- Synthetic test customer: `cus_VbRTuSYlsHyTuW`, email uses the reserved `example.invalid` domain.
+- Stripe tool currently exposes account reads and Connect enablement, but **not** a supported connected-account *create* operation; therefore a fake creator account has not been created and destination Checkout has **not** been verified end-to-end.
+- No Stripe webhook endpoint, completed Checkout, charge, invoice, transfer or payout was created. No live Digibox setting was modified.
+- Before any end-to-end Checkout run: decide how VAT/Stripe Tax will be handled; do not enable automatic taxes without correct registrations. A sandbox-only test must use synthetic data and an isolated backend with test-only credentials.
+- Platform commission `CREATORS_PLATFORM_FEE_PERCENT` remains intentionally unset, pending explicit commercial terms.
+
+**Status:** Sandbox integration is configured for the next stage; real subscription billing, entitlement lifecycles, refunds, disputes and Connect payouts still need live sandbox endpoint tests before any production merge.

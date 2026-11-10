@@ -79,6 +79,10 @@ const request=async(path,{method='GET',body}={})=>{
 };
 
 test('new creator onboarding uses Accounts v2 and links exactly one recipient',async()=>{
+  const initial=await request('/api/creators/me/billing/status');
+  assert.equal(initial.status,200);
+  assert.equal(initial.body.available,true,'Stripe verification must remain visible');
+  assert.equal(initial.body.enabled,false,'new checkout must remain disabled');
   const a=await request('/api/creators/me/billing/onboard',{method:'POST'});
   assert.equal(a.status,200,JSON.stringify(a.body));
   assert.equal(a.body.url,'https://connect.stripe.com/setup/c/lumina-ci-only');

@@ -191,14 +191,26 @@ try {
     await pause(700);
   }
   assert(invoiceEvent,'Provider invoice.paid event not found');
-  const receipt=await signedWebhook(invoiceEvent);
+  // The genuine event might already have been processed by the public
+  // sandbox webhook before this one-off listener starts, so use a fresh
+  // synthetic event ID while preserving the provider-authored invoice payload.
+  const locallyRetriedInvoice={...invoiceEvent,id:'evt_luminaQAInvoiceReplay'+suffix};
+  const receipt=await signedWebhook(locallyRetriedInvoice);
   assert(receipt.status===200,'Webhook on local app rejected valid signed Stripe event');
   const member=await q(
     'SELECT status,provider_subscription_id,last_paid_invoice_id FROM creator_memberships WHERE creator_id=$1 AND subscriber_id=$2',
     [creator.id,subscriber.id]);
-  assert(member.rows.length===1&&member.rows[0].status==='active'&&
-    member.rows[0].provider_subscription_id===subscriptionId&&member.rows[0].last_paid_invoice_id===invoice,
-    'paid Stripe invoice did not activate app membership');
+  if (!(member.rows.length===1&&member.rows[0].status==='active'&&
+    member.rows[0].provider_subscription_id===subscriptionId&&member.rows[0].last_paid_invoice_id===invoice)) {
+    const {rows:checkouts}=await q(
+      'SELECT status,stripe_subscription_id FROM creator_checkout_sessions WHERE creator_id=$1 AND subscriber_id=$2 ORDER BY created_at DESC LIMIT 2',
+      [creator.id,subscriber.id]);
+    console.error('[e2e] entitlement diagnostics:',
+      JSON.stringify({webhookStatus:receipt.status,webhook:receipt.data,memberStatuses:member.rows.map(z=>z.status),
+        checkoutStatuses:checkouts.map(z=>z.status),providerSubscription:paidSubscription.status,
+        invoiceStatus:paidSubscription.latest_invoice?.status}));
+    fail('paid Stripe invoice did not activate app membership');
+  }
   const permitted=await request(path+creator.id+'/content','GET',userToken);
   assert(permitted.status===200&&permitted.data.content.some(c=>c.id===contentId),
     'paid member cannot see exclusive content');

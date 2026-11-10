@@ -19,6 +19,7 @@ export function PublicProfile({ handle, onBack, onMessage, ping }) {
   const [busy, setBusy] = useState(false);
   const [paidPlans, setPaidPlans] = useState([]);
   const [memberContent, setMemberContent] = useState([]);
+  const [myMembership,setMyMembership] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -27,12 +28,17 @@ export function PublicProfile({ handle, onBack, onMessage, ping }) {
       setPerson(profile);
       // Monetization is web-only until native store billing approval.
       if (!isNativeApp && profile.id) {
-        const [plans, billing] = await Promise.all([
+        const [plans,billing,history] = await Promise.all([
           api.creators.plans(profile.id).catch(() => ({plans:[]})),
           api.creators.billingStatus().catch(() => ({enabled:false})),
+          api.creators.billingSubscriptions().catch(() => ({subscriptions:[]})),
         ]);
         setPaidPlans(billing.enabled ? plans.plans || [] : []);
-      } else setPaidPlans([]);
+        setMyMembership((history.subscriptions || []).find(m=>m.creator_id===profile.id) || null);
+      } else {
+        setPaidPlans([]);
+        setMyMembership(null);
+      }
       if (profile.can_view_posts) {
         const [data, exclusive] = await Promise.all([
           api.users.posts(handle),
@@ -87,6 +93,22 @@ export function PublicProfile({ handle, onBack, onMessage, ping }) {
     finally { setBusy(false); }
   };
 
+  const manageSubscription = async () => {
+    if (busy || isNativeApp) return;
+    setBusy(true);
+    try {
+      const result=await api.creators.billingPortal();
+      const destination=new URL(result.url);
+      if(destination.protocol!=='https:' || destination.hostname!=='billing.stripe.com') {
+        throw new Error('Portal de faturação inválido');
+      }
+      window.location.assign(result.url);
+    } catch(e) { ping(e.message); }
+    finally { setBusy(false); }
+  };
+
+  const hasCurrentMembership=!!myMembership && ['active','pending','past_due'].includes(myMembership.status);
+
   if (loading) return <div className="lumina-public-profile public-profile-loading" style={{minHeight:'100dvh',background:'linear-gradient(180deg,#EFEDFB,#E8E5F7)',padding:20}}><div style={{maxWidth:620,margin:'0 auto'}}><Skeleton h={220}/></div></div>;
   if (!person) return <div className="lumina-public-profile public-profile-unavailable" style={{minHeight:'100dvh',display:'grid',placeItems:'center'}}><Empty>Perfil indisponível.</Empty></div>;
 
@@ -113,12 +135,27 @@ export function PublicProfile({ handle, onBack, onMessage, ping }) {
         </div>
       </section>
 
+      {myMembership && !isNativeApp && <section className="card" style={{background:'#141c2b',color:'#f4f8ff',padding:20,marginTop:18,borderRadius:22}}>
+        <h2 style={{fontSize:20,marginBottom:9}}>A tua subscrição</h2>
+        <p style={{color:'#c0d1de',fontSize:13,marginBottom:12}}>
+          {myMembership.title} · {myMembership.status==='active'?'Ativa':
+            myMembership.status==='past_due'?'Pagamento pendente':
+            myMembership.status==='pending'?'Em processamento':
+            myMembership.status==='cancelled'?'Cancelada':'Expirada'}
+        </p>
+        <button type="button" className="p" disabled={busy} onClick={()=>void manageSubscription()}
+          style={{background:'#31dacb',color:'#102534',padding:'11px 14px',fontWeight:800,justifyContent:'center'}}>
+          Gerir pagamento ou cancelar
+        </button>
+      </section>}
       {paidPlans.length > 0 && <section className="card" style={{background:'#141c2b',color:'#f4f8ff',padding:20,marginTop:18,borderRadius:22}}>
         <h2 style={{fontSize:22,marginBottom:6}}>Comunidade <span style={{color:'#31dacb'}}>Creators</span></h2>
         <p style={{color:'#c0d1de',fontSize:13,marginBottom:16}}>Conteúdo exclusivo para membros. Preços recorrentes e renovação automática indicados antes de pagar.</p>
         {paidPlans.map(plan=><div key={plan.id} style={{borderTop:'1px solid #ffffff24',padding:'14px 0',display:'flex',alignItems:'center',gap:12,justifyContent:'space-between'}}>
           <div style={{minWidth:0}}><strong>{plan.title}</strong><div style={{color:'#a9bcd4',fontSize:13}}>{(plan.price_cents/100).toFixed(2)} €/{plan.billing_period==='month'?'mês':'ano'}</div></div>
-          <button type="button" disabled={busy} onClick={()=>void subscribe(plan.id)} style={{border:0,borderRadius:12,padding:'10px 14px',background:'#31dacb',color:'#09232e',fontWeight:800}}>Subscrever</button>
+          {hasCurrentMembership
+            ? <span style={{fontSize:13,color:'#31dacb',fontWeight:700}}>Já tens subscrição</span>
+            : <button type="button" disabled={busy} onClick={()=>void subscribe(plan.id)} style={{border:0,borderRadius:12,padding:'10px 14px',background:'#31dacb',color:'#09232e',fontWeight:800}}>Subscrever</button>}
         </div>)}
         <p style={{color:'#b6c6da',fontSize:12,marginTop:8}}>Consulta os <a href="/termos.html" style={{color:'#85e5dc'}}>Termos de utilização</a> e as condições apresentadas no Stripe antes de concluir a subscrição.</p>
       </section>}

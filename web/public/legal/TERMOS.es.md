@@ -1,6 +1,6 @@
 # Condiciones de uso de Lumina
 
-**Versión:** 15 de agosto de 2026
+**Versión:** 10 de noviembre de 2026
 
 ## 1. Qué es Lumina
 
@@ -85,3 +85,7 @@ Podemos actualizar estas Condiciones cuando cambien el producto, la ley o los pr
 **Dirección:** Rua da Cabecinha n.º 23, 5300-802 Rebordainhos, Bragança, Portugal
 
 **NIF:** 227369661
+
+## 14. Suscripciones Creators — actualización del 10 de noviembre de 2026
+
+Lumina Creators permite actualmente configurar planes y preparar contenido exclusivo. Guardar un plan no crea una suscripción de pago ni realiza cargos. Antes de activar los pagos se mostrarán el precio total y los impuestos aplicables, la periodicidad, la renovación automática, las condiciones de acceso, cancelación y reembolso y la información legal obligatoria para los consumidores. Solo una suscripción válida y verificada por el proveedor de pagos podrá desbloquear contenido de pago. Cuando corresponda, los creadores deberán completar la verificación de identidad y elegibilidad. Los pagos en web y aplicaciones nativas deben respetar la normativa de consumo y las reglas de las tiendas. Un cambio de interfaz no implica aceptar nuevas condiciones de compra.

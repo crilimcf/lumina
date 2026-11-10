@@ -29,8 +29,9 @@ creatorBillingRoutes.get('/me/billing/status', h(async (req, res) => {
     account: rows[0] ? { linked: true, country: rows[0].country, chargesEnabled: rows[0].charges_enabled, payoutsEnabled: rows[0].payouts_enabled, detailsSubmitted: rows[0].details_submitted } : { linked: false } });
 }));
 
+// Subscribers must retain access to billing information after creator-facing
+// features or new sales are suspended.
 creatorBillingRoutes.get('/me/billing/subscriptions', h(async (req, res) => {
-  ensureStudio();
   const { rows } = await q(
     "SELECT m.id,m.creator_id,m.plan_id,m.status,m.current_period_end,p.title,p.price_cents,p.billing_period FROM creator_memberships m JOIN creator_plans p ON p.id=m.plan_id WHERE m.subscriber_id=$1 ORDER BY m.created_at DESC LIMIT 50",
     [req.user.id]
@@ -38,8 +39,8 @@ creatorBillingRoutes.get('/me/billing/subscriptions', h(async (req, res) => {
   res.json({ subscriptions:rows });
 }));
 
+// A subscriber's cancellation right cannot disappear when creators are paused.
 creatorBillingRoutes.post('/me/billing/portal', h(async (req, res) => {
-  ensureStudio();
   // Existing subscribers must retain a cancellation route even if new checkouts are disabled.
   if (!env.STRIPE_SECRET_KEY) throw paymentNotReady();
   const { rows } = await q(

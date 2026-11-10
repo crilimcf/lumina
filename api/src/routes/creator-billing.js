@@ -141,6 +141,13 @@ creatorBillingRoutes.post('/me/plans/:planId/publish', h(async (req, res) => {
   if (!(account[0]?.transfers_enabled ?? account[0]?.charges_enabled) || !account[0]?.payouts_enabled || !account[0]?.details_submitted) {
     throw new HttpError(409, 'Completa primeiro a verificação de pagamentos', 'creator_onboarding_required');
   }
+  // Previously verified capabilities can be restricted by Stripe at any time.
+  // Re-check at the moment a paid plan is published, not just when the user
+  // presses the refresh button.
+  const liveReadiness = await stripeCreatorsV2RecipientStatus(account[0].stripe_account_id);
+  if (!liveReadiness.ready) {
+    throw new HttpError(409, 'A conta Stripe necessita de nova verificação', 'creator_onboarding_required');
+  }
   const { rows } = await q("UPDATE creator_plans SET status='published',updated_at=now() WHERE id=$1 AND creator_id=$2 AND status='draft' RETURNING id,title,status", [req.params.planId, req.user.id]);
   if (!rows[0]) throw new HttpError(404, 'Plano indisponível', 'creator_plan_missing');
   res.json({ plan: rows[0] });
@@ -157,6 +164,13 @@ creatorBillingRoutes.post('/:creatorId/plans/:planId/checkout', h(async (req, re
   const plan = plans[0];
   if (!plan) throw new HttpError(409, 'Plano não disponível ou subscrição já existente', 'creator_plan_unavailable');
   if (!cleanAccountId(plan.stripe_account_id)) throw paymentNotReady();
+  // Do not open a new charge against a Stripe recipient that has lost
+  // transfers or payout capability since the last saved verification.
+  const liveReadiness = await stripeCreatorsV2RecipientStatus(plan.stripe_account_id);
+  if (!liveReadiness.ready) {
+    throw new HttpError(409, 'O criador ainda não está autorizado a receber pagamentos',
+      'creator_onboarding_required');
+  }
   const { rows: customers } = await q('SELECT stripe_customer_id FROM creator_billing_customers WHERE subscriber_id=$1', [req.user.id]);
   let customerId = customers[0]?.stripe_customer_id;
   if (!customerId) {

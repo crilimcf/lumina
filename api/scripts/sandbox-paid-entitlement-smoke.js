@@ -76,13 +76,6 @@ try {
     const data=await response.json().catch(()=>({}));
     return {status:response.status,data};
   };
-  const webhook=async (event)=>{
-    const {body,signature}=signs(event);
-    return request('/api/payments/stripe/creators-webhook','POST',null,null,
-      {'Content-Type':'application/json','Stripe-Signature':signature,
-       // Supply the exact JSON bytes whose HMAC was computed.
-       __body_override:body});
-  };
   // Use a local dispatch that sends the exact raw signed event JSON.
   const signedWebhook=async (event)=>{
     const {body,signature}=signs(event);

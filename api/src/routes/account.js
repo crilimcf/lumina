@@ -5,6 +5,7 @@ import { q, tx } from '../db.js';
 import { env } from '../env.js';
 import { auth, h, bad, notFound } from '../middleware/auth.js';
 import { sendEmail } from '../lib/email.js';
+import { cancelCreatorSubscriptionsForUser } from '../lib/creator-billing-cancellation.js';
 
 export const accountRoutes = Router();
 const hashToken=t=>crypto.createHash('sha256').update(t).digest('hex');
@@ -41,5 +42,25 @@ accountRoutes.get('/export',auth,h(async(req,res)=>{const id=req.user.id;const o
 };res.setHeader('content-disposition',`attachment; filename="lumina-${req.user.handle}.json"`);res.json(data);}));
 
 accountRoutes.get('/delete',auth,h(async(req,res)=>{const {rows}=await q('SELECT execute_at FROM deletion_requests WHERE user_id=$1 AND cancelled_at IS NULL',[req.user.id]);res.json(rows[0]?{scheduled:true,executeAt:rows[0].execute_at}:{scheduled:false,executeAt:null});}));
-accountRoutes.post('/delete',auth,h(async(req,res)=>{const {rows}=await q(`INSERT INTO deletion_requests (user_id,execute_at) VALUES ($1,now()+interval '30 days') ON CONFLICT (user_id) DO UPDATE SET requested_at=now(),execute_at=now()+interval '30 days',cancelled_at=NULL RETURNING execute_at`,[req.user.id]);res.json({scheduled:true,executeAt:rows[0].execute_at,message:'A conta será apagada dentro de 30 dias. Entra outra vez até lá para cancelar.'});}));
+accountRoutes.post('/delete',auth,h(async(req,res)=>{
+  const {rows}=await q(
+    "INSERT INTO deletion_requests (user_id,execute_at) VALUES ($1,now()+interval '30 days') ON CONFLICT (user_id) DO UPDATE SET requested_at=now(),execute_at=now()+interval '30 days',cancelled_at=NULL RETURNING execute_at",
+    [req.user.id]
+  );
+  // Cancel any renewal immediately, rather than allowing a charge during
+  // the 30-day deletion grace period. The deletion request remains recorded
+  // even when Stripe is temporarily unavailable and requires an operator retry.
+  let billingCancellation='none';
+  try {
+    const result=await cancelCreatorSubscriptionsForUser(req.user.id);
+    billingCancellation=result.found?'canceled':'none';
+  } catch (error) {
+    console.error('[rgpd] não foi possível cancelar renovações Stripe ao solicitar eliminação',error.code||error.message);
+    billingCancellation='pending';
+  }
+  const message=billingCancellation==='pending'
+    ? 'O pedido de eliminação foi registado, mas não foi possível confirmar o cancelamento dos pagamentos. Contacta o suporte ou utiliza o portal de faturação para impedir cobranças futuras.'
+    : 'A conta será apagada dentro de 30 dias. As renovações de subscrição associadas foram canceladas, quando existentes.';
+  res.json({scheduled:true,executeAt:rows[0].execute_at,billingCancellation,message});
+}));
 accountRoutes.post('/delete/cancel',auth,h(async(req,res)=>{const {rowCount}=await q('UPDATE deletion_requests SET cancelled_at=now() WHERE user_id=$1 AND cancelled_at IS NULL',[req.user.id]);if(!rowCount)throw notFound('Não havia pedido de apagamento');res.json({cancelled:true});}));

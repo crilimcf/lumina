@@ -189,6 +189,10 @@ creatorBillingRoutes.post('/:creatorId/plans/:planId/checkout', h(async (req, re
     const session = await stripeCreatorsRequest('POST', '/checkout/sessions', {
       mode: 'subscription',
       customer: customerId,
+      // Tax collection applies only to Lumina Creators Checkout sessions;
+      // never alter account-wide DigiBox products, prices, or Billing defaults.
+      'automatic_tax[enabled]': 'true',
+      billing_address_collection: 'required',
     client_reference_id: req.user.id,
     'line_items[0][price_data][currency]': 'eur',
     'line_items[0][price_data][unit_amount]': String(plan.price_cents),

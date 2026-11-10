@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 process.env.DATABASE_URL ||= 'postgresql://test:test@localhost:5432/lumina_test';
 process.env.JWT_SECRET ||= 'test-jwt-secret-only-for-unit-tests';
 
-const { verifyCreatorStripeEvent, stripeCreatorSubscriptionState, creatorCheckoutEnabled, creatorBillingConfigured } =
+const { verifyCreatorStripeEvent, stripeCreatorSubscriptionState, creatorCheckoutEnabled, creatorBillingConfigured, creatorOnboardingConfigured } =
   await import('../src/lib/stripe-creators.js');
 const { env } = await import('../src/env.js');
 
@@ -190,6 +190,33 @@ test('live no-charge smoke test creates, visits portal, and removes only its own
     Object.assign(env,{STRIPE_SECRET_KEY:original.key,NODE_ENV:original.node,
       CREATORS_STRIPE_PORTAL_CONFIGURATION:original.portal,APP_URL:original.app});
     console.log=oldLog;
+    if(sandbox===undefined)delete process.env.LUMINA_SANDBOX;
+    else process.env.LUMINA_SANDBOX=sandbox;
+  }
+});
+
+test('Stripe Connect onboarding is available without enabling live Checkout',()=>{
+  const keys=['FEATURE_CREATORS','FEATURE_SUBSCRIPTIONS','STRIPE_SECRET_KEY',
+    'CREATORS_STRIPE_WEBHOOK_SECRET','CREATORS_PLATFORM_FEE_PERCENT',
+    'CREATORS_LIVE_PAYMENTS_APPROVED','NODE_ENV'];
+  const original=Object.fromEntries(keys.map(k=>[k,env[k]]));
+  const sandbox=process.env.LUMINA_SANDBOX;
+  try{
+    delete process.env.LUMINA_SANDBOX;
+    Object.assign(env,{
+      NODE_ENV:'production',FEATURE_CREATORS:true,FEATURE_SUBSCRIPTIONS:true,
+      STRIPE_SECRET_KEY:'rk_live_unit_test_not_real',
+      CREATORS_STRIPE_WEBHOOK_SECRET:'whsec_unit_test_not_real',
+      CREATORS_PLATFORM_FEE_PERCENT:10,
+      CREATORS_LIVE_PAYMENTS_APPROVED:false,
+    });
+    assert.equal(creatorOnboardingConfigured(),true);
+    assert.equal(creatorCheckoutEnabled(),false);
+    assert.equal(creatorBillingConfigured(),false);
+    env.STRIPE_SECRET_KEY='sk_test_wrong_for_live';
+    assert.equal(creatorOnboardingConfigured(),false);
+  }finally{
+    Object.assign(env,original);
     if(sandbox===undefined)delete process.env.LUMINA_SANDBOX;
     else process.env.LUMINA_SANDBOX=sandbox;
   }

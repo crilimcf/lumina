@@ -21,11 +21,15 @@ CREATE TABLE IF NOT EXISTS creator_checkout_sessions (
   subscriber_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   plan_id UUID NOT NULL REFERENCES creator_plans(id) ON DELETE RESTRICT,
   stripe_subscription_id TEXT UNIQUE,
+  checkout_url TEXT NOT NULL CHECK (checkout_url ~ '^https://checkout[.]stripe[.]com/'),
+  expires_at TIMESTAMPTZ NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','paid','expired')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CHECK (creator_id <> subscriber_id)
 );
+CREATE INDEX IF NOT EXISTS creator_checkout_sessions_pending_idx
+  ON creator_checkout_sessions(subscriber_id, creator_id, expires_at DESC) WHERE status='pending';
 CREATE INDEX IF NOT EXISTS creator_checkout_sessions_subscriber_idx ON creator_checkout_sessions(subscriber_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS creator_checkout_sessions_creator_idx ON creator_checkout_sessions(creator_id, status);
 

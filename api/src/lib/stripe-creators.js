@@ -2,9 +2,19 @@ import crypto from 'node:crypto';
 import { env } from '../env.js';
 import { HttpError } from '../middleware/auth.js';
 
+// Staging uses the real production NODE_ENV setting for HTTP safeguards,
+// but can only ever communicate with Stripe test-mode credentials.
+export const creatorStripeKeyMatchesEnvironment = () => {
+  const key=env.STRIPE_SECRET_KEY || '';
+  if (process.env.LUMINA_SANDBOX === 'true') return key.startsWith('sk_test_');
+  if (env.NODE_ENV === 'production') return key.startsWith('sk_live_');
+  return key.startsWith('sk_test_');
+};
+
 export const creatorBillingConfigured = () =>
-  Boolean((env.STRIPE_SECRET_KEY?.startsWith('sk_test_') ||
-    (env.STRIPE_SECRET_KEY?.startsWith('sk_live_') && env.CREATORS_LIVE_PAYMENTS_APPROVED)) &&
+  Boolean(creatorStripeKeyMatchesEnvironment() &&
+    (env.NODE_ENV !== 'production' || process.env.LUMINA_SANDBOX === 'true' ||
+      env.CREATORS_LIVE_PAYMENTS_APPROVED) &&
     env.CREATORS_STRIPE_WEBHOOK_SECRET &&
     Number.isFinite(env.CREATORS_PLATFORM_FEE_PERCENT) &&
     env.CREATORS_PLATFORM_FEE_PERCENT >= 0 &&
@@ -17,11 +27,11 @@ export const creatorCheckoutEnabled = () =>
 // Checkout must never silently disable cancellations, refunds or entitlement
 // revocation for already-paid members.
 export const creatorWebhookEnabled = () =>
-  Boolean(env.STRIPE_SECRET_KEY && env.CREATORS_STRIPE_WEBHOOK_SECRET);
+  Boolean(creatorStripeKeyMatchesEnvironment() && env.CREATORS_STRIPE_WEBHOOK_SECRET);
 
 export async function stripeCreatorsRequest(method, resource, parameters, idempotencyKey) {
-  if (!env.STRIPE_SECRET_KEY) {
-    throw new HttpError(503, 'Pagamentos ainda não configurados', 'creator_billing_not_configured');
+  if (!creatorStripeKeyMatchesEnvironment()) {
+    throw new HttpError(503, 'Credenciais Stripe incompatíveis com o ambiente', 'creator_stripe_environment_mismatch');
   }
   if (!/^\/[a-zA-Z0-9/?=&_%.\-]+$/.test(resource)) {
     throw new HttpError(400, 'Operação de pagamentos inválida', 'invalid_payment_operation');

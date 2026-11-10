@@ -82,8 +82,7 @@ try {
       [creator.id,connect.id,connect.country||'PT',!!connect.charges_enabled,
        !!connect.payouts_enabled,!!connect.details_submitted]);
   }
-  const connect=await stripeV2('GET','/core/accounts/'+connectedId+
-    '?include%5B%5D=configuration.recipient&include%5B%5D=requirements');
+  const connect=await stripeCreatorsRequest('GET','/accounts/'+connectedId);
   if(connect.livemode) throw new Error('Unexpected real connected account');
 
   await q(`INSERT INTO creator_plans(creator_id,title,description,price_cents,billing_period,status)
@@ -92,9 +91,10 @@ try {
 
   console.log('[sandbox-smoke] Stripe and PostgreSQL verified');
   console.log('[sandbox-smoke] creator sandbox account:',connectedId);
-  console.log('[sandbox-smoke] Accounts v2 recipient state:',
-    JSON.stringify({transferStatus:connect.configuration?.recipient?.capabilities?.stripe_balance?.stripe_transfers?.status||'unknown',
-      requirementsCount:connect.requirements?.entries?.length??0}));
+  console.log('[sandbox-smoke] Stripe Connect test onboarding state:',
+    JSON.stringify({charges:!!connect.charges_enabled,payouts:!!connect.payouts_enabled,
+      submitted:!!connect.details_submitted,transferCapability:connect.capabilities?.transfers||'unknown',
+      requiredFields:connect.requirements?.currently_due||[]}));
   console.log('[sandbox-smoke] No test charge or real payment was created');
 } catch(error) {
   console.error('[sandbox-smoke] failed:',error.message);

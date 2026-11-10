@@ -8,6 +8,7 @@ process.env.FEATURE_SUBSCRIPTIONS = 'true';
 process.env.STRIPE_SECRET_KEY = 'sk_test_lumina_stub_only';
 process.env.CREATORS_STRIPE_WEBHOOK_SECRET = 'whsec_lumina_test_stub_only';
 process.env.CREATORS_PLATFORM_FEE_PERCENT = '10';
+process.env.CREATORS_STRIPE_PORTAL_CONFIGURATION = 'bpc_luminaTest123';
 const fetchReal = globalThis.fetch;
 
 let stripeCheckoutCalls = 0;
@@ -58,6 +59,7 @@ globalThis.fetch = async (url, options = {}) => {
   if (target.includes('/billing_portal/sessions') && options.method === 'POST') {
     const params = new URLSearchParams(options.body);
     assert.equal(params.get('customer'),customerId);
+    assert.equal(params.get('configuration'),'bpc_luminaTest123');
     return respond({id:'bps_luminaBilling123',object:'billing_portal.session',url:'https://billing.stripe.com/p/session/lumina-test'});
   }
   if (target.includes('/checkout/sessions') && options.method === 'POST') {

@@ -78,6 +78,13 @@ const request=async(path,{method='GET',body}={})=>{
   return {status:response.status,body:await response.json()};
 };
 
+test('Stripe onboarding is available while subscription sales are suspended',async()=>{
+  const response=await request('/api/creators/me/billing/status');
+  assert.equal(response.status,200,JSON.stringify(response.body));
+  assert.equal(response.body.available,true);
+  assert.equal(response.body.enabled,false);
+});
+
 test('new creator onboarding uses Accounts v2 and links exactly one recipient',async()=>{
   const a=await request('/api/creators/me/billing/onboard',{method:'POST'});
   assert.equal(a.status,200,JSON.stringify(a.body));

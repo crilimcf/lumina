@@ -86,8 +86,8 @@ try {
   if(connect.livemode) throw new Error('Unexpected real connected account');
 
   await q(`INSERT INTO creator_plans(creator_id,title,description,price_cents,billing_period,status)
-    VALUES($1,'Lumina Criador de Testes','Plano ficticio, sem pagamentos reais',499,'month','draft')
-    ON CONFLICT DO NOTHING`,[creator.id]);
+    SELECT $1,'Lumina Criador de Testes','Plano ficticio, sem pagamentos reais',499,'month','draft'
+    WHERE NOT EXISTS(SELECT 1 FROM creator_plans WHERE creator_id=$1 AND billing_period='month' AND status IN ('draft','published'))`,[creator.id]);
 
   console.log('[sandbox-smoke] Stripe and PostgreSQL verified');
   console.log('[sandbox-smoke] creator sandbox account:',connectedId);

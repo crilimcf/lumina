@@ -35,6 +35,8 @@ jobs:
 
   api-tests:
     name: API integration tests
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -67,6 +69,6 @@ jobs:
           cache: npm
           cache-dependency-path: api/package-lock.json
       - run: npm ci
-      - name: Audit production dependencies
+      - name: Audit locked API dependencies
         run: npm audit --omit=dev --audit-level=high
       - run: npm test

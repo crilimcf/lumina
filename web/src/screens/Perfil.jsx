@@ -281,6 +281,17 @@ export function Perfil({ me, blocked, setBlocked, setScreen, onOpenProfile, logo
         </div>
       </section>
 
+      <section className="lumina-profile-section">
+        <div className="lumina-profile-section-head"><strong>Lumina Creators</strong><span>Comunidade exclusiva</span></div>
+        <div className="lumina-profile-panel">
+          <button className="lumina-profile-action" onClick={() => setScreen('creators')}>
+            <span className="lumina-profile-action-icon"><Sparkles size={17} /></span>
+            <span className="lumina-profile-action-copy">Estúdio de criador<small>Prepara os teus planos e conteúdos exclusivos.</small></span>
+            <ArrowUpRight className="lumina-profile-action-chevron" size={16} />
+          </button>
+        </div>
+      </section>
+
       <LuminaAppearance />
 
       <section className="lumina-profile-section">

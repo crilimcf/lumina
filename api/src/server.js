@@ -26,6 +26,7 @@ import { roomMessagePrivacyRoutes } from './routes/room-message-privacy.js';
 import { roomRoutes } from './routes/rooms.js';
 import { callRoutes } from './routes/calls.js';
 import { paymentRoutes } from './routes/payments.js';
+import { creatorRoutes } from './routes/creators.js';
 import { notificationRoutes } from './routes/notifications.js';
 import { radarRoutes } from './routes/radar.js';
 import { radarSyncRoutes } from './routes/radar-sync.js';
@@ -236,9 +237,9 @@ const mountApi = (prefix = '') => {
   app.use(`${prefix}/sessions`, sessionRoutes);
   app.use(`${prefix}/moments`, momentRoutes);
 
+  app.use(`${prefix}/creators`, creatorRoutes);
   app.use(`${prefix}/subscriptions`, auth, h(async () => {
-    if (!env.FEATURE_SUBSCRIPTIONS) throw new HttpError(403, 'Ainda não disponível', 'feature_off');
-    throw new HttpError(501, 'Por implementar');
+    throw new HttpError(501, 'Pagamentos de subscrição ainda indisponíveis', 'not_implemented');
   }));
 };
 

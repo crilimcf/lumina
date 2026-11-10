@@ -131,3 +131,17 @@ test('membership authorizes reads only while active, unexpired, and unblocked', 
   await q(`UPDATE creator_memberships SET current_period_end=now()+interval '1 day',status='cancelled' WHERE id=$1`, [membershipId]);
   assert.deepEqual(await read(), []);
 });
+
+test('creator cannot exceed 50 stored posts, protecting the bounded database volume', async () => {
+  await q(
+    `INSERT INTO creator_member_content (creator_id,title,body)
+     SELECT $1, 'Limite ' || n, '' FROM generate_series(1,49) AS n`,
+    [creator.id]
+  );
+  const blocked = await request('/api/creators/me/content', {
+    token: creatorToken, method: 'POST',
+    body: { title: 'Acima do limite', body: 'Não deve ser guardado' },
+  });
+  assert.equal(blocked.status, 429);
+  assert.equal(blocked.data.code, 'creator_content_limit');
+});

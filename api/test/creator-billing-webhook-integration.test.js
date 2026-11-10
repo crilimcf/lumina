@@ -41,6 +41,9 @@ globalThis.fetch = async (url, options = {}) => {
   if (target.includes('/charges/ch_luminaDispute123')) {
     return respond({id:'ch_luminaDispute123',invoice:renewedInvoiceId,payment_intent:'pi_luminaDispute123'});
   }
+  if (target.includes('/payment_intents/pi_luminaRefundNew123')) {
+    return respond({id:'pi_luminaRefundNew123',latest_charge:'ch_luminaDispute123',invoice:renewedInvoiceId});
+  }
   if (target.includes('/invoices/' + earlyRefundInvoiceId)) {
     return respond({id:earlyRefundInvoiceId,object:'invoice',subscription:subscriptionId,customer:customerId});
   }
@@ -241,6 +244,24 @@ test('a genuinely renewed paid invoice restores access; a signed dispute revokes
     [creator.id,subscriber.id]);
   assert.equal(suspended[0].status,'past_due');
   assert.deepEqual((await request('/api/creators/'+creator.id+'/content',{token:signToken(subscriber)})).data.content,[]);
+});
+
+test('refund.created with only PaymentIntent is resolved via its latest charge',async()=>{
+  const payload={id:'evt_luminaRefundNew123',type:'refund.created',data:{object:{
+    object:'refund',id:'re_luminaNew123',payment_intent:'pi_luminaRefundNew123'
+  }}};
+  const signed=signEvent(payload);
+  const response=await fetchReal(baseUrl+'/api/payments/stripe/creators-webhook',{
+    method:'POST',headers:{'content-type':'application/json','stripe-signature':signed.signature},
+    body:signed.content
+  });
+  assert.equal(response.status,200);
+  const {rows}=await q('SELECT reason,invoice_id,provider_subscription_id FROM creator_billing_incidents WHERE event_id=$1',
+    [payload.id]);
+  assert.equal(rows.length,1);
+  assert.equal(rows[0].invoice_id,renewedInvoiceId);
+  assert.equal(rows[0].provider_subscription_id,subscriptionId);
+  assert.equal(rows[0].reason,'refund');
 });
 
 test('Stripe cancellation revokes content access',async()=>{

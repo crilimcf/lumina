@@ -1,6 +1,6 @@
 # Política de Privacidade da Lumina
 
-**Versão:** 16 de agosto de 2026
+**Versão:** 10 de novembro de 2026
 
 ## 1. Responsável pelo tratamento
 
@@ -31,7 +31,9 @@ Consoante as funcionalidades usadas, a Lumina pode tratar:
 - denúncias e decisões de moderação;
 - dados técnicos de segurança, como sessões, user-agent, IP e tentativas de login;
 - pedidos de recuperação de password, 2FA e códigos de recuperação em formato protegido;
-- dados necessários a pagamentos quando uma funcionalidade paga estiver efetivamente ativada.
+- no Lumina Creators: nomes e preços dos planos, periodicidade, descrição, conteúdos de acesso reservado, estado de publicação e identificadores de participação;
+- quando houver subscrições pagas: referências técnicas de cliente, subscrição, pagamentos, reembolsos e eventos do prestador de pagamentos; não guardamos números completos de cartões;
+- pedidos e interações com funcionalidades de IA, quando estas forem utilizadas; evita incluir dados pessoais sensíveis nos pedidos.
 
 ## 3. Para que usamos os dados
 
@@ -45,7 +47,9 @@ Os dados são tratados para:
 - prevenir abuso, spam e acessos indevidos;
 - moderar conteúdo denunciado;
 - executar pedidos de exportação, correção e apagamento;
-- operar, diagnosticar e melhorar o serviço.
+- operar, diagnosticar e melhorar o serviço;
+- guardar planos e conteúdos do Lumina Creators e, apenas quando ativadas, gerir subscrições, faturação, apoio e acesso a conteúdos pagos;
+- processar pedidos enviados voluntariamente às funções de inteligência artificial, quando utilizadas.
 
 Os fundamentos jurídicos aplicáveis são a execução dos Termos e do serviço solicitado, o cumprimento de obrigações legais, os interesses legítimos de segurança, prevenção de abuso e melhoria do serviço, e o consentimento quando este for especificamente solicitado. O consentimento pode ser retirado a qualquer momento, sem afetar o tratamento anteriormente realizado.
 
@@ -82,9 +86,11 @@ A arquitetura atual pode envolver:
 - **Cloudflare R2 / serviço S3-compatível** — fotografias e vídeos;
 - **Resend** — emails transacionais;
 - **Apple Push Notification service (APNs)** e **Google Firebase Cloud Messaging (FCM)** — entrega de notificações móveis;
-- **Stripe** — apenas quando funcionalidades pagas forem ativadas.
+- **Amazon Web Services (Amazon IVS/S3)** — emissão e gravação de diretos, quando utilizados;
+- **OpenAI** — processamento de pedidos de funcionalidades de IA, quando utilizadas;
+- **Stripe** — processamento de pagamentos, gestão de assinaturas e pagamentos a criadores, apenas quando funcionalidades pagas forem ativadas. A Lumina não deve receber números completos dos cartões.
 
-A Lumina aplica aos fornecedores as garantias contratuais e os mecanismos de transferência exigidos pelo RGPD, incluindo decisões de adequação ou cláusulas contratuais-tipo quando aplicáveis.
+Os fornecedores podem tratar dados em diferentes jurisdições, consoante o serviço e a respetiva configuração. As transferências internacionais, quando existirem, devem ter uma base legal adequada (por exemplo, decisão de adequação ou cláusulas contratuais-tipo) e medidas complementares quando exigidas. Os contratos de subcontratação, as regiões efetivas de tratamento e os mecanismos de transferência estão sujeitos a verificação operacional periódica.
 
 ## 8. Retenção
 
@@ -93,6 +99,8 @@ A Lumina aplica aos fornecedores as garantias contratuais e os mecanismos de tra
 - Tokens de recuperação expirados e tentativas antigas de login são limpos periodicamente.
 - Pedidos de apagamento de conta têm uma janela de 30 dias antes da execução, salvo obrigações legais em contrário.
 - Uploads abandonados/órfãos são limpos por jobs da API.
+- Planos e conteúdos Creators permanecem associados à conta enquanto forem necessários ao serviço ou até eliminação, sem prejuízo das obrigações aplicáveis.
+- Quando existirem pagamentos, os registos financeiros estritamente necessários podem ser conservados pelo prazo legal aplicável, mesmo após encerramento da conta; as durações exatas dependem do tipo de documento e da legislação em vigor.
 
 ## 9. Direitos
 
@@ -114,6 +122,16 @@ A Lumina aplica medidas técnicas como hashing de passwords, sessões revogávei
 
 Nenhum sistema é invulnerável; incidentes relevantes devem ser avaliados e tratados de acordo com as obrigações legais aplicáveis.
 
-## 11. Alterações
+## 11. Lumina Creators e subscrições
+
+O estúdio permite preparar planos e conteúdo reservado. Enquanto a cobrança estiver desativada, criar um plano **não** contrata uma subscrição nem desencadeia uma cobrança. Quando as subscrições forem lançadas, os interessados receberão informação sobre preço total, periodicidade, eventual renovação automática, cancelamento, fornecedor de pagamentos e políticas aplicáveis antes de confirmar uma compra.
+
+Os acessos a conteúdos pagos deverão ser concedidos apenas após confirmação segura do pagamento e do estado da subscrição pelo prestador. A Lumina não publica dados bancários completos, nem os utiliza para classificar ou promover perfis no Feed.
+
+## 12. IA, decisões e transparência
+
+Se usares funcionalidades de IA, o conteúdo do pedido e informações estritamente necessárias ao processamento poderão ser enviados ao prestador técnico da função. Não são previstas decisões exclusivamente automatizadas que produzam efeitos jurídicos ou efeitos igualmente significativos sobre a pessoa. Esta informação não dispensa uma avaliação de impacto quando legalmente necessária.
+
+## 13. Alterações
 
 Esta Política pode ser atualizada quando o produto, os fornecedores ou os requisitos legais mudarem. Alterações relevantes devem ser comunicadas de forma adequada.

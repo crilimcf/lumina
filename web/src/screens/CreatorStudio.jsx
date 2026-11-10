@@ -53,7 +53,7 @@ export function CreatorStudio({ onBack }) {
           <label style={labelStyle}>Nome do plano<input required minLength={3} maxLength={80} value={title} onChange={e=>setTitle(e.target.value)} style={field}/></label>
           <label style={labelStyle}>Preço em euros<input required type="number" min="1" max="1000" step=".01" value={price} onChange={e=>setPrice(e.target.value)} style={field}/></label>
           <label style={labelStyle}>Periodicidade<select value={period} onChange={e=>setPeriod(e.target.value)} style={field}><option value="month">Mensal</option><option value="year">Anual</option></select></label>
-          <button disabled={busy} style={{...button,marginTop:20,opacity:busy?.6:1}}>Guardar plano</button>
+          <button disabled={busy} style={{...button,marginTop:20,opacity:busy ? 0.6 : 1}}>Guardar plano</button>
         </form>
         {plans.map(p=><div key={p.id} style={{padding:'12px 0',borderTop:'1px solid #9993',marginTop:12}}><strong>{p.title}</strong> · {(p.price_cents/100).toFixed(2)} €/{p.billing_period==='month'?'mês':'ano'} <small style={{color:'#b6c6da'}}>({p.status==='draft'?'em configuração':p.status==='published'?'publicado':'arquivado'})</small></div>)}
       </section>
@@ -62,7 +62,7 @@ export function CreatorStudio({ onBack }) {
         <form onSubmit={e=>{e.preventDefault();void submit(async()=>{await api.creators.createContent({title:postTitle,body});setPostTitle('');setBody('');});}}>
           <label style={labelStyle}>Título<input required minLength={3} maxLength={160} value={postTitle} onChange={e=>setPostTitle(e.target.value)} style={field}/></label>
           <label style={labelStyle}>Mensagem<textarea value={body} maxLength={10000} rows={5} onChange={e=>setBody(e.target.value)} style={field}/></label>
-          <button disabled={busy} style={{...button,marginTop:20,opacity:busy?.6:1}}>Guardar conteúdo</button>
+          <button disabled={busy} style={{...button,marginTop:20,opacity:busy ? 0.6 : 1}}>Guardar conteúdo</button>
         </form>
         {content.map(item=><article key={item.id} style={{padding:'14px 0',borderTop:'1px solid #9993',marginTop:12}}>
           <strong>{item.title}</strong><p style={{whiteSpace:'pre-wrap'}}>{item.body}</p>

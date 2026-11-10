@@ -12,6 +12,7 @@ process.env.CREATORS_STRIPE_PORTAL_CONFIGURATION = 'bpc_luminaTest123';
 const fetchReal = globalThis.fetch;
 
 let stripeCheckoutCalls = 0;
+let currentTransferStatus='active',currentPayoutStatus='active';
 let currentStatus = 'active';
 let latestPaid = true;
 const expiry = () => Math.floor(Date.now() / 1000) + 3600;
@@ -36,7 +37,7 @@ globalThis.fetch = async (url, options = {}) => {
       return new Response(JSON.stringify({
         id:connectedId,object:'v2.core.account',livemode:false,
         configuration:{recipient:{capabilities:{stripe_balance:{
-          stripe_transfers:{status:'active'},payouts:{status:'active'}
+          stripe_transfers:{status:currentTransferStatus},payouts:{status:currentPayoutStatus}
         }}}}
       }),{status:200,headers:{'content-type':'application/json'}});
     }
@@ -183,6 +184,21 @@ test('recipient transfer capability unlocks creator plan eligibility without dir
   assert.equal(rows[0].charges_enabled,false);
   assert.equal(rows[0].transfers_enabled,true);
   assert.equal(rows[0].payouts_enabled,true);
+});
+
+test('revoked v2 payout capability blocks checkout even if database still says verified',async()=>{
+  const countBefore=stripeCheckoutCalls;
+  currentPayoutStatus='restricted';
+  try {
+    const result=await request('/api/creators/'+creator.id+'/plans/'+planId+'/checkout',{
+      token:signToken(subscriber),method:'POST'
+    });
+    assert.equal(result.status,409);
+    assert.equal(stripeCheckoutCalls,countBefore,
+      'No Stripe Checkout session should be created while payout capability is blocked');
+  } finally {
+    currentPayoutStatus='active';
+  }
 });
 
 test('duplicate subscription attempts reuse one pending checkout without second charge',async()=>{

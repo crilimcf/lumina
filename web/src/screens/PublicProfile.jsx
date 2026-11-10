@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Lock, MessageCircle, UserMinus, UserPlus } from 'lucide-react';
 import { api } from '../api.js';
+import { isNativeApp } from '../native/session.js';
 import { Empty, Orb, Skeleton } from '../ui.jsx';
 import '../mediaOrientation.css';
 
@@ -16,12 +17,21 @@ export function PublicProfile({ handle, onBack, onMessage, ping }) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [paidPlans, setPaidPlans] = useState([]);
 
   const load = async () => {
     setLoading(true);
     try {
       const profile = await api.users.get(handle);
       setPerson(profile);
+      // Monetization is web-only until native store billing approval.
+      if (!isNativeApp && profile.can_view_posts && profile.id) {
+        const [plans, billing] = await Promise.all([
+          api.creators.plans(profile.id).catch(() => ({plans:[]})),
+          api.creators.billingStatus().catch(() => ({enabled:false})),
+        ]);
+        setPaidPlans(billing.enabled ? plans.plans || [] : []);
+      } else setPaidPlans([]);
       if (profile.can_view_posts) {
         const data = await api.users.posts(handle);
         setPosts(data.posts || []);
@@ -43,6 +53,20 @@ export function PublicProfile({ handle, onBack, onMessage, ping }) {
       setPerson(p => ({ ...p, following: !!result.following, requested: !!result.pending, followers: Math.max(0, Number(p.followers || 0) + (result.following ? 1 : (p.following ? -1 : 0)) ) }));
       ping(result.pending ? 'Pedido enviado' : result.following ? `Agora segues ${person.name}` : `Deixaste de seguir ${person.name}`);
       if (result.following && person.is_private) await load();
+    } catch (e) { ping(e.message); }
+    finally { setBusy(false); }
+  };
+
+  const subscribe = async (planId) => {
+    if (!person || busy || isNativeApp) return;
+    setBusy(true);
+    try {
+      const result = await api.creators.subscribeCheckout(person.id,planId);
+      const redirect = new URL(result.checkoutUrl);
+      if (redirect.protocol !== 'https:' || redirect.hostname !== 'checkout.stripe.com') {
+        throw new Error('Ligação de pagamento inválida');
+      }
+      window.location.assign(result.checkoutUrl);
     } catch (e) { ping(e.message); }
     finally { setBusy(false); }
   };
@@ -73,6 +97,15 @@ export function PublicProfile({ handle, onBack, onMessage, ping }) {
         </div>
       </section>
 
+      {paidPlans.length > 0 && <section className="card" style={{background:'#141c2b',color:'#f4f8ff',padding:20,marginTop:18,borderRadius:22}}>
+        <h2 style={{fontSize:22,marginBottom:6}}>Comunidade <span style={{color:'#31dacb'}}>Creators</span></h2>
+        <p style={{color:'#c0d1de',fontSize:13,marginBottom:16}}>Conteúdo exclusivo para membros. Preços recorrentes e renovação automática indicados antes de pagar.</p>
+        {paidPlans.map(plan=><div key={plan.id} style={{borderTop:'1px solid #ffffff24',padding:'14px 0',display:'flex',alignItems:'center',gap:12,justifyContent:'space-between'}}>
+          <div style={{minWidth:0}}><strong>{plan.title}</strong><div style={{color:'#a9bcd4',fontSize:13}}>{(plan.price_cents/100).toFixed(2)} €/{plan.billing_period==='month'?'mês':'ano'}</div></div>
+          <button type="button" disabled={busy} onClick={()=>void subscribe(plan.id)} style={{border:0,borderRadius:12,padding:'10px 14px',background:'#31dacb',color:'#09232e',fontWeight:800}}>Subscrever</button>
+        </div>)}
+        <p style={{color:'#b6c6da',fontSize:12,marginTop:8}}>Consulta os <a href="/termos.html" style={{color:'#85e5dc'}}>Termos de utilização</a> e as condições apresentadas no Stripe antes de concluir a subscrição.</p>
+      </section>}
       <div className="m public-profile-section-label" style={{margin:'22px 4px 10px'}}>PUBLICAÇÕES</div>
       {!person.can_view_posts ? <section className="card public-profile-private" style={{padding:28,textAlign:'center'}}><Lock size={24} style={{marginBottom:9}}/><div style={{fontWeight:800}}>Perfil privado</div><div className="m" style={{marginTop:5}}>Segue esta pessoa para veres as publicações.</div></section>
         : posts.length===0 ? <Empty>Ainda não há publicações.</Empty>

@@ -63,3 +63,18 @@ The PR implementing Stripe Connect is a **draft**. It is **not a completed paid 
 7. Verify account `digibox.pt` onboarding eligibility and complete any pending proof-of-liveness requirements.
 
 No platform receives money or grants paid memberships from this branch while `FEATURE_SUBSCRIPTIONS=false`.
+
+## Stripe test-mode audit — 10 November 2026
+
+Read-only inspection after the account owner authorized test-mode Stripe access:
+
+- Digibox Stripe is available in both live and test modes. Specify livemode=false for tests.
+- The linked test mode currently has zero Connect connected accounts and zero webhook endpoints.
+- Stripe Tax settings are pending, with zero tax registrations. Do not activate live checkout as if tax compliance were complete.
+- The automated EnableConnect operation refused activation because it only supports standalone sandboxes, not the existing test-mode environment.
+- This API limitation does not prove that Connect cannot be configured in the dashboard, only that this particular automated setup cannot do it.
+- Testing destination subscriptions requires an isolated Connect-enabled sandbox/test account, synthetic connected account, and separate staging backend with webhook secret and test API key.
+- No test purchases, accounts, customers, products, webhooks, or prices were created during this read-only audit.
+- Existing live Stripe webhooks for Digibox's other products remain unchanged.
+
+Continue to keep FEATURE_SUBSCRIPTIONS=false in production. Do not put Stripe test keys in the production Railway service.

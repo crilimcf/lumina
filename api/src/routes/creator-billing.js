@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { Router } from 'express';
-import { q } from '../db.js';
+import { q, tx } from '../db.js';
 import { env } from '../env.js';
 import { auth, h, bad, forbidden, HttpError } from '../middleware/auth.js';
 import { stripeCreatorsRequest, creatorCheckoutEnabled, creatorBillingConfigured } from '../lib/stripe-creators.js';
@@ -110,8 +110,27 @@ creatorBillingRoutes.post('/:creatorId/plans/:planId/checkout', h(async (req, re
     const { rows } = await q('SELECT stripe_customer_id FROM creator_billing_customers WHERE subscriber_id=$1', [req.user.id]);
     customerId = rows[0].stripe_customer_id;
   }
-  const session = await stripeCreatorsRequest('POST', '/checkout/sessions', {
-    mode: 'subscription',
+  const result = await tx(async client => {
+    // Serialise checkouts for the same subscriber so two rapid taps cannot create
+    // two live subscription payment pages for the same creator.
+    await client.query('SELECT id FROM users WHERE id=$1 FOR UPDATE', [req.user.id]);
+    const { rows: member } = await client.query(
+      "SELECT id FROM creator_memberships WHERE creator_id=$1 AND subscriber_id=$2 AND status IN ('pending','active','past_due') LIMIT 1",
+      [req.params.creatorId,req.user.id]
+    );
+    if (member[0]) throw new HttpError(409, 'Já existe uma subscrição para este criador', 'creator_membership_exists');
+
+    const { rows: existing } = await client.query(
+      "SELECT session_id,plan_id,checkout_url FROM creator_checkout_sessions WHERE creator_id=$1 AND subscriber_id=$2 AND status='pending' AND expires_at>now() ORDER BY created_at DESC LIMIT 1",
+      [req.params.creatorId, req.user.id]
+    );
+    if (existing[0]) {
+      if (existing[0].plan_id !== plan.id) throw new HttpError(409,
+        'Já existe um pagamento pendente para outra periodicidade', 'creator_checkout_already_pending');
+      return { url:existing[0].checkout_url, reused:true };
+    }
+
+    const session = await stripeCreatorsRequest('POST', '/checkout/sessions', {
     customer: customerId,
     client_reference_id: req.user.id,
     'line_items[0][price_data][currency]': 'eur',
@@ -129,11 +148,19 @@ creatorBillingRoutes.post('/:creatorId/plans/:planId/checkout', h(async (req, re
     'metadata[lumina_plan_id]': plan.id,
     success_url: env.APP_URL + '/?creators=subscription-return&session_id={CHECKOUT_SESSION_ID}',
     cancel_url: env.APP_URL + '/?creators=subscription-cancelled',
-  }, 'lumina-creators-checkout-' + req.user.id + '-' + plan.id + '-' + crypto.randomUUID());
-  if (!session.id?.startsWith('cs_') || !/^https:\/\/checkout\.stripe\.com\//.test(String(session.url || ''))) {
-    throw new HttpError(502, 'Sessão de pagamento inválida', 'checkout_session_invalid');
-  }
-  await q('INSERT INTO creator_checkout_sessions (session_id,creator_id,subscriber_id,plan_id) VALUES($1,$2,$3,$4)',
-    [session.id,req.params.creatorId,req.user.id,plan.id]);
-  res.status(201).json({ checkoutUrl: session.url });
+    }, 'lumina-creators-checkout-' + req.user.id + '-' + plan.id + '-' + crypto.randomUUID());
+    if (!/^cs_[a-zA-Z0-9_]+$/.test(String(session.id || '')) ||
+        !/^https:\/\/checkout\.stripe\.com\//.test(String(session.url || ''))) {
+      throw new HttpError(502, 'Sessão de pagamento inválida', 'checkout_session_invalid');
+    }
+    const expiry = Number.isSafeInteger(Number(session.expires_at)) && Number(session.expires_at)>Date.now()/1000
+      ? new Date(Number(session.expires_at)*1000)
+      : new Date(Date.now() + 23*60*60*1000);
+    await client.query(
+      'INSERT INTO creator_checkout_sessions (session_id,creator_id,subscriber_id,plan_id,checkout_url,expires_at) VALUES($1,$2,$3,$4,$5,$6)',
+      [session.id,req.params.creatorId,req.user.id,plan.id,session.url,expiry]
+    );
+    return { url:session.url, reused:false };
+  });
+  res.status(result.reused ? 200 : 201).json({ checkoutUrl: result.url });
 }));

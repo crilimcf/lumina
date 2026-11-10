@@ -52,8 +52,8 @@ before(async () => {
     [creator.id,subscriber.id,planId,stripeSubscriptionId]
   );
   await q(
-    "INSERT INTO creator_billing_incidents(event_id,provider_subscription_id,invoice_id,charge_id,reason) VALUES ('evt_luminaGdprErasure',$1,'in_luminaGdprErasure','ch_luminaGdprErasure','refund')",
-    [stripeSubscriptionId]
+    "INSERT INTO creator_billing_incidents(event_id,provider_subscription_id,invoice_id,charge_id,reason,creator_id,subscriber_id) VALUES ('evt_luminaGdprErasure',$1,'in_luminaGdprErasure','ch_luminaGdprErasure','refund',$2,$3)",
+    [stripeSubscriptionId,creator.id,subscriber.id]
   );
   checkoutId='cs_test_luminaGdprErasure';
   await q(

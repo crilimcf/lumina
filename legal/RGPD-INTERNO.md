@@ -8,7 +8,7 @@ Documento operacional interno. Deve ser revisto sempre que o produto, os fornece
 
 **Responsável pelo tratamento:** Carlos Fernandes, Rua da Cabecinha N.º 23, 5300-802 Rebordainhos, Bragança, Portugal, NIF 227369661
 **Contacto:** carlos.fernandes@digibox.pt
-**Última atualização:** `15 de agosto de 2026`
+**Última atualização:** `10 de novembro de 2026`
 
 ### A · Contas e perfis
 
@@ -95,6 +95,39 @@ Documento operacional interno. Deve ser revisto sempre que o produto, os fornece
 | Segurança | Upload assinado, validação de tipo/tamanho/assinatura binária, ownership e consumo único |
 | Retenção | Ligada ao conteúdo; uploads abandonados/órfãos são limpos automaticamente |
 
+### J · Lumina Creators (planos e conteúdo reservado)
+
+| Campo | Informação |
+|---|---|
+| Finalidade | Preparar planos, permitir autoria e publicar conteúdo reservado; futuramente gerir subscrições |
+| Dados | Identificador do criador, título/descrição do plano, valor, periodicidade, estado, conteúdo e datas |
+| Fundamento | Execução do serviço solicitado; interesses legítimos de segurança; obrigações legais quando aplicáveis |
+| Visibilidade | Planos em rascunho privados; conteúdos publicados só acessíveis ao criador e, após lançamento, a subscritores elegíveis verificados pelo servidor |
+| Retenção | Enquanto a conta e os conteúdos forem necessários; sujeito ao ciclo de apagamento e exceções legais |
+| Ponto de controlo | FEATURE_CREATORS permite estúdio de rascunhos; FEATURE_SUBSCRIPTIONS desativada; nenhum pagamento deve ser ativado apenas com uma mudança de texto ou flag |
+
+### K · Subscrições pagas e pagamentos a criadores (futuro lançamento)
+
+| Campo | Informação |
+|---|---|
+| Finalidade | Cobrança recorrente, cancelamento, apoio, reembolsos e pagamentos ao criador |
+| Dados | IDs externos Stripe (cliente, conta Connect, subscrição, transação), valor, estado e datas; nunca números completos de cartões |
+| Fornecedor | Stripe, sujeito a verificação de acordos, países elegíveis e configuração de produção |
+| Fundamento | Execução contratual e obrigações fiscais/legais, apenas após lançamento |
+| Retenção | Prazos legais aplicáveis aos documentos financeiros, minimizados e separados do conteúdo social |
+| Ponto de controlo | Webhooks autenticados e idempotentes; reconciliação de pagamentos; faturação e impostos; direito de cancelamento; avaliação Apple/Google digital goods; testes de chargebacks |
+| Estado | Não implementado em produção. Não apresentar preços como subscrições compráveis |
+
+### L · Funcionalidades de IA (quando utilizadas)
+
+| Campo | Informação |
+|---|---|
+| Finalidade | Processamento de pedidos de IA expressamente iniciados pelo utilizador |
+| Dados | Prompt e dados estritamente necessários à função e respetiva segurança |
+| Fornecedor | OpenAI conforme integração e contratação efetiva |
+| Fundamento | Execução do serviço solicitado e interesses legítimos de segurança, com consentimento quando exigido |
+| Controlos pendentes | Rever minimização, retenção do fornecedor, transferências internacionais, política de conteúdos, base jurídica e eventual AIPD |
+
 ## Parte 2 · Exportação e apagamento
 
 `GET /account/export` exporta o modelo de dados atual da conta, incluindo:
@@ -124,6 +157,11 @@ O pedido de apagamento é agendado com uma janela de 30 dias. A execução remov
 - [x] Identidade e contactos do responsável preenchidos.
 - [ ] Confirmar bases jurídicas, prazos de retenção e contratos/subcontratantes.
 - [ ] Confirmar regiões de alojamento e mecanismos de transferências internacionais antes do lançamento público.
+- [ ] Rever e assinar acordos de subcontratação, incluindo eventuais transferências internacionais, para cada fornecedor usado.
+- [ ] Incluir explicitamente planos/conteúdos Creators na exportação RGPD e verificar apagamento em cascata e retenções legais.
+- [ ] Confirmar e testar respostas a pedidos RGPD e a denúncias/recurso da moderação (DSA).
+- [ ] Efetuar revisão jurídica/fiscal de subscrições, regras de lojas móveis, reembolsos e faturação antes da cobrança.
+- [ ] Sincronizar e rever traduções legais PT/FR/EN/ES antes de anunciar versões equivalentes.
 
 ## Parte 4 · Resposta a violações de dados
 

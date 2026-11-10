@@ -71,6 +71,6 @@ export function CreatorStudio({ onBack }) {
         </article>)}
       </section>
     </>}
-    <footer style={{display:'flex',gap:18,flexWrap:'wrap',fontSize:13,marginTop:22,marginBottom:16}}><a href="/privacidade.html" style={{color:'#85e5dc'}}>Privacidade e RGPD</a><a href="/legal/TERMOS.md" style={{color:'#85e5dc'}}>Termos de utilização</a></footer>
+    <footer style={{display:'flex',gap:18,flexWrap:'wrap',fontSize:13,marginTop:22,marginBottom:16}}><a href="/privacidade.html" style={{color:'#85e5dc'}}>Privacidade e RGPD</a><a href="/termos.html" style={{color:'#85e5dc'}}>Termos de utilização</a></footer>
   </main>;
 }

@@ -68,6 +68,17 @@ test('studio refuses unauthenticated users and invalid plan amounts', async () =
   })).status, 400);
 });
 
+test('creator billing is gated and cannot charge or publish without configuration', async () => {
+  const status = await request('/api/creators/me/billing/status', { token: creatorToken });
+  assert.equal(status.status, 200);
+  assert.equal(status.data.enabled, false);
+  const checkout = await request('/api/creators/' + creator.id + '/plans/' + randomUUID() + '/checkout', {
+    token: subscriberToken, method: 'POST',
+  });
+  assert.equal(checkout.status, 503);
+  assert.equal(checkout.data.code, 'creator_payments_unavailable');
+});
+
 test('creator can draft a plan; no public purchase or membership activation', async () => {
   const response = await request('/api/creators/me/plans', {
     token: creatorToken, method: 'POST',

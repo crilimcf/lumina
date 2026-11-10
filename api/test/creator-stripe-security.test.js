@@ -5,8 +5,9 @@ import crypto from 'node:crypto';
 process.env.DATABASE_URL ||= 'postgresql://test:test@localhost:5432/lumina_test';
 process.env.JWT_SECRET ||= 'test-jwt-secret-only-for-unit-tests';
 
-const { verifyCreatorStripeEvent, stripeCreatorSubscriptionState, creatorCheckoutEnabled } =
+const { verifyCreatorStripeEvent, stripeCreatorSubscriptionState, creatorCheckoutEnabled, creatorBillingConfigured } =
   await import('../src/lib/stripe-creators.js');
+const { env } = await import('../src/env.js');
 
 const sample = { id:'evt_test456', type:'invoice.paid', data:{ object:{ id:'in_test123' } } };
 const secret = 'whsec_test_local_only';
@@ -18,6 +19,33 @@ const signed = (body, timestamp, secretValue = secret) => {
 
 test('Creator payments remain gated off with absent production configuration', () => {
   assert.equal(creatorCheckoutEnabled(), false);
+});
+
+test('live Stripe key cannot enable checkouts without explicit release approval', () => {
+  const keys=['FEATURE_CREATORS','FEATURE_SUBSCRIPTIONS','STRIPE_SECRET_KEY','CREATORS_STRIPE_WEBHOOK_SECRET',
+    'CREATORS_PLATFORM_FEE_PERCENT','CREATORS_LIVE_PAYMENTS_APPROVED'];
+  const original=Object.fromEntries(keys.map(k=>[k,env[k]]));
+  try {
+    Object.assign(env,{
+      FEATURE_CREATORS:true,FEATURE_SUBSCRIPTIONS:true,
+      STRIPE_SECRET_KEY:'sk_live_unit_test_not_a_real_key',
+      CREATORS_STRIPE_WEBHOOK_SECRET:'whsec_unit_test_not_a_real_secret',
+      CREATORS_PLATFORM_FEE_PERCENT:10,
+      CREATORS_LIVE_PAYMENTS_APPROVED:false
+    });
+    assert.equal(creatorBillingConfigured(),false);
+    assert.equal(creatorCheckoutEnabled(),false);
+    env.CREATORS_LIVE_PAYMENTS_APPROVED=true;
+    assert.equal(creatorBillingConfigured(),true);
+    assert.equal(creatorCheckoutEnabled(),true);
+    env.STRIPE_SECRET_KEY='sk_test_unit_test_not_a_real_key';
+    env.CREATORS_LIVE_PAYMENTS_APPROVED=false;
+    assert.equal(creatorCheckoutEnabled(),true);
+    env.STRIPE_SECRET_KEY='invalid_key_format';
+    assert.equal(creatorCheckoutEnabled(),false);
+  } finally {
+    Object.assign(env,original);
+  }
 });
 
 test('Only an authentic, timely Stripe signed raw JSON event is accepted', () => {

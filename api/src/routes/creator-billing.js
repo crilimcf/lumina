@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { q, tx } from '../db.js';
 import { env } from '../env.js';
 import { auth, h, bad, forbidden, HttpError } from '../middleware/auth.js';
-import { stripeCreatorsRequest, stripeCreatorsV2Request, creatorCheckoutEnabled, creatorBillingConfigured } from '../lib/stripe-creators.js';
+import { stripeCreatorsRequest, stripeCreatorsV2Request, creatorCheckoutEnabled, creatorBillingConfigured, creatorOnboardingEnabled } from '../lib/stripe-creators.js';
 
 export const creatorBillingRoutes = Router();
 creatorBillingRoutes.use(auth);
@@ -68,7 +68,7 @@ creatorBillingRoutes.post('/me/billing/portal', h(async (req, res) => {
 
 creatorBillingRoutes.post('/me/billing/onboard', h(async (req, res) => {
   ensureStudio();
-  if (!env.STRIPE_SECRET_KEY || !creatorBillingConfigured()) throw paymentNotReady();
+  if (!creatorOnboardingEnabled()) throw paymentNotReady();
   const { rows: eligibility } = await q(
     "SELECT birth_date IS NOT NULL AND birth_date <= (CURRENT_DATE - INTERVAL '18 years')::date AS eligible FROM users WHERE id=$1",
     [req.user.id]

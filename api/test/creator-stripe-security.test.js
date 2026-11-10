@@ -127,3 +127,34 @@ test('Creator billing portal requires an explicit dedicated Stripe configuration
   assert.match(source, /configuration:env\.CREATORS_STRIPE_PORTAL_CONFIGURATION/);
   assert.match(source, /creator_billing_portal_unconfigured/);
 });
+
+test('live Stripe readiness probe is read-only and reports HTTP statuses without billing mutations', async () => {
+  const { checkCreatorStripePermissions } = await import('../src/lib/creator-stripe-readiness.js');
+  const previous = {key:env.STRIPE_SECRET_KEY,node:env.NODE_ENV,portal:env.CREATORS_STRIPE_PORTAL_CONFIGURATION};
+  const previousSandbox = process.env.LUMINA_SANDBOX;
+  const priorLog = console.log;
+  const calls = [];
+  const logs = [];
+  try {
+    delete process.env.LUMINA_SANDBOX;
+    env.STRIPE_SECRET_KEY = 'rk_live_dummy_secret_only';
+    env.NODE_ENV = 'production';
+    env.CREATORS_STRIPE_PORTAL_CONFIGURATION = 'bpc_unitTest123';
+    console.log = (...args) => logs.push(args.join(' '));
+    const result = await checkCreatorStripePermissions(async (url, options) => {
+      calls.push({url,method:options.method});
+      return {status: url.includes('/v1/accounts?') ? 403 : 200};
+    });
+    assert.equal(result.length, 5);
+    assert.ok(calls.every(call => call.method === 'GET'));
+    assert.equal(result.find(row => row.name === 'connected-accounts-read').status,403);
+    assert.ok(!logs.join(' ').includes('rk_live_dummy_secret_only'));
+  } finally {
+    env.STRIPE_SECRET_KEY=previous.key;
+    env.NODE_ENV=previous.node;
+    env.CREATORS_STRIPE_PORTAL_CONFIGURATION=previous.portal;
+    console.log=priorLog;
+    if(previousSandbox===undefined) delete process.env.LUMINA_SANDBOX;
+    else process.env.LUMINA_SANDBOX=previousSandbox;
+  }
+});

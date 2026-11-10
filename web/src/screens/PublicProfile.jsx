@@ -26,7 +26,7 @@ export function PublicProfile({ handle, onBack, onMessage, ping }) {
       const profile = await api.users.get(handle);
       setPerson(profile);
       // Monetization is web-only until native store billing approval.
-      if (!isNativeApp && profile.can_view_posts && profile.id) {
+      if (!isNativeApp && profile.id) {
         const [plans, billing] = await Promise.all([
           api.creators.plans(profile.id).catch(() => ({plans:[]})),
           api.creators.billingStatus().catch(() => ({enabled:false})),
@@ -44,7 +44,13 @@ export function PublicProfile({ handle, onBack, onMessage, ping }) {
         setMemberContent(exclusive.content || []);
       } else {
         setPosts([]);
-        setMemberContent([]);
+        // Private creators may still have paying members who do not follow
+        // them. The backend—not the public-posts visibility flag—authorizes
+        // the exclusive content and never returns it to non-members.
+        const exclusive = profile.id
+          ? await api.creators.content(profile.id).catch(() => ({content:[]}))
+          : {content:[]};
+        setMemberContent(exclusive.content || []);
       }
     } catch (e) {
       ping(e.message);

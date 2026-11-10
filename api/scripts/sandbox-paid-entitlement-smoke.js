@@ -229,12 +229,9 @@ try {
     }
   }
   if(server)await new Promise(resolve=>server.close(resolve));
-  // Preserve synthetic rows on failure for debugging. Remove only the unique
-  // temporary subscriber on full success (cascades member and incident data).
-  if(success&&subscriber){
-    try { await q('DELETE FROM users WHERE id=$1',[subscriber.id]); }
-    catch { console.error('[e2e] cleanup of synthetic user failed'); process.exitCode=1; }
-  }
+  // Retain only the non-loginable synthetic subscriber and canceled membership.
+  // Stripe may retry its genuine webhooks; keeping these sandbox identifiers
+  // allows the backend to acknowledge and reconcile them safely.
   await pool.end();
   // Restore process flags only within this one-off process.
   process.env.LUMINA_SANDBOX=initial.sandbox;

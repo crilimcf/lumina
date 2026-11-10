@@ -31,7 +31,7 @@ test('health expõe release, schema e métricas agregadas do Radar sem alterar o
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { ok: true });
   assert.equal(response.headers.get('x-lumina-release'), 'release-test-sha');
-  assert.equal(response.headers.get('x-lumina-schema'), '901');
+  assert.equal(response.headers.get('x-lumina-schema'), '902');
   assert.equal(response.headers.get('x-lumina-ai'), 'off');
 
   for (const header of [
@@ -55,7 +55,7 @@ test('health ignora versões históricas/sentinela sem migration correspondente 
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { ok: true });
     assert.equal(response.headers.get('x-lumina-release'), 'release-test-sha');
-    assert.equal(response.headers.get('x-lumina-schema'), '901');
+    assert.equal(response.headers.get('x-lumina-schema'), '902');
   } finally {
     if (inserted.rowCount > 0) {
       await q('DELETE FROM schema_migrations WHERE version = 900009');

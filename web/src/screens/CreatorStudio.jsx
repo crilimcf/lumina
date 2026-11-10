@@ -21,11 +21,13 @@ export function CreatorStudio({ onBack }) {
   const [unavailable,setUnavailable] = useState(false);
   const [notice,setNotice] = useState('');
   const [billing,setBilling] = useState(null);
+  const [subscriptions,setSubscriptions] = useState([]);
 
   const load = async () => {
     try {
-      const [p,c,b] = await Promise.all([api.creators.myPlans(),api.creators.myContent(),api.creators.billingStatus().catch(() => null)]);
+      const [p,c,b,m] = await Promise.all([api.creators.myPlans(),api.creators.myContent(),api.creators.billingStatus().catch(() => null),api.creators.billingSubscriptions().catch(() => ({ subscriptions:[] }))]);
       setBilling(b);
+      setSubscriptions(m.subscriptions || []);
       setPlans(p.plans || []);
       setContent(c.content || []);
       setError('');
@@ -58,6 +60,19 @@ export function CreatorStudio({ onBack }) {
           {(!billing.account.chargesEnabled || !billing.account.payoutsEnabled || !billing.account.detailsSubmitted) && <button disabled={busy} style={{...button,marginTop:12}} onClick={() => void submit(async () => { const response = await api.creators.billingOnboard(); if (!response?.url || new URL(response.url).protocol !== 'https:' || !new URL(response.url).hostname.endsWith('.stripe.com')) throw new Error('Ligação segura de onboarding indisponível'); window.location.assign(response.url); })}>Concluir dados na Stripe</button>}
         </>}
         {!billing.enabled && <p style={{...muted,fontSize:13,marginTop:12}}>O lançamento comercial depende dos testes finais de faturação e segurança.</p>}
+      </section>}
+      {subscriptions.length > 0 && !isNativeApp && <section style={card}>
+        <h2>As minhas subscrições</h2>
+        <p style={{...muted,fontSize:14,margin:'10px 0 18px'}}>Consulta os teus planos e gere os métodos de pagamento e cancelamentos no portal seguro.</p>
+        {subscriptions.map(sub=><div key={sub.id} style={{padding:'10px 0',borderTop:'1px solid #ffffff22'}}>
+          <strong>{sub.title}</strong><p style={muted}>{(sub.price_cents/100).toFixed(2)} €/{sub.billing_period==='month'?'mês':'ano'} · {sub.status==='active'?'Ativa':sub.status==='past_due'?'Pagamento pendente':sub.status==='cancelled'?'Cancelada':sub.status==='expired'?'Expirada':'Em processamento'}</p>
+        </div>)}
+        <button type="button" disabled={busy} style={{...button,marginTop:14}} onClick={()=>void submit(async()=>{
+          const result=await api.creators.billingPortal();
+          const destination=new URL(result.url);
+          if(destination.protocol!=='https:'||destination.hostname!=='billing.stripe.com') throw new Error('Portal seguro não encontrado');
+          window.location.assign(result.url);
+        })}>Gerir pagamentos e cancelar</button>
       </section>}
       <section style={card}>
         <h2>Planos de comunidade</h2>

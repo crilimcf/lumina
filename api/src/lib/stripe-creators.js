@@ -102,8 +102,15 @@ export async function stripeCreatorsV2Request(resource, body, idempotencyKey) {
     const providerType = String(providerError.type || 'unknown').slice(0,80);
     const requestId = String(response.headers?.get?.('request-id') ||
       response.headers?.get?.('stripe-request-id') || 'none').slice(0,80);
+    const safeReason = String(providerError.message || '')
+      .replace(/\\b(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9]+\\b/g,'[redacted-key]')
+      .replace(/\\bwhsec_[A-Za-z0-9]+\\b/g,'[redacted-secret]')
+      .replace(/\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b/gi,'[redacted-email]')
+      .replace(/\\b(?:cus|acct|in|sub|pi|pm)_[A-Za-z0-9]+\\b/g,'[redacted-id]')
+      .slice(0,240);
     console.error('[creators/stripe-v2] erro',response.status,
-      'code='+providerCode,'type='+providerType,'request_id='+requestId);
+      'code='+providerCode,'type='+providerType,'request_id='+requestId,
+      'reason='+safeReason);
     throw new HttpError(502,'Não foi possível concluir a operação no serviço de pagamentos',
       'creator_payment_provider');
   }

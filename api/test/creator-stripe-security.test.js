@@ -161,7 +161,7 @@ test('live Stripe readiness probe is read-only and reports HTTP statuses without
 
 test('live no-charge smoke test creates, visits portal, and removes only its own customer', async()=>{
   const {checkCreatorStripeWritePermissions}=await import('../src/lib/creator-stripe-readiness.js');
-  const original={key:env.STRIPE_SECRET_KEY,node:env.NODE_ENV,portal:env.CREATORS_STRIPE_PORTAL_CONFIGURATION,app:env.APP_URL};
+  const original={key:env.STRIPE_SECRET_KEY,node:env.NODE_ENV,portal:env.CREATORS_STRIPE_PORTAL_CONFIGURATION,expected:env.CREATORS_STRIPE_EXPECTED_ACCOUNT_ID,app:env.APP_URL};
   const sandbox=process.env.LUMINA_SANDBOX;
   const oldLog=console.log;
   const calls=[];
@@ -171,10 +171,13 @@ test('live no-charge smoke test creates, visits portal, and removes only its own
     env.NODE_ENV='production';
     env.APP_URL='https://lumina.example';
     env.CREATORS_STRIPE_PORTAL_CONFIGURATION='bpc_testOnly';
+    env.CREATORS_STRIPE_EXPECTED_ACCOUNT_ID='acct_unitTestPlatform';
     console.log=()=>{};
     const result=await checkCreatorStripeWritePermissions(async (url,options)=>{
       calls.push({url,method:options.method,body:options.body});
-      if(url.endsWith('/customers') && options.method==='POST')
+      if(url.endsWith('/v1/account') && options.method==='GET')
+        return {ok:true,status:200,json:async()=>({id:'acct_unitTestPlatform',livemode:true})};
+            if(url.endsWith('/customers') && options.method==='POST')
         return {ok:true,status:200,json:async()=>({id:'cus_Test123'})};
       if(url.includes('/billing_portal/sessions'))
         return {ok:true,status:200,json:async()=>({id:'bps_Test123'})};
@@ -183,12 +186,12 @@ test('live no-charge smoke test creates, visits portal, and removes only its own
       throw new Error('unexpected request');
     });
     assert.equal(result.customerCreate,200);
-    assert.deepEqual(calls.map(x=>x.method),['POST','POST','DELETE']);
+    assert.deepEqual(calls.map(x=>x.method),['GET','POST','POST','DELETE']);
     assert.ok(!calls.some(x=>x.url.includes('checkout/sessions') || x.url.includes('subscriptions')));
-    assert.equal(new URLSearchParams(calls[1].body).get('configuration'),'bpc_testOnly');
+    assert.equal(new URLSearchParams(calls[2].body).get('configuration'),'bpc_testOnly');
   } finally {
     Object.assign(env,{STRIPE_SECRET_KEY:original.key,NODE_ENV:original.node,
-      CREATORS_STRIPE_PORTAL_CONFIGURATION:original.portal,APP_URL:original.app});
+      CREATORS_STRIPE_PORTAL_CONFIGURATION:original.portal,CREATORS_STRIPE_EXPECTED_ACCOUNT_ID:original.expected,APP_URL:original.app});
     console.log=oldLog;
     if(sandbox===undefined)delete process.env.LUMINA_SANDBOX;
     else process.env.LUMINA_SANDBOX=sandbox;
@@ -215,6 +218,34 @@ test('Connect onboarding remains available with subscription sales paused', () =
     assert.equal(creatorOnboardingEnabled(),false);
   } finally {
     Object.assign(env,previous);
+    if(sandbox===undefined) delete process.env.LUMINA_SANDBOX;
+    else process.env.LUMINA_SANDBOX=sandbox;
+  }
+});
+
+test('live write probe fails closed on wrong Stripe account identity without mutations', async()=>{
+  const {checkCreatorStripeWritePermissions}=await import('../src/lib/creator-stripe-readiness.js');
+  const old={key:env.STRIPE_SECRET_KEY,node:env.NODE_ENV,expected:env.CREATORS_STRIPE_EXPECTED_ACCOUNT_ID};
+  const sandbox=process.env.LUMINA_SANDBOX;
+  const log=console.log;
+  const calls=[];
+  try {
+    delete process.env.LUMINA_SANDBOX;
+    env.STRIPE_SECRET_KEY='rk_live_test_not_real';
+    env.NODE_ENV='production';
+    env.CREATORS_STRIPE_EXPECTED_ACCOUNT_ID='acct_expectedPlatform';
+    console.log=()=>{};
+    const r=await checkCreatorStripeWritePermissions(async (url,options)=>{
+      calls.push({url,method:options.method});
+      return {ok:true,status:200,json:async()=>({id:'acct_anotherAccount',livemode:true})};
+    });
+    assert.equal(r.identityVerified,false);
+    assert.deepEqual(calls.map(c=>c.method),['GET']);
+  } finally {
+    env.STRIPE_SECRET_KEY=old.key;
+    env.NODE_ENV=old.node;
+    env.CREATORS_STRIPE_EXPECTED_ACCOUNT_ID=old.expected;
+    console.log=log;
     if(sandbox===undefined) delete process.env.LUMINA_SANDBOX;
     else process.env.LUMINA_SANDBOX=sandbox;
   }

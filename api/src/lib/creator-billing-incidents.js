@@ -23,7 +23,15 @@ export async function handleCreatorPaymentIncident(event) {
     return {handled:true,matched:false};
   }
   let charge = type === 'charge.refunded' ? object : null;
-  const chargeId = getId(charge?.id) || getId(object?.charge);
+  let chargeId = getId(charge?.id) || getId(object?.charge);
+  // Some newer Refund notifications contain a PaymentIntent but no Charge.
+  // Resolve through the provider, never trust a client-supplied subscription ID.
+  let paymentIntentId = getId(charge?.payment_intent) || getId(object?.payment_intent);
+  let pi = null;
+  if (!id(chargeId,'ch') && id(paymentIntentId,'pi')) {
+    pi = await stripeCreatorsRequest('GET','/payment_intents/'+paymentIntentId);
+    chargeId = getId(pi.latest_charge);
+  }
   if (!charge && id(chargeId,'ch')) {
     charge = await stripeCreatorsRequest('GET','/charges/'+chargeId);
   }
@@ -34,9 +42,9 @@ export async function handleCreatorPaymentIncident(event) {
 
   let invoiceId = getId(charge.invoice);
   if (!id(invoiceId,'in')) {
-    const paymentIntentId = getId(charge.payment_intent);
+    paymentIntentId = getId(charge.payment_intent) || paymentIntentId;
     if (id(paymentIntentId,'pi')) {
-      const pi = await stripeCreatorsRequest('GET','/payment_intents/'+paymentIntentId);
+      pi ||= await stripeCreatorsRequest('GET','/payment_intents/'+paymentIntentId);
       invoiceId = getId(pi.invoice);
     }
   }

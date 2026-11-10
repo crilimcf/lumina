@@ -66,6 +66,11 @@ export const api = {
   creators: {
     myPlans: () => call('/creators/me/plans'),
     createPlan: (body) => call('/creators/me/plans', { method: 'POST', body }),
+    billingStatus: () => call('/creators/me/billing/status'),
+    billingOnboard: () => call('/creators/me/billing/onboard', { method: 'POST' }),
+    billingRefresh: () => call('/creators/me/billing/refresh', { method: 'POST' }),
+    publishPlan: (id) => call('/creators/me/plans/' + encodeURIComponent(id) + '/publish', { method: 'POST' }),
+    subscribeCheckout: (creatorId, planId) => call('/creators/' + encodeURIComponent(creatorId) + '/plans/' + encodeURIComponent(planId) + '/checkout', { method: 'POST' }),
     myContent: () => call('/creators/me/content'),
     createContent: (body) => call('/creators/me/content', { method: 'POST', body }),
     publishContent: (id) => call(`/creators/me/content/${encodeURIComponent(id)}/publish`, { method: 'POST' }),

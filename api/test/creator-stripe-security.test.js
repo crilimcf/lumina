@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 process.env.DATABASE_URL ||= 'postgresql://test:test@localhost:5432/lumina_test';
 process.env.JWT_SECRET ||= 'test-jwt-secret-only-for-unit-tests';
 
-const { verifyCreatorStripeEvent, stripeCreatorSubscriptionState, creatorCheckoutEnabled, creatorBillingConfigured } =
+const { verifyCreatorStripeEvent, stripeCreatorSubscriptionState, creatorCheckoutEnabled, creatorBillingConfigured, creatorOnboardingEnabled } =
   await import('../src/lib/stripe-creators.js');
 const { env } = await import('../src/env.js');
 
@@ -191,6 +191,31 @@ test('live no-charge smoke test creates, visits portal, and removes only its own
       CREATORS_STRIPE_PORTAL_CONFIGURATION:original.portal,APP_URL:original.app});
     console.log=oldLog;
     if(sandbox===undefined)delete process.env.LUMINA_SANDBOX;
+    else process.env.LUMINA_SANDBOX=sandbox;
+  }
+});
+
+test('Connect onboarding remains available with subscription sales paused', () => {
+  const keys=['FEATURE_CREATORS','FEATURE_SUBSCRIPTIONS','STRIPE_SECRET_KEY',
+    'CREATORS_STRIPE_WEBHOOK_SECRET','CREATORS_PLATFORM_FEE_PERCENT',
+    'CREATORS_LIVE_PAYMENTS_APPROVED','NODE_ENV'];
+  const previous=Object.fromEntries(keys.map(k=>[k,env[k]]));
+  const sandbox=process.env.LUMINA_SANDBOX;
+  try {
+    delete process.env.LUMINA_SANDBOX;
+    Object.assign(env,{FEATURE_CREATORS:true,FEATURE_SUBSCRIPTIONS:false,
+      STRIPE_SECRET_KEY:'rk_live_not_real_test',CREATORS_STRIPE_WEBHOOK_SECRET:'whsec_test_only',
+      CREATORS_PLATFORM_FEE_PERCENT:10,CREATORS_LIVE_PAYMENTS_APPROVED:false,NODE_ENV:'production'});
+    assert.equal(creatorOnboardingEnabled(),true);
+    assert.equal(creatorCheckoutEnabled(),false);
+    env.FEATURE_CREATORS=false;
+    assert.equal(creatorOnboardingEnabled(),false);
+    env.FEATURE_CREATORS=true;
+    env.STRIPE_SECRET_KEY='sk_test_wrong_environment';
+    assert.equal(creatorOnboardingEnabled(),false);
+  } finally {
+    Object.assign(env,previous);
+    if(sandbox===undefined) delete process.env.LUMINA_SANDBOX;
     else process.env.LUMINA_SANDBOX=sandbox;
   }
 });

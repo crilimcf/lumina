@@ -20,6 +20,14 @@ export const creatorBillingConfigured = () =>
     env.CREATORS_PLATFORM_FEE_PERCENT >= 0 &&
     env.CREATORS_PLATFORM_FEE_PERCENT <= 30);
 
+// Stripe Connect verification can precede public subscription sales.
+export const creatorOnboardingEnabled = () =>
+  Boolean(env.FEATURE_CREATORS && creatorStripeKeyMatchesEnvironment() &&
+    env.CREATORS_STRIPE_WEBHOOK_SECRET &&
+    Number.isFinite(env.CREATORS_PLATFORM_FEE_PERCENT) &&
+    env.CREATORS_PLATFORM_FEE_PERCENT >= 0 &&
+    env.CREATORS_PLATFORM_FEE_PERCENT <= 30);
+
 export const creatorCheckoutEnabled = () =>
   Boolean(env.FEATURE_CREATORS && env.FEATURE_SUBSCRIPTIONS && creatorBillingConfigured());
 

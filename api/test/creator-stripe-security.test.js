@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 process.env.DATABASE_URL ||= 'postgresql://test:test@localhost:5432/lumina_test';
 process.env.JWT_SECRET ||= 'test-jwt-secret-only-for-unit-tests';
 
-const { verifyCreatorStripeEvent, stripeCreatorSubscriptionState, creatorCheckoutEnabled, creatorBillingConfigured } =
+const { verifyCreatorStripeEvent, stripeCreatorSubscriptionState, creatorCheckoutEnabled, creatorBillingConfigured, creatorOnboardingEnabled } =
   await import('../src/lib/stripe-creators.js');
 const { env } = await import('../src/env.js');
 
@@ -156,5 +156,38 @@ test('live Stripe readiness probe is read-only and reports HTTP statuses without
     console.log=priorLog;
     if(previousSandbox===undefined) delete process.env.LUMINA_SANDBOX;
     else process.env.LUMINA_SANDBOX=previousSandbox;
+  }
+});
+
+test('creator Connect onboarding works before live checkout approval, never bypassing the sales gate', () => {
+  const keys=['FEATURE_CREATORS','FEATURE_SUBSCRIPTIONS','STRIPE_SECRET_KEY',
+    'CREATORS_STRIPE_WEBHOOK_SECRET','CREATORS_PLATFORM_FEE_PERCENT',
+    'CREATORS_LIVE_PAYMENTS_APPROVED','NODE_ENV'];
+  const previous=Object.fromEntries(keys.map(k=>[k,env[k]]));
+  const sandbox=process.env.LUMINA_SANDBOX;
+  try {
+    delete process.env.LUMINA_SANDBOX;
+    Object.assign(env,{
+      FEATURE_CREATORS:true, FEATURE_SUBSCRIPTIONS:true,
+      STRIPE_SECRET_KEY:'rk_live_test_only_not_a_real_key',
+      CREATORS_STRIPE_WEBHOOK_SECRET:'whsec_test_only',
+      CREATORS_PLATFORM_FEE_PERCENT:10,
+      CREATORS_LIVE_PAYMENTS_APPROVED:false,
+      NODE_ENV:'production',
+    });
+    assert.equal(creatorOnboardingEnabled(),true);
+    assert.equal(creatorCheckoutEnabled(),false);
+    env.CREATORS_STRIPE_WEBHOOK_SECRET='';
+    assert.equal(creatorOnboardingEnabled(),false);
+    env.CREATORS_STRIPE_WEBHOOK_SECRET='whsec_test_only';
+    env.FEATURE_SUBSCRIPTIONS=false;
+    assert.equal(creatorOnboardingEnabled(),false);
+    env.FEATURE_SUBSCRIPTIONS=true;
+    env.STRIPE_SECRET_KEY='sk_test_wrong_environment';
+    assert.equal(creatorOnboardingEnabled(),false);
+  } finally {
+    Object.assign(env,previous);
+    if(sandbox===undefined) delete process.env.LUMINA_SANDBOX;
+    else process.env.LUMINA_SANDBOX=sandbox;
   }
 });

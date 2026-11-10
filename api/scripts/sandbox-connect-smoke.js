@@ -23,6 +23,27 @@ if (!sandboxOnly) {
 const testCreator = 'lumina.creator.qa';
 const testSubscriber = 'lumina.member.qa';
 
+async function stripeV2(method,path,body=null,idempotencyKey=null) {
+  const headers={
+    authorization:'Bearer '+env.STRIPE_SECRET_KEY,
+    'stripe-version':'2026-07-29.preview',
+    'content-type':'application/json',
+  };
+  if(idempotencyKey) headers['Idempotency-Key']=idempotencyKey;
+  const res=await fetch('https://api.stripe.com/v2'+path,{
+    method,headers,signal:AbortSignal.timeout(15000),
+    ...(body?{body:JSON.stringify(body)}:{})
+  });
+  const data=await res.json().catch(()=>null);
+  if(!res.ok || data?.error) {
+    const safeMessage=String(data?.error?.message || '').slice(0,280)
+      .replace(/(?:sk|rk|pk|whsec)_[A-Za-z0-9_]+/g,'[redacted]');
+    console.error('[sandbox/v2] request failed',res.status,data?.error?.code||'unknown',safeMessage);
+    throw new Error('Stripe Accounts v2 operation failed');
+  }
+  return data;
+}
+
 async function ensureUser(handle, email, name) {
   await q(`INSERT INTO users(handle,email,name,password_hash,birth_date)
     VALUES($1,$2,$3,'!sandbox-qa-no-password-login!',DATE '1990-01-01')
@@ -43,14 +64,16 @@ try {
   let {rows: accounts}=await q('SELECT stripe_account_id FROM creator_billing_accounts WHERE creator_id=$1',[creator.id]);
   let connectedId=accounts[0]?.stripe_account_id;
   if(!connectedId) {
-    const connect=await stripeCreatorsRequest('POST','/accounts',{
-      type:'express',
-      country:'PT',
-      email:'creator-lumina-sandbox@example.invalid',
-      'capabilities[transfers][requested]':'true',
-      'metadata[lumina_creator_id]':creator.id,
-      'metadata[lumina_test]':'true',
-    },'lumina-connect-sandbox-creator-'+creator.id);
+    const connect=await stripeV2('POST','/core/accounts',{
+      contact_email:'creator-lumina-sandbox@example.invalid',
+      display_name:'Lumina QA Criador',
+      identity:{country:'PT'},
+      dashboard:'express',
+      defaults:{responsibilities:{fees_collector:'stripe',losses_collector:'stripe'}},
+      configuration:{recipient:{capabilities:{stripe_balance:{stripe_transfers:{requested:true}}}}},
+      metadata:{lumina_creator_id:creator.id,lumina_test:'true'},
+      include:['configuration.recipient','requirements','identity','defaults'],
+    },'lumina-connect-v2-sandbox-creator-'+creator.id);
     if(!/^acct_[A-Za-z0-9]+$/.test(connect?.id||'')) throw new Error('Invalid Stripe connected account response');
     connectedId=connect.id;
     await q(`INSERT INTO creator_billing_accounts
@@ -59,7 +82,8 @@ try {
       [creator.id,connect.id,connect.country||'PT',!!connect.charges_enabled,
        !!connect.payouts_enabled,!!connect.details_submitted]);
   }
-  const connect=await stripeCreatorsRequest('GET','/accounts/'+connectedId);
+  const connect=await stripeV2('GET','/core/accounts/'+connectedId+
+    '?include%5B%5D=configuration.recipient&include%5B%5D=requirements');
   if(connect.livemode) throw new Error('Unexpected real connected account');
 
   await q(`INSERT INTO creator_plans(creator_id,title,description,price_cents,billing_period,status)
@@ -68,9 +92,9 @@ try {
 
   console.log('[sandbox-smoke] Stripe and PostgreSQL verified');
   console.log('[sandbox-smoke] creator sandbox account:',connectedId);
-  console.log('[sandbox-smoke] Express onboarding state:',
-    JSON.stringify({charges:!!connect.charges_enabled,payouts:!!connect.payouts_enabled,
-      details:!!connect.details_submitted,currently_due:connect.requirements?.currently_due||[]}));
+  console.log('[sandbox-smoke] Accounts v2 recipient state:',
+    JSON.stringify({transferStatus:connect.configuration?.recipient?.capabilities?.stripe_balance?.stripe_transfers?.status||'unknown',
+      requirementsCount:connect.requirements?.entries?.length??0}));
   console.log('[sandbox-smoke] No test charge or real payment was created');
 } catch(error) {
   console.error('[sandbox-smoke] failed:',error.message);

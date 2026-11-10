@@ -120,3 +120,10 @@ test('Creators checkout enables Stripe Tax only on its own session, without chan
   assert.ok(body.includes("\'customer_update[address]\': \'auto\'"));
   assert.ok(body.includes("\'subscription_data[transfer_data][destination]\'"));
 });
+
+test('Creator billing portal requires an explicit dedicated Stripe configuration', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const source = await readFile(new URL('../src/routes/creator-billing.js', import.meta.url), 'utf8');
+  assert.match(source, /configuration:env\.CREATORS_STRIPE_PORTAL_CONFIGURATION/);
+  assert.match(source, /creator_billing_portal_unconfigured/);
+});

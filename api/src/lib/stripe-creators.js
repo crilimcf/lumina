@@ -11,6 +11,15 @@ export const creatorStripeKeyMatchesEnvironment = () => {
   return key.startsWith('sk_test_') || key.startsWith('rk_test_');
 };
 
+// Allow creators to complete Stripe Connect verification while paid Checkout
+// remains disabled. Onboarding must never depend on the live-sales approval flag.
+export const creatorOnboardingConfigured = () =>
+  Boolean(creatorStripeKeyMatchesEnvironment() &&
+    env.CREATORS_STRIPE_WEBHOOK_SECRET &&
+    Number.isFinite(env.CREATORS_PLATFORM_FEE_PERCENT) &&
+    env.CREATORS_PLATFORM_FEE_PERCENT >= 0 &&
+    env.CREATORS_PLATFORM_FEE_PERCENT <= 30);
+
 export const creatorBillingConfigured = () =>
   Boolean(creatorStripeKeyMatchesEnvironment() &&
     (env.NODE_ENV !== 'production' || process.env.LUMINA_SANDBOX === 'true' ||

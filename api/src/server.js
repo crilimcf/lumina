@@ -275,9 +275,13 @@ if (process.env.NODE_ENV !== 'test') {
 
   const server = app.listen(env.PORT, '0.0.0.0', () => {
     console.log(`Lumina API na porta ${env.PORT}`);
-    startJobs();
-    startRadarJobs();
-    startLuminaOneJobs();
+    if (process.env.LUMINA_SANDBOX === 'true') {
+      console.log('[sandbox] jobs externos e automáticos desativados; dados isolados');
+    } else {
+      startJobs();
+      startRadarJobs();
+      startLuminaOneJobs();
+    }
   });
   const shutdown = () => {
     console.log('[servidor] a fechar');

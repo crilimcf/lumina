@@ -40,3 +40,26 @@ private discussion, early access, and transparent revenue reporting.
 - Creator economics: revenue after processing, refunds and tax, not misleading gross percentages.
 
 No claim of industry-first novelty is made without competitive validation.
+
+## Stripe Connect integration branch (10 November 2026 — gated work in progress)
+
+The PR implementing Stripe Connect is a **draft**. It is **not a completed paid product** and must not be merged or enabled just because the API or web CI builds succeed.
+
+- `api/migrations/901_creators_billing.sql` stores Connect onboarding, customer, checkout session references and webhook delivery IDs.
+- Backend routes: `GET /api/creators/me/billing/status`, `POST /api/creators/me/billing/onboard`, `POST /api/creators/me/billing/refresh`, `POST /api/creators/me/plans/:planId/publish` and `POST /api/creators/:creatorId/plans/:planId/checkout`.
+- A separate `POST /api/payments/stripe/creators-webhook` verifies the signature of the raw Stripe event and reconciles subscription state with paid invoices before granting access. It is disabled unless all billing flags and required secrets are configured.
+- Never expose `STRIPE_SECRET_KEY` or `CREATORS_STRIPE_WEBHOOK_SECRET` in the web build.
+- `CREATORS_PLATFORM_FEE_PERCENT` has no default: commercial commission must be explicitly agreed and configured by the platform owner.
+- The native mobile apps MUST NOT present an alternative payment link or embedded subscription Checkout for digital goods before an app-store policy review.
+
+### Remaining blocking requirements before launch
+
+1. Obtain a Stripe **test-mode** account or sandbox and verified keys, and test real event order, signatures, prices, KYC, onboarding, repeat checkout, renewal, billing portal, cancellations, disputes, chargebacks, refunds and taxes.
+2. Wire and test Stripe Billing Portal and payment lifecycle reconciliation, including charge refunds and disputes. **The current webhook does not comprehensively cover these cases and must remain disabled.**
+3. Finish privacy retention, contracted service providers and international-transfer review with a competent lawyer; complete RGPD export and erasure for the new payment reference tables if added to production.
+4. Review consumer subscription disclosures and applicable statutory cancellation and refund rights, and implement legal receipts/fiscal obligations.
+5. Complete Apple / Google compliant native digital-goods billing implementation and test on real devices, or keep all native purchase flows hidden.
+6. Run staging migration/rollback and integration tests before enabling `FEATURE_SUBSCRIPTIONS` in production.
+7. Verify account `digibox.pt` onboarding eligibility and complete any pending proof-of-liveness requirements.
+
+No platform receives money or grants paid memberships from this branch while `FEATURE_SUBSCRIPTIONS=false`.

@@ -104,3 +104,16 @@ test('modern Stripe Invoice status paid and zero amount_remaining unlocks access
     ...subscription,latest_invoice:{...subscription.latest_invoice,amount_paid:0},
   }).status,'past_due');
 });
+
+test('Creators checkout enables Stripe Tax only on its own session, without changing global billing', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const checkoutRoute = await readFile(new URL('../src/routes/creator-billing.js', import.meta.url), 'utf8');
+  const start = checkoutRoute.indexOf("const session = await stripeCreatorsRequest('POST', '/checkout/sessions'");
+  assert.ok(start !== -1, 'creator checkout session exists');
+  const end = checkoutRoute.indexOf("'lumina-creators-checkout-'", start);
+  assert.ok(end > start, 'creator-specific idempotency key exists');
+  const body = checkoutRoute.slice(start, end);
+  assert.match(body, /'automatic_tax\\[enabled\\]': 'true'/);
+  assert.match(body, /billing_address_collection: 'required'/);
+  assert.match(body, /'subscription_data\\[transfer_data\\]\\[destination\\]'/);
+});

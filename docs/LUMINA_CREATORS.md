@@ -95,3 +95,16 @@ The account owner authorized the independent **Lumina** sandbox in addition to D
 - Platform commission `CREATORS_PLATFORM_FEE_PERCENT` remains intentionally unset, pending explicit commercial terms.
 
 **Status:** Sandbox integration is configured for the next stage; real subscription billing, entitlement lifecycles, refunds, disputes and Connect payouts still need live sandbox endpoint tests before any production merge.
+
+## Billing security regression hardening — 10 November 2026
+
+- Connected Lumina Sandbox and enabled Stripe Connect at the platform level.
+- Created test-only EUR 4.99/month price and test customer; Billing Portal session created on Stripe sandbox and verified with Stripe-hosted HTTPS URL.
+- Added paid-content rendering based exclusively on server-verified creator membership, not client flags.
+- Persisted refunded and disputed invoice IDs and suspended associated membership access. A duplicate/older Stripe update cannot reactivate a reversed invoice.
+- Added an out-of-order refund pathway: a reversal arriving before first paid webhook is linked to the pending Checkout and recorded so a subsequent webhook cannot accidentally authorize that reversed invoice.
+- Added regression tests for renewal and new paid invoice restoration, dispute on renewal, pre-membership refund, and a strict live-key approval switch.
+- Added separate CREATORS_LIVE_PAYMENTS_APPROVED=false gate. Live Stripe credentials cannot activate checkout from FEATURE_SUBSCRIPTIONS alone.
+- Do not remove required financial and legal launch criteria because isolated test runners passed. Stripe Connect creator account creation, invoice tax treatment and checkout transfers remain unvalidated in the sandbox.
+
+At this stage, the production app still has billing feature disabled.

@@ -5,8 +5,17 @@ import { auth, h, bad, HttpError } from '../middleware/auth.js';
 
 export const creatorRoutes = Router();
 
-creatorRoutes.use((_req, _res, next) => {
-  if (!env.FEATURE_CREATORS) return next(new HttpError(404, 'Funcionalidade indisponível', 'feature_off'));
+creatorRoutes.use((req, _res, next) => {
+  if (!env.FEATURE_CREATORS) {
+    // Mount this router before billing routes without blocking already-paying
+    // subscribers from accessing their invoices and cancellation controls.
+    // Express next('router') delegates only these paths to the separate
+    // authenticated billing router; all other creator features remain off.
+    if (req.path === '/me/billing/portal' || req.path === '/me/billing/subscriptions') {
+      return next('router');
+    }
+    return next(new HttpError(404, 'Funcionalidade indisponível', 'feature_off'));
+  }
   next();
 });
 

@@ -18,6 +18,7 @@ const checkoutId = 'cs_test_luminaABC123';
 const subscriptionId = 'sub_luminaABC123';
 const customerId = 'cus_luminaABC123';
 const connectedId = 'acct_luminaABC123';
+const invoiceId = 'in_luminaABC123';
 let creator,subscriber,planId,contentId,server,baseUrl;
 
 globalThis.fetch = async (url, options = {}) => {
@@ -34,14 +35,17 @@ globalThis.fetch = async (url, options = {}) => {
     assert.equal(fields.get('subscription_data[transfer_data][destination]'), connectedId);
     return respond({ id:checkoutId,url:'https://checkout.stripe.com/c/pay/lumina-test',expires_at:expiry() });
   }
-  if (target.includes('/subscriptions/' + subscriptionId)) {
+  if (target.includes('/invoices/' + invoiceId)) {
+    return respond({id:invoiceId, object:'invoice', subscription:subscriptionId, customer:customerId});
+  }
+    if (target.includes('/subscriptions/' + subscriptionId)) {
     return respond({
       id:subscriptionId, object:'subscription',status:currentStatus,
       metadata:{lumina_creator_id:creator.id,lumina_subscriber_id:subscriber.id,lumina_plan_id:planId},
       customer:customerId,
       transfer_data:{destination:connectedId},
       items:{data:[{price:{unit_amount:500,currency:'eur',recurring:{interval:'month'}},current_period_end:expiry()}]},
-      latest_invoice:{paid:latestPaid,status:latestPaid?'paid':'open'},
+      latest_invoice:{id:invoiceId,paid:latestPaid,status:latestPaid?'paid':'open'},
     });
   }
   return respond({ error:{code:'unmocked_stripe_request'} },400);
@@ -140,6 +144,41 @@ test('a valid paid Stripe invoice unlocks access exactly once',async()=>{
   assert.equal(rows[0].status,'active');
   const result=await request('/api/creators/'+creator.id+'/content',{token:signToken(subscriber)});
   assert.ok(result.data.content.some(x=>x.id===contentId));
+});
+
+test('a refunded invoice revokes paid content and repeated subscription updates cannot restore it', async()=>{
+  const refund={id:'evt_luminaRefund123',type:'charge.refunded',data:{object:{
+    object:'charge',id:'ch_luminaRefund123',invoice:invoiceId,refunded:true,amount_refunded:500
+  }}};
+  const event = signEvent(refund);
+  const response = await fetchReal(baseUrl+'/api/payments/stripe/creators-webhook',{
+    method:'POST',headers:{'content-type':'application/json','stripe-signature':event.signature},
+    body:event.content
+  });
+  assert.equal(response.status,200);
+  const {rows:members}=await q('SELECT status,last_paid_invoice_id FROM creator_memberships WHERE creator_id=$1 AND subscriber_id=$2',
+    [creator.id,subscriber.id]);
+  assert.equal(members.length,1);
+  assert.equal(members[0].status,'past_due');
+  assert.equal(members[0].last_paid_invoice_id,invoiceId);
+
+  const afterRefund=await request('/api/creators/'+creator.id+'/content',{token:signToken(subscriber)});
+  assert.deepEqual(afterRefund.data.content,[]);
+
+  const update={id:'evt_luminaRefundReplay123',type:'customer.subscription.updated',
+    data:{object:{id:subscriptionId,object:'subscription',metadata:{
+      lumina_creator_id:creator.id,lumina_subscriber_id:subscriber.id,lumina_plan_id:planId
+    }}}};
+  const signed=signEvent(update);
+  const retry=await fetchReal(baseUrl+'/api/payments/stripe/creators-webhook',{
+    method:'POST',headers:{'content-type':'application/json','stripe-signature':signed.signature},
+    body:signed.content
+  });
+  assert.equal(retry.status,200);
+  const {rows:after}=await q('SELECT status FROM creator_memberships WHERE creator_id=$1 AND subscriber_id=$2',
+    [creator.id,subscriber.id]);
+  assert.equal(after[0].status,'past_due');
+  assert.deepEqual((await request('/api/creators/'+creator.id+'/content',{token:signToken(subscriber)})).data.content,[]);
 });
 
 test('Stripe cancellation revokes content access',async()=>{

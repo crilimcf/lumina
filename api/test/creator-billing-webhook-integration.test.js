@@ -26,10 +26,35 @@ let creator,subscriber,planId,contentId,server,baseUrl;
 
 globalThis.fetch = async (url, options = {}) => {
   const target = String(url);
+  // Stripe Accounts v2 requests are JSON, while billing remains on v1.
+  if (target.startsWith('https://api.stripe.com/v2/core/')) {
+    const body = JSON.parse(options.body || '{}');
+    assert.equal(options.method,'POST');
+    assert.match(options.headers['Stripe-Version'],/^2026-/);
+    if (target.endsWith('/accounts')) {
+      assert.equal(body.identity.country,'PT');
+      assert.equal(body.defaults.responsibilities.losses_collector,'application');
+      assert.equal(body.configuration.recipient.capabilities.stripe_balance.stripe_transfers.requested,true);
+      return new Response(JSON.stringify({id:'acct_luminaABCV2',object:'v2.core.account',livemode:false}),{
+        status:200,headers:{'content-type':'application/json'}});
+    }
+    if (target.endsWith('/account_links')) {
+      assert.equal(body.account,connectedId);
+      assert.equal(body.use_case.type,'account_onboarding');
+      assert.ok(body.use_case.account_onboarding.configurations.includes('recipient'));
+      return new Response(JSON.stringify({url:'https://connect.stripe.com/setup/e/lumina-test'}),{
+        status:200,headers:{'content-type':'application/json'}});
+    }
+    throw new Error('Unexpected Stripe v2 call');
+  }
   if (!target.startsWith('https://api.stripe.com/v1/')) return fetchReal(url,options);
   const respond = (data,status=200) => new Response(JSON.stringify(data), {
     status, headers:{'content-type':'application/json'}
   });
+  if (target.includes('/accounts/' + connectedId) && options.method === 'GET') {
+    return respond({id:connectedId,country:'PT',charges_enabled:false,
+      payouts_enabled:true,details_submitted:true,capabilities:{transfers:'active'}});
+  }
   if (target.includes('/billing_portal/sessions') && options.method === 'POST') {
     const params = new URLSearchParams(options.body);
     assert.equal(params.get('customer'),customerId);
@@ -122,6 +147,34 @@ after(async()=>{
   if(creator&&subscriber) await q('DELETE FROM users WHERE id=$1 OR id=$2',[creator.id,subscriber.id]);
   await pool.end();
   globalThis.fetch=fetchReal;
+});
+
+test('Stripe Accounts v2 recipient creation and hosted onboarding use a validated configuration',async()=>{
+  const {stripeCreatorsV2Request}=await import('../src/lib/stripe-creators.js');
+  const account=await stripeCreatorsV2Request('/core/accounts',{
+    identity:{country:'PT'},defaults:{responsibilities:{fees_collector:'application',losses_collector:'application'}},
+    configuration:{recipient:{capabilities:{stripe_balance:{stripe_transfers:{requested:true}}}}},
+  },'test-v2-account-creation');
+  assert.equal(account.id,'acct_luminaABCV2');
+  const onboarding=await request('/api/creators/me/billing/onboard',{
+    token:signToken(creator),method:'POST'
+  });
+  assert.equal(onboarding.status,200);
+  assert.ok(onboarding.data.url.startsWith('https://connect.stripe.com/'));
+});
+
+test('recipient transfer capability unlocks creator plan eligibility without direct-charge capability',async()=>{
+  const updated=await request('/api/creators/me/billing/refresh',{
+    token:signToken(creator),method:'POST'
+  });
+  assert.equal(updated.status,200);
+  assert.equal(updated.data.chargesEnabled,false);
+  assert.equal(updated.data.transfersEnabled,true);
+  assert.equal(updated.data.payoutsEnabled,true);
+  const {rows}=await q('SELECT charges_enabled,transfers_enabled,payouts_enabled FROM creator_billing_accounts WHERE creator_id=$1',[creator.id]);
+  assert.equal(rows[0].charges_enabled,false);
+  assert.equal(rows[0].transfers_enabled,true);
+  assert.equal(rows[0].payouts_enabled,true);
 });
 
 test('duplicate subscription attempts reuse one pending checkout without second charge',async()=>{

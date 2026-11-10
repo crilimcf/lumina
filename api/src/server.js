@@ -282,6 +282,21 @@ if (process.env.NODE_ENV !== 'test') {
   const { migrate } = await import('./db.js');
   await migrate();
 
+  // A sandbox must never silently accept a secret key belonging to another
+  // Stripe account, including Digibox's independent test mode.
+  if (process.env.LUMINA_SANDBOX === 'true') {
+    const expectedAccount=process.env.LUMINA_SANDBOX_STRIPE_ACCOUNT_ID;
+    if (!/^acct_[A-Za-z0-9]+$/.test(expectedAccount || '')) {
+      throw new Error('[sandbox] Expected Stripe account id is not configured');
+    }
+    const { stripeCreatorsRequest } = await import('./lib/stripe-creators.js');
+    const account = await stripeCreatorsRequest('GET', '/account');
+    if (account.id !== expectedAccount || account.livemode === true) {
+      throw new Error('[sandbox] Stripe secret does not belong to the authorized Lumina sandbox');
+    }
+    console.log('[sandbox] Stripe test key verified against the authorized Lumina account');
+  }
+
   const server = app.listen(env.PORT, '0.0.0.0', () => {
     console.log(`Lumina API na porta ${env.PORT}`);
     if (process.env.LUMINA_SANDBOX === 'true') {

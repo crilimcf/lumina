@@ -181,8 +181,12 @@ test('creator Connect onboarding works before live checkout approval, never bypa
     assert.equal(creatorOnboardingEnabled(),false);
     env.CREATORS_STRIPE_WEBHOOK_SECRET='whsec_test_only';
     env.FEATURE_SUBSCRIPTIONS=false;
-    assert.equal(creatorOnboardingEnabled(),false);
+    assert.equal(creatorOnboardingEnabled(),true, 'onboarding remains available with subscriptions paused');
+    assert.equal(creatorCheckoutEnabled(),false);
     env.FEATURE_SUBSCRIPTIONS=true;
+    env.FEATURE_CREATORS=false;
+    assert.equal(creatorOnboardingEnabled(),false);
+    env.FEATURE_CREATORS=true;
     env.STRIPE_SECRET_KEY='sk_test_wrong_environment';
     assert.equal(creatorOnboardingEnabled(),false);
   } finally {

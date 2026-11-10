@@ -6,10 +6,19 @@ private discussion, early access, and transparent revenue reporting.
 
 ## Implemented in this branch
 - Draft plan creation by authenticated creators.
+- Creator Studio for private drafts and preparing member-only text content (50 items max per creator).
 - Public plan catalogue (published plans only).
 - PostgreSQL tables for plans, memberships and members-only content.
-- Feature flag `FEATURE_SUBSCRIPTIONS` (default false).
-- No payment collection, payout, or access entitlement is enabled.
+- Independent feature flag `FEATURE_CREATORS` (default false) for the payment-free studio.
+- Separate feature flag `FEATURE_SUBSCRIPTIONS` (default false); not enabled by studio access.
+- No payment collection, payout, or paid access entitlement is enabled.
+
+## Safe production rollout (draft studio only)
+1. Deploy the reviewed branch with all API, web and mobile CI checks green.
+2. Set `FEATURE_CREATORS=true` on the Railway API; leave `FEATURE_SUBSCRIPTIONS=false`.
+3. Verify `/health`, authenticated `/api/creators/me/plans` and `/api/creators/me/content`, and confirm payments remain unavailable.
+4. The 'published' content status only means content has been prepared for future eligible members; no subscriber can pay or unlock it yet.
+5. Monitor PostgreSQL disk usage and API errors. Disable `FEATURE_CREATORS` immediately to hide the studio without deleting data if any issue is detected.
 
 ## Safety requirements before launch
 1. Integrate Stripe Connect onboarding, country eligibility, payouts and tax compliance.

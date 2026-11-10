@@ -113,8 +113,8 @@ test('Creators checkout enables Stripe Tax only on its own session, without chan
   const end = checkoutRoute.indexOf("'lumina-creators-checkout-'", start);
   assert.ok(end > start, 'creator-specific idempotency key exists');
   const body = checkoutRoute.slice(start, end);
-  assert.match(body, /'automatic_tax\\[enabled\\]': 'true'/);
+  assert.ok(body.includes("\'automatic_tax[enabled]\': \'true\'"));
   assert.match(body, /billing_address_collection: 'required'/);
-  assert.match(body, /'customer_update\\[address\\]': 'auto'/);
-  assert.match(body, /'subscription_data\\[transfer_data\\]\\[destination\\]'/);
+  assert.ok(body.includes("\'customer_update[address]\': \'auto\'"));
+  assert.ok(body.includes("\'subscription_data[transfer_data][destination]\'"));
 });

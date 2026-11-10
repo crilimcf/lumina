@@ -18,6 +18,7 @@ export function PublicProfile({ handle, onBack, onMessage, ping }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [paidPlans, setPaidPlans] = useState([]);
+  const [memberContent, setMemberContent] = useState([]);
 
   const load = async () => {
     setLoading(true);
@@ -33,9 +34,18 @@ export function PublicProfile({ handle, onBack, onMessage, ping }) {
         setPaidPlans(billing.enabled ? plans.plans || [] : []);
       } else setPaidPlans([]);
       if (profile.can_view_posts) {
-        const data = await api.users.posts(handle);
+        const [data, exclusive] = await Promise.all([
+          api.users.posts(handle),
+          // The API enforces creator ownership, active paid membership and block checks.
+          // This response is never used as a proof of entitlement on the client.
+          api.creators.content(profile.id).catch(() => ({content:[]})),
+        ]);
         setPosts(data.posts || []);
-      } else setPosts([]);
+        setMemberContent(exclusive.content || []);
+      } else {
+        setPosts([]);
+        setMemberContent([]);
+      }
     } catch (e) {
       ping(e.message);
     } finally { setLoading(false); }
@@ -105,6 +115,16 @@ export function PublicProfile({ handle, onBack, onMessage, ping }) {
           <button type="button" disabled={busy} onClick={()=>void subscribe(plan.id)} style={{border:0,borderRadius:12,padding:'10px 14px',background:'#31dacb',color:'#09232e',fontWeight:800}}>Subscrever</button>
         </div>)}
         <p style={{color:'#b6c6da',fontSize:12,marginTop:8}}>Consulta os <a href="/termos.html" style={{color:'#85e5dc'}}>Termos de utilização</a> e as condições apresentadas no Stripe antes de concluir a subscrição.</p>
+      </section>}
+      {memberContent.length > 0 && <section aria-label="Conteúdo exclusivo da comunidade" className="card" style={{background:'#141c2b',color:'#f4f8ff',padding:20,marginTop:18,borderRadius:22}}>
+        <h2 style={{fontSize:22,marginBottom:6}}>Conteúdo exclusivo <span style={{color:'#31dacb'}}>Lumina</span></h2>
+        <p style={{color:'#b7cbd9',fontSize:13,marginBottom:14}}>Publicações reservadas à comunidade.</p>
+        <div style={{display:'grid',gap:12}}>
+          {memberContent.map(item=><article key={item.id} style={{borderTop:'1px solid #ffffff26',paddingTop:12}}>
+            <h3 style={{fontSize:17,margin:'0 0 8px'}}>{item.title}</h3>
+            {item.body && <p style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere',lineHeight:1.55,margin:0}}>{item.body}</p>}
+          </article>)}
+        </div>
       </section>}
       <div className="m public-profile-section-label" style={{margin:'22px 4px 10px'}}>PUBLICAÇÕES</div>
       {!person.can_view_posts ? <section className="card public-profile-private" style={{padding:28,textAlign:'center'}}><Lock size={24} style={{marginBottom:9}}/><div style={{fontWeight:800}}>Perfil privado</div><div className="m" style={{marginTop:5}}>Segue esta pessoa para veres as publicações.</div></section>

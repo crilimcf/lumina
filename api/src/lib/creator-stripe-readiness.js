@@ -36,3 +36,60 @@ export async function checkCreatorStripePermissions(fetchImpl = fetch) {
   console.log('[creators/stripe-probe] read-only checks completed; writes NOT tested');
   return results;
 }
+
+/**
+ * Optional ONE-SHOT no-charge production smoke test.
+ * Creates a clearly labeled test Customer, a Billing Portal session,
+ * and deletes the test Customer. Never makes payments or subscriptions.
+ * Enable only for the startup that performs the test.
+ */
+export async function checkCreatorStripeWritePermissions(fetchImpl=fetch) {
+  const key=env.STRIPE_SECRET_KEY;
+  if (env.NODE_ENV!=='production' || process.env.LUMINA_SANDBOX==='true' ||
+      !/^rk_live_|^sk_live_/.test(key || '')) return {skipped:true};
+  const headers={authorization:'Bearer '+key,
+    'content-type':'application/x-www-form-urlencoded'};
+  const logStatus=(name,status)=>console.log('[creators/stripe-write-probe]',name,'HTTP',status);
+  let customerId=null;
+  try {
+    const create = await fetchImpl('https://api.stripe.com/v1/customers',{
+      method:'POST',headers,
+      body:new URLSearchParams({
+        name:'LUMINA READINESS TEST - NO CHARGES',
+        description:'Temporary no-charge key permission verification; not a real subscriber',
+        'metadata[lumina_no_charge_probe]':'true',
+      }).toString(),
+      signal:AbortSignal.timeout(12000),
+    });
+    logStatus('customer-create',create.status);
+    const created=await create.json().catch(()=>null);
+    if(!create.ok || !/^cus_[A-Za-z0-9]+$/.test(created?.id||'')) return {customerCreate:create.status};
+    customerId=created.id;
+    if (/^bpc_[A-Za-z0-9]+$/.test(env.CREATORS_STRIPE_PORTAL_CONFIGURATION || '')) {
+      const portal=await fetchImpl('https://api.stripe.com/v1/billing_portal/sessions',{
+        method:'POST',headers,
+        body:new URLSearchParams({customer:customerId,
+          configuration:env.CREATORS_STRIPE_PORTAL_CONFIGURATION,
+          return_url:env.APP_URL+'/?tab=profile'}).toString(),
+        signal:AbortSignal.timeout(12000),
+      });
+      logStatus('portal-session-create',portal.status);
+    }
+    return {customerCreate:create.status,customerCleanUpPending:true};
+  } catch {
+    console.log('[creators/stripe-write-probe] network-error');
+    return {networkError:true};
+  } finally {
+    if(customerId) {
+      try {
+        const clean=await fetchImpl('https://api.stripe.com/v1/customers/'+customerId,{
+          method:'DELETE',headers:{authorization:'Bearer '+key},
+          signal:AbortSignal.timeout(12000),
+        });
+        logStatus('customer-delete',clean.status);
+      } catch {
+        console.log('[creators/stripe-write-probe] customer-cleanup-network-error');
+      }
+    }
+  }
+}

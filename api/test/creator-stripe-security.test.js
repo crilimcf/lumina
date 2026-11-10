@@ -158,3 +158,39 @@ test('live Stripe readiness probe is read-only and reports HTTP statuses without
     else process.env.LUMINA_SANDBOX=previousSandbox;
   }
 });
+
+test('live no-charge smoke test creates, visits portal, and removes only its own customer', async()=>{
+  const {checkCreatorStripeWritePermissions}=await import('../src/lib/creator-stripe-readiness.js');
+  const original={key:env.STRIPE_SECRET_KEY,node:env.NODE_ENV,portal:env.CREATORS_STRIPE_PORTAL_CONFIGURATION,app:env.APP_URL};
+  const sandbox=process.env.LUMINA_SANDBOX;
+  const oldLog=console.log;
+  const calls=[];
+  try {
+    delete process.env.LUMINA_SANDBOX;
+    env.STRIPE_SECRET_KEY='rk_live_test_not_a_real_secret';
+    env.NODE_ENV='production';
+    env.APP_URL='https://lumina.example';
+    env.CREATORS_STRIPE_PORTAL_CONFIGURATION='bpc_testOnly';
+    console.log=()=>{};
+    const result=await checkCreatorStripeWritePermissions(async (url,options)=>{
+      calls.push({url,method:options.method,body:options.body});
+      if(url.endsWith('/customers') && options.method==='POST')
+        return {ok:true,status:200,json:async()=>({id:'cus_Test123'})};
+      if(url.includes('/billing_portal/sessions'))
+        return {ok:true,status:200,json:async()=>({id:'bps_Test123'})};
+      if(url.endsWith('/customers/cus_Test123') && options.method==='DELETE')
+        return {ok:true,status:200,json:async()=>({deleted:true})};
+      throw new Error('unexpected request');
+    });
+    assert.equal(result.customerCreate,200);
+    assert.deepEqual(calls.map(x=>x.method),['POST','POST','DELETE']);
+    assert.ok(!calls.some(x=>x.url.includes('checkout/sessions') || x.url.includes('subscriptions')));
+    assert.equal(new URLSearchParams(calls[1].body).get('configuration'),'bpc_testOnly');
+  } finally {
+    Object.assign(env,{STRIPE_SECRET_KEY:original.key,NODE_ENV:original.node,
+      CREATORS_STRIPE_PORTAL_CONFIGURATION:original.portal,APP_URL:original.app});
+    console.log=oldLog;
+    if(sandbox===undefined)delete process.env.LUMINA_SANDBOX;
+    else process.env.LUMINA_SANDBOX=sandbox;
+  }
+});

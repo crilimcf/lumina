@@ -224,7 +224,8 @@ export default function App() {
 
   useEffect(() => {
     if (!me) return;
-    if (new URL(window.location.href).searchParams.get('creators') !== '1') return;
+    const creatorReturn = new URL(window.location.href).searchParams.get('creators');
+    if (!['1','onboarding','onboarded','subscription-return','subscription-cancelled'].includes(creatorReturn)) return;
     setScreen('creators');
     setOpening(false);
     setShowWelcome(false);

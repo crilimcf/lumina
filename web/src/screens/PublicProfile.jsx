@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Lock, MessageCircle, UserMinus, UserPlus } from 'lucide-react';
 import { api } from '../api.js';
+import { isNativeApp } from '../native/session.js';
 import { Empty, Orb, Skeleton } from '../ui.jsx';
 import '../mediaOrientation.css';
 
@@ -16,16 +17,47 @@ export function PublicProfile({ handle, onBack, onMessage, ping }) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [paidPlans, setPaidPlans] = useState([]);
+  const [memberContent, setMemberContent] = useState([]);
+  const [myMembership,setMyMembership] = useState(null);
 
   const load = async () => {
     setLoading(true);
     try {
       const profile = await api.users.get(handle);
       setPerson(profile);
+      // Monetization is web-only until native store billing approval.
+      if (!isNativeApp && profile.id) {
+        const [plans,billing,history] = await Promise.all([
+          api.creators.plans(profile.id).catch(() => ({plans:[]})),
+          api.creators.billingStatus().catch(() => ({enabled:false})),
+          api.creators.billingSubscriptions().catch(() => ({subscriptions:[]})),
+        ]);
+        setPaidPlans(billing.enabled ? plans.plans || [] : []);
+        setMyMembership((history.subscriptions || []).find(m=>m.creator_id===profile.id) || null);
+      } else {
+        setPaidPlans([]);
+        setMyMembership(null);
+      }
       if (profile.can_view_posts) {
-        const data = await api.users.posts(handle);
+        const [data, exclusive] = await Promise.all([
+          api.users.posts(handle),
+          // The API enforces creator ownership, active paid membership and block checks.
+          // This response is never used as a proof of entitlement on the client.
+          api.creators.content(profile.id).catch(() => ({content:[]})),
+        ]);
         setPosts(data.posts || []);
-      } else setPosts([]);
+        setMemberContent(exclusive.content || []);
+      } else {
+        setPosts([]);
+        // Private creators may still have paying members who do not follow
+        // them. The backend—not the public-posts visibility flag—authorizes
+        // the exclusive content and never returns it to non-members.
+        const exclusive = profile.id
+          ? await api.creators.content(profile.id).catch(() => ({content:[]}))
+          : {content:[]};
+        setMemberContent(exclusive.content || []);
+      }
     } catch (e) {
       ping(e.message);
     } finally { setLoading(false); }
@@ -46,6 +78,36 @@ export function PublicProfile({ handle, onBack, onMessage, ping }) {
     } catch (e) { ping(e.message); }
     finally { setBusy(false); }
   };
+
+  const subscribe = async (planId) => {
+    if (!person || busy || isNativeApp) return;
+    setBusy(true);
+    try {
+      const result = await api.creators.subscribeCheckout(person.id,planId);
+      const redirect = new URL(result.checkoutUrl);
+      if (redirect.protocol !== 'https:' || redirect.hostname !== 'checkout.stripe.com') {
+        throw new Error('Ligação de pagamento inválida');
+      }
+      window.location.assign(result.checkoutUrl);
+    } catch (e) { ping(e.message); }
+    finally { setBusy(false); }
+  };
+
+  const manageSubscription = async () => {
+    if (busy || isNativeApp) return;
+    setBusy(true);
+    try {
+      const result=await api.creators.billingPortal();
+      const destination=new URL(result.url);
+      if(destination.protocol!=='https:' || destination.hostname!=='billing.stripe.com') {
+        throw new Error('Portal de faturação inválido');
+      }
+      window.location.assign(result.url);
+    } catch(e) { ping(e.message); }
+    finally { setBusy(false); }
+  };
+
+  const hasCurrentMembership=!!myMembership && ['active','pending','past_due'].includes(myMembership.status);
 
   if (loading) return <div className="lumina-public-profile public-profile-loading" style={{minHeight:'100dvh',background:'linear-gradient(180deg,#EFEDFB,#E8E5F7)',padding:20}}><div style={{maxWidth:620,margin:'0 auto'}}><Skeleton h={220}/></div></div>;
   if (!person) return <div className="lumina-public-profile public-profile-unavailable" style={{minHeight:'100dvh',display:'grid',placeItems:'center'}}><Empty>Perfil indisponível.</Empty></div>;
@@ -73,6 +135,40 @@ export function PublicProfile({ handle, onBack, onMessage, ping }) {
         </div>
       </section>
 
+      {myMembership && !isNativeApp && <section className="card" style={{background:'#141c2b',color:'#f4f8ff',padding:20,marginTop:18,borderRadius:22}}>
+        <h2 style={{fontSize:20,marginBottom:9}}>A tua subscrição</h2>
+        <p style={{color:'#c0d1de',fontSize:13,marginBottom:12}}>
+          {myMembership.title} · {myMembership.status==='active'?'Ativa':
+            myMembership.status==='past_due'?'Pagamento pendente':
+            myMembership.status==='pending'?'Em processamento':
+            myMembership.status==='cancelled'?'Cancelada':'Expirada'}
+        </p>
+        <button type="button" className="p" disabled={busy} onClick={()=>void manageSubscription()}
+          style={{background:'#31dacb',color:'#102534',padding:'11px 14px',fontWeight:800,justifyContent:'center'}}>
+          Gerir pagamento ou cancelar
+        </button>
+      </section>}
+      {paidPlans.length > 0 && <section className="card" style={{background:'#141c2b',color:'#f4f8ff',padding:20,marginTop:18,borderRadius:22}}>
+        <h2 style={{fontSize:22,marginBottom:6}}>Comunidade <span style={{color:'#31dacb'}}>Creators</span></h2>
+        <p style={{color:'#c0d1de',fontSize:13,marginBottom:16}}>Conteúdo exclusivo para membros. Preços recorrentes e renovação automática indicados antes de pagar.</p>
+        {paidPlans.map(plan=><div key={plan.id} style={{borderTop:'1px solid #ffffff24',padding:'14px 0',display:'flex',alignItems:'center',gap:12,justifyContent:'space-between'}}>
+          <div style={{minWidth:0}}><strong>{plan.title}</strong><div style={{color:'#a9bcd4',fontSize:13}}>{(plan.price_cents/100).toFixed(2)} €/{plan.billing_period==='month'?'mês':'ano'}</div></div>
+          {hasCurrentMembership
+            ? <span style={{fontSize:13,color:'#31dacb',fontWeight:700}}>Já tens subscrição</span>
+            : <button type="button" disabled={busy} onClick={()=>void subscribe(plan.id)} style={{border:0,borderRadius:12,padding:'10px 14px',background:'#31dacb',color:'#09232e',fontWeight:800}}>Subscrever</button>}
+        </div>)}
+        <p style={{color:'#b6c6da',fontSize:12,marginTop:8}}>Consulta os <a href="/termos.html" style={{color:'#85e5dc'}}>Termos de utilização</a> e as condições apresentadas no Stripe antes de concluir a subscrição.</p>
+      </section>}
+      {memberContent.length > 0 && <section aria-label="Conteúdo exclusivo da comunidade" className="card" style={{background:'#141c2b',color:'#f4f8ff',padding:20,marginTop:18,borderRadius:22}}>
+        <h2 style={{fontSize:22,marginBottom:6}}>Conteúdo exclusivo <span style={{color:'#31dacb'}}>Lumina</span></h2>
+        <p style={{color:'#b7cbd9',fontSize:13,marginBottom:14}}>Publicações reservadas à comunidade.</p>
+        <div style={{display:'grid',gap:12}}>
+          {memberContent.map(item=><article key={item.id} style={{borderTop:'1px solid #ffffff26',paddingTop:12}}>
+            <h3 style={{fontSize:17,margin:'0 0 8px'}}>{item.title}</h3>
+            {item.body && <p style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere',lineHeight:1.55,margin:0}}>{item.body}</p>}
+          </article>)}
+        </div>
+      </section>}
       <div className="m public-profile-section-label" style={{margin:'22px 4px 10px'}}>PUBLICAÇÕES</div>
       {!person.can_view_posts ? <section className="card public-profile-private" style={{padding:28,textAlign:'center'}}><Lock size={24} style={{marginBottom:9}}/><div style={{fontWeight:800}}>Perfil privado</div><div className="m" style={{marginTop:5}}>Segue esta pessoa para veres as publicações.</div></section>
         : posts.length===0 ? <Empty>Ainda não há publicações.</Empty>

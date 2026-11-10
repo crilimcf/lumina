@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { q, tx } from '../db.js';
 import { removeObject } from '../lib/storage.js';
 import { uploadReferenceCount, removeUploadIfUnreferenced } from '../lib/uploads.js';
+import { cancelCreatorSubscriptionsForUser } from '../lib/creator-billing-cancellation.js';
 
 export async function purgeMessages() {
   const { rows } = await q(
@@ -117,6 +118,12 @@ export async function runAccountDeletions() {
   let deleted = 0;
   for (const r of rows) {
     try {
+      // Cancel recurring Stripe charges before destroying the local account.
+      // The provider operation is outside the database transaction by design:
+      // any provider failure leaves the user and their deletion request in place,
+      // so the next scheduled execution can retry safely.
+      await cancelCreatorSubscriptionsForUser(r.user_id);
+
       const { rows: files } = await q('SELECT key, url FROM uploads WHERE owner_id = $1', [r.user_id]);
       for (const file of files) await removeObject(file.key);
       const urls = files.map(file => file.url);

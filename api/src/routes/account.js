@@ -5,6 +5,7 @@ import { q, tx } from '../db.js';
 import { env } from '../env.js';
 import { auth, h, bad, notFound } from '../middleware/auth.js';
 import { sendEmail } from '../lib/email.js';
+import { cancelCreatorSubscriptionsForUser } from '../lib/creator-billing-cancellation.js';
 
 export const accountRoutes = Router();
 const hashToken=t=>crypto.createHash('sha256').update(t).digest('hex');
@@ -34,9 +35,33 @@ accountRoutes.get('/export',auth,h(async(req,res)=>{const id=req.user.id;const o
   planosCreators:await one(`SELECT id,title,description,price_cents,currency,billing_period,status,created_at,updated_at FROM creator_plans WHERE creator_id=$1`),
   conteudosCreators:await one(`SELECT id,title,body,status,created_at,published_at FROM creator_member_content WHERE creator_id=$1`),
   minhasSubscricoesCreators:await one(`SELECT id,creator_id,plan_id,provider,status,current_period_end,created_at,updated_at FROM creator_memberships WHERE subscriber_id=$1`),
+  contaStripeCreators:await one('SELECT creator_id,country,charges_enabled,payouts_enabled,details_submitted,updated_at FROM creator_billing_accounts WHERE creator_id=$1'),
+  faturacaoCreators:await one('SELECT subscriber_id,stripe_customer_id,created_at FROM creator_billing_customers WHERE subscriber_id=$1'),
+  historicoCheckoutsCreators:await one('SELECT session_id,creator_id,plan_id,stripe_subscription_id,status,expires_at,created_at,updated_at FROM creator_checkout_sessions WHERE subscriber_id=$1'),
+  incidentesFinanceirosCreators:await one("SELECT i.event_id,i.provider_subscription_id,i.invoice_id,i.reason,i.created_at FROM creator_billing_incidents i JOIN creator_memberships m ON m.provider_subscription_id=i.provider_subscription_id WHERE m.subscriber_id=$1 OR m.creator_id=$1"),
   chamadas:await one(`SELECT id,thread_id,caller_id,callee_id,mode,status,created_at,answered_at,ended_at FROM call_sessions WHERE caller_id=$1 OR callee_id=$1`),
 };res.setHeader('content-disposition',`attachment; filename="lumina-${req.user.handle}.json"`);res.json(data);}));
 
 accountRoutes.get('/delete',auth,h(async(req,res)=>{const {rows}=await q('SELECT execute_at FROM deletion_requests WHERE user_id=$1 AND cancelled_at IS NULL',[req.user.id]);res.json(rows[0]?{scheduled:true,executeAt:rows[0].execute_at}:{scheduled:false,executeAt:null});}));
-accountRoutes.post('/delete',auth,h(async(req,res)=>{const {rows}=await q(`INSERT INTO deletion_requests (user_id,execute_at) VALUES ($1,now()+interval '30 days') ON CONFLICT (user_id) DO UPDATE SET requested_at=now(),execute_at=now()+interval '30 days',cancelled_at=NULL RETURNING execute_at`,[req.user.id]);res.json({scheduled:true,executeAt:rows[0].execute_at,message:'A conta será apagada dentro de 30 dias. Entra outra vez até lá para cancelar.'});}));
+accountRoutes.post('/delete',auth,h(async(req,res)=>{
+  const {rows}=await q(
+    "INSERT INTO deletion_requests (user_id,execute_at) VALUES ($1,now()+interval '30 days') ON CONFLICT (user_id) DO UPDATE SET requested_at=now(),execute_at=now()+interval '30 days',cancelled_at=NULL RETURNING execute_at",
+    [req.user.id]
+  );
+  // Cancel any renewal immediately, rather than allowing a charge during
+  // the 30-day deletion grace period. The deletion request remains recorded
+  // even when Stripe is temporarily unavailable and requires an operator retry.
+  let billingCancellation='none';
+  try {
+    const result=await cancelCreatorSubscriptionsForUser(req.user.id);
+    billingCancellation=result.found?'canceled':'none';
+  } catch (error) {
+    console.error('[rgpd] não foi possível cancelar renovações Stripe ao solicitar eliminação',error.code||error.message);
+    billingCancellation='pending';
+  }
+  const message=billingCancellation==='pending'
+    ? 'O pedido de eliminação foi registado, mas não foi possível confirmar o cancelamento dos pagamentos. Contacta o suporte ou utiliza o portal de faturação para impedir cobranças futuras.'
+    : 'A conta será apagada dentro de 30 dias. As renovações de subscrição associadas foram canceladas, quando existentes.';
+  res.json({scheduled:true,executeAt:rows[0].execute_at,billingCancellation,message});
+}));
 accountRoutes.post('/delete/cancel',auth,h(async(req,res)=>{const {rowCount}=await q('UPDATE deletion_requests SET cancelled_at=now() WHERE user_id=$1 AND cancelled_at IS NULL',[req.user.id]);if(!rowCount)throw notFound('Não havia pedido de apagamento');res.json({cancelled:true});}));

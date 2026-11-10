@@ -34,6 +34,9 @@ accountRoutes.get('/export',auth,h(async(req,res)=>{const id=req.user.id;const o
   planosCreators:await one(`SELECT id,title,description,price_cents,currency,billing_period,status,created_at,updated_at FROM creator_plans WHERE creator_id=$1`),
   conteudosCreators:await one(`SELECT id,title,body,status,created_at,published_at FROM creator_member_content WHERE creator_id=$1`),
   minhasSubscricoesCreators:await one(`SELECT id,creator_id,plan_id,provider,status,current_period_end,created_at,updated_at FROM creator_memberships WHERE subscriber_id=$1`),
+  contaStripeCreators:await one('SELECT creator_id,country,charges_enabled,payouts_enabled,details_submitted,updated_at FROM creator_billing_accounts WHERE creator_id=$1'),
+  faturacaoCreators:await one('SELECT subscriber_id,stripe_customer_id,created_at FROM creator_billing_customers WHERE subscriber_id=$1'),
+  historicoCheckoutsCreators:await one('SELECT session_id,creator_id,plan_id,stripe_subscription_id,status,expires_at,created_at,updated_at FROM creator_checkout_sessions WHERE subscriber_id=$1'),
   chamadas:await one(`SELECT id,thread_id,caller_id,callee_id,mode,status,created_at,answered_at,ended_at FROM call_sessions WHERE caller_id=$1 OR callee_id=$1`),
 };res.setHeader('content-disposition',`attachment; filename="lumina-${req.user.handle}.json"`);res.json(data);}));
 

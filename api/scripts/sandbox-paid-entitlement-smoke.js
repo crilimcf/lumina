@@ -170,12 +170,15 @@ try {
     'metadata[lumina_plan_id]':plan.id,
     'metadata[lumina_test_only]':'true',
     'expand[0]':'latest_invoice'
-  },'lumina-e2e-paid-'+subscriber.id);
+  },'lumina-e2e-paid-'+subscriber.id+'-'+crypto.randomUUID());
   subscriptionId=paidSubscription.id;
   assert(starts(subscriptionId,'sub_')&&paidSubscription.status==='active',
     'Stripe test subscription is not active');
   const invoice=getId(paidSubscription.latest_invoice);
-  assert(starts(invoice,'in_')&&paidSubscription.latest_invoice?.paid===true,
+  assert(starts(invoice,'in_') &&
+    paidSubscription.latest_invoice?.status === 'paid' &&
+    Number(paidSubscription.latest_invoice?.amount_paid)>0 &&
+    Number(paidSubscription.latest_invoice?.amount_remaining)===0,
     'Stripe test subscription invoice is not paid');
   console.log('[e2e] real Stripe test subscription paid: PASS');
 

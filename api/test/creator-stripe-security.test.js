@@ -23,9 +23,12 @@ test('Creator payments remain gated off with absent production configuration', (
 
 test('live Stripe key cannot enable checkouts without explicit release approval', () => {
   const keys=['FEATURE_CREATORS','FEATURE_SUBSCRIPTIONS','STRIPE_SECRET_KEY','CREATORS_STRIPE_WEBHOOK_SECRET',
-    'CREATORS_PLATFORM_FEE_PERCENT','CREATORS_LIVE_PAYMENTS_APPROVED'];
+    'CREATORS_PLATFORM_FEE_PERCENT','CREATORS_LIVE_PAYMENTS_APPROVED','NODE_ENV'];
   const original=Object.fromEntries(keys.map(k=>[k,env[k]]));
+  const priorSandbox=process.env.LUMINA_SANDBOX;
   try {
+    delete process.env.LUMINA_SANDBOX;
+    env.NODE_ENV='production';
     Object.assign(env,{
       FEATURE_CREATORS:true,FEATURE_SUBSCRIPTIONS:true,
       STRIPE_SECRET_KEY:'sk_live_unit_test_not_a_real_key',
@@ -40,11 +43,15 @@ test('live Stripe key cannot enable checkouts without explicit release approval'
     assert.equal(creatorCheckoutEnabled(),true);
     env.STRIPE_SECRET_KEY='sk_test_unit_test_not_a_real_key';
     env.CREATORS_LIVE_PAYMENTS_APPROVED=false;
-    assert.equal(creatorCheckoutEnabled(),true);
+    assert.equal(creatorCheckoutEnabled(),false, 'test keys cannot activate sales in production');
+    process.env.LUMINA_SANDBOX='true';
+    assert.equal(creatorCheckoutEnabled(),true, 'sandbox accepts only test-mode keys');
     env.STRIPE_SECRET_KEY='invalid_key_format';
     assert.equal(creatorCheckoutEnabled(),false);
   } finally {
     Object.assign(env,original);
+    if(priorSandbox===undefined) delete process.env.LUMINA_SANDBOX;
+    else process.env.LUMINA_SANDBOX=priorSandbox;
   }
 });
 

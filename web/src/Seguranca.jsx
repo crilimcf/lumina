@@ -56,14 +56,43 @@ export function Seguranca({ onBack, ping }) {
 export function Moderacao({ onBack, ping }) {
   const [queue, setQueue] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [productHealth, setProductHealth] = useState(null);
+  const [metricsError, setMetricsError] = useState(false);
+  const refreshMetrics = async () => {
+    try { setProductHealth(await api.moderation.productHealth()); setMetricsError(false); }
+    catch { setMetricsError(true); }
+  };
   const load = async () => { setLoading(true); try { setQueue(await api.moderation.queue()); } catch (e) { ping(e.message); setQueue([]); } finally { setLoading(false); } };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); void refreshMetrics(); }, []);
   const decide = async (id, resolution) => { try { await api.moderation.resolve(id, resolution); await load(); ping(`Marcado como ${resolution}`); } catch (e) { ping(e.message); } };
 
   return <div style={{ minHeight:'100dvh',paddingBottom:100,background:'linear-gradient(180deg,#EFEDFB,#DFDCF2)' }}><div style={{ maxWidth:480,margin:'0 auto',padding:20 }}>
     <button className="p" onClick={onBack} aria-label="Voltar" style={{ padding:10,marginBottom:22 }}><ArrowLeft size={16}/></button>
     <h2 className="d" style={{ fontSize:38,marginBottom:10 }}>Mode<span className="it">ração</span></h2>
     <p style={{ fontSize:14.5,lineHeight:1.45,color:'var(--grey)',marginBottom:20 }}>A moderação é global e reservada à equipa Lumina. Conteúdo com denúncias suficientes pode ser ocultado automaticamente até revisão.</p>
+    <section className="card" aria-label="Indicadores agregados da Lumina" style={{padding:18,marginBottom:18}}>
+      <div style={{display:'flex',gap:10,justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+        <h3 style={{margin:0,fontSize:17}}>Indicadores da Lumina</h3>
+        <button type="button" className="p p-sm" onClick={()=>void refreshMetrics()}>Atualizar</button>
+      </div>
+      {productHealth ? <>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:10}}>
+          {[
+            ['Contas registadas',productHealth.counts.registeredUsers],
+            ['Novas contas · 7 dias',productHealth.counts.newUsers],
+            ['Publicações · 7 dias',productHealth.counts.posts],
+            ['Salas criadas · 7 dias',productHealth.counts.rooms],
+            ['Momentos · 7 dias',productHealth.counts.moments],
+            ['Planos de criadores',productHealth.counts.publishedCreatorPlans],
+            ['Membros pagos ativos',productHealth.counts.activePaidMemberships],
+          ].map(([label,count])=><div key={label} style={{borderRadius:12,background:'#F4F2FA',padding:12}}>
+            <strong style={{display:'block',fontSize:23}}>{Number(count).toLocaleString('pt-PT')}</strong>
+            <span style={{fontSize:12,color:'var(--grey)'}}>{label}</span>
+          </div>)}
+        </div>
+        <p className="m" style={{marginTop:12,fontSize:11}}>Contagens agregadas do servidor. Não medem utilizadores ativos, retenção nem faturação.</p>
+      </> : <p className="m" role="status" style={{fontSize:13}}>{metricsError?'Indicadores indisponíveis. As denúncias continuam acessíveis.':'A carregar indicadores…'}</p>}
+    </section>
     {loading?<Skeleton h={90}/>:queue.length===0?<Empty>Nada por decidir. Bom sinal.</Empty>:<div style={{ display:'grid',gap:12 }}>{queue.map(r=><div key={r.id} className="card in" style={{ padding:17 }}><div style={{ display:'flex',alignItems:'center',gap:8,marginBottom:10 }}><Flag size={14} color="var(--coral)"/><span className="m" style={{ color:'var(--coral)' }}>{r.total} {r.total===1?'denúncia':'denúncias'} · {r.reason}</span><span className="m" style={{ marginLeft:'auto' }}>{r.target_type}</span></div><p style={{ fontSize:15,lineHeight:1.45,marginBottom:8,color:'#332E4E' }}>{r.content||<i style={{ color:'var(--grey)' }}>conteúdo já removido</i>}</p>{r.note&&<p style={{ fontSize:13,color:'var(--grey)',marginBottom:12 }}>Nota: {r.note}</p>}<div style={{ display:'flex',gap:9,marginTop:14 }}><button className="p p-sm" style={{ flex:1 }} onClick={()=>decide(r.id,'mantido')}><Check size={13} style={{ verticalAlign:-2,marginRight:5 }}/>Repor</button><button className="p p-sm p-cr" style={{ flex:1 }} onClick={()=>decide(r.id,'removido')}><X size={13} style={{ verticalAlign:-2,marginRight:5 }}/>Remover</button></div></div>)}</div>}
   </div></div>;
 }

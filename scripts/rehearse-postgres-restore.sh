@@ -27,9 +27,13 @@ docker run --detach --rm --network none \
   -e POSTGRES_PASSWORD=isolated-local-restore-only \
   postgres:18 >/dev/null
 
+# pg_isready can briefly succeed against the temporary bootstrap server, which
+# the official Postgres image shuts down before starting the final server.
+# Wait for init completion *and* a ready connection to the final server.
 ready=0
-for _ in {1..60}; do
-  if docker exec "$container" pg_isready --username postgres --dbname postgres >/dev/null 2>&1; then
+for _ in {1..90}; do
+  if docker logs "$container" 2>&1 | grep -Fq 'PostgreSQL init process complete; ready for start up.' \
+     && docker exec "$container" pg_isready --username postgres --dbname postgres >/dev/null 2>&1; then
     ready=1
     break
   fi

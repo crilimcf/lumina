@@ -52,14 +52,14 @@ export function CreatorStudio({ onBack }) {
       {error && <p role="alert" style={{color:'#ffb8ae'}}>{error}</p>}
       {notice && <p role="status" style={{color:'#7eeddf',marginBottom:14}}>{notice}</p>}
       {billing?.available && !isNativeApp && <section style={card}>
-        <h2>Receber subscrições</h2>
+        <h2>Configurar recebimentos</h2>
         <p style={{...muted,fontSize:14,marginTop:10}}>A verificação de identidade e dos dados de pagamento é feita de forma segura pela Stripe.</p>
         {!billing.account?.linked && <button disabled={busy} style={{...button,marginTop:18}} onClick={() => void submit(async () => { const response = await api.creators.billingOnboard(); if (!response?.url || new URL(response.url).protocol !== 'https:' || !new URL(response.url).hostname.endsWith('.stripe.com')) throw new Error('Ligação segura de onboarding indisponível'); window.location.assign(response.url); })}>Configurar pagamentos</button>}
-        {billing.account?.linked && <><p style={{...muted,marginTop:12}}>Conta Stripe associada. {(billing.account.transfersEnabled ?? billing.account.chargesEnabled) && billing.account.payoutsEnabled && billing.account.detailsSubmitted ? 'Verificação concluída.' : 'Verificação ainda por concluir.'}</p>
+        {billing.account?.linked && <><p style={{...muted,marginTop:12}}>Conta Stripe associada. {(billing.account.transfersEnabled ?? billing.account.chargesEnabled) && billing.account.payoutsEnabled && billing.account.detailsSubmitted ? 'Recebimentos verificados. Isto não ativa automaticamente as subscrições pagas.' : 'Verificação de recebimentos ainda por concluir.'}</p>
           <button disabled={busy} style={{...button,marginTop:12,marginRight:10}} onClick={() => void submit(() => api.creators.billingRefresh())}>Atualizar verificação</button>
           {(!(billing.account.transfersEnabled ?? billing.account.chargesEnabled) || !billing.account.payoutsEnabled || !billing.account.detailsSubmitted) && <button disabled={busy} style={{...button,marginTop:12}} onClick={() => void submit(async () => { const response = await api.creators.billingOnboard(); if (!response?.url || new URL(response.url).protocol !== 'https:' || !new URL(response.url).hostname.endsWith('.stripe.com')) throw new Error('Ligação segura de onboarding indisponível'); window.location.assign(response.url); })}>Concluir dados na Stripe</button>}
         </>}
-        {!billing.enabled && <p style={{...muted,fontSize:13,marginTop:12}}>O lançamento comercial depende dos testes finais de faturação e segurança.</p>}
+        {!billing.enabled && <p style={{...muted,fontSize:13,marginTop:12}}>As subscrições pagas ainda estão desativadas. Podes preparar planos e conteúdos, mas a verificação Stripe não significa que os membros já possam pagar ou aceder.</p>}
       </section>}
       {subscriptions.length > 0 && !isNativeApp && <section style={card}>
         <h2>As minhas subscrições</h2>
@@ -74,6 +74,8 @@ export function CreatorStudio({ onBack }) {
           window.location.assign(result.url);
         })}>Gerir pagamentos e cancelar</button>
       </section>}
+      {!billing && !isNativeApp && <p role="status" style={{...muted,fontSize:13}}>Não foi possível confirmar o estado dos pagamentos. Não anuncies subscrições como disponíveis antes da confirmação.</p>}
+      {isNativeApp && <p role="status" style={{...muted,fontSize:13}}>As compras digitais não estão disponíveis nesta versão móvel. Podes preparar o teu conteúdo, sem efetuar cobranças.</p>}
       <section style={card}>
         <h2>Planos de comunidade</h2>
         <p style={{...muted,fontSize:14,margin:'10px 0 18px'}}>Define o valor e a periodicidade da tua comunidade. A ativação das subscrições depende da verificação de pagamentos e segurança.</p>
@@ -83,6 +85,7 @@ export function CreatorStudio({ onBack }) {
           <label style={labelStyle}>Periodicidade<select value={period} onChange={e=>setPeriod(e.target.value)} style={field}><option value="month">Mensal</option><option value="year">Anual</option></select></label>
           <button disabled={busy} style={{...button,marginTop:20,opacity:busy ? 0.6 : 1}}>Guardar plano</button>
         </form>
+        {plans.length === 0 && <p style={muted}>Ainda não criaste planos. Começa por definir um nome e um preço; guardar não inicia cobranças.</p>}
         {plans.map(p=><div key={p.id} style={{padding:'12px 0',borderTop:'1px solid #9993',marginTop:12}}><strong>{p.title}</strong> · {(p.price_cents/100).toFixed(2)} €/{p.billing_period==='month'?'mês':'ano'} <small style={{color:'#b6c6da'}}>({p.status==='draft'?'em configuração':p.status==='published'?'publicado':'arquivado'})</small>{billing?.enabled && (billing.account?.transfersEnabled ?? billing.account?.chargesEnabled) && billing.account?.payoutsEnabled && billing.account?.detailsSubmitted && p.status==='draft' && !isNativeApp && <button type="button" disabled={busy} style={{...button,display:'block',marginTop:10}} onClick={() => void submit(() => api.creators.publishPlan(p.id))}>Publicar plano</button>}</div>)}
       </section>
       <section style={card}>
@@ -92,9 +95,10 @@ export function CreatorStudio({ onBack }) {
           <label style={labelStyle}>Mensagem<textarea value={body} maxLength={10000} rows={5} onChange={e=>setBody(e.target.value)} style={field}/></label>
           <button disabled={busy} style={{...button,marginTop:20,opacity:busy ? 0.6 : 1}}>Guardar conteúdo</button>
         </form>
+        {content.length === 0 && <p style={muted}>Ainda não tens conteúdos. Guarda o teu primeiro texto exclusivo para preparar a comunidade.</p>}
         {content.map(item=><article key={item.id} style={{padding:'14px 0',borderTop:'1px solid #9993',marginTop:12}}>
           <strong>{item.title}</strong><p style={{whiteSpace:'pre-wrap'}}>{item.body}</p>
-          <small style={muted}>{item.status==='published'?'Conteúdo preparado para membros':'Em configuração'}</small>
+          <small style={muted}>{item.status==='published'?(billing?.enabled?'Conteúdo disponível apenas a membros com subscrição ativa':'Conteúdo preparado — ainda sem acesso por subscrição paga'):'Em configuração'}</small>
           {item.status==='draft' && <div><button disabled={busy} style={{...button,marginTop:10}} onClick={()=>void submit(()=>api.creators.publishContent(item.id))}>Preparar conteúdo para membros</button></div>}
         </article>)}
       </section>

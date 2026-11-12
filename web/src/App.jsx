@@ -8,6 +8,7 @@ import { CallOverlay } from './components/calls/CallOverlay.jsx';
 import { GroupCallOverlay } from './components/calls/GroupCallOverlay.jsx';
 import { GroupCallHub } from './components/calls/GroupCallHub.jsx';
 import { Entrada } from './screens/Entrada.jsx';
+import { Legal } from './screens/Legal.jsx';
 import { ResetPassword } from './screens/ResetPassword.jsx';
 import { Abertura } from './screens/Abertura.jsx';
 import { useFeed } from './hooks/useFeed.js';
@@ -39,7 +40,7 @@ const LiveViewer = namedLazy(() => import('./screens/LiveViewer.jsx'), 'LiveView
 const LuminaOne = namedLazy(() => import('./screens/LuminaOne.jsx'), 'LuminaOne');
 const Seguranca = namedLazy(() => import('./Seguranca.jsx'), 'Seguranca');
 const Moderacao = namedLazy(() => import('./Seguranca.jsx'), 'Moderacao');
-const Legal = namedLazy(() => import('./screens/Legal.jsx'), 'Legal');
+
 
 const initialTab = () => {
   const requested = new URLSearchParams(window.location.search).get('tab');

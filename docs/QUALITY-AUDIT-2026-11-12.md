@@ -7,9 +7,9 @@
 - Plataforma principal: Vercel (web), Railway (API e PostgreSQL); repositório `crilimcf/lumina`.
 - Stripe DigiBox é a conta autorizada, mas **não** se podem alterar webhooks nem pagamentos de outros projetos.
 - Comissão acordada para Lumina Creators: **10%**; qualquer modificação de taxa requer revisão.
-- Onboarding Connect Accounts v2 e verificações de criador foram concluídas anteriormente; isto **não equivale** a cobranças públicas, acessos pagos ou payout fim-a-fim validados.
-- Foram executados testes Stripe isolados em sandbox e verificado um backup PostgreSQL externo (10/11). **Isso não substitui uma restauração testada nem prova recuperação automática.**
-- Não efetuar compras reais, ativar flags de faturação, trocar chaves, alterar volume, remover dados ou introduzir novos tratamentos de dados de saúde como parte desta auditoria.
+- Onboarding Connect Accounts v2 e verificação de criador foram concluídos. No histórico de 10/11, a ativação das flags de cobrança real foi comunicada após os testes; a plataforma não registava ainda nenhuma subscrição paga real da Lumina. O estado atual das flags não foi lido neste trabalho, logo não deve ser descrito como ligado ou desligado sem confirmação.
+- Em sandbox (10/11) foram validados uma subscrição de 4,99 €, comissão de 10% (~0,50 €), transferência, cancelamento, reembolso/reversões e entrega de webhooks. API, web, Safari, Android e iOS passaram nos workflows da data. O percurso de compra real integrado na app **não foi confirmado** e o utilizador não deseja criar outra conta. Um backup PostgreSQL externo foi verificado em 10/11, mas não foi executado restauro nesta auditoria.
+- Não efetuar compras reais, alternar flags de faturação (nem ativar nem desativar), trocar chaves, alterar volume, remover dados, criar contas de produção ou introduzir novos tratamentos de dados de saúde como parte desta auditoria.
 - Evitar a cor laranja na UI; preservar identidade e fluxo mobile-first.
 
 ## 1. Releases fiáveis — P0
@@ -28,17 +28,17 @@
 
 ## 2. Creators e pagamentos — P0
 
-**Observado:** código de Connect v2, onboarding, checkout, webhook e controlo de acessos pagos existe. A conta de criador verificada não comprova por si só checkout, imposto, renovação, cancelamento, reembolso e pagamento ao criador. Flags de ambiente foram vistas **por nome**, sem leitura dos valores; não inferir que a cobrança está ativa.
+**Observado:** código de Connect v2, onboarding, checkout, webhook e controlo de acessos pagos existe. A conta de criador verificada e os testes sandbox de 10/11 não comprovam por si só uma compra real pela interface. Segundo o histórico, a cobrança real foi ativada em 10/11, mas a consulta Stripe DigiBox de 12/11 (apenas leitura) não encontrou subscrições nem transferências reais, pelo que falta comprovar a compra real fim-a-fim. Flags de ambiente foram vistas **por nome**, sem leitura dos valores; não inferir o estado efetivo atual.
 
 **Feito neste ramo:** mensagens do Creator Studio passam a distinguir verificação Stripe de acesso pago, incluem estados vazios e esclarecem restrições no iOS/Android.
 
 **Condição de aceitação:**
 
 - Conferir estado real das flags por via autorizada, sem imprimir segredos.
-- Validar com ambiente isolado: compra, webhook assinado/idempotente, ativação de membro, cancelamento, reembolso, disputa, renovação, rejeição de pagamento, e nenhum desbloqueio sem subscription ativa.
+- Reutilizar os testes sandbox existentes de 10/11 para compra, transferência, comissão, cancelamento, reembolso/reversões e webhooks; não os repetir sem necessidade. Cobrir apenas lacunas efetivas com testes isolados: percurso completo da app, estados de erro, acessos pagos e regressões não demonstradas.
 - Conservar os webhooks DigiBox e dos outros projetos.
 - Avaliar App Store / Play Billing para bens digitais em app nativa.
-- Só após validação e decisão explícita de lançamento ativar pagamentos reais.
+- Não alterar o estado dos pagamentos reais nesta PR. Antes de um novo lançamento comercial, verificar flags reais, licenciamento, e compra ponta-a-ponta sem criar outra conta nem cobrar indevidamente.
 
 ## 3. Experiência e simplicidade — P1
 

@@ -113,6 +113,39 @@ reportRoutes.get('/database-health', auth, h(async (req, res) => {
   });
 }));
 
+/**
+ * First-party product health snapshot, without user-level event tracking.
+ * Aggregate existing records only; no IPs, message bodies, emails or user IDs.
+ * These figures measure activity, NOT retention or unique active users.
+ */
+reportRoutes.get('/product-health', auth, h(async (req, res) => {
+  if (!req.user.is_staff) throw forbidden('Apenas a equipa Lumina pode consultar métricas de produto');
+  const [users, newUsers, posts, rooms, moments, creators, memberships] = await Promise.all([
+    q("SELECT count(*)::int AS n FROM users WHERE suspended_at IS NULL"),
+    q("SELECT count(*)::int AS n FROM users WHERE suspended_at IS NULL AND created_at >= now() - interval '7 days'"),
+    q("SELECT count(*)::int AS n FROM posts WHERE hidden_at IS NULL AND kind='post' AND created_at >= now() - interval '7 days'"),
+    q("SELECT count(*)::int AS n FROM rooms WHERE billing_state='active' AND created_at >= now() - interval '7 days'"),
+    q("SELECT count(*)::int AS n FROM moments WHERE created_at >= now() - interval '7 days'"),
+    q("SELECT count(*)::int AS n FROM creator_plans WHERE status='published'"),
+    q("SELECT count(*)::int AS n FROM creator_memberships WHERE status='active' AND current_period_end > now() AND provider_subscription_id IS NOT NULL"),
+  ]);
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.json({
+    measuredAt: new Date().toISOString(),
+    windowDays: 7,
+    counts: {
+      registeredUsers: users.rows[0].n,
+      newUsers: newUsers.rows[0].n,
+      posts: posts.rows[0].n,
+      rooms: rooms.rows[0].n,
+      moments: moments.rows[0].n,
+      publishedCreatorPlans: creators.rows[0].n,
+      activePaidMemberships: memberships.rows[0].n,
+    },
+    note: 'Contagens agregadas de registos existentes. Não representam utilizadores ativos, retenção, receita ou pagamentos verificados em tempo real.',
+  });
+}));
+
 reportRoutes.get('/errors', auth, h(async (req, res) => {
   if (!req.user.is_staff) throw forbidden('Apenas a equipa Lumina pode consultar diagnósticos');
   const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));

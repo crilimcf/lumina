@@ -21,6 +21,7 @@ export function CreatorStudio({ onBack }) {
   const [unavailable,setUnavailable] = useState(false);
   const [notice,setNotice] = useState('');
   const [billing,setBilling] = useState(null);
+  const [billingLoaded,setBillingLoaded] = useState(false);
   const [subscriptions,setSubscriptions] = useState([]);
 
   const load = async () => {
@@ -34,6 +35,8 @@ export function CreatorStudio({ onBack }) {
     } catch (e) {
       if (e.code === 'feature_off' || e.status === 404) setUnavailable(true);
       else setError(e.message);
+    } finally {
+      setBillingLoaded(true);
     }
   };
   useEffect(() => { void load(); }, []);
@@ -74,7 +77,7 @@ export function CreatorStudio({ onBack }) {
           window.location.assign(result.url);
         })}>Gerir pagamentos e cancelar</button>
       </section>}
-      {!billing && !isNativeApp && <p role="status" style={{...muted,fontSize:13}}>Não foi possível confirmar o estado dos pagamentos. Não anuncies subscrições como disponíveis antes da confirmação.</p>}
+      {!billing && billingLoaded && !isNativeApp && <p role="status" style={{...muted,fontSize:13}}>Não foi possível confirmar o estado dos pagamentos. Não anuncies subscrições como disponíveis antes da confirmação.</p>}
       {isNativeApp && <p role="status" style={{...muted,fontSize:13}}>As compras digitais não estão disponíveis nesta versão móvel. Podes preparar o teu conteúdo, sem efetuar cobranças.</p>}
       <section style={card}>
         <h2>Planos de comunidade</h2>

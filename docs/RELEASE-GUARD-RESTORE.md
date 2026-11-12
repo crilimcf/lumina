@@ -37,7 +37,7 @@ Em Railway, abrir serviço **api → Settings → Source → Wait for CI** e ati
 - A web devolve HTML com `id="root"`
 - `GET /api/reports/product-health` sem sessão devolve **401**; nunca revelar indicadores internos.
 
-A GitHub Action corre a cada seis horas e pode ser iniciada **manualmente após cada release** em Actions → Production smoke → Run workflow. Não é disparada por `push` ou `workflow_run`, para impedir um ciclo em que Railway Wait for CI aguardaria por um smoke test que depende do próprio deployment. **Deteta** incidentes, mas **não bloqueia** um deployment por si só. Os bloqueios são GitHub branch protection e Railway Wait for CI.
+A GitHub Action corre a cada seis horas, pode ser iniciada **manualmente após cada release** em Actions → Production smoke → Run workflow e corre nesta PR ao alterar a própria workflow para validar os endpoints públicos. Não é disparada por `push` ou `workflow_run`, para impedir um ciclo em que Railway Wait for CI aguardaria por um smoke test que depende do próprio deployment. **Deteta** incidentes, mas **não bloqueia** um deployment por si só. Os bloqueios são GitHub branch protection e Railway Wait for CI.
 
 ## D) Restaurar backup local sem tocar em produção
 

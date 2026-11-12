@@ -1,0 +1,63 @@
+name: Offline restore drill
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/rehearse-postgres-restore.sh'
+      - '.github/workflows/offline-restore-drill.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'scripts/rehearse-postgres-restore.sh'
+      - '.github/workflows/offline-restore-drill.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-backup:
+    name: Offline restore fixture
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create a tiny disposable PostgreSQL 18 custom-format fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --rm --network none --name lumina-fixture-db \
+            -e POSTGRES_PASSWORD=fixture-only postgres:18 >/dev/null
+          trap 'docker rm -f lumina-fixture-db >/dev/null 2>&1 || true' EXIT
+
+          # Avoid pg_isready's false-positive on the temporary bootstrap server.
+          ready=0
+          for i in {1..90}; do
+            if docker logs lumina-fixture-db 2>&1 | grep -Fq 'PostgreSQL init process complete; ready for start up.' \
+               && docker exec lumina-fixture-db pg_isready -U postgres >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [[ "$ready" != "1" ]]; then
+            echo "::error::PostgreSQL fixture never completed initialization"
+            docker logs lumina-fixture-db 2>&1 | tail -35
+            exit 1
+          fi
+          docker exec -i lumina-fixture-db psql -U postgres -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE TABLE public.users (id integer PRIMARY KEY);
+          CREATE TABLE public.posts (id integer PRIMARY KEY);
+          CREATE TABLE public.creator_plans (id integer PRIMARY KEY);
+          INSERT INTO public.users VALUES (1);
+          SQL
+          docker exec lumina-fixture-db pg_dump -U postgres -Fc postgres > "$RUNNER_TEMP/synthetic-custom.dump"
+          [[ "$(head -c 5 "$RUNNER_TEMP/synthetic-custom.dump")" = "PGDMP" ]]
+          bash scripts/rehearse-postgres-restore.sh "$RUNNER_TEMP/synthetic-custom.dump"
+
+          # The script must refuse non-PGDMP files without attempting a restore.
+          printf 'not a database' > "$RUNNER_TEMP/invalid.dump"
+          if bash scripts/rehearse-postgres-restore.sh "$RUNNER_TEMP/invalid.dump"; then
+            echo "::error::Invalid archive was accepted" >&2
+            exit 1
+          fi

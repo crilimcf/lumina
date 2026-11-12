@@ -1,9 +1,11 @@
 name: Production smoke
 
-# Read-only checks, scheduled and manually triggerable after releases.
-# Do not run on push/workflow_run: Railway Wait for CI must not wait on a
-# smoke workflow that itself might wait for the new deployment.
+# Read-only checks on PRs, on schedule and manually after production releases.
+# Deliberately not triggered by push/workflow_run, avoiding a Railway Wait-for-CI cycle.
 on:
+  pull_request:
+    paths:
+      - '.github/workflows/production-smoke.yml'
   schedule:
     - cron: '17 */6 * * *'
   workflow_dispatch:

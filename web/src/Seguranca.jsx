@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Shield, Smartphone, Check, X, Flag, Trash2, RotateCcw, Fingerprint } from 'lucide-react';
 import { api } from './api.js';
 import { ErrorNote, Empty, Skeleton } from './ui.jsx';
-import { language, locale } from './i18n.js';
+import { locale } from './i18n.js';
 import {
   disableNativeBiometric,
   enableNativeBiometric,
@@ -95,19 +95,4 @@ export function Moderacao({ onBack, ping }) {
     </section>
     {loading?<Skeleton h={90}/>:queue.length===0?<Empty>Nada por decidir. Bom sinal.</Empty>:<div style={{ display:'grid',gap:12 }}>{queue.map(r=><div key={r.id} className="card in" style={{ padding:17 }}><div style={{ display:'flex',alignItems:'center',gap:8,marginBottom:10 }}><Flag size={14} color="var(--coral)"/><span className="m" style={{ color:'var(--coral)' }}>{r.total} {r.total===1?'denúncia':'denúncias'} · {r.reason}</span><span className="m" style={{ marginLeft:'auto' }}>{r.target_type}</span></div><p style={{ fontSize:15,lineHeight:1.45,marginBottom:8,color:'#332E4E' }}>{r.content||<i style={{ color:'var(--grey)' }}>conteúdo já removido</i>}</p>{r.note&&<p style={{ fontSize:13,color:'var(--grey)',marginBottom:12 }}>Nota: {r.note}</p>}<div style={{ display:'flex',gap:9,marginTop:14 }}><button className="p p-sm" style={{ flex:1 }} onClick={()=>decide(r.id,'mantido')}><Check size={13} style={{ verticalAlign:-2,marginRight:5 }}/>Repor</button><button className="p p-sm p-cr" style={{ flex:1 }} onClick={()=>decide(r.id,'removido')}><X size={13} style={{ verticalAlign:-2,marginRight:5 }}/>Remover</button></div></div>)}</div>}
   </div></div>;
-}
-
-export function Legal({ page, onBack }) {
-  const [text, setText] = useState(null);
-  useEffect(() => {
-    let alive = true;
-    setText(null);
-    const suffix = language === 'pt' ? '' : `.${language}`;
-    fetch(`/legal/${page}${suffix}.md`)
-      .then(r => r.ok ? r.text() : null)
-      .then(value => { if (alive) setText(value); })
-      .catch(() => { if (alive) setText(null); });
-    return () => { alive = false; };
-  }, [page]);
-  return <div style={{ minHeight:'100dvh',background:'var(--paper)' }}><div style={{ maxWidth:640,margin:'0 auto',padding:20 }}><button className="p" onClick={onBack} aria-label="Voltar" style={{ padding:10,marginBottom:22 }}><ArrowLeft size={16}/></button>{text===null?<Empty>Não foi possível carregar. Escreve para o contacto de apoio.</Empty>:<pre data-i18n-ignore="true" style={{ whiteSpace:'pre-wrap',fontFamily:'inherit',fontSize:15,lineHeight:1.6 }}>{text}</pre>}</div></div>;
 }

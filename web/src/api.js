@@ -224,6 +224,7 @@ export const api = {
   },
   moderation: {
     queue: () => call('/reports/queue'),
+    productHealth: () => call('/reports/product-health'),
     resolve: (id, resolution) => call(`/reports/${id}/resolve`, { method: 'POST', body: { resolution } }),
   },
   users: {

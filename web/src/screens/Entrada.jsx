@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { api } from '../api.js';
 import { ErrorNote } from '../ui.jsx';
-import { Legal } from '../Seguranca.jsx';
+import { Legal } from './Legal.jsx';
 import { t, readLanguagePreference, saveLanguagePreference } from '../i18n.js';
 import { t as uiT } from '../i18n-ui.js';
 

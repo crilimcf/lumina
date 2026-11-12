@@ -9,7 +9,7 @@ Nunca anexar dumps PostgreSQL, chaves ou tokens a commits, Issues, logs CI ou se
 - PostgreSQL: volume redimensionado de 500 MB para **5 GB** em 10/11. Utilização em 12/11 ~**0,68 GB (13,6%)**; sem indícios de esgotamento.
 - O Railway continua a expor `warningCount: 1` no serviço Postgres sem diagnóstico detalhado. **Não** assumir que é um aviso atual de capacidade.
 - O dump externo `lumina-backup-20261110.dump` foi transferido em 10/11, com SHA-256 local/remoto coincidente. Um checksum igual **não** prova restauro.
-- A password de produção não será modificada sem nova decisão do proprietário.
+- Gestão de credenciais e acessos de produção deve ser tratada num processo privado e aprovado, fora desta revisão.
 - Não criar contas de produção nem fazer compras reais para concluir esta auditoria.
 
 ## A) Proteção GitHub — por ativar nas Settings
@@ -63,6 +63,6 @@ O script usa PostgreSQL 18, valida `PGDMP`, repõe os dados num container Docker
 
 - Validar experiências autenticadas com contas isoladas de QA, incluindo erros de conectividade, acessibilidade e dispositivos reais.
 - Investigar o aviso residual PostgreSQL no painel Railway, sem mexer no volume que está saudável.
-- Rever segurança de credenciais anteriormente expostas e a necessidade de rotação em janela autorizada.
+- Rever periodicamente credenciais e permissões fora do repositório público, sem publicar detalhes operacionais sensíveis.
 - Conservar Stripe DigiBox, comissão de **10%**, webhooks e onboarding Connect já realizados.
 - Não introduzir funcionalidades de saúde/IA médica.

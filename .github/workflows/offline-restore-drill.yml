@@ -30,10 +30,21 @@ jobs:
             -e POSTGRES_PASSWORD=fixture-only postgres:18 >/dev/null
           trap 'docker rm -f lumina-fixture-db >/dev/null 2>&1 || true' EXIT
 
-          for i in {1..60}; do
-            if docker exec lumina-fixture-db pg_isready -U postgres >/dev/null 2>&1; then break; fi
+          # Avoid pg_isready's false-positive on the temporary bootstrap server.
+          ready=0
+          for i in {1..90}; do
+            if docker logs lumina-fixture-db 2>&1 | grep -Fq 'PostgreSQL init process complete; ready for start up.' \
+               && docker exec lumina-fixture-db pg_isready -U postgres >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
             sleep 1
           done
+          if [[ "$ready" != "1" ]]; then
+            echo "::error::PostgreSQL fixture never completed initialization"
+            docker logs lumina-fixture-db 2>&1 | tail -35
+            exit 1
+          fi
           docker exec -i lumina-fixture-db psql -U postgres -v ON_ERROR_STOP=1 <<'SQL'
           CREATE TABLE public.users (id integer PRIMARY KEY);
           CREATE TABLE public.posts (id integer PRIMARY KEY);

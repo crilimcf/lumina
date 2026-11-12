@@ -1,12 +1,9 @@
 name: Production smoke
 
-# Read-only checks. Runs after CI on master and every six hours.
-# Not a deployment gate: enforce branch protection and Railway Wait for CI separately.
+# Read-only checks, scheduled and manually triggerable after releases.
+# Do not run on push/workflow_run: Railway Wait for CI must not wait on a
+# smoke workflow that itself might wait for the new deployment.
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
-    branches: [master]
   schedule:
     - cron: '17 */6 * * *'
   workflow_dispatch:
@@ -21,7 +18,6 @@ concurrency:
 jobs:
   verify:
     name: Public endpoints and privacy
-    if: ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == 'crilimcf/lumina') }}
     runs-on: ubuntu-latest
     timeout-minutes: 9
     steps:
@@ -36,7 +32,7 @@ jobs:
           web_body="$(mktemp)"
           trap 'rm -f "$api_body" "$web_body"' EXIT
 
-          # Railpack builds and the GitHub CI can finish in either order.
+          # Public endpoints may briefly be unavailable during routine releases.
           # Never send credentials, mutate data or create test accounts in production.
           success=0
           for attempt in {1..18}; do
